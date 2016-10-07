@@ -1,0 +1,28 @@
+function ov = cm3_bivariate_mapparams(iv,options) 
+
+%if ~exist('options','var'), options = struct(); end
+
+ngm = options.ngm;
+
+if isstruct(iv)
+  ov = [];
+  if ~isfield(options,'sig01'), ov = cat(2,ov,exp_amd(iv.sig01,0)); end
+  if ~isfield(options,'sig02'), ov = cat(2,ov,exp_amd(iv.sig02,0)); end
+  if ~isfield(options,'rho0'), ov = cat(2,ov,erf_amd(iv.rho0,0)); end
+  if ~isfield(options,'pivec'), ov = cat(2,ov,logit_amd(iv.pivec,0)); end
+  if ~isfield(options,'sig1vec'), ov = cat(2,ov,exp_amd(iv.sig1vec,0)); end
+  if ~isfield(options,'sig2vec'), ov = cat(2,ov,exp_amd(iv.sig2vec,0)); end
+  if ~isfield(options,'rhovec'), ov = cat(2,ov,erf_amd(iv.rhovec,0)); end
+else
+  ov = struct(); cnti = 1;
+  if isfield(options,'sig01'), ov.sig01=options.sig01; else ov.sig01=exp_amd(iv(cnti),1); cnti=cnti+1; end
+  if isfield(options,'sig02'), ov.sig02=options.sig02; else ov.sig02=exp_amd(iv(cnti),1); cnti=cnti+1; end
+  if isfield(options,'rho0'), ov.rho0=options.rho0; else ov.rho0=erf_amd(iv(cnti),1); cnti=cnti+1; end
+  if isfield(options,'pivec'), ov.pivec=options.pivec; else ov.pivec=logit_amd(iv(cnti-1+[1:ngm]),1); cnti=cnti+ngm; end
+  if isfield(options,'sig1vec'), ov.sig1vec=options.sig1vec; else ov.sig1vec=exp_amd(iv(cnti-1+[1:ngm]),1); cnti=cnti+ngm; end
+  if isfield(options,'sig2vec'), ov.sig2vec=options.sig2vec; else ov.sig2vec=exp_amd(iv(cnti-1+[1:ngm]),1); cnti=cnti+ngm; end
+  if isfield(options,'rhovec'), ov.rhovec=options.rhovec; else ov.rhovec=erf_amd(iv(cnti-1+[1:ngm]),1); cnti=cnti+ngm; end
+end
+
+% ToDo
+%   Allow for specification per Gaussian mixture component which traits it includes (1, 2, or both)

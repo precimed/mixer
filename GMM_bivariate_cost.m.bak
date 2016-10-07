@@ -1,0 +1,50 @@
+function [cost fitstruct] = GMM_bivariate_cost(x,zmat,Hvec,Lvec,imat_prune,options)
+
+if ~exist('options','var'), options = struct(); end
+
+x_struct = GMM_bivariate_mapparams(x,options);
+
+v2struct(x_struct);
+
+nsnp = size(zmat,1);
+nprune = size(imat_prune,2);
+
+C0 = [sig01^2 sig01*sig02*rho0; sig01*sig02*rho0 sig02^2];
+C1 = [sigb1^2 0; 0 0];
+C2 = [0 0; 0 sigb2^2];
+C3 = [sigb1^2 sigb1*sigb2*rhob; sigb1*sigb2*rhob sigb2^2];
+
+pi0effvec = (pi0).^Lvec;
+cost = 0;
+for prunei = 1:nprune
+  if pi1 < 1 & pi2 < 1 & pi3 < 1
+    pi0effvec_tmp = pi0effvec(imat_prune(:,prunei));
+    pi1effvec_tmp = (1-pi0effvec_tmp)*pi1/(pi1+pi2+pi3);
+    pi2effvec_tmp = (1-pi0effvec_tmp)*pi2/(pi1+pi2+pi3);
+    pi3effvec_tmp = (1-pi0effvec_tmp)*pi3/(pi1+pi2+pi3);
+    Hmat_tmp = repmat(reshape(Hvec(imat_prune(:,prunei)),[1 1 length(pi0effvec_tmp)]),[2 2 1]); 
+    pvec_tmp = pi0effvec_tmp.*mvnpdf(zmat(imat_prune(:,prunei),:),0,C0)+...
+               pi1effvec_tmp.*mvnpdf_amd(zmat(imat_prune(:,prunei),:),0,repmat(C0,[1 1 length(pi0effvec_tmp)])+Hmat_tmp.*repmat(C1,[1 1 length(pi0effvec_tmp)]))+...
+               pi2effvec_tmp.*mvnpdf_amd(zmat(imat_prune(:,prunei),:),0,repmat(C0,[1 1 length(pi0effvec_tmp)])+Hmat_tmp.*repmat(C2,[1 1 length(pi0effvec_tmp)]))+...
+               pi3effvec_tmp.*mvnpdf_amd(zmat(imat_prune(:,prunei),:),0,repmat(C0,[1 1 length(pi0effvec_tmp)])+Hmat_tmp.*repmat(C3,[1 1 length(pi0effvec_tmp)])); % Need a much faster version of this! Use closed-form expession for matrix inverse?
+  else
+    fprintf('Not implemented yet!\n');
+    keyboard
+  end
+  cost = cost + sum(-log(pvec_tmp));
+end
+
+if nargout==1, return; end
+
+fitstruct = struct();
+
+% Add code to plot fit
+
+% ToDo
+%   Compute predicted and observed bivariate histograms of z-scores, overall and by H-bin, and L-bin
+%   Compute predicted and observed conditional expectancy of z-scores (from bivariate distribution)
+%   Check w. Dominic / Chun re: up-to-date LDmat & TLD (L)
+%   Extend to using RES, rather than TLD
+%   Exclude MHC from fitting & pruning
+%   Restrict range of TLD (L) in fitting
+%   Allow for at least two causal SNPs in LD

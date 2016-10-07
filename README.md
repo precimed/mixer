@@ -1,0 +1,2 @@
+# GMM
+Bivariate mixture model

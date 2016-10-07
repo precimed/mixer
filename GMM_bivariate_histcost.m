@@ -138,6 +138,8 @@ if exist('zmat','var')
   [pvecs_post dvecs_post] = GMM_bivariate_lookup(fitstruct,params,options,zmat,TLDvec,Hvec);
 end
 
+return
+
 % ToDo
 %   Separate out computation of lookup tables based on modified Neff1 and Neff2
 

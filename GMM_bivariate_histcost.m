@@ -1,11 +1,16 @@
 function [cost fitstruct pvecs_post dvecs_post] = GMM_bivariate_histcost(x,sumstats,params,options,plotflag,zmat,TLDvec,Hvec)
 
+% stupid things to print progress when found better cost
+persistent last_time min_cost
+if isempty(last_time), last_time = now-1; end;
+if isempty(min_cost) || ((now - last_time) > 3/86400), min_cost = Inf(1,5); end;
+last_time = now;
+    
 if ~exist('plotflag','var'), plotflag = false; end
 
 ngm = options.ngm;
 
 x_struct = GMM_bivariate_mapparams(x,options);
-
 v2struct(x_struct);
 
 nrep = size(sumstats,2); ni = nrep;
@@ -92,6 +97,13 @@ for i = 1:ni
       end
     end
   end
+end
+
+if (cost < max(min_cost))
+    s = sprintf('cost=%.4f, %s', cost, GMM_bivariate_show_struct(x_struct));
+    if (cost < min(min_cost)), s = sprintf('%s *****', s); end;
+    fprintf('%s\n', s);
+    min_cost(find(min_cost > cost, 1)) = cost;
 end
 
 if nargout==1, return; end

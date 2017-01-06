@@ -1,7 +1,7 @@
 function [x_fit cost] = fminsearch_stochastic(costfun, x0, options)
 
 if ~exist('options','var'), options = struct(); end
-niter = getfielddefault(options,'niter',1000);
+niter = getfielddefault(options,'MaxIter',1000);
 randscale = getfielddefault(options,'randscale',0.1);
 
 x_fit = x0;
@@ -13,7 +13,7 @@ for iter = 0:niter
   if cost<mincost
     mincost = cost;
     x_fit = x;
-    fprintf(1,'*** iter=%d of %d: cost=%f\n',iter,niter,cost);
+    %fprintf(1,'*** iter=%d of %d: cost=%f\n',iter,niter,cost);
   end
 end
 

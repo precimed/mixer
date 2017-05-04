@@ -1,14 +1,9 @@
-function resultStruct = GMM_univariate_fit(zvec,Hvec,Lvec,imat_prune,options,x0,fignumoffset,bini)
+function resultStruct = GMM_univariate_fit(zvec,Hvec,Lvec,imat_prune,options,x0)
 
 if ~exist('options','var'), options = []; end
 if ~exist('x0','var') | isempty(x0)
-  x0 = GMM_univariate_mapparams(struct('pi1',0.001,'sig0',1.0,'sigb',5e-3),options); % Initial parameter guess
-%  x0 = GMM_univariate_mapparams(struct('pi1',0.001,'sig0',1.0,'sigb',1.1),options); % Initial parameter guess
-%  x0 = GMM_univariate_mapparams(struct('pi1',0.0062,'sig0',1.1071,'sigb',2.1266),options); % Initial parameter guess
+  x0 = GMM_univariate_mapparams(struct('pi1',0.001,'sig0',1.0,'sigb',2),options); % Initial parameter guess -- should factor in Neff
 end
-if ~exist('fignumoffset','var'), fignumoffset = 0; end
-if ~exist('bini','var'), bini = []; end
-
 
 costfun = @(x) GMM_univariate_cost(x,zvec,Hvec,Lvec,imat_prune,options,fignumoffset,bini);
 

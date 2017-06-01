@@ -13,13 +13,11 @@ function  res = getfielddefault (inStruct, fieldname, defaultval)
     %
     % contact:      yunpeng.wng@gmail.com
     %
-    res = 0;
+    res = defaultval;
     f = fieldnames(inStruct);
     for i = 1:length(f)
         if (strcmp(f{i}, strtrim(fieldname)))
             res = getfield(inStruct, fieldname);
             return;
-        else
-            res = defaultval;
         end
     end

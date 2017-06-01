@@ -1,0 +1,202 @@
+function [cost, result] = GMM_ofrei_bivariate_observed_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options)
+    % params    - params struct with fields pivec, sigma_beta, rho_beta, sigma0, rho0
+    % mapparams - function that maps params into a vector (required to run fminsearch)
+    % zmat      - matrix SNP x 2, z scores
+    % Hvec      - vector SNP x 1, heterozigosity per SNP
+    % Nmat      - number of subjects genotyped per SNP
+    % w_ld      - LD score (total LD) per SNP, calculated across SNPs included in the template for the analysis
+    % options   - options; see the below for a full list of configurable options
+
+    % List of all configurable options
+    if ~exist('options', 'var'), options = struct(); end;
+    if ~isfield(options, 'zmax'), options.zmax = 12; end;  % throw away z scores larger than this value
+    if ~isfield(options, 'verbose'), options.verbose = false; end;  % enable or disable verbose logging
+    if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = false; end; % enable approximation that uses ref_ld
+
+    % beta_hat_std_limit and beta_hat_std_step are used in posterior effect size
+    % estimation. They express the grid to calculate posterior beta
+    % distribution before taking mean or median statistic.
+    % The values are expressed in 'normalized' form, e.g. in units of the
+    % params.sigma_beta.
+    if ~isfield(options, 'beta_hat_std_limit'), options.beta_hat_std_limit = 10; end;
+    if ~isfield(options, 'beta_hat_std_step'),  options.beta_hat_std_step  = 0.1; end;
+    if ~isfield(options, 'calculate_beta_hat'), options.calculate_beta_hat = true; end;
+    if ~isfield(options, 'calculate_global_fdr'), options.calculate_global_fdr = true; end;
+
+    if ~isstruct(params), params = mapparams(params); end;
+    % params.sigma0     - vector with 2 elements in (0, +inf]
+    % params.rho0       - scalar in [-1, 1]
+    % params.sigma_beta - vector with 2 elements in (0, +inf]
+    % params.rho_beta   - scalar in [-1, 1]
+    % params.pivec      - vector with 3 elements in [0, 1]
+
+    % Validate input params
+    if any(params.sigma0 <= 0), warning('sigma0 can not be zero'); cost = nan; return; end;
+    if any(params.sigma_beta) <= 0, warning('sigma_beta can not be zero'); cost = nan; return; end;
+    if (params.rho0 < -1) || (params.rho0 > 1), warning('rho0 must be in [-1, 1]'); end;
+    if (params.rho_beta < -1) || (params.rho_beta > 1), warning('rho_beta must be in [-1, 1]'); cost = nan; return; end;
+    if any(params.pivec < 0), warning('pivec must be from 0 to 1'); cost = nan; return; end;
+    if sum(params.pivec) > 1, warning('sum(pivec) can not exceed 1'); cost = nan; return; end;
+    if isempty(ref_ld), ref_ld = w_ld; end;
+    
+    defvec = isfinite(sum(zmat, 2) + Hvec + sum(Nmat, 2) + w_ld + ref_ld) & (Hvec > 0);
+    defvec(any(abs(zmat) > options.zmax, 2)) = false;
+    zmat = zmat(defvec, :); Hvec = Hvec(defvec); Nmat = Nmat(defvec, :); w_ld = w_ld(defvec); ref_ld = ref_ld(defvec);
+
+    sigma0_sqr = [params.sigma0(1).^2, prod(params.sigma0) * params.rho0; prod(params.sigma0) * params.rho0, params.sigma0(2).^2];
+    sbt_sqr    = [params.sigma_beta(1).^2, prod(params.sigma_beta) * params.rho_beta; prod(params.sigma_beta) * params.rho_beta, params.sigma_beta(2).^2];
+
+    pivec = repmat(params.pivec, size(Hvec)); pi0 = 1-sum(pivec, 2);
+
+    if options.use_ref_ld,
+        pi0 = pi0 .^ ref_ld;
+        pivec = pivec .* repmat((1 - pi0) ./ sum(pivec, 2), [1 3]);
+    end
+
+    % Covariance matrix [a11 a12; a12 a22]
+    a11 = sbt_sqr(1,1) * Hvec .* Nmat(:, 1);
+    a12 = sbt_sqr(1,2) * Hvec .* sqrt(Nmat(:, 1) .* Nmat(:, 2));
+    a22 = sbt_sqr(2,2) * Hvec .* Nmat(:, 2);
+    
+    % Components
+    pdf0 = pi0         .* fast_normpdf2(zmat(:, 1), zmat(:, 2),       sigma0_sqr(1,1),       sigma0_sqr(1,2),       sigma0_sqr(2,2));
+    pdf1 = pivec(:, 1) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11 + sigma0_sqr(1,1),       sigma0_sqr(1,2),       sigma0_sqr(2,2));
+    pdf2 = pivec(:, 2) .* fast_normpdf2(zmat(:, 1), zmat(:, 2),       sigma0_sqr(1,1),       sigma0_sqr(1,2), a22 + sigma0_sqr(2,2));
+    pdf3 = pivec(:, 3) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11 + sigma0_sqr(1,1), a12 + sigma0_sqr(1,2), a22 + sigma0_sqr(2,2));
+    pdf  = pdf0 + pdf1 + pdf2 + pdf3;
+    
+    % Likelihood term, weighted by inverse TLD
+    weights = 1 ./ w_ld;
+    cost = sum(weights .* -log(pdf));
+    if ~isfinite(cost), cost = NaN; end;
+
+    if nargout > 1
+        % probability density function
+        result.pdf = pdf;
+    
+        % local conditional/conjunctive fdr
+        result.condfdr_local = [pdf0 + pdf2, pdf0 + pdf1] ./ [pdf pdf];
+        result.conjfdr_local  = (pdf0 + pdf1 + pdf2) ./ pdf;
+    end
+    
+    % Global FDR (False Discovery Rate)
+    if (nargout > 1) && options.calculate_global_fdr
+        fprintf('Estimate global false discovery rates...\n');
+        snps=size(zmat, 1);
+        z_grid = -options.beta_hat_std_limit:options.beta_hat_std_step:options.beta_hat_std_limit;
+        
+        result.condfdr_global = nan(size(zmat));
+        result.conjfdr_global = nan(size(zmat, 1), 1);
+        for snpi=1:snps
+            if (mod(snpi, 1000) == 0),  fprintf('\tFinish %i SNPs out of %i\n', snpi, snps); end;
+            for condi = 1:2
+                if condi == 1, z1vec = z_grid; z2vec = repmat(zmat(snpi, 2), size(z_grid)); end;
+                if condi == 2, z2vec = z_grid; z1vec = repmat(zmat(snpi, 1), size(z_grid)); end;
+
+                % Conditional probability density functions for each component of the mixture
+                pdf0 = pi0(snpi)      .* fast_normpdf2(z1vec, z2vec,             sigma0_sqr(1,1),             sigma0_sqr(1,2),             sigma0_sqr(2,2));
+                pdf1 = pivec(snpi, 1) .* fast_normpdf2(z1vec, z2vec, a11(snpi) + sigma0_sqr(1,1),             sigma0_sqr(1,2),             sigma0_sqr(2,2));
+                pdf2 = pivec(snpi, 2) .* fast_normpdf2(z1vec, z2vec,             sigma0_sqr(1,1),             sigma0_sqr(1,2), a22(snpi) + sigma0_sqr(2,2));
+                pdf3 = pivec(snpi, 3) .* fast_normpdf2(z1vec, z2vec, a11(snpi) + sigma0_sqr(1,1), a12(snpi) + sigma0_sqr(1,2), a22(snpi) + sigma0_sqr(2,2));
+                pdf  = pdf0 + pdf1 + pdf2 + pdf3;
+                
+                % Conditional cumulated distribution functions for each component of the mixture
+                cdf0 = cumsum(pdf0) ./ sum(pdf); 
+                cdf1 = cumsum(pdf1) ./ sum(pdf);
+                cdf2 = cumsum(pdf2) ./ sum(pdf);
+                cdf3 = cumsum(pdf3) ./ sum(pdf);
+                cdf  = cdf0 + cdf1 + cdf2 + cdf3;
+
+                % Calculate CDF from the tail to avoid values dangerously close to 1.0
+                if interp1(z_grid, cdf, zmat(snpi, condi)) > 0.5
+                    cdf0 = fliplr(cumsum(fliplr(pdf0))) ./ sum(pdf); 
+                    cdf1 = fliplr(cumsum(fliplr(pdf1))) ./ sum(pdf);
+                    cdf2 = fliplr(cumsum(fliplr(pdf2))) ./ sum(pdf);
+                    cdf3 = fliplr(cumsum(fliplr(pdf3))) ./ sum(pdf);
+                    cdf  = cdf0 + cdf1 + cdf2 + cdf3;
+                end
+                
+                if condi == 1, FDR = (cdf0 + cdf2) ./ cdf; end;
+                if condi == 2, FDR = (cdf0 + cdf1) ./ cdf; end;
+                result.condfdr_global(snpi, condi) = interp1(z_grid, FDR, zmat(snpi, condi));
+            end
+        end
+        result.conjfdr_global = max(result.condfdr_global, [], 2);
+    end
+    
+    % Posterior effect size estimates
+    if (nargout > 1) && options.calculate_beta_hat
+        fprintf('Estimate posterior effect sizes...\n');
+        snps=size(zmat, 1);
+        result.beta_hat_mean = nan(size(zmat));
+        result.beta_hat_var = nan(size(zmat));
+        result.beta_hat_cov = nan(size(zmat, 1), 1);
+        result.beta_hat_median = nan(size(zmat));
+        for snpi=1:snps
+            if (mod(snpi, 1000) == 0),  fprintf('\tFinish %i SNPs out of %i\n', snpi, snps); end;
+            beta1_grid = (-options.beta_hat_std_limit:options.beta_hat_std_step:options.beta_hat_std_limit) * params.sigma_beta(1);
+            beta2_grid = (-options.beta_hat_std_limit:options.beta_hat_std_step:options.beta_hat_std_limit) * params.sigma_beta(2);
+            [x, y] = meshgrid(beta1_grid, beta2_grid);
+            middle_index = (length(beta1_grid)+1)/2;  % assume length(x) is odd
+            if (mod(length(beta1_grid), 2) ~= 1), error('length(x) must be odd'); end;
+            
+            beta1vec = normpdf(beta1_grid, 0, sqrt(sbt_sqr(1,1))); beta1vec=beta1vec/sum(beta1vec);
+            beta2vec = normpdf(beta2_grid, 0, sqrt(sbt_sqr(2,2))); beta2vec=beta2vec/sum(beta2vec);
+            beta0 = zeros(size(x)); beta0(middle_index, middle_index) = pi0(snpi);
+            beta1 = zeros(size(x)); beta1(:, middle_index) = pivec(snpi, 1) * beta1vec';
+            beta2 = zeros(size(x)); beta2(middle_index, :) = pivec(snpi, 2) * beta2vec;
+            beta3 = reshape(mvnpdf([x(:), y(:)], 0, sbt_sqr), size(x)); beta3 = pivec(snpi, 3) * beta3 / sum(beta3(:));
+            beta_prior = beta0 + beta1 + beta2 + beta3;  % imagesc(-log10(beta))
+            
+            like_func = reshape(mvnpdf(repmat(zmat(snpi, :), [numel(x), 1]), ...
+                                [x(:) .* sqrt(Nmat(snpi, 1) * Hvec(snpi)), y(:) .* sqrt(Nmat(snpi, 2) * Hvec(snpi))], ...
+                                params.sigma0), size(x));
+            beta_posterior = beta_prior .* like_func;
+            beta_posterior = beta_posterior ./ sum(beta_posterior(:));  % normalize
+            % imagesc(-log10(beta_posterior))
+
+            result.beta_hat_mean(snpi, 1) = sum(beta_posterior(:) .* x(:));  
+            result.beta_hat_mean(snpi, 2) = sum(beta_posterior(:) .* y(:));  
+            result.beta_hat_var(snpi, 1)  = sum(beta_posterior(:) .* (x(:) - result.beta_hat_mean(snpi, 1)).^2);
+            result.beta_hat_var(snpi, 2)  = sum(beta_posterior(:) .* (y(:) - result.beta_hat_mean(snpi, 2)).^2);
+            result.beta_hat_cov(snpi)      = sum(beta_posterior(:) .* (x(:) - result.beta_hat_mean(snpi, 1)) .* (y(:) - result.beta_hat_mean(snpi, 2)));
+            result.beta_hat_median(snpi, 1) = beta1_grid(find(cumsum(sum(beta_posterior, 1))>0.5, 1, 'first'));  % calc median (works as a filter for noisy observations)
+            result.beta_hat_median(snpi, 2) = beta2_grid(find(cumsum(sum(beta_posterior, 2))>0.5, 1, 'first'));  % calc median (works as a filter for noisy observations)
+        end
+    end
+    
+    % project pdf back into the original SNPs indexing (which may include undefined values)
+    if exist('result', 'var'), result = restore_original_indexing(result, defvec); end
+    
+    if options.verbose
+        fprintf('Bivariate : pi=[%s], rho_beta=%.3f, sigma_beta^2=[%s], (eff. [%s]), rho0=%.3f, sigma0^2=[%s], cost=%.3e\n', ...
+            sprintf('%.3f ', params.pivec), params.rho_beta, sprintf('%.2e ', params.sigma_beta.^2), ...
+            sprintf('%.2e ', [mean(a11),mean(a22)]), params.rho0, sprintf('%.3f ', params.sigma0.^2),cost);
+    end
+end
+
+function pdf = fast_normpdf2(x1, x2, a11, a12, a22)
+    % Calculation of log-likelihood and pdf, specific to bivariate normal
+    % distribution with zero mean. It takes into account an explicit formula
+    % for inverse 2x2 matrix, A = [a b; c d],  => A^-1 = [d -b; -c a] ./ det(A)
+    dt = a11.*a22 - a12.*a12;  % det(A)
+    log_exp = -0.5 * (a22.*x1.*x1 + a11.*x2.*x2 - 2.0*a12.*x1.*x2) ./ dt;
+    log_dt  = -0.5 * log(dt);
+    log_pi  = -1.0 * log(2*pi);
+    pdf = exp(log_pi+log_dt+log_exp);
+    % loglike = sum(log_dt + log_exp) + length(dt) * log_pi;
+end
+
+function values = restore_original_indexing(values, defvec)
+    if isstruct(values),
+        % Apply to each field of the struct
+        fn = fieldnames(values);
+        for i = 1:length(fn),
+            values.(fn{i}) = restore_original_indexing(values.(fn{i}), defvec);
+        end;
+    else
+        tmp = values;
+        values = nan(length(defvec), size(values, 2));
+        values(defvec, :) = tmp;
+    end
+end

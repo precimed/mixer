@@ -33,8 +33,8 @@ Hvec = 2 * mafvec .* (1-mafvec);
 Nvec = frame.gwassize; Nmat=Nvec;
 ref_ld = baseline_ld.annomat(:, 1);
 w_ld = eur_w_ld.annomat;
-mapparams = @GMM_ofrei_bivariate_mapparams;
-fn = @(x)GMM_ofrei_univariate_cost(x, zvec, Hvec, Nvec, ref_ld, w_ld, mapparams, struct('x_limit', 20, 'x_step', 0.1, 'convolution', true));
+mapparams = @GMM2_bivariate_mapparams;
+fn = @(x)GMM2_univariate_cost(x, zvec, Hvec, Nvec, ref_ld, w_ld, mapparams, struct('x_limit', 20, 'x_step', 0.1, 'convolution', true));
 
 
 
@@ -114,6 +114,12 @@ return;
         load(fullfile(mmil_gwas_path, 'old_25_SNPs_processed_summary/GWAS_Annot/ldmat_2m_p1.mat'));LDmat = LDr2_p1sparse;
         load(fullfile(mmil_gwas_path, 'old_25_SNPs_processed_summary/GWAS_Annot/ldmat_2m_p8.mat'));
         load('H:\NORSTORE\oleksanf\w_ld_2m.mat')
+        load('H:\NORSTORE\oleksanf\tld_hist_2m.mat')
+        
+        ref_ld = struct();
+        ref_ld.sum_r2 = annomat(:, end);
+        ref_ld.sum_r4 = tld_hist * mean(tld_bins, 2) .^ 2 .* (annomat(:, end) ./ sum(tld_hist, 2));
+        hist(ref_ld.sum_r4 ./ ref_ld.sum_r2, 25)
         %load(fullfile(mmil_gwas_path, 'old_25_SNPs_processed_summary/GWAS_Annot/ldmat_2m_p8.mat'))
     end
 
@@ -132,42 +138,76 @@ files{10} = 'H:\NORSTORE\oleksanf\SynGP_GenCorr\2m\gwaslogp_tp77b11cdb_3ea1_4c80
 for i=1:length(files), frames{i}=load(files{i}); end;
 end
 
+results={};
+for i=1:length(frames)
+%    params = struct('pivec', [0.001 0.930 0.017 ], 'rho_beta', 0.315, 'sigma_beta', sqrt([2.74e-05 1.24e-05 ]), 'rho0', 0.059, 'sigma0', sqrt([1.098 1.101 ]));
+%    [~, result] = GMM2_bivariate_cost(params, frames{i}.frame.gwaszscore, Hvec, frames{i}.frame.gwassize, w_ld, ref_ld, [], struct('verbose', true, 'calculate_beta_hat', false, 'calculate_global_fdr', false));
+        
+
+    results{i} = GMM2_fit(frames{i}.frame.gwaszscore, Hvec, frames{i}.frame.gwassize, w_ld, ref_ld, options)
+  %results{i}.first = GMM2_fit(frames{i}.frame.gwaszscore(:, 1), Hvec, frames{i}.frame.gwassize(:, 1), w_ld, ref_ld, options);
+  %results{i}.second = GMM2_fit(frames{i}.frame.gwaszscore(:, 2), Hvec, frames{i}.frame.gwassize(:, 2), w_ld, ref_ld, options);
+end
+for i=1:length(frames)
+    %p = results{i}.first.univariate{1}.params; fprintf('file=%s sigma0=%.3f sigma_beta=%.3e pi=%.3e\n', files{i}, p.sigma0, p.sigma_beta, p.pivec);
+    %p = results{i}.second.univariate{1}.params; fprintf('file=%s sigma0=%.3f sigma_beta=%.3e pi=%.3e\n', files{i}, p.sigma0, p.sigma_beta, p.pivec);
+    p = results{i}.univariate{1}.params; fprintf('file=%s sigma0=%.3f sigma_beta=%.3e pi=%.3e\n', files{i}, p.sigma0, p.sigma_beta, p.pivec);
+    p = results{i}.univariate{2}.params; fprintf('file=%s sigma0=%.3f sigma_beta=%.3e pi=%.3e\n', files{i}, p.sigma0, p.sigma_beta, p.pivec);
+    p = results{i}.bivariate.params; disp(p); %fprintf('file=%s sigma0=%.3f sigma_beta=%.3e pi=%.3e\n', files{i}, p.sigma0, p.sigma_beta, p.pivec);
+end
+
 if 0
     options = struct('verbose', true);
     z = @(logpvec, zvec) -norminv(10.^-logpvec/2).*sign(zvec);
-    Hvec = 2*mafvec .* (1-mafvec); w_ld = 1./w_ld_p1; ref_ld = annomat(:, end);
+    Hvec = 2*mafvec .* (1-mafvec); w_ld = 1./w_ld_p1; %ref_ld = annomat(:, end);
     scz = load('H:\NORSTORE\MMIL\old_25_SNPs_processed_summary\GWAS_Data\PGC5_SCZ.mat');  scz.zvec=z(scz.logpvec_pgc5_scz, scz.zvec_pgc5_scz);
     cog = load('H:\NORSTORE\MMIL\old_25_SNPs_processed_summary\GWAS_Data\COG_charge.mat');cog.zvec=z(cog.logpvec_cog, cog.zvec_cog);
     tg  = load('H:\NORSTORE\MMIL\old_25_SNPs_processed_summary\GWAS_Data\TG_2013.mat');   tg.zvec=z(tg.logpvec_tg_2013,tg.zvec_tg_2013);
     iq  = load('H:\NORSTORE\GWAS_SUMSTAT\MAT_2M\CTG_IQ_2017_2m.mat');iq.zvec=z(iq.logpvecIQ, iq.zvecIQ);
     Nmat_dummy = 50000 * ones(length(Hvec), 2);
-    figure(1); results_scz_cog = GMM_ofrei_fit_observed([scz.zvec, cog.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, options)
-    figure(2); results_scz_tg = GMM_ofrei_fit_observed([scz.zvec, tg.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, options)
-    figure(3); results_cog_tg = GMM_ofrei_fit_observed([cog.zvec, tg.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, options)
-    figure(4); results_scz_iq = GMM_ofrei_fit_observed([scz.zvec, iq.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, options)
+    figure(1); results_scz_cog = GMM2_fit([scz.zvec, cog.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, options)
+    figure(2); results_scz_tg = GMM2_fit([scz.zvec, tg.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, options)
+    figure(3); results_cog_tg = GMM2_fit([cog.zvec, tg.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, options)
+    
+    figure(4); results_scz_iq = GMM2_fit([scz.zvec, iq.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, options)
+    
+    results_scz = GMM2_fit(scz.zvec, Hvec, Nmat_dummy(:, 1), w_ld, ref_ld, options); results_scz = results_scz.univariate{1};
+    results_iq  = GMM2_fit(iq.zvec, Hvec, Nmat_dummy(:, 2), w_ld, ref_ld, options); results_iq = results_iq.univariate{1};
 
+    results_scz.params
+    results_iq.params
+    figure(4); results_scz_iq = GMM2_fit([scz.zvec, iq.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, struct('verbose', true, 'params1', results_scz.params, 'params2', results_iq.params))
+
+    costmap = results_scz.univariate{1}.costmap; imagesc(log(1 + costmap(1:end, :)-min(costmap(:)))); colorbar; 
+    
     zmat= [scz.zvec, cog.zvec];
     stat = results.bivariate.conjfdr; [~, idx]=sort(stat); idx = idx(1:10:300); [zmat(idx,:), stat(idx), -log10(stat(idx))]
     stat = results.bivariate.condfdr1; [~, idx]=sort(stat); idx = idx(1:100); [zmat(idx,:), stat(idx), -log10(stat(idx))]
 
-    GMM_ofrei_bivariate_observed_cost(struct('sigma0', [1.0645 1.0082], 'rho0', -0.0169, 'sigma_beta', [0.0085 0.0040], 'rho_beta', -0.3046, 'pivec', [0.0762 0.0721 0.1837]), [scz.zvec, cog.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, @GMM_ofrei_bivariate_mapparams, options)
+    GMM2_bivariate_cost(struct('sigma0', [1.0645 1.0082], 'rho0', -0.0169, 'sigma_beta', [0.0085 0.0040], 'rho_beta', -0.3046, 'pivec', [0.0762 0.0721 0.1837]), [scz.zvec, cog.zvec], Hvec, Nmat_dummy, w_ld, ref_ld, @GMM2_bivariate_mapparams, options)
     
-    GMM_ofrei_univariate_observed_cost(struct('sigma0', [1.0645], 'sigma_beta', 0.0085 , 'pivec', 0.0762), scz.zvec, Hvec, Nmat_dummy(:, 1), w_ld, ref_ld, [], struct())
+    GMM2_univariate_cost(struct('sigma0', [1.0645], 'sigma_beta', 0.0085 , 'pivec', 0.0762), scz.zvec, Hvec, Nmat_dummy(:, 1), w_ld, ref_ld, [], struct())
     
-    results_scz = GMM_ofrei_fit_observed(scz.zvec, Hvec, Nmat_dummy(:, 1), w_ld, ref_ld, struct('logging', true, 'plot_costlines', true, 'plot_costmaps', true));
-    [~, result] = GMM_ofrei_univariate_observed_cost(results_scz.univariate{1}.params, scz.zvec, Hvec, Nmat_dummy(:, 1), w_ld, ref_ld, [], struct('zmax', +Inf))
+    results_scz = GMM2_fit(scz.zvec, Hvec, Nmat_dummy(:, 1), w_ld, ref_ld, struct('logging', true, 'plot_costlines', true, 'plot_costmaps', true));
+    [~, result] = GMM2_univariate_cost(results_scz.univariate{1}.params, scz.zvec, Hvec, Nmat_dummy(:, 1), w_ld, ref_ld, [], struct('zmax', +Inf))
     idx =1:100:length(Hvec); a=[result.beta_hat_mean(idx) result.beta_hat_se(idx) result.beta_hat_median(idx) result.beta_hat_mean(idx) ./ result.beta_hat_se(idx) scz.zvec(idx)]; scatter(a(:, 5), a(:, 4), 10, Hvec(idx) * [2 0 0], 'filled')
     
-    idx=2000000:2010000;
-    [~, result] = GMM_ofrei_bivariate_observed_cost(results_scz_iq.bivariate.params, [scz.zvec(idx), iq.zvec(idx)], Hvec(idx), Nmat_dummy(idx, :), w_ld(idx), ref_ld(idx), options);
+    idx=1:1000;
+    params= results_scz_iq.bivariate.params;
+    params = struct('pivec', [5e-3, 2e-3, 1e-3], 'sigma_beta', [1e-3, 1e-3], 'sigma0', [1.17 1.05], 'rho0', 0.002, 'rho_beta', -0.3);
+    [~, result] = GMM2_bivariate_cost(params, [scz.zvec(idx), iq.zvec(idx)], Hvec(idx), Nmat_dummy(idx, :), w_ld(idx), struct('sum_r2', ref_ld.sum_r2(idx), 'sum_r4', ref_ld.sum_r4(idx)), options);
     %idx=1:10; [result.beta_hat_mean(idx, :) result.beta_hat_var(idx, :) result.beta_hat_cov(idx, :)]
     plot(result.beta_hat_mean(:, :))
     plot(result.beta_hat_median(:, :))
-    plot(-log10(result.condfdr_global(:, :)))
+    plot(-log10(result.condfdr_global(:, :)))hmnhgbvc =-0o9,mxiiiiiq
     plot(-log10(result.condfdr_local(:, :)))
     plot(-log10(result.conjfdr_global(:, :)))
     plot(-log10(result.conjfdr_local(:, :)))
     plot([scz.zvec(idx, :) iq.zvec(idx, :)])
+    
+    % SCZ vs IQ
+    %Bivariate : pi=[0.003 0.001 0.001 ], rho_beta=-0.294, sigma_beta^2=[1.29e-04 6.60e-05 ], (eff. [1.21e+00 6.21e-01 ]), rho0=-0.018, sigma0^2=[1.188 1.076 ], cost=3.455e+05
+    
     
     %idx=1:100000; scatter(scz.zvec(idx), result.beta_hat_mean(idx, 1) ./ sqrt(result.beta_hat_var(idx, 1)), 10, Hvec(idx) * [2 0 0], 'filled')
     %idx=1:100000; scatter(iq.zvec(idx), result.beta_hat_mean(idx, 2) ./ sqrt(result.beta_hat_var(idx, 2)), 10, abs(scz.zvec(idx)) * [0.3 0 0], 'filled')
@@ -188,10 +228,10 @@ for frame_index=1:length(frames)
     ref_ld = annomat(:, end);
     w_ld = ref_ld;
     
-    fn = @(x)GMM_ofrei_bivariate_observed_cost(x, zmat, Hvec, Nmat, w_ld, @GMM_ofrei_bivariate_mapparams);
-    [cost, pdf, condfdr1, condfdr2, conjfdr] = fn(GMM_ofrei_bivariate_mapparams(struct('sigma_beta', [0.123 0.234], 'rho_beta', 0.2, 'sigma0', [1.05 1.10], 'rho0', 0.02, 'pivec', [0.01 0.01 0.05])));
+    fn = @(x)GMM2_bivariate_cost(x, zmat, Hvec, Nmat, w_ld, @GMM2_bivariate_mapparams);
+    [cost, pdf, condfdr1, condfdr2, conjfdr] = fn(GMM2_bivariate_mapparams(struct('sigma_beta', [0.123 0.234], 'rho_beta', 0.2, 'sigma0', [1.05 1.10], 'rho0', 0.02, 'pivec', [0.01 0.01 0.05])));
     
-    mapparams = @GMM_ofrei_bivariate_mapparams;
+    mapparams = @GMM2_bivariate_mapparams;
     fn = @(x)GMM_ofrei_bivariate_cost(x, zvec, Hvec, Nvec, ref_ld, w_ld, mapparams, struct('x_limit', 20, 'x_step', 0.1));
     
     tmp = rand(length(zvec), 1); tmp(~isfinite(sum(zvec, 2))) = NaN;
@@ -199,7 +239,7 @@ for frame_index=1:length(frames)
     zvec(~isfinite(tmp_pruned), :) = nan;
 
     if 0
-        mapparams = @GMM_ofrei_bivariate_mapparams;
+        mapparams = @GMM2_bivariate_mapparams;
         params=(struct('sigma0', [1.05 1.10], 'rho0', 0.01, 'sigma_beta', [5e-5 5e-5], 'rho_beta', 0.7, 'pivec', [0.25 0.25 0.25]));
         options=struct('x_step', 0.5, 'x_limit', 20);
         
@@ -215,7 +255,7 @@ for frame_index=1:length(frames)
     pi_mat = repmat(pi_vec, [1, length(sbt_vec)]); pi_mat=pi_mat(:);
 
     cost = zeros(size(sbt_mat)); sigma0 = 1;
-    for i=1:length(sbt_mat), cost(i) = GMM_ofrei_univariate_cost(mapparams(struct('sigma_beta', sbt_mat(i), 'sigma0', sigma0, 'pivec', pi_mat(i))), zvec, Hvec, Nvec, ref_ld, w_ld, mapparams); end;
+    for i=1:length(sbt_mat), cost(i) = GMM2_univariate_cost(mapparams(struct('sigma_beta', sbt_mat(i), 'sigma0', sigma0, 'pivec', pi_mat(i))), zvec, Hvec, Nvec, ref_ld, w_ld, mapparams); end;
     cost = reshape(cost, [length(pi_vec), length(sbt_vec)]);
     %cost-min(cost(:)); image(cost-min(cost(:)));
     imagesc(log(1 + cost(1:end, :)-min(cost(:)))); colorbar;

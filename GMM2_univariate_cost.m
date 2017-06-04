@@ -1,11 +1,16 @@
-function [cost, result] = GMM_ofrei_univariate_observed_cost(params, zvec, Hvec, Nvec, w_ld, ref_ld, mapparams, options)
+function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, ref_ld, mapparams, options)
     % INPUT:
     % params    - struct with fields pi1, sigma_beta, sigma0
     % mapparams - function that maps params into a vector
     % zvec      - vector of z scores, one per SNP
     % Hvec      - heterozigosity per SNP
     % Nvec      - number of subjects genotyped per SNP
-    % ref_ld    - LD score (total LD) per SNP, calculated across all genotypes or imputed SNPs
+    % ref_ld    - a struct with two fields
+    %   .sum_r2 - LD score (total LD) per SNP, calculated across all genotypes or imputed SNPs
+    %             ref_ld.sum_r2(j) = sum_i r^2_{ij}
+    %   .sum_r4 - Similar to ref_ld.sum_r2, but contains a sum of r_{ij}^4
+    %             ref_ld.sum_r4(j) = sum_i r^4_{ij}
+    %             WARNING: the sum_r2 and sum_r4 must be consistent with each other
     % w_ld      - LD score (total LD) per SNP, calculated across SNPs included in the template for the analysis
     % options   - options; see the below for a full list of configurable options
     %
@@ -25,7 +30,7 @@ function [cost, result] = GMM_ofrei_univariate_observed_cost(params, zvec, Hvec,
     if ~exist('options', 'var'), options = struct(); end;
     if ~isfield(options, 'zmax'), options.zmax = 12; end;                % throw away z scores larger than this value
     if ~isfield(options, 'verbose'), options.verbose = false; end;       % enable or disable verbose logging
-    if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = false; end; % enable approximation that uses ref_ld
+    if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = true; end;  % enable approximation that uses ref_ld
 
     % beta_hat_std_limit and beta_hat_std_step are used in posterior effect size
     % estimation. They express the grid to calculate posterior beta
@@ -46,23 +51,33 @@ function [cost, result] = GMM_ofrei_univariate_observed_cost(params, zvec, Hvec,
     if any(params.sigma_beta) <= 0, warning('sigma_beta can not be zero'); cost = nan; return; end;
     if any(params.pivec < 0), warning('pivec must be from 0 to 1'); cost = nan; return; end;
     if sum(params.pivec) > 1, warning('sum(pivec) can not exceed 1'); cost = nan; return; end;
-    if isempty(ref_ld), ref_ld = w_ld; end;
+    if isempty(ref_ld), ref_ld_r2 = zero(size(w_ld)); ref_ld_r4 = zero(size(w_ld));
+    else ref_ld_r2 = ref_ld.sum_r2; ref_ld_r4 = ref_ld.sum_r4; end;
     
-    defvec = isfinite(zvec + Hvec + Nvec + w_ld + ref_ld) & (Hvec > 0);
+    defvec = isfinite(zvec + Hvec + Nvec + w_ld + ref_ld_r2 + ref_ld_r4) & (Hvec > 0);
     defvec(any(abs(zvec) > options.zmax, 2)) = false;
-    zvec = zvec(defvec, :); Hvec = Hvec(defvec); Nvec = Nvec(defvec, :); w_ld = w_ld(defvec); ref_ld = ref_ld(defvec);
+    zvec = zvec(defvec, :); Hvec = Hvec(defvec); Nvec = Nvec(defvec, :);
+    w_ld = w_ld(defvec); ref_ld_r2 = ref_ld_r2(defvec); ref_ld_r4 = ref_ld_r4(defvec);
 
     sigma0_sqr = params.sigma0 .^ 2;
-    sbt_sqr    = params.sigma_beta .^ 2;
+    sbt_sqr    = repmat(params.sigma_beta .^ 2, size(Hvec));
 
     % p1 - proportion of causal SNPs, and p0 - proportion of null SNPs (p0) 
     pi1 = repmat(params.pivec, size(Hvec)); pi0 = 1 - pi1;
     
-    if options.use_ref_ld, pi0 = pi0 .^ ref_ld; pi1 = 1 - pi0; end
+    if options.use_ref_ld
+        %pi0 = pi0 .^ ref_ld_r2; pi1 = 1 - pi0; % previous approximation from GMM code
+
+        % Approximation that preserves variance and kurtosis
+        r2eff   = ref_ld_r4 ./ ref_ld_r2;
+        sbt_sqr = sbt_sqr .* (pi1 .* ref_ld_r2 + pi0 .* r2eff);
+        pi1     = (pi1 .* ref_ld_r2) ./ (pi1 .* ref_ld_r2 + pi0 .* r2eff); 
+        pi0     = 1 - pi1;
+    end
 
     % Components
     pdf0 = pi0 .* fast_normpdf1(zvec,                          sigma0_sqr);
-    pdf1 = pi1 .* fast_normpdf1(zvec, sbt_sqr * Hvec .* Nvec + sigma0_sqr);
+    pdf1 = pi1 .* fast_normpdf1(zvec, sbt_sqr .* Hvec .* Nvec + sigma0_sqr);
     pdf  = pdf0 + pdf1;
     
     % Likelihood term, weighted by inverse TLD
@@ -80,7 +95,7 @@ function [cost, result] = GMM_ofrei_univariate_observed_cost(params, zvec, Hvec,
         % global FDR
         zvec_neg = min(zvec, -zvec);  % ensure negative values
         cdf0 = pi0 .* fast_normcdf1(zvec_neg,                          sigma0_sqr);
-        cdf1 = pi1 .* fast_normcdf1(zvec_neg, sbt_sqr * Hvec .* Nvec + sigma0_sqr);
+        cdf1 = pi1 .* fast_normcdf1(zvec_neg, sbt_sqr .* Hvec .* Nvec + sigma0_sqr);
         cdf  = cdf0 + cdf1;
         result.fdr_global = cdf0 ./ cdf;
     end 
@@ -94,8 +109,8 @@ function [cost, result] = GMM_ofrei_univariate_observed_cost(params, zvec, Hvec,
         result.beta_hat_median = nan(size(zvec));
         for snpi=1:snps
             if (mod(snpi, 100000) == 0),  fprintf('\tFinish %i SNPs out of %i\n', snpi, snps); end;
-            beta_grid = (-options.beta_hat_std_limit:options.beta_hat_std_step:options.beta_hat_std_limit) * sqrt(sbt_sqr);
-            beta_prior = fast_normpdf1(beta_grid, sbt_sqr);
+            beta_grid = (-options.beta_hat_std_limit:options.beta_hat_std_step:options.beta_hat_std_limit) * sqrt(sbt_sqr(snpi));
+            beta_prior = fast_normpdf1(beta_grid, sbt_sqr(snpi));
             beta_prior = beta_prior .* pi1(snpi) / sum(beta_prior);
             middle_index = (length(beta_grid)+1)/2;  % assume length(x) is odd
             if (mod(length(beta_grid), 2) ~= 1), error('length(x) must be odd'); end;
@@ -116,7 +131,7 @@ function [cost, result] = GMM_ofrei_univariate_observed_cost(params, zvec, Hvec,
 
     if options.verbose
         fprintf('Univariate: pi=%.3e, sigma_beta^2=%.3e, (eff. %.3f), sigma0^2=%.3e, cost=%.3e\n', ...
-                 params.pivec, params.sigma_beta.^2, sbt_sqr * mean(Hvec .* Nvec), params.sigma0.^2, cost);
+                 params.pivec, params.sigma_beta.^2, mean(sbt_sqr .* Hvec .* Nvec), params.sigma0.^2, cost);
     end
 end
 
@@ -146,7 +161,7 @@ function values = restore_original_indexing(values, defvec)
         end;
     else
         tmp = values;
-        values = nan(size(defvec));
-        values(defvec) = tmp;
+        values = nan(length(defvec), size(values, 2));
+        values(defvec, :) = tmp;
     end
 end

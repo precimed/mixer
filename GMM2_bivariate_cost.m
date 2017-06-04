@@ -1,17 +1,23 @@
-function [cost, result] = GMM_ofrei_bivariate_observed_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options)
+function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options)
     % params    - params struct with fields pivec, sigma_beta, rho_beta, sigma0, rho0
     % mapparams - function that maps params into a vector (required to run fminsearch)
     % zmat      - matrix SNP x 2, z scores
     % Hvec      - vector SNP x 1, heterozigosity per SNP
     % Nmat      - number of subjects genotyped per SNP
     % w_ld      - LD score (total LD) per SNP, calculated across SNPs included in the template for the analysis
+    % ref_ld    - a struct with two fields
+    %   .sum_r2 - LD score (total LD) per SNP, calculated across all genotypes or imputed SNPs
+    %             ref_ld.sum_r2(j) = sum_i r^2_{ij}
+    %   .sum_r4 - Similar to ref_ld.sum_r2, but contains a sum of r_{ij}^4
+    %             ref_ld.sum_r4(j) = sum_i r^4_{ij}
+    %             WARNING: the sum_r2 and sum_r4 must be consistent with each other
     % options   - options; see the below for a full list of configurable options
 
     % List of all configurable options
     if ~exist('options', 'var'), options = struct(); end;
     if ~isfield(options, 'zmax'), options.zmax = 12; end;  % throw away z scores larger than this value
     if ~isfield(options, 'verbose'), options.verbose = false; end;  % enable or disable verbose logging
-    if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = false; end; % enable approximation that uses ref_ld
+    if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = true; end; % enable approximation that uses ref_ld
 
     % beta_hat_std_limit and beta_hat_std_step are used in posterior effect size
     % estimation. They express the grid to calculate posterior beta
@@ -37,26 +43,54 @@ function [cost, result] = GMM_ofrei_bivariate_observed_cost(params, zmat, Hvec, 
     if (params.rho_beta < -1) || (params.rho_beta > 1), warning('rho_beta must be in [-1, 1]'); cost = nan; return; end;
     if any(params.pivec < 0), warning('pivec must be from 0 to 1'); cost = nan; return; end;
     if sum(params.pivec) > 1, warning('sum(pivec) can not exceed 1'); cost = nan; return; end;
-    if isempty(ref_ld), ref_ld = w_ld; end;
-    
-    defvec = isfinite(sum(zmat, 2) + Hvec + sum(Nmat, 2) + w_ld + ref_ld) & (Hvec > 0);
+    if isempty(ref_ld), ref_ld_r2 = zero(size(w_ld)); ref_ld_r4 = zero(size(w_ld));
+    else ref_ld_r2 = ref_ld.sum_r2; ref_ld_r4 = ref_ld.sum_r4; end;
+
+    defvec = isfinite(sum(zmat, 2) + Hvec + sum(Nmat, 2) + w_ld + ref_ld_r2 + ref_ld_r4) & (Hvec > 0);
     defvec(any(abs(zmat) > options.zmax, 2)) = false;
-    zmat = zmat(defvec, :); Hvec = Hvec(defvec); Nmat = Nmat(defvec, :); w_ld = w_ld(defvec); ref_ld = ref_ld(defvec);
+    zmat = zmat(defvec, :); Hvec = Hvec(defvec); Nmat = Nmat(defvec, :);
+    w_ld = w_ld(defvec); ref_ld_r2 = ref_ld_r2(defvec); ref_ld_r4 = ref_ld_r4(defvec);
 
     sigma0_sqr = [params.sigma0(1).^2, prod(params.sigma0) * params.rho0; prod(params.sigma0) * params.rho0, params.sigma0(2).^2];
-    sbt_sqr    = [params.sigma_beta(1).^2, prod(params.sigma_beta) * params.rho_beta; prod(params.sigma_beta) * params.rho_beta, params.sigma_beta(2).^2];
+    
+    % Covariance matrix [a11 a12; a12 a22]
+    a11 = repmat(params.sigma_beta(1).^2, size(Hvec));
+    a12 = repmat(prod(params.sigma_beta) * params.rho_beta, size(Hvec)); 
+    a22 = repmat(params.sigma_beta(2).^2, size(Hvec));
 
     pivec = repmat(params.pivec, size(Hvec)); pi0 = 1-sum(pivec, 2);
 
     if options.use_ref_ld,
-        pi0 = pi0 .^ ref_ld;
-        pivec = pivec .* repmat((1 - pi0) ./ sum(pivec, 2), [1 3]);
+        %previous approximation from GMM code
+        %pi0 = pi0 .^ ref_ld_r2;
+        %pivec = pivec .* repmat((1 - pi0) ./ sum(pivec, 2), [1 3]);
+        
+        sum_p = @(p1, p2)(1-(1-p1).*(1-p2));
+        
+        %new approximation
+        r2eff   = ref_ld_r4 ./ ref_ld_r2;
+        pi1 = pivec(:, 1); pi2 = pivec(:, 2); pi3 = pivec(:, 3); pi0 = 1 - pi1 - pi2 - pi3;
+        
+        f1 = (pi1+pi3) .* ref_ld_r2 + (pi0+pi2) .* r2eff;
+        f2 = (pi2+pi3) .* ref_ld_r2 + (pi0+pi1) .* r2eff;
+        
+        pi1_plus_pi3_eff = (pi1+pi3) .* ref_ld_r2 ./ f1;
+        pi2_plus_pi3_eff = (pi2+pi3) .* ref_ld_r2 ./ f2;
+        %pi3_eff = sum_p(pi3 .* ref_ld_r2 ./ (pi3 .* ref_ld_r2 + (pi0 + pi1 + pi2) .* r2eff), pi1_plus_pi3_eff .* pi2_plus_pi3_eff);
+        pi3_eff = sum_p(ref_ld_r2 .* r2eff .* (pi3 - pi1 .* pi2) ./ (f1 .* f2), pi1_plus_pi3_eff .* pi2_plus_pi3_eff);
+        pi1_eff = max(pi1_plus_pi3_eff - pi3_eff, 0);
+        pi2_eff = max(pi2_plus_pi3_eff - pi3_eff, 0);
+        pivec = [pi1_eff pi2_eff pi3_eff]; pi0 = max(1-sum(pivec, 2), 0);
+        a11 = a11 .* f1;
+        a22 = a22 .* f2;
+        %a12 = a12 .* pi3 .* ref_ld_r2 ./ (pi3_eff .* sqrt(a11 .* a22));
+        a12 = sqrt(a11 .* a22) * params.rho_beta;
     end
 
     % Covariance matrix [a11 a12; a12 a22]
-    a11 = sbt_sqr(1,1) * Hvec .* Nmat(:, 1);
-    a12 = sbt_sqr(1,2) * Hvec .* sqrt(Nmat(:, 1) .* Nmat(:, 2));
-    a22 = sbt_sqr(2,2) * Hvec .* Nmat(:, 2);
+    a11 = a11 .* Hvec .* Nmat(:, 1);
+    a12 = a12 .* Hvec .* sqrt(Nmat(:, 1) .* Nmat(:, 2));
+    a22 = a22 .* Hvec .* Nmat(:, 2);
     
     % Components
     pdf0 = pi0         .* fast_normpdf2(zmat(:, 1), zmat(:, 2),       sigma0_sqr(1,1),       sigma0_sqr(1,2),       sigma0_sqr(2,2));
@@ -140,12 +174,12 @@ function [cost, result] = GMM_ofrei_bivariate_observed_cost(params, zmat, Hvec, 
             middle_index = (length(beta1_grid)+1)/2;  % assume length(x) is odd
             if (mod(length(beta1_grid), 2) ~= 1), error('length(x) must be odd'); end;
             
-            beta1vec = normpdf(beta1_grid, 0, sqrt(sbt_sqr(1,1))); beta1vec=beta1vec/sum(beta1vec);
-            beta2vec = normpdf(beta2_grid, 0, sqrt(sbt_sqr(2,2))); beta2vec=beta2vec/sum(beta2vec);
+            beta1vec = normpdf(beta1_grid, 0, sqrt(a11(snpi))); beta1vec=beta1vec/sum(beta1vec);
+            beta2vec = normpdf(beta2_grid, 0, sqrt(a22(snpi))); beta2vec=beta2vec/sum(beta2vec);
             beta0 = zeros(size(x)); beta0(middle_index, middle_index) = pi0(snpi);
             beta1 = zeros(size(x)); beta1(:, middle_index) = pivec(snpi, 1) * beta1vec';
             beta2 = zeros(size(x)); beta2(middle_index, :) = pivec(snpi, 2) * beta2vec;
-            beta3 = reshape(mvnpdf([x(:), y(:)], 0, sbt_sqr), size(x)); beta3 = pivec(snpi, 3) * beta3 / sum(beta3(:));
+            beta3 = reshape(mvnpdf([x(:), y(:)], 0, [a11(snpi) a12(snpi); a12(snpi) a22(snpi)]), size(x)); beta3 = pivec(snpi, 3) * beta3 / sum(beta3(:));
             beta_prior = beta0 + beta1 + beta2 + beta3;  % imagesc(-log10(beta))
             
             like_func = reshape(mvnpdf(repmat(zmat(snpi, :), [numel(x), 1]), ...

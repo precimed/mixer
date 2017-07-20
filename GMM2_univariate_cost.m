@@ -54,10 +54,14 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if isempty(ref_ld), ref_ld_r2 = zero(size(w_ld)); ref_ld_r4 = zero(size(w_ld));
     else ref_ld_r2 = ref_ld.sum_r2; ref_ld_r4 = ref_ld.sum_r4; end;
     
+    r2eff   = ref_ld_r4 ./ ref_ld_r2;
+
     defvec = isfinite(zvec + Hvec + Nvec + w_ld + ref_ld_r2 + ref_ld_r4) & (Hvec > 0);
     defvec(any(abs(zvec) > options.zmax, 2)) = false;
+    defvec((r2eff < 0) | (r2eff > 1) | (ref_ld_r4 < 0) | (ref_ld_r2 < 0)) = false;
+
     zvec = zvec(defvec, :); Hvec = Hvec(defvec); Nvec = Nvec(defvec, :);
-    w_ld = w_ld(defvec); ref_ld_r2 = ref_ld_r2(defvec); ref_ld_r4 = ref_ld_r4(defvec);
+    w_ld = w_ld(defvec); ref_ld_r2 = ref_ld_r2(defvec); ref_ld_r4 = ref_ld_r4(defvec); r2eff = r2eff(defvec);
 
     sigma0_sqr = params.sigma0 .^ 2;
     sbt_sqr    = repmat(params.sigma_beta .^ 2, size(Hvec));
@@ -69,7 +73,6 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         %pi0 = pi0 .^ ref_ld_r2; pi1 = 1 - pi0; % previous approximation from GMM code
 
         % Approximation that preserves variance and kurtosis
-        r2eff   = ref_ld_r4 ./ ref_ld_r2;
         sbt_sqr = sbt_sqr .* (pi1 .* ref_ld_r2 + pi0 .* r2eff);
         pi1     = (pi1 .* ref_ld_r2) ./ (pi1 .* ref_ld_r2 + pi0 .* r2eff); 
         pi0     = 1 - pi1;
@@ -84,6 +87,7 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     weights = 1 ./ w_ld;
     cost = sum(weights .* -log(pdf));
     if ~isfinite(cost), cost = NaN; end;
+    if ~isreal(cost), cost = NaN; end;
 
     if nargout > 1,
         % probability density function

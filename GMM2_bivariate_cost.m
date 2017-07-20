@@ -46,10 +46,14 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if isempty(ref_ld), ref_ld_r2 = zero(size(w_ld)); ref_ld_r4 = zero(size(w_ld));
     else ref_ld_r2 = ref_ld.sum_r2; ref_ld_r4 = ref_ld.sum_r4; end;
 
+    r2eff   = ref_ld_r4 ./ ref_ld_r2;
+
     defvec = isfinite(sum(zmat, 2) + Hvec + sum(Nmat, 2) + w_ld + ref_ld_r2 + ref_ld_r4) & (Hvec > 0);
     defvec(any(abs(zmat) > options.zmax, 2)) = false;
+    defvec((r2eff < 0) | (r2eff > 1) | (ref_ld_r4 < 0) | (ref_ld_r2 < 0)) = false;
+
     zmat = zmat(defvec, :); Hvec = Hvec(defvec); Nmat = Nmat(defvec, :);
-    w_ld = w_ld(defvec); ref_ld_r2 = ref_ld_r2(defvec); ref_ld_r4 = ref_ld_r4(defvec);
+    w_ld = w_ld(defvec); ref_ld_r2 = ref_ld_r2(defvec); ref_ld_r4 = ref_ld_r4(defvec); r2eff = r2eff(defvec);
 
     sigma0_sqr = [params.sigma0(1).^2, prod(params.sigma0) * params.rho0; prod(params.sigma0) * params.rho0, params.sigma0(2).^2];
     
@@ -68,7 +72,6 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
         sum_p = @(p1, p2)(1-(1-p1).*(1-p2));
         
         %new approximation
-        r2eff   = ref_ld_r4 ./ ref_ld_r2;
         pi1 = pivec(:, 1); pi2 = pivec(:, 2); pi3 = pivec(:, 3); pi0 = 1 - pi1 - pi2 - pi3;
         
         f1 = (pi1+pi3) .* ref_ld_r2 + (pi0+pi2) .* r2eff;
@@ -103,6 +106,7 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     weights = 1 ./ w_ld;
     cost = sum(weights .* -log(pdf));
     if ~isfinite(cost), cost = NaN; end;
+    if ~isreal(cost), cost = NaN; end;
 
     if nargout > 1
         % probability density function

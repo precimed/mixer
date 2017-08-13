@@ -205,7 +205,15 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     
     % project pdf back into the original SNPs indexing (which may include undefined values)
     if exist('result', 'var'), result = restore_original_indexing(result, defvec); end
-    
+
+    if exist('result', 'var')
+        result.params_per_snp.a11 = a11;
+        result.params_per_snp.a12 = a12;
+        result.params_per_snp.a22 = a22;
+        result.params_per_snp.pi0 = pi0;
+        result.params_per_snp.pivec = pivec;
+    end
+
     if options.verbose
         fprintf('Bivariate : pi=[%s], rho_beta=%.3f, sigma_beta^2=[%s], (eff. [%s]), rho0=%.3f, sigma0^2=[%s], cost=%.3e\n', ...
             sprintf('%.3f ', params.pivec), params.rho_beta, sprintf('%.2e ', params.sigma_beta.^2), ...

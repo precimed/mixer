@@ -51,9 +51,14 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if any(params.sigma_beta) <= 0, warning('sigma_beta can not be zero'); cost = nan; return; end;
     if any(params.pivec < 0), warning('pivec must be from 0 to 1'); cost = nan; return; end;
     if sum(params.pivec) > 1, warning('sum(pivec) can not exceed 1'); cost = nan; return; end;
-    if isempty(ref_ld), ref_ld_r2 = zero(size(w_ld)); ref_ld_r4 = zero(size(w_ld));
-    else ref_ld_r2 = ref_ld.sum_r2; ref_ld_r4 = ref_ld.sum_r4; end;
+    if isempty(ref_ld), error('ref_ld argument is required'); cost = nan; return; end;
     
+    % Symmetrization trick - disable, doesn't seems to make a difference
+    % zvec = [zvec; -zvec];
+    % Hvec = [Hvec; Hvec]; Nvec = [Nvec; Nvec]; w_ld = 2 * [w_ld; w_ld]; % twice w_ld to preserve sum(1./w_ld).
+    % ref_ld = struct('sum_r2', [ref_ld.sum_r2; ref_ld.sum_r2], 'sum_r4', [ref_ld.sum_r4; ref_ld.sum_r4]);
+
+    ref_ld_r2 = ref_ld.sum_r2; ref_ld_r4 = ref_ld.sum_r4;
     r2eff   = ref_ld_r4 ./ ref_ld_r2;
 
     defvec = isfinite(zvec + Hvec + Nvec + w_ld + ref_ld_r2 + ref_ld_r4) & (Hvec > 0);
@@ -85,6 +90,7 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     
     % Likelihood term, weighted by inverse TLD
     weights = 1 ./ w_ld;
+    weights(w_ld < 1) = 1;
     cost = sum(weights .* -log(pdf));
     if ~isfinite(cost), cost = NaN; end;
     if ~isreal(cost), cost = NaN; end;

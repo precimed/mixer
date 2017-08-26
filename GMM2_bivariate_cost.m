@@ -104,6 +104,7 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     
     % Likelihood term, weighted by inverse TLD
     weights = 1 ./ w_ld;
+    weights(w_ld < 1) = 1;
     cost = sum(weights .* -log(pdf));
     if ~isfinite(cost), cost = NaN; end;
     if ~isreal(cost), cost = NaN; end;

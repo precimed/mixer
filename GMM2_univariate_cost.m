@@ -31,6 +31,7 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'zmax'), options.zmax = 12; end;                % throw away z scores larger than this value
     if ~isfield(options, 'verbose'), options.verbose = false; end;       % enable or disable verbose logging
     if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = true; end;  % enable approximation that uses ref_ld
+    if ~isfield(options, 'use_convolution'), options.use_convolution = false; end;  % experimental option to calculate pdf via convolution
 
     % beta_hat_std_limit and beta_hat_std_step are used in posterior effect size
     % estimation. They express the grid to calculate posterior beta
@@ -94,6 +95,69 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     cost = sum(weights .* -log(pdf));
     if ~isfinite(cost), cost = NaN; end;
     if ~isreal(cost), cost = NaN; end;
+
+    if options.use_convolution
+        distr   = @(x)(x ./ sum(x));
+        conv_n  = @(x, n)op_power(x, @(a,b)conv(a, b, 'same'), n);
+        dirac   = @(z)([zeros(1, (length(z)-1)/2), 1, zeros(1,(length(z)-1)/2)]);
+        mixture = @(z, p, s)(p*distr(normpdf(z, 0, s)) + (1-p) * dirac(z));
+
+        pdf_by_conv = nan(size(pdf));
+
+        ld_block = round(ref_ld_r2./r2eff);
+        ld_sigma = sqrt(Nvec.*Hvec.*r2eff.*params.sigma_beta.^2);
+        
+        num_ld_block_bins = 20;
+        num_ld_sigma_bins = 30;
+        
+        ld_block_bins = [-Inf unique(floor(logspace(0, log10(max(ld_block)+1), num_ld_block_bins)))];
+        ld_sigma_bins = [-Inf quantile(ld_sigma, num_ld_sigma_bins) Inf];
+         
+        for ld_block_bini = 2:length(ld_block_bins)
+        for ld_sigma_bini = 2:length(ld_sigma_bins)
+            idx1 = (ld_block > ld_block_bins(ld_block_bini - 1)) & (ld_block <= ld_block_bins(ld_block_bini));
+            idx2 = (ld_sigma > ld_sigma_bins(ld_sigma_bini - 1)) & (ld_sigma <= ld_sigma_bins(ld_sigma_bini));
+            idx = idx1 & idx2;
+            if (sum(idx) == 0), continue; end;
+
+            mean_ld_block = round(mean(ld_block(idx)));
+            mean_ld_sigma = mean(ld_sigma(idx));
+            
+            z_max = max(100, round(max(abs(zvec(idx))) / mean_ld_sigma) + 1);
+            if z_max <= 100, step = 0.1; 
+            elseif z_max <= 200, step = 0.2;
+            elseif z_max <= 500, step = 0.5;
+            elseif z_max <= 1000, step = 1.0;
+            else warning('too large z_max'); step = 1.0;
+            end
+            z = -z_max:step:z_max; z = z * mean_ld_sigma; 
+            
+            table_to_pdf_factor = sum(normpdf(z)); % or, 1./(step*mean_ld_sigma) - this is the same
+            pdf_bini = table_to_pdf_factor * conv(conv_n(mixture(z, params.pivec, mean_ld_sigma), mean_ld_block), distr(normpdf(z, 0, params.sigma0)), 'same');
+            
+            % Hack-hack to avoid concentrating the entire distribution at zero.
+            pdf_bini((length(z)+1)/2) = pdf_bini((length(z)-1)/2);
+
+            pdf_by_conv(idx) = interp1(z, pdf_bini, zvec(idx));
+            if any(isnan(pdf_by_conv(idx))),
+                fprintf('error %i %i\n', ld_block_bini, ld_sigma_bini)
+            end
+        end
+        end
+        
+        cost_by_conv = sum(weights .* -log(pdf_by_conv));
+        if ~isfinite(cost_by_conv), cost_by_conv = NaN; end;
+        if ~isreal(cost_by_conv), cost_by_conv = NaN; end;
+        if isnan(cost_by_conv)
+            fprintf('stop');
+        end
+
+        fprintf('cost: %.5e vs %.5e, delta = %.5e\n', cost, cost_by_conv, cost - cost_by_conv);
+        pdf = pdf_by_conv;
+        cost = cost_by_conv;
+
+        %hold on; plot(-log10(pdf),-log10(pdf_by_conv),'.'); plot([0 7], [0 7]); hold off
+    end
 
     if nargout > 1,
         % probability density function

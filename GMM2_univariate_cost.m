@@ -18,6 +18,10 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     % cost      - log-likelihood
     % result    - struct with fields:
     %   .pdf             - probability density function p(z|params)
+    %   .cdf             - cumulated distribution function of p(z|params)
+    %                      this is a matrix of size nsnps X len(zgrid),
+    %                      where zgrid is defined by options.calculate_z_cdf_limit and
+    %                      options.calculate_z_cdf_step)
     %   .fdr_local       - local false discovery rate (fdr)
     %   .fdr_global      - false discovery rate (FDR)
     %   .beta_hat_mean   - posterior effect size estimate (mean)
@@ -41,6 +45,11 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'beta_hat_std_limit'), options.beta_hat_std_limit = 20; end;
     if ~isfield(options, 'beta_hat_std_step'),  options.beta_hat_std_step  = 0.01; end;
     if ~isfield(options, 'calculate_beta_hat'), options.calculate_beta_hat = true; end;
+
+    % z_cdf_limit and z_cdf_step are used in cdf estimation
+    if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;
+    if ~isfield(options, 'calculate_z_cdf_step'), options.calculate_z_cdf_step = 0.25; end;
+    if ~isfield(options, 'calculate_z_cdf'), options.calculate_z_cdf = false; end;
 
     if ~isstruct(params), params = mapparams(params); end;
     % params.sigma0     - scalar in (0, +inf]
@@ -88,7 +97,7 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     pdf0 = pi0 .* fast_normpdf1(zvec,                          sigma0_sqr);
     pdf1 = pi1 .* fast_normpdf1(zvec, sbt_sqr .* Hvec .* Nvec + sigma0_sqr);
     pdf  = pdf0 + pdf1;
-    
+
     % Likelihood term, weighted by inverse TLD
     weights = 1 ./ w_ld;
     weights(w_ld < 1) = 1;
@@ -174,6 +183,26 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         result.fdr_global = cdf0 ./ cdf;
     end 
 
+    % Cumulated distribution function for Z scores
+    if (nargout > 1) && options.calculate_z_cdf
+        fprintf('Estimate cumulated distribution function for Z scores...\n');
+        z_grid =  (-options.calculate_z_cdf_limit:options.calculate_z_cdf_step:options.calculate_z_cdf_limit);
+        snps=length(zvec);
+        result.cdf = nan(snps, length(z_grid));
+        chunksize = floor(snps/length(z_grid));
+        for snpi=1:chunksize:snps
+            snpj = min(snpi+chunksize-1, snps);
+            z_grid_data = struct('pi0', pi0, 'pi1', pi1, 'sbt_sqr', sbt_sqr, 'Hvec', Hvec, 'Nvec', Nvec);
+            fn = fieldnames(z_grid_data); for fi = 1:length(fn), d = z_grid_data.(fn{fi}); z_grid_data.(fn{fi}) = repmat(d(snpi:snpj, :), [1, length(z_grid)]); end;
+            z_grid_zvec = repmat(z_grid, [snpj-snpi+1, 1]);
+            z_grid_pdf0 = z_grid_data.pi0 .* fast_normpdf1(z_grid_zvec, sigma0_sqr);
+            z_grid_pdf1 = z_grid_data.pi1 .* fast_normpdf1(z_grid_zvec, sigma0_sqr + z_grid_data.sbt_sqr .* z_grid_data.Hvec .* z_grid_data.Nvec);
+            z_grid_pdf  = z_grid_pdf0 + z_grid_pdf1;
+            result.cdf(snpi:snpj, :)  = cumsum(z_grid_pdf, 2) ./ repmat(sum(z_grid_pdf, 2), [1, length(z_grid)]);
+            fprintf('\tFinish %i SNPs out of %i\n', snpj, snps);
+        end
+    end
+    
     % Posterior effect size estimates
     if (nargout > 1) && options.calculate_beta_hat
         fprintf('Estimate posterior effect sizes...\n');

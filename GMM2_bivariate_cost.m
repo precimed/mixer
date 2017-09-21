@@ -24,8 +24,8 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     % distribution before taking mean or median statistic.
     % The values are expressed in 'normalized' form, e.g. in units of the
     % params.sigma_beta.
-    if ~isfield(options, 'beta_hat_std_limit'), options.beta_hat_std_limit = 10; end;
-    if ~isfield(options, 'beta_hat_std_step'),  options.beta_hat_std_step  = 0.1; end;
+    if ~isfield(options, 'beta_hat_std_limit'), options.beta_hat_std_limit = 30; end;
+    if ~isfield(options, 'beta_hat_std_step'),  options.beta_hat_std_step  = 0.3; end;
     if ~isfield(options, 'calculate_beta_hat'), options.calculate_beta_hat = true; end;
     if ~isfield(options, 'calculate_global_fdr'), options.calculate_global_fdr = true; end;
 
@@ -187,9 +187,10 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
             beta3 = reshape(mvnpdf([x(:), y(:)], 0, [a11(snpi) a12(snpi); a12(snpi) a22(snpi)]), size(x)); beta3 = pivec(snpi, 3) * beta3 / sum(beta3(:));
             beta_prior = beta0 + beta1 + beta2 + beta3;  % imagesc(-log10(beta))
             
+            sigma0 = [params.sigma0(1).^2, params.rho0 .* prod(params.sigma0); params.rho0 .* prod(params.sigma0), params.sigma0(2).^2];
             like_func = reshape(mvnpdf(repmat(zmat(snpi, :), [numel(x), 1]), ...
                                 [x(:) .* sqrt(Nmat(snpi, 1) * Hvec(snpi)), y(:) .* sqrt(Nmat(snpi, 2) * Hvec(snpi))], ...
-                                params.sigma0), size(x));
+                                sigma0), size(x));
             beta_posterior = beta_prior .* like_func;
             beta_posterior = beta_posterior ./ sum(beta_posterior(:));  % normalize
             % imagesc(-log10(beta_posterior))

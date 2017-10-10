@@ -24,11 +24,11 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     %                      options.calculate_z_cdf_step)
     %   .fdr_local       - local false discovery rate (fdr)
     %   .fdr_global      - false discovery rate (FDR)
-    %   .beta_hat_mean   - posterior effect size estimate (mean)
-    %   .beta_hat_se     - standard error of the mean posterior effect size estimate
-    %   .beta_hat_median - posterior effect size estimate (median)
-    %                      (use options.calculate_beta_hat=false to disable
-    %                      beta_hat calculation)
+    %   .delta_hat_mean   - posterior effect size estimate (mean)
+    %   .delta_hat_se     - standard error of the mean posterior effect size estimate
+    %   .delta_hat_median - posterior effect size estimate (median)
+    %                       (use options.calculate_delta_hat=false to disable
+    %                       delta_hat calculation)
 
     % List of all configurable options
     if ~exist('options', 'var'), options = struct(); end;
@@ -37,14 +37,12 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = true; end;  % enable approximation that uses ref_ld
     if ~isfield(options, 'use_convolution'), options.use_convolution = false; end;  % experimental option to calculate pdf via convolution
 
-    % beta_hat_std_limit and beta_hat_std_step are used in posterior effect size
-    % estimation. They express the grid to calculate posterior beta
+    % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
+    % estimation. They express the grid to calculate posterior delta
     % distribution before taking mean or median statistic.
-    % The values are expressed in 'normalized' form, e.g. in units of the
-    % params.sigma_beta.
-    if ~isfield(options, 'beta_hat_std_limit'), options.beta_hat_std_limit = 20; end;
-    if ~isfield(options, 'beta_hat_std_step'),  options.beta_hat_std_step  = 0.01; end;
-    if ~isfield(options, 'calculate_beta_hat'), options.calculate_beta_hat = true; end;
+    if ~isfield(options, 'delta_hat_std_limit'), options.delta_hat_std_limit = 20; end;
+    if ~isfield(options, 'delta_hat_std_step'),  options.delta_hat_std_step  = 0.5; end;
+    if ~isfield(options, 'calculate_delta_hat'), options.calculate_delta_hat = true; end;
 
     % z_cdf_limit and z_cdf_step are used in cdf estimation
     if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;
@@ -204,28 +202,28 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     end
     
     % Posterior effect size estimates
-    if (nargout > 1) && options.calculate_beta_hat
+    if (nargout > 1) && options.calculate_delta_hat
         fprintf('Estimate posterior effect sizes...\n');
         snps=length(zvec);
-        result.beta_hat_mean = nan(size(zvec));
-        result.beta_hat_se = nan(size(zvec));
-        result.beta_hat_median = nan(size(zvec));
+        result.delta_hat_mean = nan(size(zvec));
+        result.delta_hat_se = nan(size(zvec));
+        result.delta_hat_median = nan(size(zvec));
         for snpi=1:snps
             if (mod(snpi, 100000) == 0),  fprintf('\tFinish %i SNPs out of %i\n', snpi, snps); end;
-            beta_grid = (-options.beta_hat_std_limit:options.beta_hat_std_step:options.beta_hat_std_limit) * sqrt(sbt_sqr(snpi));
-            beta_prior = fast_normpdf1(beta_grid, sbt_sqr(snpi));
-            beta_prior = beta_prior .* pi1(snpi) / sum(beta_prior);
-            middle_index = (length(beta_grid)+1)/2;  % assume length(x) is odd
-            if (mod(length(beta_grid), 2) ~= 1), error('length(x) must be odd'); end;
-            beta_prior(middle_index) = beta_prior(middle_index) + pi0(snpi);
+            delta_grid = (-options.delta_hat_std_limit:options.delta_hat_std_step:options.delta_hat_std_limit);
+            delta_prior = fast_normpdf1(delta_grid, sbt_sqr(snpi) .* Hvec(snpi) .* Nvec(snpi) );
+            delta_prior = delta_prior .* pi1(snpi) / sum(delta_prior);
+            middle_index = (length(delta_grid)+1)/2;  % assume length(x) is odd
+            if (mod(length(delta_grid), 2) ~= 1), error('length(x) must be odd'); end;
+            delta_prior(middle_index) = delta_prior(middle_index) + pi0(snpi);
 
-            like_func = normpdf(ones(size(beta_grid)) .* zvec(snpi), beta_grid .* sqrt(Nvec(snpi) * Hvec(snpi)), params.sigma0);
-            beta_posterior = beta_prior .* like_func;
-            beta_posterior = beta_posterior ./ sum(beta_posterior);  % normalize
+            like_func = normpdf(ones(size(delta_grid)) .* zvec(snpi), delta_grid, params.sigma0);
+            delta_posterior = delta_prior .* like_func;
+            delta_posterior = delta_posterior ./ sum(delta_posterior);  % normalize
 
-            result.beta_hat_mean(snpi)   = sum(beta_posterior .* beta_grid);  % calc mean
-            result.beta_hat_se(snpi)     = sqrt(sum(beta_posterior .* (beta_grid - result.beta_hat_mean(snpi)).^2)); % calc standard error
-            result.beta_hat_median(snpi) = beta_grid(find(cumsum(beta_posterior)>0.5, 1, 'first'));  % calc median (works as a filter for noisy observations)
+            result.delta_hat_mean(snpi)   = sum(delta_posterior .* delta_grid);  % calc mean
+            result.delta_hat_se(snpi)     = sqrt(sum(delta_posterior .* (delta_grid - result.delta_hat_mean(snpi)).^2)); % calc standard error
+            result.delta_hat_median(snpi) = delta_grid(find(cumsum(delta_posterior)>0.5, 1, 'first'));  % calc median (works as a filter for noisy observations)
         end
     end
 

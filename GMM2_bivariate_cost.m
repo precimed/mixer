@@ -19,14 +19,12 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if ~isfield(options, 'verbose'), options.verbose = false; end;  % enable or disable verbose logging
     if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = true; end; % enable approximation that uses ref_ld
 
-    % beta_hat_std_limit and beta_hat_std_step are used in posterior effect size
-    % estimation. They express the grid to calculate posterior beta
+    % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
+    % estimation. They express the grid to calculate posterior delta
     % distribution before taking mean or median statistic.
-    % The values are expressed in 'normalized' form, e.g. in units of the
-    % params.sigma_beta.
-    if ~isfield(options, 'beta_hat_std_limit'), options.beta_hat_std_limit = 30; end;
-    if ~isfield(options, 'beta_hat_std_step'),  options.beta_hat_std_step  = 0.3; end;
-    if ~isfield(options, 'calculate_beta_hat'), options.calculate_beta_hat = true; end;
+    if ~isfield(options, 'delta_hat_std_limit'), options.delta_hat_std_limit = 20; end;
+    if ~isfield(options, 'delta_hat_std_step'),  options.delta_hat_std_step  = 0.5; end;
+    if ~isfield(options, 'calculate_delta_hat'), options.calculate_delta_hat = true; end;
     if ~isfield(options, 'calculate_global_fdr'), options.calculate_global_fdr = true; end;
 
     if ~isstruct(params), params = mapparams(params); end;
@@ -122,7 +120,7 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if (nargout > 1) && options.calculate_global_fdr
         fprintf('Estimate global false discovery rates...\n');
         snps=size(zmat, 1);
-        z_grid = -options.beta_hat_std_limit:options.beta_hat_std_step:options.beta_hat_std_limit;
+        z_grid = -options.delta_hat_std_limit:options.delta_hat_std_step:options.delta_hat_std_limit;
         
         result.condfdr_global = nan(size(zmat));
         result.conjfdr_global = nan(size(zmat, 1), 1);
@@ -164,44 +162,45 @@ function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     end
     
     % Posterior effect size estimates
-    if (nargout > 1) && options.calculate_beta_hat
+    if (nargout > 1) && options.calculate_delta_hat
         fprintf('Estimate posterior effect sizes...\n');
         snps=size(zmat, 1);
-        result.beta_hat_mean = nan(size(zmat));
-        result.beta_hat_var = nan(size(zmat));
-        result.beta_hat_cov = nan(size(zmat, 1), 1);
-        result.beta_hat_median = nan(size(zmat));
+        result.delta_hat_mean = nan(size(zmat));
+        result.delta_hat_var = nan(size(zmat));
+        result.delta_hat_cov = nan(size(zmat, 1), 1);
+        result.delta_hat_median = nan(size(zmat));
         for snpi=1:snps
-            if (mod(snpi, 1000) == 0),  fprintf('\tFinish %i SNPs out of %i\n', snpi, snps); end;
-            beta1_grid = (-options.beta_hat_std_limit:options.beta_hat_std_step:options.beta_hat_std_limit) * params.sigma_beta(1);
-            beta2_grid = (-options.beta_hat_std_limit:options.beta_hat_std_step:options.beta_hat_std_limit) * params.sigma_beta(2);
-            [x, y] = meshgrid(beta1_grid, beta2_grid);
-            middle_index = (length(beta1_grid)+1)/2;  % assume length(x) is odd
-            if (mod(length(beta1_grid), 2) ~= 1), error('length(x) must be odd'); end;
+            if (mod(snpi, 100) == 0),  fprintf('\tFinish %i SNPs out of %i\n', snpi, snps); end;
+            delta1_grid = (-15:0.5:15);
+            delta2_grid = (-15:0.5:15);
+            [x, y] = meshgrid(delta1_grid, delta2_grid);
+            middle_index = (length(delta1_grid)+1)/2;  % assume length(x) is odd
+            if (mod(length(delta1_grid), 2) ~= 1), error('length(x) must be odd'); end;
             
-            beta1vec = normpdf(beta1_grid, 0, sqrt(a11(snpi))); beta1vec=beta1vec/sum(beta1vec);
-            beta2vec = normpdf(beta2_grid, 0, sqrt(a22(snpi))); beta2vec=beta2vec/sum(beta2vec);
-            beta0 = zeros(size(x)); beta0(middle_index, middle_index) = pi0(snpi);
-            beta1 = zeros(size(x)); beta1(:, middle_index) = pivec(snpi, 1) * beta1vec';
-            beta2 = zeros(size(x)); beta2(middle_index, :) = pivec(snpi, 2) * beta2vec;
-            beta3 = reshape(mvnpdf([x(:), y(:)], 0, [a11(snpi) a12(snpi); a12(snpi) a22(snpi)]), size(x)); beta3 = pivec(snpi, 3) * beta3 / sum(beta3(:));
-            beta_prior = beta0 + beta1 + beta2 + beta3;  % imagesc(-log10(beta))
+            delta1vec = normpdf(delta1_grid, 0, sqrt(a11(snpi))); delta1vec=delta1vec/sum(delta1vec);
+            delta2vec = normpdf(delta2_grid, 0, sqrt(a22(snpi))); delta2vec=delta2vec/sum(delta2vec);
+            delta0 = zeros(size(x)); delta0(middle_index, middle_index) = pi0(snpi);
+            delta1 = zeros(size(x)); delta1(:, middle_index) = pivec(snpi, 1) * delta1vec';
+            delta2 = zeros(size(x)); delta2(middle_index, :) = pivec(snpi, 2) * delta2vec;
+            delta3 = reshape(mvnpdf([x(:), y(:)], 0, [a11(snpi) a12(snpi); a12(snpi) a22(snpi)]), size(x)); delta3 = pivec(snpi, 3) * delta3 / sum(delta3(:));
+            delta_prior = delta0 + delta1 + delta2 + delta3;  % imagesc(-log10(delta_prior))
             
             sigma0 = [params.sigma0(1).^2, params.rho0 .* prod(params.sigma0); params.rho0 .* prod(params.sigma0), params.sigma0(2).^2];
             like_func = reshape(mvnpdf(repmat(zmat(snpi, :), [numel(x), 1]), ...
-                                [x(:) .* sqrt(Nmat(snpi, 1) * Hvec(snpi)), y(:) .* sqrt(Nmat(snpi, 2) * Hvec(snpi))], ...
-                                sigma0), size(x));
-            beta_posterior = beta_prior .* like_func;
-            beta_posterior = beta_posterior ./ sum(beta_posterior(:));  % normalize
-            % imagesc(-log10(beta_posterior))
+                                [x(:), y(:)], ...
+                                sigma0_sqr), size(x));
+            delta_posterior = delta_prior .* like_func;
+            delta_posterior = delta_posterior ./ sum(delta_posterior(:));  % normalize
+            % imagesc(-log10(like_func))
+            % imagesc(-log10(delta_posterior))
 
-            result.beta_hat_mean(snpi, 1) = sum(beta_posterior(:) .* x(:));  
-            result.beta_hat_mean(snpi, 2) = sum(beta_posterior(:) .* y(:));  
-            result.beta_hat_var(snpi, 1)  = sum(beta_posterior(:) .* (x(:) - result.beta_hat_mean(snpi, 1)).^2);
-            result.beta_hat_var(snpi, 2)  = sum(beta_posterior(:) .* (y(:) - result.beta_hat_mean(snpi, 2)).^2);
-            result.beta_hat_cov(snpi)      = sum(beta_posterior(:) .* (x(:) - result.beta_hat_mean(snpi, 1)) .* (y(:) - result.beta_hat_mean(snpi, 2)));
-            result.beta_hat_median(snpi, 1) = beta1_grid(find(cumsum(sum(beta_posterior, 1))>0.5, 1, 'first'));  % calc median (works as a filter for noisy observations)
-            result.beta_hat_median(snpi, 2) = beta2_grid(find(cumsum(sum(beta_posterior, 2))>0.5, 1, 'first'));  % calc median (works as a filter for noisy observations)
+            result.delta_hat_mean(snpi, 1) = sum(delta_posterior(:) .* x(:));
+            result.delta_hat_mean(snpi, 2) = sum(delta_posterior(:) .* y(:));
+            result.delta_hat_var(snpi, 1)  = sum(delta_posterior(:) .* (x(:) - result.delta_hat_mean(snpi, 1)).^2);
+            result.delta_hat_var(snpi, 2)  = sum(delta_posterior(:) .* (y(:) - result.delta_hat_mean(snpi, 2)).^2);
+            result.delta_hat_cov(snpi, 1)      = sum(delta_posterior(:) .* (x(:) - result.delta_hat_mean(snpi, 1)) .* (y(:) - result.delta_hat_mean(snpi, 2)));
+            result.delta_hat_median(snpi, 1) = delta1_grid(find(cumsum(sum(delta_posterior, 1))>0.5, 1, 'first'));  % calc median (works as a filter for noisy observations)
+            result.delta_hat_median(snpi, 2) = delta2_grid(find(cumsum(sum(delta_posterior, 2))>0.5, 1, 'first'));  % calc median (works as a filter for noisy observations)
         end
     end
     

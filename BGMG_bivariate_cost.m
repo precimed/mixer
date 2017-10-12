@@ -1,5 +1,23 @@
 function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, options)
-    % params    - params struct with fields pivec, sigma_beta, rho_beta, sigma0, rho0
+    % params    - struct with fields pi_vec, sig2_zero, sig2_beta, rho_zero, rho_beta
+    %             pi_vec    --- row-vector, mixture weights, one per mixture component (excluding null component)
+    %             sig2_zero --- col-vector, inflation from cryptic relatedness / sample stratification (sigma0^2), one per trait
+    %             sig2_beta --- matrix,     discoverability, one per trait and mixture component (excluding null component)
+    %             rho_zero  --- scalar,     spurious correlation of effect sizes due to sample overlap
+    %             rho_beta  --- row-vector, correlation of effect sizes in each component
+    %
+    %             Example1: three-component mixture model, null + trait1 + trait2 (independent traits)
+    %               struct('pi_vec', [0.1 0.2], 'sig2_zero', [1.05; 1.1], 'rho_zero', 0.2, ...
+    %                                           'sig2_beta', [1e-3 0; 0 1e-4], 'rho_beta', 0.0)
+    %
+    %             Example1: two-component mixture model, null + pleiotropic component
+    %               struct('pi_vec', [0.1 0.2], 'sig2_zero', [1.05; 1.1], 'rho_zero', 0.2, ...
+    %                                           'sig2_beta', [1e-3 0; 0 1e-4], 'rho_beta', 0.0)
+    %
+    %             Example3:  saturated bivariate mixture model, null + trait1 + trait2 + pleio
+    %               struct('pi_vec', [0.1 0.2 0.3], 'sig2_zero', [1.05; 1.1], 'rho_zero', 0.2, ...
+    %                                               'sig2_beta', [1e-3 0 1e-3; 0 1e-4 1e-4], 'rho_beta', [0 0 0.5])
+    %
     % mapparams - function that maps params into a vector (required to run fminsearch)
     % zmat      - matrix SNP x 2, z scores
     % Hvec      - vector SNP x 1, heterozigosity per SNP
@@ -15,7 +33,6 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
 
     % List of all configurable options
     if ~exist('options', 'var'), options = struct(); end;
-    if ~isfield(options, 'zmax'), options.zmax = 12; end;  % throw away z scores larger than this value
     if ~isfield(options, 'verbose'), options.verbose = false; end;  % enable or disable verbose logging
 
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
@@ -34,55 +51,42 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     r2eff   = ref_ld_r4 ./ ref_ld_r2;
 
     defvec = isfinite(sum(zmat, 2) + Hvec + sum(Nmat, 2) + w_ld + ref_ld_r2 + ref_ld_r4) & (Hvec > 0);
-    defvec(any(abs(zmat) > options.zmax, 2)) = false;
     defvec((r2eff < 0) | (r2eff > 1) | (ref_ld_r4 < 0) | (ref_ld_r2 < 0)) = false;
 
     zmat = zmat(defvec, :); Hvec = Hvec(defvec); Nmat = Nmat(defvec, :);
     w_ld = w_ld(defvec); ref_ld_r2 = ref_ld_r2(defvec); ref_ld_r4 = ref_ld_r4(defvec); r2eff = r2eff(defvec);
 
-    sigma0_sqr = [params.sigma0(1).^2, prod(params.sigma0) * params.rho0; prod(params.sigma0) * params.rho0, params.sigma0(2).^2];
+    num_traits = length(params.sig2_zero);  % number of traits in the anslysis
+    num_mix    = length(params.pi_vec);  % number of components in the mixture
+    num_snps   = length(Hvec);           % number of SNPs in the analysis
+    if num_traits ~= 2, error('Params must define two traits, unable to calculate bivariate cost.'); end;
+
+    sigma0_sqr = [params.sig2_zero(1), sqrt(prod(params.sig2_zero)) * params.rho_zero; ...
+                                   sqrt(prod(params.sig2_zero)) * params.rho_zero, params.sig2_zero(2)];
+
+    % Approximation that preserves variance and kurtosis
+    pi_vec     = repmat(params.pi_vec, [num_snps 1]);
+    eta_factor = (pi_vec .* repmat(ref_ld_r2, [1, num_mix]) + (1-pi_vec) .* repmat(r2eff, [1, num_mix]));
+    pi_vec     = (pi_vec .* repmat(ref_ld_r2, [1, num_mix])) ./ eta_factor;
+        
+    % Normalize pi vector, and compensate total variance by adjusting eta_factor
+    [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
+    eta_factor  = eta_factor .* (pi_vec ./ pi_vec_norm);
+
+    % Multiply sig2_beta by eta_factor
+    a11=zeros(num_snps, num_mix); a22=a11; a12=a11;
+    for mixi = 1:num_mix
+        a11(:, mixi) = eta_factor(:, mixi) .* Hvec .* Nmat(:, 1) * params.sig2_beta(1, mixi);
+        a22(:, mixi) = eta_factor(:, mixi) .* Hvec .* Nmat(:, 2) * params.sig2_beta(2, mixi);
+        a12(:, mixi) = sqrt(a11(:, mixi) .* a22(:, mixi)) * params.rho_beta(1, mixi);
+    end
     
-    % Covariance matrix [a11 a12; a12 a22]
-    a11 = repmat(params.sigma_beta(1).^2, size(Hvec));
-    a12 = repmat(prod(params.sigma_beta) * params.rho_beta, size(Hvec)); 
-    a22 = repmat(params.sigma_beta(2).^2, size(Hvec));
-
-    pivec = repmat(params.pivec, size(Hvec)); pi0 = 1-sum(pivec, 2);
-
-    if 1:
-        sum_p = @(p1, p2)(1-(1-p1).*(1-p2));
-        
-        %new approximation
-        pi1 = pivec(:, 1); pi2 = pivec(:, 2); pi3 = pivec(:, 3); pi0 = 1 - pi1 - pi2 - pi3;
-        
-        f1 = (pi1+pi3) .* ref_ld_r2 + (pi0+pi2) .* r2eff;
-        f2 = (pi2+pi3) .* ref_ld_r2 + (pi0+pi1) .* r2eff;
-        
-        pi1_plus_pi3_eff = (pi1+pi3) .* ref_ld_r2 ./ f1;
-        pi2_plus_pi3_eff = (pi2+pi3) .* ref_ld_r2 ./ f2;
-        %pi3_eff = sum_p(pi3 .* ref_ld_r2 ./ (pi3 .* ref_ld_r2 + (pi0 + pi1 + pi2) .* r2eff), pi1_plus_pi3_eff .* pi2_plus_pi3_eff);
-        pi3_eff = sum_p(ref_ld_r2 .* r2eff .* (pi3 - pi1 .* pi2) ./ (f1 .* f2), pi1_plus_pi3_eff .* pi2_plus_pi3_eff);
-        pi1_eff = max(pi1_plus_pi3_eff - pi3_eff, 0);
-        pi2_eff = max(pi2_plus_pi3_eff - pi3_eff, 0);
-        pivec = [pi1_eff pi2_eff pi3_eff]; pi0 = max(1-sum(pivec, 2), 0);
-        a11 = a11 .* f1;
-        a22 = a22 .* f2;
-        %a12 = a12 .* pi3 .* ref_ld_r2 ./ (pi3_eff .* sqrt(a11 .* a22));
-        a12 = sqrt(a11 .* a22) * params.rho_beta;
+    % Calculate p.d.f. from the mixture model
+    pdf = pi0 .* fast_normpdf2(zmat(:, 1), zmat(:, 2), sigma0_sqr(1,1), sigma0_sqr(1,2), sigma0_sqr(2,2));
+    for mixi = 1:num_mix
+        pdf = pdf + pi_vec_norm(:, mixi) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11(:, mixi) + sigma0_sqr(1,1), a12(:, mixi) + sigma0_sqr(1,2), a22(:, mixi) + sigma0_sqr(2,2));
     end
 
-    % Covariance matrix [a11 a12; a12 a22]
-    a11 = a11 .* Hvec .* Nmat(:, 1);
-    a12 = a12 .* Hvec .* sqrt(Nmat(:, 1) .* Nmat(:, 2));
-    a22 = a22 .* Hvec .* Nmat(:, 2);
-    
-    % Components
-    pdf0 = pi0         .* fast_normpdf2(zmat(:, 1), zmat(:, 2),       sigma0_sqr(1,1),       sigma0_sqr(1,2),       sigma0_sqr(2,2));
-    pdf1 = pivec(:, 1) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11 + sigma0_sqr(1,1),       sigma0_sqr(1,2),       sigma0_sqr(2,2));
-    pdf2 = pivec(:, 2) .* fast_normpdf2(zmat(:, 1), zmat(:, 2),       sigma0_sqr(1,1),       sigma0_sqr(1,2), a22 + sigma0_sqr(2,2));
-    pdf3 = pivec(:, 3) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11 + sigma0_sqr(1,1), a12 + sigma0_sqr(1,2), a22 + sigma0_sqr(2,2));
-    pdf  = pdf0 + pdf1 + pdf2 + pdf3;
-    
     % Likelihood term, weighted by inverse TLD
     weights = 1 ./ w_ld;
     weights(w_ld < 1) = 1;
@@ -90,6 +94,8 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if ~isfinite(cost), cost = NaN; end;
     if ~isreal(cost), cost = NaN; end;
 
+    % TBD: all options below this line are broken - must be fixed.
+    
     if nargout > 1
         % probability density function
         result.pdf = pdf;
@@ -199,9 +205,15 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     end
 
     if options.verbose
-        fprintf('Bivariate : pi=[%s], rho_beta=%.3f, sigma_beta^2=[%s], (eff. [%s]), rho0=%.3f, sigma0^2=[%s], cost=%.3e\n', ...
-            sprintf('%.3f ', params.pivec), params.rho_beta, sprintf('%.2e ', params.sigma_beta.^2), ...
-            sprintf('%.2e ', [mean(a11),mean(a22)]), params.rho0, sprintf('%.3f ', params.sigma0.^2),cost);
+        filt = @(x)unique(x(x~=0));
+        fprintf('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], (eff. [%s]), sig2_beta2=[%s], (eff. [%s]), rho_zero=%.3f, sig2_zero=[%s], cost=%.3e\n', ...
+            sprintf('%.3f ', params.pi_vec), ...
+            sprintf('%.3f ', filt(params.rho_beta)), ...
+            sprintf('%.2e ', filt(params.sig2_beta(1, :))), ...
+            sprintf('%.2f ', filt(mean(a11))), ...
+            sprintf('%.2e ', filt(params.sig2_beta(2, :))), ...
+            sprintf('%.2f ', filt(mean(a22))), ...
+            params.rho_zero, sprintf('%.3f ', params.sig2_zero), cost);
     end
 end
 

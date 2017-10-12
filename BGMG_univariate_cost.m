@@ -82,12 +82,14 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     % Approximation that preserves variance and kurtosis
     pi_vec     = repmat(params.pi_vec, [num_snps 1]);
     eta_factor = (pi_vec .* repmat(ref_ld_r2, [1, num_mix]) + (1-pi_vec) .* repmat(r2eff, [1, num_mix]));
-    sig2_beta  = repmat(params.sig2_beta, [num_snps 1]) .* eta_factor;
     pi_vec     = (pi_vec .* repmat(ref_ld_r2, [1, num_mix])) ./ eta_factor;
     
-    % Normalize pi vector, and compensate total variance by adjusting sig2_beta
+    % Normalize pi vector, and compensate total variance by adjusting eta_factor
     [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
-    sig2_beta  = sig2_beta .* (pi_vec ./ pi_vec_norm);
+    eta_factor  = eta_factor .* (pi_vec ./ pi_vec_norm);
+
+    % Multiply sig2_beta by eta_factor
+    sig2_beta  = repmat(params.sig2_beta, [num_snps 1]) .* eta_factor;
 
     % Calculate p.d.f. from the mixture model
     pdf0 = pi0 .* fast_normpdf1(zvec, params.sig2_zero);
@@ -101,6 +103,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfinite(cost), cost = NaN; end;
     if ~isreal(cost), cost = NaN; end;
 
+    % TBD: all options below this line are broken - must be fixed.
     if options.use_convolution
         distr   = @(x)(x ./ sum(x));
         conv_n  = @(x, n)BGMG_op_power(x, @(a,b)conv(a, b, 'same'), n);

@@ -34,8 +34,7 @@ BGMG_bivariate_cost(struct('pi_vec', [0.1 0.2], 'sig2_zero', [1.05; 1.10], 'rho_
                     scz.zvec, Hvec, scz.nvec, w_ld, ref_ld)
 
 % Bivariate four-component mixture model (null + indep1 + indep2)
-BGMG_bivariate_cost(struct('pi_vec', [0.1 0.2 0.3], 'sig2_zero', [1.05; 1.10], 'rho_zero', -0.1, 'sig2_beta', [1e-3 0 1e-3; 0 1e-4 1e-4], 'rho_beta', [0 0 0.5]), ...
-                    scz.zvec, Hvec, scz.nvec, w_ld, ref_ld)
+BGMG_bivariate_cost(struct('pi_vec', [0.1 0.2 0.3], 'sig2_zero', [1.05; 1.10], 'rho_zero', -0.1, 'sig2_beta', [1e-3 0 1e-3; 0 1e-4 1e-4], 'rho_beta', [0 0 0.5]), [scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld, options)
 
 options.total_het = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 options.verbose = true;
@@ -43,4 +42,4 @@ options.verbose = true;
 BGMG_fit2(scz.zvec, Hvec, scz.nvec, w_ld, ref_ld, options)
 BGMG_fit2(bip.zvec, Hvec, bip.nvec, w_ld, ref_ld, options)
 BGMG_fit2(tg.zvec, Hvec, tg.nvec, w_ld, ref_ld, options)
-BGMG_fit2(cd.zvec, Hvec, cd.nvec, w_ld, ref_ld, options)
+r=BGMG_fit2(cd.zvec, Hvec, cd.nvec, w_ld, ref_ld, options)

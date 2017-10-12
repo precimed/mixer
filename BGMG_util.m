@@ -30,9 +30,9 @@ classdef BGMG_util
         if any(params.pi_vec < 0), warning('pi_vec < 0'); ok = false; end;
         if any(params.pi_vec > 1), warning('pi_vec > 1'); ok = false; end;
         if any(params.sig2_zero(:) <= 0), warning('sig2_zero <= 0'); ok = false; end;
-        if any(params.sig2_beta(:) <= 0), warning('sig2_beta <= 0'); ok = false; end;
+        if any(params.sig2_beta(:) < 0), warning('sig2_beta < 0'); ok = false; end;
         if isfield(params, 'rho_zero') && ((params.rho_zero < -1) || (params.rho_zero > 1)), warning('rho_zero must be in [-1, 1]'); ok = false; end;
-        if isfield(params, 'rho_beta') && ((params.rho_beta < -1) || (params.rho_beta > 1)), warning('rho_beta must be in [-1, 1]'); ok = false; end;
+        if isfield(params, 'rho_beta') && any((params.rho_beta < -1) | (params.rho_beta > 1)), warning('rho_beta must be in [-1, 1]'); ok = false; end;
     end
 
     function values = op_power(values, operation, power)

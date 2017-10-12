@@ -1,4 +1,4 @@
-function [cost, result] = GMM2_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options)
+function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options)
     % params    - params struct with fields pivec, sigma_beta, rho_beta, sigma0, rho0
     % mapparams - function that maps params into a vector (required to run fminsearch)
     % zmat      - matrix SNP x 2, z scores

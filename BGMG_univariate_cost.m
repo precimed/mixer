@@ -1,4 +1,4 @@
-function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, ref_ld, mapparams, options)
+function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, ref_ld, mapparams, options)
     % INPUT:
     % params    - struct with fields pi1, sigma_beta, sigma0
     % mapparams - function that maps params into a vector
@@ -105,7 +105,7 @@ function [cost, result] = GMM2_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
 
     if options.use_convolution
         distr   = @(x)(x ./ sum(x));
-        conv_n  = @(x, n)op_power(x, @(a,b)conv(a, b, 'same'), n);
+        conv_n  = @(x, n)BGMG_op_power(x, @(a,b)conv(a, b, 'same'), n);
         dirac   = @(z)([zeros(1, (length(z)-1)/2), 1, zeros(1,(length(z)-1)/2)]);
         mixture = @(z, p, s)(p*distr(normpdf(z, 0, s)) + (1-p) * dirac(z));
 

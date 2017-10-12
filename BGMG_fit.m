@@ -1,4 +1,4 @@
-function results = GMM2_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
+function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     % zmat      - matrix SNP x 2, z scores
     % Hvec      - vector SNP x 1, heterozigosity per SNP
     % Nmat      - number of subjects genotyped per SNP
@@ -47,8 +47,8 @@ function results = GMM2_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         pi_mat = repmat(pi_vec, [1, length(sbt_vec)]); pi_mat=pi_mat(:);
 
         costmap     = zeros(size(sbt_mat)); sigma0 = std(zvec(isfinite(zvec)));
-        mapparams   = @GMM2_univariate_mapparams;
-        costfuncUVT = @(x)GMM2_univariate_cost(x, zvec, Hvec, Nvec, w_ld, ref_ld, mapparams, options);
+        mapparams   = @BGMG_univariate_mapparams;
+        costfuncUVT = @(x)BGMG_univariate_cost(x, zvec, Hvec, Nvec, w_ld, ref_ld, mapparams, options);
         for i=1:length(sbt_mat),
             costmap(i) = costfuncUVT(struct('sigma_beta', sbt_mat(i), 'sigma0', sigma0, 'pivec', pi_mat(i)));
         end;
@@ -62,11 +62,11 @@ function results = GMM2_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
 
         if ~isnan(options.alpha)
             % Estimate p-value and confidence intervals
-            % Note the following. The GMM2_univariate_cost accepts sigma0
+            % Note the following. The BGMG_univariate_cost accepts sigma0
             % and sigma_beta parameters, but we are interested in
             % confidence intervals for their squared values (sigma0^2 and
             % sigma_beta^2). This is already taken care below,
-            costfuncUVT2 = @(x)GMM2_univariate_cost(struct('sigma0', sqrt(x(1)), 'sigma_beta', sqrt(x(2)), 'pivec', x(3)), zvec, Hvec, Nvec, w_ld, ref_ld, [], options);
+            costfuncUVT2 = @(x)BGMG_univariate_cost(struct('sigma0', sqrt(x(1)), 'sigma_beta', sqrt(x(2)), 'pivec', x(3)), zvec, Hvec, Nvec, w_ld, ref_ld, [], options);
             x = [sFMS.sigma0^2, sFMS.sigma_beta^2, sFMS.pivec];
             ws=warning; warning('off', 'all'); hess = hessian_rescaled(costfuncUVT2, x); warning(ws);
 
@@ -96,7 +96,7 @@ function results = GMM2_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
 
             % Little magic to estimate heritability and its confidence interval
             if ~isnan(options.total_het)
-                costfuncUVT3 = @(x)GMM2_univariate_cost(struct('sigma0', sqrt(x(1)), 'sigma_beta', sqrt(exp(x(2))), 'pivec', exp(x(3))), zvec, Hvec, Nvec, w_ld, ref_ld, [], options);
+                costfuncUVT3 = @(x)BGMG_univariate_cost(struct('sigma0', sqrt(x(1)), 'sigma_beta', sqrt(exp(x(2))), 'pivec', exp(x(3))), zvec, Hvec, Nvec, w_ld, ref_ld, [], options);
                 x = [sFMS.sigma0^2, log(sFMS.sigma_beta^2), log(sFMS.pivec)];
                 ws=warning; warning('off', 'all'); hess = hessian_rescaled(costfuncUVT3, x); warning(ws);
                 h2_value = options.total_het * sFMS.sigma_beta^2 * sFMS.pivec;
@@ -121,7 +121,7 @@ function results = GMM2_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         end
 
         % Per-SNP estimates (posterior effect size, false discovery rates)
-        [~, result] = GMM2_univariate_cost(sFMS,  zvec, Hvec, Nvec, w_ld, ref_ld, mapparams, discovery_options);
+        [~, result] = BGMG_univariate_cost(sFMS,  zvec, Hvec, Nvec, w_ld, ref_ld, mapparams, discovery_options);
         results.univariate{itrait} = result;
         results.univariate{itrait}.costmap = costmap;
         results.univariate{itrait}.params  = sFMS;
@@ -151,20 +151,20 @@ function results = GMM2_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         if 0
             % unconstrained optimization, adjusting all parameters
             s0          = struct('sigma_beta', sigma_beta, 'rho_beta', rho_beta, 'sigma0', sigma0, 'rho0', rho0, 'pivec', pivec);
-            mapparams   = @GMM2_bivariate_mapparams;
-            costfuncBVT = @(x)GMM2_bivariate_cost(x, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options);
+            mapparams   = @BGMG_bivariate_mapparams;
+            costfuncBVT = @(x)BGMG_bivariate_cost(x, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options);
         else
             % constrain sigma_beta and sigma0 to the univariate estimates;
             % optimize the remaining 5 parameters (3 in pivec, rho and rho0).
             s0          = struct('rho_beta', rho_beta, 'rho0', rho0, 'pivec', pivec);
-            mapparams   = @(x)GMM2_bivariate_mapparams(x, struct('sigma_beta', sigma_beta, 'sigma0', sigma0));
-            costfuncBVT = @(x)GMM2_bivariate_cost(x, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options);
+            mapparams   = @(x)BGMG_bivariate_mapparams(x, struct('sigma_beta', sigma_beta, 'sigma0', sigma0));
+            costfuncBVT = @(x)BGMG_bivariate_cost(x, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options);
         end
 
         s_FMS = mapparams(fminsearch(costfuncBVT, mapparams(s0), fminsearch_options));
 
         if ~isnan(options.alpha)
-            costfuncBVT2 = @(x)GMM2_bivariate_cost(struct('sigma0', s_FMS.sigma0, 'sigma_beta', s_FMS.sigma_beta, 'pivec', x(1:3), 'rho0', x(4), 'rho_beta', x(5)), zmat, Hvec, Nmat, w_ld, ref_ld, [], options);
+            costfuncBVT2 = @(x)BGMG_bivariate_cost(struct('sigma0', s_FMS.sigma0, 'sigma_beta', s_FMS.sigma_beta, 'pivec', x(1:3), 'rho0', x(4), 'rho_beta', x(5)), zmat, Hvec, Nmat, w_ld, ref_ld, [], options);
             x = [s_FMS.pivec, s_FMS.rho0, s_FMS.rho_beta];
             values = {'pi1', 'pi2', 'pi3', 'pi1_plus_pi3', 'pi2_plus_pi3', 'rho0', 'rho_beta'};
             tests  = [1 0 0 0 0; 0 1 0 0 0; 0 0 1 0 0; 1 0 1 0 0; 0 1 1 0 0; 0 0 0 1 0; 0 0 0 0 1];
@@ -206,7 +206,7 @@ function results = GMM2_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
             end
         end
 
-        [~, result] = GMM2_bivariate_cost(s_FMS, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, discovery_options);
+        [~, result] = BGMG_bivariate_cost(s_FMS, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, discovery_options);
         results.bivariate = result;
         results.bivariate.params   = s_FMS;
         if options.plot_costlines, figure(2); qc_plot_bivariate_costline(s_FMS, zmat, Hvec, Nmat, w_ld, ref_ld, options); end;
@@ -241,7 +241,7 @@ end
 
 function qc_plot_univariate_costline(s0, zvec, Hvec, Nvec, w_ld, ref_ld, options, plot_index)
     % Calculates cost along each parameter, starting with x0.
-    costfuncUVT = @(x)GMM2_univariate_cost(x, zvec, Hvec, Nvec, w_ld, ref_ld, @GMM2_univariate_mapparams, options);
+    costfuncUVT = @(x)BGMG_univariate_cost(x, zvec, Hvec, Nvec, w_ld, ref_ld, @BGMG_univariate_mapparams, options);
     cost        = costfuncUVT(s0);
 
     for i=1:length(options.fit_pi_vec), s=s0;     s.pivec=options.fit_pi_vec(i);       costline.pivec(i) = costfuncUVT(s); end;
@@ -255,7 +255,7 @@ end
 
 function qc_plot_bivariate_costline(s0, zmat, Hvec, Nmat, w_ld, ref_ld, options)
     % Calculates cost along each parameter, starting with x0.
-    costfuncBVT = @(s)GMM2_bivariate_cost(s, zmat, Hvec, Nmat, w_ld, ref_ld, @GMM2_bivariate_mapparams, options);
+    costfuncBVT = @(s)BGMG_bivariate_cost(s, zmat, Hvec, Nmat, w_ld, ref_ld, @BGMG_bivariate_mapparams, options);
     cost        = costfuncBVT(s0);
 
     for itrait=1:2

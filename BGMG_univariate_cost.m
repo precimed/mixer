@@ -1,7 +1,16 @@
-function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, ref_ld, mapparams, options)
+function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, ref_ld, options)
     % INPUT:
-    % params    - struct with fields pi1, sigma_beta, sigma0
-    % mapparams - function that maps params into a vector
+    % params    - struct with fields pi_vec, sig2_zero, sig2_beta
+    %             pi_vec --- mixture weights, one per mixture component (excluding null component)
+    %             sig2_zero --- inflation from cryptic relatedness / sample stratification (sigma0^2)
+    %             sig2_beta --- discoverability, one per mixture component (excluding null component)
+    %
+    %             Example1: standard two-component mixture model, null + causal
+    %               struct('pi_vec', 0.1, 'sig2_zero', 1.05, 'sig2_beta', 1e-3)
+    %
+    %             Example2: Alzheimer disease with polygenic signal + APOE
+    %               struct('pi_vec', [0.1 0.2], 'sig2_zero', 1.05, 'sig2_beta', [1e-3 1e-4])
+    %
     % zvec      - vector of z scores, one per SNP
     % Hvec      - heterozigosity per SNP
     % Nvec      - number of subjects genotyped per SNP
@@ -32,9 +41,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
 
     % List of all configurable options
     if ~exist('options', 'var'), options = struct(); end;
-    if ~isfield(options, 'zmax'), options.zmax = 12; end;                % throw away z scores larger than this value
     if ~isfield(options, 'verbose'), options.verbose = false; end;       % enable or disable verbose logging
-    if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = true; end;  % enable approximation that uses ref_ld
     if ~isfield(options, 'use_convolution'), options.use_convolution = false; end;  % experimental option to calculate pdf via convolution
 
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
@@ -49,16 +56,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'calculate_z_cdf_step'), options.calculate_z_cdf_step = 0.25; end;
     if ~isfield(options, 'calculate_z_cdf'), options.calculate_z_cdf = false; end;
 
-    if ~isstruct(params), params = mapparams(params); end;
-    % params.sigma0     - scalar in (0, +inf]
-    % params.sigma_beta - scalar in (0, +inf]
-    % params.pivec      - scalar in [0, 1]
-
     % Validate input params
-    if any(params.sigma0 <= 0), warning('sigma0 can not be zero'); cost = nan; return; end;
-    if any(params.sigma_beta) <= 0, warning('sigma_beta can not be zero'); cost = nan; return; end;
-    if any(params.pivec < 0), warning('pivec must be from 0 to 1'); cost = nan; return; end;
-    if sum(params.pivec) > 1, warning('sum(pivec) can not exceed 1'); cost = nan; return; end;
+    if ~BGMG_util.validate_params(params); cost = nan; return; end;
     if isempty(ref_ld), error('ref_ld argument is required'); cost = nan; return; end;
     
     % Symmetrization trick - disable, doesn't seems to make a difference
@@ -70,31 +69,30 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     r2eff   = ref_ld_r4 ./ ref_ld_r2;
 
     defvec = isfinite(zvec + Hvec + Nvec + w_ld + ref_ld_r2 + ref_ld_r4) & (Hvec > 0);
-    defvec(any(abs(zvec) > options.zmax, 2)) = false;
     defvec((r2eff < 0) | (r2eff > 1) | (ref_ld_r4 < 0) | (ref_ld_r2 < 0)) = false;
 
     zvec = zvec(defvec, :); Hvec = Hvec(defvec); Nvec = Nvec(defvec, :);
     w_ld = w_ld(defvec); ref_ld_r2 = ref_ld_r2(defvec); ref_ld_r4 = ref_ld_r4(defvec); r2eff = r2eff(defvec);
 
-    sigma0_sqr = params.sigma0 .^ 2;
-    sbt_sqr    = repmat(params.sigma_beta .^ 2, size(Hvec));
+    num_traits = length(params.sig2_zero);  % number of traits in the anslysis
+    num_mix    = length(params.pi_vec);  % number of components in the mixture
+    num_snps   = length(Hvec);           % number of SNPs in the analysis
+    if num_traits ~= 1, error('Params define more than one trait, unable to calculate univariate cost.'); end;
 
-    % p1 - proportion of causal SNPs, and p0 - proportion of null SNPs (p0) 
-    pi1 = repmat(params.pivec, size(Hvec)); pi0 = 1 - pi1;
+    % Approximation that preserves variance and kurtosis
+    pi_vec     = repmat(params.pi_vec, [num_snps 1]);
+    eta_factor = (pi_vec .* repmat(ref_ld_r2, [1, num_mix]) + (1-pi_vec) .* repmat(r2eff, [1, num_mix]));
+    sig2_beta  = repmat(params.sig2_beta, [num_snps 1]) .* eta_factor;
+    pi_vec     = (pi_vec .* repmat(ref_ld_r2, [1, num_mix])) ./ eta_factor;
     
-    if options.use_ref_ld
-        %pi0 = pi0 .^ ref_ld_r2; pi1 = 1 - pi0; % previous approximation from GMM code
+    % Normalize pi vector, and compensate total variance by adjusting sig2_beta
+    [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
+    sig2_beta  = sig2_beta .* (pi_vec ./ pi_vec_norm);
 
-        % Approximation that preserves variance and kurtosis
-        sbt_sqr = sbt_sqr .* (pi1 .* ref_ld_r2 + pi0 .* r2eff);
-        pi1     = (pi1 .* ref_ld_r2) ./ (pi1 .* ref_ld_r2 + pi0 .* r2eff); 
-        pi0     = 1 - pi1;
-    end
-
-    % Components
-    pdf0 = pi0 .* fast_normpdf1(zvec,                          sigma0_sqr);
-    pdf1 = pi1 .* fast_normpdf1(zvec, sbt_sqr .* Hvec .* Nvec + sigma0_sqr);
-    pdf  = pdf0 + pdf1;
+    % Calculate p.d.f. from the mixture model
+    pdf0 = pi0 .* fast_normpdf1(zvec, params.sig2_zero);
+    pdf = pi_vec_norm .* fast_normpdf1(repmat(zvec, [1 num_mix]), sig2_beta .* repmat(Hvec .* Nvec, [1 num_mix]) + params.sig2_zero);
+    pdf  = pdf0 + sum(pdf, 2);
 
     % Likelihood term, weighted by inverse TLD
     weights = 1 ./ w_ld;
@@ -231,8 +229,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if exist('result', 'var'), result = restore_original_indexing(result, defvec); end
 
     if options.verbose
-        fprintf('Univariate: pi=%.3e, sigma_beta^2=%.3e, (eff. %.3f), sigma0^2=%.3e, cost=%.3e\n', ...
-                 params.pivec, params.sigma_beta.^2, mean(sbt_sqr .* Hvec .* Nvec), params.sigma0.^2, cost);
+        fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, (eff. %.3f), sig2_zero^2=%.3e, cost=%.3e\n', ...
+                 params.pi_vec, params.sig2_beta, mean(sig2_beta(:)) .* mean(Hvec) .* mean(Nvec), params.sig2_zero, cost);
     end
 end
 

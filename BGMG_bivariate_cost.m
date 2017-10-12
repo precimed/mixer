@@ -1,4 +1,4 @@
-function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, mapparams, options)
+function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, options)
     % params    - params struct with fields pivec, sigma_beta, rho_beta, sigma0, rho0
     % mapparams - function that maps params into a vector (required to run fminsearch)
     % zmat      - matrix SNP x 2, z scores
@@ -17,7 +17,6 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if ~exist('options', 'var'), options = struct(); end;
     if ~isfield(options, 'zmax'), options.zmax = 12; end;  % throw away z scores larger than this value
     if ~isfield(options, 'verbose'), options.verbose = false; end;  % enable or disable verbose logging
-    if ~isfield(options, 'use_ref_ld'), options.use_ref_ld = true; end; % enable approximation that uses ref_ld
 
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
     % estimation. They express the grid to calculate posterior delta
@@ -27,20 +26,8 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if ~isfield(options, 'calculate_delta_hat'), options.calculate_delta_hat = true; end;
     if ~isfield(options, 'calculate_global_fdr'), options.calculate_global_fdr = true; end;
 
-    if ~isstruct(params), params = mapparams(params); end;
-    % params.sigma0     - vector with 2 elements in (0, +inf]
-    % params.rho0       - scalar in [-1, 1]
-    % params.sigma_beta - vector with 2 elements in (0, +inf]
-    % params.rho_beta   - scalar in [-1, 1]
-    % params.pivec      - vector with 3 elements in [0, 1]
-
     % Validate input params
-    if any(params.sigma0 <= 0), warning('sigma0 can not be zero'); cost = nan; return; end;
-    if any(params.sigma_beta) <= 0, warning('sigma_beta can not be zero'); cost = nan; return; end;
-    if (params.rho0 < -1) || (params.rho0 > 1), warning('rho0 must be in [-1, 1]'); end;
-    if (params.rho_beta < -1) || (params.rho_beta > 1), warning('rho_beta must be in [-1, 1]'); cost = nan; return; end;
-    if any(params.pivec < 0), warning('pivec must be from 0 to 1'); cost = nan; return; end;
-    if sum(params.pivec) > 1, warning('sum(pivec) can not exceed 1'); cost = nan; return; end;
+    if ~BGMG_util.validate_params(params); cost = nan; return; end;
     if isempty(ref_ld), ref_ld_r2 = zero(size(w_ld)); ref_ld_r4 = zero(size(w_ld));
     else ref_ld_r2 = ref_ld.sum_r2; ref_ld_r4 = ref_ld.sum_r4; end;
 
@@ -62,11 +49,7 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
 
     pivec = repmat(params.pivec, size(Hvec)); pi0 = 1-sum(pivec, 2);
 
-    if options.use_ref_ld,
-        %previous approximation from GMM code
-        %pi0 = pi0 .^ ref_ld_r2;
-        %pivec = pivec .* repmat((1 - pi0) ./ sum(pivec, 2), [1 3]);
-        
+    if 1:
         sum_p = @(p1, p2)(1-(1-p1).*(1-p2));
         
         %new approximation

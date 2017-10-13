@@ -87,6 +87,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     % Normalize pi vector, and compensate total variance by adjusting eta_factor
     [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
     eta_factor  = eta_factor .* (pi_vec ./ pi_vec_norm);
+    eta_factor(pi_vec == 0) = 0;
 
     % Multiply sig2_beta by eta_factor
     sig2_beta  = repmat(params.sig2_beta, [num_snps 1]) .* eta_factor;

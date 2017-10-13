@@ -72,6 +72,7 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     % Normalize pi vector, and compensate total variance by adjusting eta_factor
     [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
     eta_factor  = eta_factor .* (pi_vec ./ pi_vec_norm);
+    eta_factor(pi_vec == 0) = 0;
 
     % Multiply sig2_beta by eta_factor
     a11=zeros(num_snps, num_mix); a22=a11; a12=a11;
@@ -95,7 +96,6 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if ~isreal(cost), cost = NaN; end;
 
     % TBD: all options below this line are broken - must be fixed.
-    
     if nargout > 1
         % probability density function
         result.pdf = pdf;
@@ -207,7 +207,7 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if options.verbose
         filt = @(x)unique(x(x~=0));
         fprintf('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], (eff. [%s]), sig2_beta2=[%s], (eff. [%s]), rho_zero=%.3f, sig2_zero=[%s], cost=%.3e\n', ...
-            sprintf('%.3f ', params.pi_vec), ...
+            sprintf('%.3e ', params.pi_vec), ...
             sprintf('%.3f ', filt(params.rho_beta)), ...
             sprintf('%.2e ', filt(params.sig2_beta(1, :))), ...
             sprintf('%.2f ', filt(mean(a11))), ...

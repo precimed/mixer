@@ -39,15 +39,15 @@ BGMG_bivariate_cost(struct('pi_vec', [0.1 0.2 0.3], 'sig2_zero', [1.05; 1.10], '
 options.total_het = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 options.verbose = true;
 
-scz_params = BGMG_fit2(scz.zvec, Hvec, scz.nvec, w_ld, ref_ld, options);
-bip_params = BGMG_fit2(bip.zvec, Hvec, bip.nvec, w_ld, ref_ld, options);
-tg_params = BGMG_fit2(tg.zvec, Hvec, tg.nvec, w_ld, ref_ld, options);
-cd_params = BGMG_fit2(cd.zvec, Hvec, cd.nvec, w_ld, ref_ld, options);
+scz_params = BGMG_fit(scz.zvec, Hvec, scz.nvec, w_ld, ref_ld, options);
+bip_params = BGMG_fit(bip.zvec, Hvec, bip.nvec, w_ld, ref_ld, options);
+tg_params = BGMG_fit(tg.zvec, Hvec, tg.nvec, w_ld, ref_ld, options);
+cd_params = BGMG_fit(cd.zvec, Hvec, cd.nvec, w_ld, ref_ld, options);
 
 sbo = options;
 sbo.params1 = scz_params.univariate{1}.params;
 sbo.params2 = bip_params.univariate{1}.params;
-scz_bip_params = BGMG_fit2([scz.zvec bip.zvec], Hvec, [scz.nvec scz.nvec], w_ld, ref_ld, options);
+scz_bip_params = BGMG_fit([scz.zvec bip.zvec], Hvec, [scz.nvec scz.nvec], w_ld, ref_ld, options);
 
 results.bivariate.params = struct('pi_vec', [1e-7 1e-7 0.003 ], ...
        'rho_beta', [0 0 0.835 ], ...

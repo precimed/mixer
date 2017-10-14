@@ -49,6 +49,13 @@ sbo.params1 = scz_params.univariate{1}.params;
 sbo.params2 = bip_params.univariate{1}.params;
 scz_bip_params = BGMG_fit([scz.zvec bip.zvec], Hvec, [scz.nvec scz.nvec], w_ld, ref_ld, options);
 
+scz_tg_params2 = BGMG_fit([scz.zvec tg.zvec], Hvec, [scz.nvec tg.nvec], w_ld, ref_ld, options);
+
+scz_cd_params = BGMG_fit([scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, options);
+scz_cd_params = BGMG_fit([scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, sbo);
+
+tg_cd_params = BGMG_fit([tg.zvec cd.zvec], Hvec, [tg.nvec cd.nvec], w_ld, ref_ld, options);
+
 results.bivariate.params = struct('pi_vec', [1e-7 1e-7 0.003 ], ...
        'rho_beta', [0 0 0.835 ], ...
        'sig2_beta', [5.06e-05 0  5.06e-05; 0 1.02e-05 1.02e-05], ...

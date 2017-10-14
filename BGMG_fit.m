@@ -78,7 +78,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         params_final0.sig2_beta = [p1.sig2_beta 0 p1.sig2_beta; 0 p2.sig2_beta p2.sig2_beta];
         params_final0.pi_vec = [p1.pi_vec p2.pi_vec min(p1.pi_vec, p2.pi_vec)];
         params_final0.rho_beta = [0 0 params_inft.rho_beta];
-        results.bivariate.params = fit(params_final0, @(x)BGMG_mapparams3(x));
+        results.bivariate.params = fit(params_final0, @(x)BGMG_mapparams3_relax_sig2_beta(x));
 
         % Step3. Uncertainty estimation. 
         if ~isnan(options.ci_alpha)
@@ -141,15 +141,15 @@ function [ov, cnti] = mapparams(iv, ov, cnti, options, transform, field)
     transform_backward = 1;
     if isstruct(iv)
         % transform from struct to vector
-        if any(idx_pack)
+        if any(idx_pack(:))
             ov = cat(2,ov,BGMG_util.rowvec(transform(iv.(field)(idx_pack),transform_forward)));
         end
     else
         % transform from vector to struct
         ov.(field) = options.(field);
-        if any(idx_pack)
-            ov.(field)(idx_pack) = transform(iv(cnti : (cnti + sum(idx_pack) - 1)), transform_backward);
-            cnti=cnti+sum(idx_pack);
+        if any(idx_pack(:))
+            ov.(field)(idx_pack) = transform(iv(cnti : (cnti + sum(idx_pack(:)) - 1)), transform_backward);
+            cnti=cnti+sum(idx_pack(:));
         end
     end
 end
@@ -226,4 +226,26 @@ function ov = BGMG_mapparams3(iv, options)
         s1 = ov.sig2_beta(1); s2 = ov.sig2_beta(2);
         ov.sig2_beta = [s1 0 s1; 0 s2 s2];
     end
+end
+
+function ov = BGMG_mapparams3_relax_sig2_beta(iv, options)
+    % mapparams for saturated bivaraite mixture with a three causal component
+    % (trait1-specific, trait2-specific, and pleiotropic components)
+    % pleiotropic component use individual sig2_beta compared to trait-specific components
+
+    if ~exist('options', 'var'), options=[]; end;
+    if ~isfield(options, 'pi_vec'), options.pi_vec = [nan nan nan]; end;
+    if ~isfield(options, 'sig2_zero'), options.sig2_zero = [nan; nan]; end;
+    if ~isfield(options, 'sig2_beta'), options.sig2_beta = [nan 0 nan; 0 nan nan]; end;
+    if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
+    if ~isfield(options, 'rho_beta'), options.rho_beta = [0 0 nan]; end;
+
+    is_packing = isstruct(iv); cnti = 1;
+    if is_packing, ov = []; else ov = struct(); end;
+
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_beta');
+    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
 end

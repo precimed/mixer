@@ -12,6 +12,8 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     if ~isfield(options, 'ci_alpha'), options.ci_alpha = 0.05; end;
     if ~isfield(options, 'ci_sample'), options.ci_sample = 10000; end;
     if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
+    if ~isfield(options, 'use_univariate_pi'), options.use_univariate_pi = false; end;
+    if ~isfield(options, 'restrict_sig2_beta'), options.restrict_sig2_beta = false; end;
     
     if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
 
@@ -33,26 +35,31 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         else
             fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_univariate_cost(mapparams(x), zvec, Hvec, Nvec, w_ld, ref_ld, options), mapparams(x0), fminsearch_options));
 
-            % Step1. Fit infinitesimal model (pivec=1) to initialize sig2_zero
+            fprintf('Trait%i  : fit infinitesimal model to find initial sig2_zero\n', itrait);
             params_inft0 = struct('sig2_zero', var(zvec(~isnan(zvec))), 'sig2_beta', 1 ./ mean(Nvec(~isnan(Nvec))));
             params_inft  = fit(params_inft0, @(x)UGMG_mapparams1(x, struct('pi_vec', 1.0)));
 
-            % Step2. Fit pi_vec and sig2_beta, constrained on sig2_zero and product h2=pi_vec*sig2_beta from x_inft
+            fprintf('Trait%i  : fit pi_vec and sig2_beta, constrained on sig2_zero and h2\n', itrait);
             params_mix0  = fit(struct('pi_vec', 0.5), @(x)UGMG_mapparams1_h2(x, params_inft.sig2_beta, params_inft.sig2_zero));
 
-            % Step3. Final unconstrained optimization (jointly on all parameters)
+            fprintf('Trait%i  : final unconstrained optimization\n', itrait);
             results.univariate{itrait}.params = fit(params_mix0, @(x)UGMG_mapparams1(x));
  
-            % Step4. Uncertainty estimation.
             if ~isnan(options.ci_alpha)
+                fprintf('Trait%s  : uncertainty estimation\n', itrait);
                 ws=warning; warning('off', 'all'); hess = hessian(@(x)BGMG_univariate_cost(UGMG_mapparams1(x), zvec, Hvec, Nvec, w_ld, ref_ld, options), UGMG_mapparams1(results.univariate{itrait}.params)); warning(ws);
-                ci_sample = mvnrnd(UGMG_mapparams1(results.univariate{itrait}.params), inv(hess), options.ci_sample);
+                results.univariate{itrait}.ci_hess = hess;
+                try
+                    ci_sample = mvnrnd(UGMG_mapparams1(results.univariate{itrait}.params), inv(hess), options.ci_sample);
 
-                ci_params = cell(options.ci_sample, 1);
-                for i=1:options.ci_sample, ci_params{i} = UGMG_mapparams1(ci_sample(i, :)); end;
+                    ci_params = cell(options.ci_sample, 1);
+                    for i=1:options.ci_sample, ci_params{i} = UGMG_mapparams1(ci_sample(i, :)); end;
 
-                [ci_univariate_funcs, ~] = find_extract_funcs(options);
-                results.univariate{itrait}.ci = extract_ci_funcs(ci_params, ci_univariate_funcs, results.univariate{itrait}.params, options.ci_alpha);
+                    [ci_univariate_funcs, ~] = find_extract_funcs(options);
+                    results.univariate{itrait}.ci = extract_ci_funcs(ci_params, ci_univariate_funcs, results.univariate{itrait}.params, options.ci_alpha);
+                catch err
+                    fprintf('Error, %s\n', err.message);
+                end
             end
         end
     end
@@ -66,7 +73,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
 
         corrmat = corr(zmat(all(~isnan(zmat), 2), :));
         
-        % Step1. Fit infinitesimal model (pivec=1) to initialize rho_zero and rho_beta
+        fprintf('Trait 1,2: fit infinitesimal model to find initial rho_zero and rho_beta\n');
         params_inft0 = struct('rho_zero', corrmat(1,2), 'rho_beta', corrmat(1,2));
         options_inft = struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], ...
                               'sig2_beta', [p1.pi_vec * p1.sig2_beta; p2.pi_vec * p2.sig2_beta], ...
@@ -74,27 +81,42 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         params_inft  = fit(params_inft0, @(x)BGMG_mapparams1_rho(x, options_inft));
         
         % Step2. Final unconstrained optimization (jointly on all parameters)
+        func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero]));
+        if options.use_univariate_pi, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(x, struct('pi1u', p1.pi_vec, 'pi2u', p2.pi_vec, 'sig2_zero', [p1.sig2_zero; p2.sig2_zero])); end;
+        if options.restrict_sig2_beta, func_map_params = @(x)BGMG_mapparams3(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'sig2_beta', [p1.sig2_beta; p2.sig2_beta])); end;
+        if options.use_univariate_pi && options.restrict_sig2_beta, error('--use_univariate_pi is incompatible --restrict_sig2_beta'); end;
+        fprintf('Trait 1,2: final unconstrained optimization (%s)\n', func2str(func_map_params));
+
         params_final0 = params_inft;
         params_final0.sig2_beta = [p1.sig2_beta 0 p1.sig2_beta; 0 p2.sig2_beta p2.sig2_beta];
-        params_final0.pi_vec = [p1.pi_vec p2.pi_vec min(p1.pi_vec, p2.pi_vec)];
+        init_pi12 = min(p1.pi_vec, p2.pi_vec)/exp(1);
+        params_final0.pi_vec = [p1.pi_vec-init_pi12 p2.pi_vec-init_pi12 init_pi12];
         params_final0.rho_beta = [0 0 params_inft.rho_beta];
-        results.bivariate.params = fit(params_final0, @(x)BGMG_mapparams3_relax_sig2_beta(x));
+        results.bivariate.params = fit(params_final0, func_map_params);
 
         % Step3. Uncertainty estimation. 
         if ~isnan(options.ci_alpha)
-            ws=warning; warning('off', 'all'); hess = hessian(@(x)BGMG_bivariate_cost(BGMG_mapparams3(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), BGMG_mapparams3(results.bivariate.params)); warning(ws);
-            ci_sample = mvnrnd(BGMG_mapparams3(results.bivariate.params), inv(hess), options.ci_sample);
+            fprintf('Trait 1,2: uncertainty estimation\n');
+            ws=warning; warning('off', 'all'); hess = hessian(@(x)BGMG_bivariate_cost(func_map_params(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), func_map_params(results.bivariate.params)); warning(ws);
+            results.bivariate.ci_hess = hess;
+            try
+                ci_sample = mvnrnd(func_map_params(results.bivariate.params), inv(hess), options.ci_sample);
 
-            ci_params = cell(options.ci_sample, 1);
-            for i=1:options.ci_sample, ci_params{i} = BGMG_mapparams3(ci_sample(i, :)); end;
+                ci_params = cell(options.ci_sample, 1);
+                for i=1:options.ci_sample, ci_params{i} = func_map_params(ci_sample(i, :)); end;
 
-            [~, ci_bivariate_funcs] = find_extract_funcs(options);
-            results.bivariate.ci = extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);
+                [~, ci_bivariate_funcs] = find_extract_funcs(options);
+                results.bivariate.ci = extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);
+            catch err
+                fprintf('Error, %s\n', err.message);
+            end
         end
     end
 
     if options.verbose
-       fprintf('Done\n');
+       fprintf('Done, results are:\n');
+       for itrait=1:ntraits, disp(struct_to_display(results.univariate{itrait}.params)); end;
+       if ntraits==2, disp(struct_to_display(results.bivariate.params)); end;
     end
 end
 
@@ -248,4 +270,46 @@ function ov = BGMG_mapparams3_relax_sig2_beta(iv, options)
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_zero');
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_beta');
     [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+end
+
+function ov = BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(iv, options)
+    % same as BGMG_mapparams3_relax_sig2_beta, but adds constraint on univariate
+    % polygenicities of each trait
+    if ~exist('options', 'var'), options=[]; end;
+    if ~isfield(options, 'sig2_zero'), options.sig2_zero = [nan; nan]; end;
+    if ~isfield(options, 'sig2_beta'), options.sig2_beta = [nan 0 nan; 0 nan nan]; end;
+    if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
+    if ~isfield(options, 'rho_beta'), options.rho_beta = [0 0 nan]; end;
+    options.pi_vec = nan;
+
+    is_packing = isstruct(iv); cnti = 1;
+    if is_packing, ov = []; else ov = struct(); end;
+
+    if is_packing,
+        iv.pi_vec = iv.pi_vec(3) / min(options.pi1u, options.pi2u);
+    end;
+
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_beta');
+    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+
+    if ~is_packing
+        pi12 = ov.pi_vec * min(options.pi1u, options.pi2u);
+        ov.pi_vec = [options.pi1u - pi12, options.pi2u - pi12, pi12];
+    end
+end
+
+function so = struct_to_display(si)
+    so = struct();
+    si_fields = fieldnames(si);
+    for field_index=1:length(si_fields)
+        field = si_fields{field_index};
+        if size(si.(field), 1) > 1
+            so.(field) = mat2str(si.(field), 3);
+        else
+            so.(field) = si.(field);
+        end
+    end
 end

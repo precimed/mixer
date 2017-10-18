@@ -20,7 +20,7 @@ TotalHET = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 %BGMG_bivariate_cost(struct('pivec', [0.1 0.2 0.3], 'sigma0', [1.05 1.1], 'sigma_beta', [1e-3, 1e-4], 'rho0', -0.1, 'rho_beta', 0.8), [scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld)
 
 % Univariate two-component mixture model (null + causal)
-BGMG_univariate_cost(struct('pi_vec', 0.1, 'sig2_zero', 1.05, 'sig2_beta', 1e-3), scz.zvec, Hvec, scz.nvec, w_ld, ref_ld)
+BGMG_univariate_cost(struct('pi_vec', 0.1, 'sig2_zero', 1.05, 'sig2_beta', 1e-3), scz.zvec, Hvec, scz.nvec, w_ld, ref_ld, options)
 
 % Univariate three-component mixture model (null + causal1 + causal2), example: AD APOE
 BGMG_univariate_cost(struct('pi_vec', [0.1 0.2], 'sig2_zero', 1.05, 'sig2_beta', [1e-3 1e-4]), scz.zvec, Hvec, scz.nvec, w_ld, ref_ld)
@@ -36,25 +36,32 @@ BGMG_bivariate_cost(struct('pi_vec', [0.1 0.2], 'sig2_zero', [1.05; 1.10], 'rho_
 % Bivariate four-component mixture model (null + indep1 + indep2)
 BGMG_bivariate_cost(struct('pi_vec', [0.1 0.2 0.3], 'sig2_zero', [1.05; 1.10], 'rho_zero', -0.1, 'sig2_beta', [1e-3 0 1e-3; 0 1e-4 1e-4], 'rho_beta', [0 0 0.5]), [scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld, options)
 
+
+BGMG_bivariate_cost(struct('pi_vec', [2.649e-03 1.128e-06 4.255e-05 ], 'rho_beta', [0 0 0.050 ], 'sig2_beta', [5.92e-05 0 5.92e-05; 0 2.76e-03 2.76e-03], 'rho_zero', 0.067, 'sig2_zero', [1.181; 1.092 ]), [scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, options)
+
+
 options.total_het = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 options.verbose = true;
+options.use_univariate_pi = false;
+options.restrict_sig2_beta = true;
+options.ci_alpha = 0.05;
 
 scz_params = BGMG_fit(scz.zvec, Hvec, scz.nvec, w_ld, ref_ld, options);
 bip_params = BGMG_fit(bip.zvec, Hvec, bip.nvec, w_ld, ref_ld, options);
 tg_params = BGMG_fit(tg.zvec, Hvec, tg.nvec, w_ld, ref_ld, options);
 cd_params = BGMG_fit(cd.zvec, Hvec, cd.nvec, w_ld, ref_ld, options);
 
-sbo = options;
-sbo.params1 = scz_params.univariate{1}.params;
-sbo.params2 = bip_params.univariate{1}.params;
-scz_bip_params = BGMG_fit([scz.zvec bip.zvec], Hvec, [scz.nvec scz.nvec], w_ld, ref_ld, options);
+sbo = options; sbo.params1 = scz_params.univariate{1}.params; sbo.params2 = bip_params.univariate{1}.params;
+scz_bip_params2 = BGMG_fit([scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld, sbo);
 
-scz_tg_params2 = BGMG_fit([scz.zvec tg.zvec], Hvec, [scz.nvec tg.nvec], w_ld, ref_ld, options);
+sbo = options; sbo.params1 = scz_params.univariate{1}.params; sbo.params2 = tg_params.univariate{1}.params;
+scz_tg_params2 = BGMG_fit([scz.zvec tg.zvec], Hvec, [scz.nvec tg.nvec], w_ld, ref_ld, sbo);
 
-scz_cd_params = BGMG_fit([scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, options);
-scz_cd_params = BGMG_fit([scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, sbo);
+sbo = options; sbo.params1 = scz_params.univariate{1}.params; sbo.params2 = cd_params.univariate{1}.params;
+scz_cd_params2 = BGMG_fit([scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, sbo);
 
-tg_cd_params = BGMG_fit([tg.zvec cd.zvec], Hvec, [tg.nvec cd.nvec], w_ld, ref_ld, options);
+sbo = options; sbo.params1 = tg_params.univariate{1}.params; sbo.params2 = cd_params.univariate{1}.params;
+tg_cd_params = BGMG_fit([tg.zvec cd.zvec], Hvec, [tg.nvec cd.nvec], w_ld, ref_ld, sbo);
 
 results.bivariate.params = struct('pi_vec', [1e-7 1e-7 0.003 ], ...
        'rho_beta', [0 0 0.835 ], ...
@@ -63,3 +70,8 @@ results.bivariate.params = struct('pi_vec', [1e-7 1e-7 0.003 ], ...
        'sig2_zero', [1.209; 1.051 ]);
 %m=eye(9);m(3:end, 3:end)=inv(hess(3:end, 3:end));
 %ci_sample = mvnrnd(BGMG_mapparams3(results.bivariate.params), m, options.ci_sample);
+
+
+
+ 
+	

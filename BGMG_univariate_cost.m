@@ -42,7 +42,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     % List of all configurable options
     if ~exist('options', 'var'), options = struct(); end;
     if ~isfield(options, 'verbose'), options.verbose = false; end;       % enable or disable verbose logging
-    if ~isfield(options, 'use_convolution'), options.use_convolution = false; end;  % experimental option to calculate pdf via convolution
+    if ~isfield(options, 'use_convolution'), options.use_convolution = false; end;  % experimental VERY SLOW option to calculate pdf via convolution
     if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
 
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
@@ -105,17 +105,16 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfinite(cost), cost = NaN; end;
     if ~isreal(cost), cost = NaN; end;
 
-    % TBD: all options below this line are broken - must be fixed.
     if options.use_convolution
-        distr   = @(x)(x ./ sum(x));
-        conv_n  = @(x, n)BGMG_op_power(x, @(a,b)conv(a, b, 'same'), n);
-        dirac   = @(z)([zeros(1, (length(z)-1)/2), 1, zeros(1,(length(z)-1)/2)]);
-        mixture = @(z, p, s)(p*distr(normpdf(z, 0, s)) + (1-p) * dirac(z));
+        distr   = @(p)(p ./ sum(p));
+        conv_n  = @(p, n)BGMG_util.op_power(p, @(a,b)conv(a, b, 'same'), n);
+        dirac   = @(n)([zeros(1, (n-1)/2), 1, zeros(1,(n-1)/2)]);
+        mixture = @(z, pi, s)(pi*distr(normpdf(z, 0, s)) + (1-pi) * dirac(length(z)));
 
         pdf_by_conv = nan(size(pdf));
 
         ld_block = round(ref_ld_r2./r2eff);
-        ld_sigma = sqrt(Nvec.*Hvec.*r2eff.*params.sigma_beta.^2);
+        ld_sigma = sqrt(Nvec.*Hvec.*r2eff.*params.sig2_beta);
         
         num_ld_block_bins = 20;
         num_ld_sigma_bins = 30;
@@ -143,7 +142,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             z = -z_max:step:z_max; z = z * mean_ld_sigma; 
             
             table_to_pdf_factor = sum(normpdf(z)); % or, 1./(step*mean_ld_sigma) - this is the same
-            pdf_bini = table_to_pdf_factor * conv(conv_n(mixture(z, params.pivec, mean_ld_sigma), mean_ld_block), distr(normpdf(z, 0, params.sigma0)), 'same');
+            pdf_bini = table_to_pdf_factor * conv(conv_n(mixture(z, params.pi_vec, mean_ld_sigma), mean_ld_block), distr(normpdf(z, 0, sqrt(params.sig2_zero))), 'same');
             
             % Hack-hack to avoid concentrating the entire distribution at zero.
             pdf_bini((length(z)+1)/2) = pdf_bini((length(z)-1)/2);
@@ -169,6 +168,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         %hold on; plot(-log10(pdf),-log10(pdf_by_conv),'.'); plot([0 7], [0 7]); hold off
     end
 
+    % TBD: all options below this line are broken - must be fixed.
     if nargout > 1,
         % probability density function
         result.pdf = pdf;

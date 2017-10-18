@@ -34,6 +34,7 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     % List of all configurable options
     if ~exist('options', 'var'), options = struct(); end;
     if ~isfield(options, 'verbose'), options.verbose = false; end;  % enable or disable verbose logging
+    if ~isfield(options, 'use_convolution'), options.use_convolution = false; end;  % experimental VERY SLOW option to calculate pdf via convolution
 
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
     % estimation. They express the grid to calculate posterior delta
@@ -95,6 +96,93 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     cost = sum(weights .* -log(pdf));
     if ~isfinite(cost), cost = NaN; end;
     if ~isreal(cost), cost = NaN; end;
+
+    if options.use_convolution
+        distr   = @(p)(p ./ sum(p));
+        dirac   = @(n)([zeros(1, (n-1)/2), 1, zeros(1,(n-1)/2)]);
+
+        distr2   = @(p2)(p2 ./ sum(p2(:)));
+        conv2_n  = @(p2, n)BGMG_util.op_power(p2, @(a,b)conv2(a, b, 'same'), n);
+        diracX   = @(p)([zeros((length(p)-1)/2, length(p)); p; zeros((length(p)-1)/2, length(p))]);
+        diracY   = @(p)(diracX(p)');
+        dirac2   = @(n)(diracX(dirac(n)));
+        mesh2X   = @(z)BGMG_util.colvec(meshgrid(z, z));
+        mesh2Y   = @(z)BGMG_util.colvec(meshgrid(z, z)');
+        mix2_c0  = @(z)(dirac2(length(z)));
+        mix2_c1  = @(z, sig2)(diracX(distr(normpdf(z, 0, sig2))));
+        mix2_c2  = @(z, sig2)(diracY(distr(normpdf(z, 0, sig2))));
+        mix2_c3  = @(z, sig2, rho)(reshape(fast_normpdf2(mesh2X(z), mesh2Y(z), sig2(1), sqrt(prod(sig2)) * rho, sig2(2)), [length(z) length(z)]));
+        mixture2 = @(z, pi_vec, sig2, rho)((1-sum(pi_vec))*mix2_c0(z) + pi_vec(1)*mix2_c1(z, sig2(1)) + ...
+                                                                        pi_vec(2)*mix2_c2(z, sig2(2)) + ...
+                                                                        pi_vec(3)*distr2(mix2_c3(z, sig2, rho)));
+        % imagesc(-log10(conv2_n(mixture2(-6:0.1:6, [0.003 0.003 0.01], [1 1], 0.99), 200)), [0 5])
+
+        pdf_by_conv = nan(size(pdf));
+
+        ld_block = round(ref_ld_r2./r2eff);
+        ld_sigm1 = sqrt(Nmat(:, 1).*Hvec.*r2eff.*params.sig2_beta(1));
+        ld_sigm2 = sqrt(Nmat(:, 2).*Hvec.*r2eff.*params.sig2_beta(1));
+
+        num_ld_block_bins = 10;
+        num_ld_sigma_bins = 15;
+
+        ld_sigm1_bins = [-Inf quantile(ld_sigm1, num_ld_sigma_bins) Inf];
+        ld_sigm2_bins = [-Inf quantile(ld_sigm2, num_ld_sigma_bins) Inf];
+        ld_block_bins = [-Inf unique(floor(logspace(0, log10(max(ld_block)+1), num_ld_block_bins)))];
+
+        for ld_sigm1_bini = 2:length(ld_sigm1_bins)
+        for ld_sigm2_bini = 2:length(ld_sigm2_bins)
+            idx1 = (ld_sigm1 > ld_sigm1_bins(ld_sigm1_bini - 1)) & (ld_sigm1 <= ld_sigm1_bins(ld_sigm1_bini));
+            idx2 = (ld_sigm2 > ld_sigm2_bins(ld_sigm2_bini - 1)) & (ld_sigm2 <= ld_sigm2_bins(ld_sigm2_bini));
+            if sum(idx1 & idx2) == 0, continue; end;
+
+        for ld_block_bini = 2:length(ld_block_bins)
+            idx3 = (ld_block > ld_block_bins(ld_block_bini - 1)) & (ld_block <= ld_block_bins(ld_block_bini));
+            idx = idx1 & idx2 & idx3;
+            if (sum(idx) == 0), continue; end;
+
+            fprintf('%i %i %i\n', ld_sigm1_bini, ld_sigm2_bini, ld_block_bini);
+
+            mean_ld_block = round(mean(ld_block(idx)));
+            mean_ld_sigm1 = mean(ld_sigm1(idx));
+            mean_ld_sigm2 = mean(ld_sigm2(idx));
+
+            z_max = max(100, round(max([zmat(idx, 1) ./ mean_ld_sigm1; zmat(idx, 2) ./ mean_ld_sigm2])) + 1);
+            if z_max <= 100, step = 1;
+            elseif z_max <= 200, step = 2;
+            elseif z_max <= 500, step = 5;
+            elseif z_max <= 1000, step = 10;
+            else warning('too large z_max'); step = 10;
+            end
+            z = -z_max:step:z_max; z = z * min(mean_ld_sigm1, mean_ld_sigm2);
+
+            table_to_pdf_factor = sum(sum(mix2_c3(z, [1 1], 0)));
+            pdf_bini = table_to_pdf_factor * conv2(conv2_n(mixture2(z, params.pi_vec, [mean_ld_sigm1 mean_ld_sigm2], params.rho_beta(3)), mean_ld_block), distr2(mix2_c3(z, params.sig2_zero, params.rho_zero)), 'same');
+
+            % Hack-hack to avoid concentrating the entire distribution at zero.
+            pdf_bini((length(z)+1)/2, :) = pdf_bini((length(z)-1)/2, :);
+            pdf_bini(:, (length(z)+1)/2) = pdf_bini(:, (length(z)-1)/2);
+            pdf_bini((length(z)+1)/2, (length(z)+1)/2) = pdf_bini((length(z)-1)/2, (length(z)-1)/2);
+
+            pdf_by_conv(idx) = interp2(z, z, pdf_bini, zmat(idx, 1), zmat(idx, 2));
+            if any(isnan(pdf_by_conv(idx))),
+                fprintf('error %i %i %i\n', ld_sigm1_bini, ld_sigm2_bini, ld_block_bini)
+            end
+        end
+        end
+        end
+
+        cost_by_conv = sum(weights .* -log(pdf_by_conv));
+        if ~isfinite(cost_by_conv), cost_by_conv = NaN; end;
+        if ~isreal(cost_by_conv), cost_by_conv = NaN; end;
+        if isnan(cost_by_conv)
+            fprintf('stop');
+        end
+
+        fprintf('cost: %.5e vs %.5e, delta = %.5e\n', cost, cost_by_conv, cost - cost_by_conv);
+        pdf = pdf_by_conv;
+        cost = cost_by_conv;
+    end
 
     % TBD: all options below this line are broken - must be fixed.
     if nargout > 1

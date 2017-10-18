@@ -42,6 +42,7 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if ~isfield(options, 'delta_hat_std_step'),  options.delta_hat_std_step  = 0.5; end;
     if ~isfield(options, 'calculate_delta_hat'), options.calculate_delta_hat = true; end;
     if ~isfield(options, 'calculate_global_fdr'), options.calculate_global_fdr = true; end;
+    if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
 
     % Validate input params
     if ~BGMG_util.validate_params(params); cost = nan; return; end;
@@ -214,6 +215,13 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
             sprintf('%.2e ', filt(params.sig2_beta(2, :))), ...
             sprintf('%.2f ', filt(mean(a22))), ...
             params.rho_zero, sprintf('%.3f ', params.sig2_zero), cost);
+
+        if ~isnan(options.total_het)
+            pleio_idx = all(params.sig2_beta ~= 0);
+            fprintf('\th2=[%s], h2(pleio)=[%s]\n', ...
+                sprintf('%.3f ', (params.sig2_beta*params.pi_vec')*options.total_het), ...
+                sprintf('%.3f ', (params.sig2_beta(:, pleio_idx)*params.pi_vec(pleio_idx))*options.total_het));
+        end
     end
 end
 

@@ -43,6 +43,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~exist('options', 'var'), options = struct(); end;
     if ~isfield(options, 'verbose'), options.verbose = false; end;       % enable or disable verbose logging
     if ~isfield(options, 'use_convolution'), options.use_convolution = false; end;  % experimental option to calculate pdf via convolution
+    if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
 
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
     % estimation. They express the grid to calculate posterior delta
@@ -233,8 +234,9 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if exist('result', 'var'), result = restore_original_indexing(result, defvec); end
 
     if options.verbose
-        fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, (eff. %.3f), sig2_zero^2=%.3e, cost=%.3e\n', ...
-                 params.pi_vec, params.sig2_beta, mean(sig2_beta(:)) .* mean(Hvec) .* mean(Nvec), params.sig2_zero, cost);
+        fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, (eff. %.3f), sig2_zero^2=%.3e, h2=%.3f, cost=%.3e\n', ...
+                 params.pi_vec, params.sig2_beta, mean(sig2_beta(:)) .* mean(Hvec) .* mean(Nvec), params.sig2_zero, ...
+                 (params.sig2_beta*params.pi_vec')*options.total_het, cost);
     end
 end
 

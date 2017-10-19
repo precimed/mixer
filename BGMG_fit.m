@@ -47,8 +47,9 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
  
             if ~isnan(options.ci_alpha)
                 fprintf('Trait%s  : uncertainty estimation\n', itrait);
-                ws=warning; warning('off', 'all'); hess = hessian(@(x)BGMG_univariate_cost(UGMG_mapparams1(x), zvec, Hvec, Nvec, w_ld, ref_ld, options), UGMG_mapparams1(results.univariate{itrait}.params)); warning(ws);
+                ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_univariate_cost(UGMG_mapparams1(x), zvec, Hvec, Nvec, w_ld, ref_ld, options), UGMG_mapparams1(results.univariate{itrait}.params)); warning(ws);
                 results.univariate{itrait}.ci_hess = hess;
+                results.univariate{itrait}.ci_hess_err = err;
                 try
                     ci_sample = mvnrnd(UGMG_mapparams1(results.univariate{itrait}.params), inv(hess), options.ci_sample);
 
@@ -81,9 +82,9 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         params_inft  = fit(params_inft0, @(x)BGMG_mapparams1_rho(x, options_inft));
         
         % Step2. Final unconstrained optimization (jointly on all parameters)
-        func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero]));
-        if options.use_univariate_pi, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(x, struct('pi1u', p1.pi_vec, 'pi2u', p2.pi_vec, 'sig2_zero', [p1.sig2_zero; p2.sig2_zero])); end;
-        if options.restrict_sig2_beta, func_map_params = @(x)BGMG_mapparams3(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'sig2_beta', [p1.sig2_beta; p2.sig2_beta])); end;
+        func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', params_inft.rho_zero));
+        if options.use_univariate_pi, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(x, struct('pi1u', p1.pi_vec, 'pi2u', p2.pi_vec, 'sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', params_inft.rho_zero)); end;
+        if options.restrict_sig2_beta, func_map_params = @(x)BGMG_mapparams3(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'sig2_beta', [p1.sig2_beta; p2.sig2_beta], 'rho_zero', params_inft.rho_zero)); end;
         if options.use_univariate_pi && options.restrict_sig2_beta, error('--use_univariate_pi is incompatible --restrict_sig2_beta'); end;
         fprintf('Trait 1,2: final unconstrained optimization (%s)\n', func2str(func_map_params));
 
@@ -98,6 +99,8 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         if ~isnan(options.ci_alpha)
             fprintf('Trait 1,2: uncertainty estimation\n');
             ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_bivariate_cost(BGMG_mapparams3(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), BGMG_mapparams3(results.bivariate.params)); warning(ws);
+            results.bivariate.ci_hess = hess;
+            results.bivariate.ci_hess_err = err;
             try
                 % Some elements in hessian might be misscalculated
                 % due to various reasons:
@@ -149,6 +152,15 @@ function [univariate_ci_funcs, bivariate_ci_funcs] = find_extract_funcs(options)
     bivariate_ci_funcs.pi1u              = @(params)(sum(params.pi_vec([1 3])));
     bivariate_ci_funcs.pi2u              = @(params)(sum(params.pi_vec([2 3])));
     bivariate_ci_funcs.rg                = @(params)(params.rho_beta * params.pi_vec(3) / sqrt(sum(params.pi_vec([1 3])) * sum(params.pi_vec([2 3]))));
+    bivariate_ci_funcs.pi12_minus_pi1u_times_pi2u = @(params)(params.pi_vec(3) - sum(params.pi_vec([1 3])) * sum(params.pi_vec([2 3])));
+    bivariate_ci_funcs.pi12_over_pi1u    = @(params)(params.pi_vec(3) / sum(params.pi_vec([1 3])));
+    bivariate_ci_funcs.pi12_over_pi2u    = @(params)(params.pi_vec(3) / sum(params.pi_vec([2 3])));
+    bivariate_ci_funcs.pi1_over_pi1u     = @(params)(params.pi_vec(1) / sum(params.pi_vec([1 3])));
+    bivariate_ci_funcs.pi2_over_pi2u     = @(params)(params.pi_vec(2) / sum(params.pi_vec([2 3])));
+    bivariate_ci_funcs.pi1u_over_pi2u    = @(params)(sum(params.pi_vec([1 3])) / sum(params.pi_vec([2 3])));
+    bivariate_ci_funcs.pi2u_over_pi1u    = @(params)(sum(params.pi_vec([2 3])) / sum(params.pi_vec([1 3])));
+    bivariate_ci_funcs.h2pleio           = @(params)(params.sig2_beta(:, 3)*params.pi_vec(3)*options.total_het);
+    bivariate_ci_funcs.h2pleio_over_h2   = @(params)((params.sig2_beta(:, 3)*params.pi_vec(3)) ./ (params.sig2_beta*params.pi_vec'));
 end
 
 function ci = extract_ci_funcs(ci_params, ci_funcs, params, ci_alpha)
@@ -229,8 +241,8 @@ function ov = BGMG_mapparams1_rho(iv, options)
     is_packing = isstruct(iv); cnti = 1;
     if is_packing, ov = []; else ov = options; end;
     
-    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_zero');
-    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_beta');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
 end
 
 function ov = BGMG_mapparams3(iv, options)
@@ -251,8 +263,8 @@ function ov = BGMG_mapparams3(iv, options)
     
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
-    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_zero');
-    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_beta');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
     
     % Tricks to map sig2_beta from two-vector into 2x3 matrix with two zero
     % elements and equal variances in trait-specific and pleiotropic components.
@@ -283,8 +295,8 @@ function ov = BGMG_mapparams3_relax_sig2_beta(iv, options)
 
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
-    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_zero');
-    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_beta');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
     [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
 end
 
@@ -307,8 +319,8 @@ function ov = BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(iv, options)
 
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
-    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_zero');
-    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.erf_amd, 'rho_beta');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
     [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
 
     if ~is_packing

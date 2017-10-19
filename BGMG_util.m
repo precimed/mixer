@@ -67,6 +67,15 @@ classdef BGMG_util
         end
     end
 
+    function y = sigmf_of(x, s)
+        if ~exist('s', 'var'), s = 0; end
+        if s == 0
+            y = BGMG_util.logit_amd((x + 1)/2, s);
+        else
+            y = BGMG_util.logit_amd(x, s) * 2 - 1;
+        end
+    end
+
     function y = logit_amd(x,s)
         if ~exist('s', 'var'), s = 0; end
 

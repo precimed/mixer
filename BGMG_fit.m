@@ -97,13 +97,29 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         % Step3. Uncertainty estimation. 
         if ~isnan(options.ci_alpha)
             fprintf('Trait 1,2: uncertainty estimation\n');
-            ws=warning; warning('off', 'all'); hess = hessian(@(x)BGMG_bivariate_cost(func_map_params(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), func_map_params(results.bivariate.params)); warning(ws);
-            results.bivariate.ci_hess = hess;
+            ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_bivariate_cost(BGMG_mapparams3(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), BGMG_mapparams3(results.bivariate.params)); warning(ws);
             try
-                ci_sample = mvnrnd(func_map_params(results.bivariate.params), inv(hess), options.ci_sample);
+                % Some elements in hessian might be misscalculated
+                % due to various reasons:
+                % - derivest library may return some hessian elements as NaN,
+                %   for example due to very small values in the the pivec
+                % - derivest library may return too high error bars
+                % Below we detect which variables in hessian appear to be
+                % miscalculated, save the list in nanidx, and ignore
+                % such hessian elements in the code below.
+                nanidx = false(size(hess, 1), 1)';
+                for ii=1:length(nanidx),
+                    nanmat = isnan(hess) | ~isfinite(hess) | (abs(err ./ hess) > 1) | (hess == 0);
+                    [m, i] = max(sum(nanmat) + sum(nanmat'));
+                    if m == 0, break; end;
+                    if (m > 0), nanidx(i) = true; hess(i, :) = +Inf; hess(:, i) = +Inf; end;
+                end
+                hess(nanidx, :) = 0; hess(:, nanidx) = 0; hess(nanidx, nanidx) = +Inf;
+
+                ci_sample = mvnrnd(BGMG_mapparams3(results.bivariate.params), inv(hess), options.ci_sample);
 
                 ci_params = cell(options.ci_sample, 1);
-                for i=1:options.ci_sample, ci_params{i} = func_map_params(ci_sample(i, :)); end;
+                for i=1:options.ci_sample, ci_params{i} = BGMG_mapparams3(ci_sample(i, :)); end;
 
                 [~, ci_bivariate_funcs] = find_extract_funcs(options);
                 results.bivariate.ci = extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);

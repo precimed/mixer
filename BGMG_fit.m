@@ -55,6 +55,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
 
                     ci_params = cell(options.ci_sample, 1);
                     for i=1:options.ci_sample, ci_params{i} = UGMG_mapparams1(ci_sample(i, :)); end;
+                    results.univariate{itrait}.ci_params = ci_params;
 
                     [ci_univariate_funcs, ~] = find_extract_funcs(options);
                     results.univariate{itrait}.ci = extract_ci_funcs(ci_params, ci_univariate_funcs, results.univariate{itrait}.params, options.ci_alpha);
@@ -123,6 +124,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
 
                 ci_params = cell(options.ci_sample, 1);
                 for i=1:options.ci_sample, ci_params{i} = BGMG_mapparams3(ci_sample(i, :)); end;
+                results.bivariate.ci_params = ci_params;
 
                 [~, ci_bivariate_funcs] = find_extract_funcs(options);
                 results.bivariate.ci = extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);

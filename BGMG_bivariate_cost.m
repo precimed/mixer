@@ -35,7 +35,8 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if ~exist('options', 'var'), options = struct(); end;
     if ~isfield(options, 'verbose'), options.verbose = false; end;  % enable or disable verbose logging
     if ~isfield(options, 'use_convolution'), options.use_convolution = false; end;  % experimental VERY SLOW option to calculate pdf via convolution
-    if ~isfield(options, 'use_legacy_impl'), options.use_legacy = false; end;  % legacy approximation implementation
+    if ~isfield(options, 'use_legacy_impl'), options.use_legacy_impl = false; end;  % legacy approximation implementation
+    if ~isfield(options, 'zmax'), options.zmax = +Inf; end;
 
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
     % estimation. They express the grid to calculate posterior delta
@@ -54,6 +55,7 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     r2eff   = ref_ld_r4 ./ ref_ld_r2;
 
     defvec = isfinite(sum(zmat, 2) + Hvec + sum(Nmat, 2) + w_ld + ref_ld_r2 + ref_ld_r4) & (Hvec > 0);
+    defvec(any(abs(zmat) > options.zmax, 2)) = false;
     defvec((r2eff < 0) | (r2eff > 1) | (ref_ld_r4 < 0) | (ref_ld_r2 < 0)) = false;
 
     zmat = zmat(defvec, :); Hvec = Hvec(defvec); Nmat = Nmat(defvec, :);

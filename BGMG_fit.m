@@ -13,7 +13,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     if ~isfield(options, 'ci_sample'), options.ci_sample = 10000; end;
     if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
     if ~isfield(options, 'use_univariate_pi'), options.use_univariate_pi = false; end;
-    if ~isfield(options, 'restrict_sig2_beta'), options.restrict_sig2_beta = false; end;
+    if ~isfield(options, 'relax_sig2_beta'), options.relax_sig2_beta = false; end;
     
     if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
 
@@ -82,10 +82,10 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         params_inft  = fit(params_inft0, @(x)BGMG_mapparams1_rho(x, options_inft));
         
         % Step2. Final unconstrained optimization (jointly on all parameters)
-        func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', params_inft.rho_zero));
-        if options.use_univariate_pi, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(x, struct('pi1u', p1.pi_vec, 'pi2u', p2.pi_vec, 'sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', params_inft.rho_zero)); end;
-        if options.restrict_sig2_beta, func_map_params = @(x)BGMG_mapparams3(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'sig2_beta', [p1.sig2_beta; p2.sig2_beta], 'rho_zero', params_inft.rho_zero)); end;
-        if options.use_univariate_pi && options.restrict_sig2_beta, error('--use_univariate_pi is incompatible --restrict_sig2_beta'); end;
+        func_map_params = @(x)BGMG_mapparams3(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'sig2_beta', [p1.sig2_beta; p2.sig2_beta], 'rho_zero', params_inft.rho_zero));
+        if options.relax_sig2_beta, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', params_inft.rho_zero)); end;
+        if options.relax_sig2_beta &&  options.use_univariate_pi, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(x, struct('pi1u', p1.pi_vec, 'pi2u', p2.pi_vec, 'sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', params_inft.rho_zero)); end;
+        if ~options.relax_sig2_beta && options.use_univariate_pi, error('--use_univariate_pi works only together with --relax_sig2_beta'); end;
         fprintf('Trait 1,2: final unconstrained optimization (%s)\n', func2str(func_map_params));
 
         params_final0 = params_inft;

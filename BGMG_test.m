@@ -24,8 +24,6 @@ TotalHET = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 
 options.total_het = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 options.verbose = true;
-options.restrict_sig2_beta = true;
-options.ci_alpha = 0.05;
 
 if exist('do_SCZ_BIP', 'var') && do_SCZ_BIP
 options.use_legacy_impl = false; scz_bip_new = BGMG_fit([scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld, options);

@@ -17,9 +17,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     % ref_ld    - a struct with two fields
     %   .sum_r2 - LD score (total LD) per SNP, calculated across all genotypes or imputed SNPs
     %             ref_ld.sum_r2(j) = sum_i r^2_{ij}
-    %   .sum_r4 - Similar to ref_ld.sum_r2, but contains a sum of r_{ij}^4
-    %             ref_ld.sum_r4(j) = sum_i r^4_{ij}
-    %             WARNING: the sum_r2 and sum_r4 must be consistent with each other
+    %   .chi_r4 - A fraction sum_r4 ./ sum_r2, where
+    %             sum_r4(j) = sum_i r_{ij}^4
     % w_ld      - LD score (total LD) per SNP, calculated across SNPs included in the template for the analysis
     % options   - options; see the below for a full list of configurable options
     %
@@ -62,20 +61,20 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~BGMG_util.validate_params(params); cost = nan; return; end;
     if isempty(ref_ld), error('ref_ld argument is required'); cost = nan; return; end;
     
+    ref_ld_sum_r2 = ref_ld.sum_r2;
+    ref_ld_chi_r4 = ref_ld.chi_r4;
+
     % Symmetrization trick - disable, doesn't seems to make a difference
     % zvec = [zvec; -zvec];
     % Hvec = [Hvec; Hvec]; Nvec = [Nvec; Nvec]; w_ld = 2 * [w_ld; w_ld]; % twice w_ld to preserve sum(1./w_ld).
     % ref_ld = struct('sum_r2', [ref_ld.sum_r2; ref_ld.sum_r2], 'sum_r4', [ref_ld.sum_r4; ref_ld.sum_r4]);
 
-    ref_ld_r2 = ref_ld.sum_r2; ref_ld_r4 = ref_ld.sum_r4;
-    r2eff   = ref_ld_r4 ./ ref_ld_r2;
-
-    defvec = isfinite(zvec + Hvec + Nvec + w_ld + ref_ld_r2 + ref_ld_r4) & (Hvec > 0);
+    defvec = isfinite(zvec + Hvec + Nvec + w_ld + ref_ld_sum_r2 + ref_ld_chi_r4) & (Hvec > 0);
     defvec(any(abs(zvec) > options.zmax, 2)) = false;
-    defvec((r2eff < 0) | (r2eff > 1) | (ref_ld_r4 < 0) | (ref_ld_r2 < 0)) = false;
+    defvec((ref_ld_chi_r4 < 0) | (ref_ld_chi_r4 > 1) | (ref_ld_sum_r2 < 0)) = false;
 
     zvec = zvec(defvec, :); Hvec = Hvec(defvec); Nvec = Nvec(defvec, :);
-    w_ld = w_ld(defvec); ref_ld_r2 = ref_ld_r2(defvec); ref_ld_r4 = ref_ld_r4(defvec); r2eff = r2eff(defvec);
+    w_ld = w_ld(defvec); ref_ld_sum_r2 = ref_ld_sum_r2(defvec); ref_ld_chi_r4 = ref_ld_chi_r4(defvec);
 
     num_traits = length(params.sig2_zero);  % number of traits in the anslysis
     num_mix    = length(params.pi_vec);  % number of components in the mixture
@@ -84,8 +83,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
 
     % Approximation that preserves variance and kurtosis
     pi_vec     = repmat(params.pi_vec, [num_snps 1]);
-    eta_factor = (pi_vec .* repmat(ref_ld_r2, [1, num_mix]) + (1-pi_vec) .* repmat(r2eff, [1, num_mix]));
-    pi_vec     = (pi_vec .* repmat(ref_ld_r2, [1, num_mix])) ./ eta_factor;
+    eta_factor = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix]) + (1-pi_vec) .* repmat(ref_ld_chi_r4, [1, num_mix]));
+    pi_vec     = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix])) ./ eta_factor;
     
     % Normalize pi vector, and compensate total variance by adjusting eta_factor
     [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
@@ -115,8 +114,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
 
         pdf_by_conv = nan(size(pdf));
 
-        ld_block = round(ref_ld_r2./r2eff);
-        ld_sigma = sqrt(Nvec.*Hvec.*r2eff.*params.sig2_beta);
+        ld_block = round(ref_ld_sum_r2./ref_ld_chi_r4);
+        ld_sigma = sqrt(Nvec.*Hvec.*ref_ld_chi_r4.*params.sig2_beta);
         
         num_ld_block_bins = 20;
         num_ld_sigma_bins = 30;

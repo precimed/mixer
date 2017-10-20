@@ -3,9 +3,21 @@ addpath('DERIVESTsuite');
 if ~exist('mafvec', 'var'),
     load(fullfile('test_data/ldmat_1m_p8.mat'),'mafvec');
     load('test_data/infomat.mat');
-    ref_ld2 = load('test_data/1000G_EUR_Phase3_ref_ld2.mat');
-    ref_ld4 = load('test_data/1000G_EUR_Phase3_ref_ld4.mat');
-    w_ld2 = load('test_data/1000G_EUR_Phase3_w_ld2.mat');
+
+    if 0
+        % old stuff
+        ref_ld2 = load('test_data/1000G_EUR_Phase3_ref_ld2.mat');
+        biased_ref_ld2 = load('test_data/1000G_EUR_Phase3_ref_ld2.mat');
+        biased_ref_ld4 = load('test_data/1000G_EUR_Phase3_ref_ld4.mat');
+        w_ld2 = load('test_data/1000G_EUR_Phase3_w_ld2.mat');
+    else
+        % re-generated on 2017.10.20
+        ref_ld2 = load('H:/work/bgmg-annot/ref_l2.mat');
+        biased_ref_ld4 = load('H:/work/bgmg-annot/biased_ref_l4.mat');
+        biased_ref_ld2 = load('H:/work/bgmg-annot/biased_ref_l2.mat');
+        w_ld2 = load('H:/work/bgmg-annot/w_ld.mat');
+    end
+
     scz = load('test_data/PGC_SCZ_2014_noMHC.mat');
     bip = load('test_data/PGC_BIP_2012_lift_noMHC.mat');
     cd  = load('test_data/IIBDGC_CD_2015_EUR_noMHC.mat');
@@ -18,7 +30,7 @@ if ~exist('mafvec', 'var'),
     cd.zvec(mhc)=nan;
 end
 
-ref_ld = struct('sum_r2', ref_ld2.annomat, 'sum_r4', ref_ld4.annomat);
+ref_ld = struct('sum_r2', biased_ref_ld2.annomat, 'chi_r4', biased_ref_ld4.annomat ./ biased_ref_ld2.annomat);
 Hvec = 2*mafvec .* (1-mafvec);  w_ld  = w_ld2.annomat;
 TotalHET = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 

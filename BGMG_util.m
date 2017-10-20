@@ -127,5 +127,48 @@ classdef BGMG_util
     function v = rowvec(M)
         v = reshape(M,[1 numel(M)]);
     end
+
+    function result2str(result)
+        cis = {};
+        if isfield(result, 'univariate')
+            for i=1:length(result.univariate)
+                cis{end+1, 1} = result.univariate{i}.ci;
+            end
+        end
+        if isfield(result, 'bivariate')
+            cis{end+1, 1} = result.bivariate.ci;
+        end
+
+        for t=1:length(cis)
+            fs=fieldnames(cis{t});
+            for i=1:length(fs)
+                values = cis{t}.(fs{i});
+
+                element = values.mean;
+                if (size(element, 1) > 1) && (size(element, 2) > 1), continue; end;
+
+                for k=1:length(element)
+                    cs = fieldnames(values);
+
+                    header = ''; data = '';
+                    header = [header 'measure\t'];
+                    data = [data fs{i}];
+                    if length(element) > 1, data = [data sprintf('(%i)', k)]; end;
+                    data = [data '\t'];
+
+                    for j=1:length(cs)
+                        header = [header cs{j} '\t'];
+                        value = values.(cs{j});
+                        value = value(k);
+                        data = [data mat2str(value) '\t'];
+                    end
+
+                    if i==1 && k==1, fprintf([header '\n']); end
+                    fprintf([data '\n']);
+                end
+            end
+            fprintf('\n');
+        end
+    end
   end
 end

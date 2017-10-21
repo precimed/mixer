@@ -20,47 +20,71 @@ if ~exist('mafvec', 'var'),
 
     scz = load('test_data/PGC_SCZ_2014_noMHC.mat');
     bip = load('test_data/PGC_BIP_2012_lift_noMHC.mat');
+    bip2 = load('test_data/PGC_BIP_2016_qc_noMHC.mat');
     cd  = load('test_data/IIBDGC_CD_2015_EUR_noMHC.mat');
     tg  = load('test_data/LIPIDS_TG_2013_noMHC.mat');
     
     mhc = (chrnumvec==6) & (posvec > 25e6) & (posvec < 35e6);
     scz.zvec(mhc)=nan;
     bip.zvec(mhc)=nan;
+    bip2.zvec(mhc)=nan;
     tg.zvec(mhc)=nan;
     cd.zvec(mhc)=nan;
 end
 
 ref_ld = struct('sum_r2', biased_ref_ld2.annomat, 'chi_r4', biased_ref_ld4.annomat ./ biased_ref_ld2.annomat);
 Hvec = 2*mafvec .* (1-mafvec);  w_ld  = w_ld2.annomat;
+
+% mafvec_all = load('H:\work\bgmg-annot\mafvec_all_snps_1000G_Phase3_frq.mat')
+% TotalHet =  2*sum(mafvec_all.mafvec .* (1-mafvec_all.mafvec))
 TotalHET = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 
 options.total_het = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 options.verbose = true;
 
+if exist('do_SCZ', 'var') && do_SCZ
+scz_result = BGMG_fit(scz.zvec, Hvec, scz.nvec, w_ld, ref_ld, options);
+BGMG_util.result2str(scz_result)
+end
+
 if exist('do_SCZ_BIP', 'var') && do_SCZ_BIP
 options.use_legacy_impl = false; scz_bip_new = BGMG_fit([scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld, options);
-options.use_legacy_impl = true;  scz_bip_old = BGMG_fit([scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld, options);
+%options.use_legacy_impl = true;  scz_bip_old = BGMG_fit([scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld, options);
 BGMG_bivariate_cost(scz_bip_new.bivariate.params, [scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld, options);
 BGMG_util.result2str(scz_bip_new)
 end
 
+if exist('do_SCZ_BIP2', 'var') && do_SCZ_BIP2
+options.use_legacy_impl = false; scz_bip2_new = BGMG_fit([scz.zvec bip2.zvec], Hvec, [scz.nvec bip2.nvec], w_ld, ref_ld, options);
+%options.use_legacy_impl = true;  scz_bip2_old = BGMG_fit([scz.zvec bip2.zvec], Hvec, [scz.nvec bip2.nvec], w_ld, ref_ld, options);
+BGMG_bivariate_cost(scz_bip2_new.bivariate.params, [scz.zvec bip2.zvec], Hvec, [scz.nvec bip2.nvec], w_ld, ref_ld, options);
+BGMG_util.result2str(scz_bip2_new)
+end
+
 if exist('do_SCZ_TG', 'var') && do_SCZ_TG
 options.use_legacy_impl = false; scz_tg_new = BGMG_fit([scz.zvec tg.zvec], Hvec, [scz.nvec tg.nvec], w_ld, ref_ld, options);
-options.use_legacy_impl = true;  scz_tg_old = BGMG_fit([scz.zvec tg.zvec], Hvec, [scz.nvec tg.nvec], w_ld, ref_ld, options);
+%options.use_legacy_impl = true;  scz_tg_old = BGMG_fit([scz.zvec tg.zvec], Hvec, [scz.nvec tg.nvec], w_ld, ref_ld, options);
 BGMG_bivariate_cost(scz_tg_new.bivariate.params, [scz.zvec tg.zvec], Hvec, [scz.nvec tg.nvec], w_ld, ref_ld, options);
 BGMG_util.result2str(scz_tg_new)
 end
 
+if exist('do_BIP_TG', 'var') && do_BIP_TG
+options.use_legacy_impl = false; bip_tg_new = BGMG_fit([bip.zvec tg.zvec], Hvec, [bip.nvec tg.nvec], w_ld, ref_ld, options);
+%options.use_legacy_impl = true;  bip_tg_old = BGMG_fit([bip.zvec tg.zvec], Hvec, [bip.nvec tg.nvec], w_ld, ref_ld, options);
+BGMG_bivariate_cost(bip_tg_new.bivariate.params, [bip.zvec tg.zvec], Hvec, [bip.nvec tg.nvec], w_ld, ref_ld, options);
+BGMG_util.result2str(bip_tg_new)
+end
+
 if exist('do_SCZ_CD', 'var') && do_SCZ_CD
 options.use_legacy_impl = false; scz_cd_new = BGMG_fit([scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, options);
-options.use_legacy_impl = true;  scz_cd_old = BGMG_fit([scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, options);
+%options.use_legacy_impl = true;  scz_cd_old = BGMG_fit([scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, options);
 BGMG_bivariate_cost(scz_cd_new.bivariate.params, [scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, options);
 BGMG_util.result2str(scz_cd_new)
 end
 
 if exist('do_TG_CD', 'var') && do_TG_CD
 options.use_legacy_impl = false; tg_cd_new = BGMG_fit([tg.zvec cd.zvec], Hvec, [tg.nvec cd.nvec], w_ld, ref_ld, options);
-options.use_legacy_impl = true;  tg_cd_old = BGMG_fit([tg.zvec cd.zvec], Hvec, [tg.nvec cd.nvec], w_ld, ref_ld, options);
+%options.use_legacy_impl = true;  tg_cd_old = BGMG_fit([tg.zvec cd.zvec], Hvec, [tg.nvec cd.nvec], w_ld, ref_ld, options);
 BGMG_bivariate_cost(tg_cd_new.bivariate.params, [tg.zvec cd.zvec], Hvec, [tg.nvec cd.nvec], w_ld, ref_ld, options);
 BGMG_util.result2str(tg_cd_new)
 end

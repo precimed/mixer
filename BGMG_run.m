@@ -13,38 +13,38 @@
 fprintf('trait1: %s\n', trait1);
 if exist('trait2', 'var'), fprintf('trait2: %s\n', trait2); end;
 
-outdir = 'figures'; if ~exist(outdir,'dir'), mkdir(outdir); end
+t = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR\MATLAB_Data';                       if exist(t, 'dir'), data_path = t; end;
+t = '/work/users/oleksanf/NORSTORE/GWAS_SUMSTAT/LDSR/MATLAB_Data';     if exist(t, 'dir'), data_path = t; end;
+t = '/space/syn03/1/data/GWAS_SUMSTAT/LDSR/MATLAB_Data';               if exist(t, 'dir'), data_path = t; end;
+if ~exist('data_path', 'var'), error('Unable to locate data folder'); end;
 
 addpath('DERIVESTsuite');
 
-% Load data
-t = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR';                       if exist(t, 'dir'), ldsr_path = t; end;
-t = '/work/users/oleksanf/NORSTORE/GWAS_SUMSTAT/LDSR';     if exist(t, 'dir'), ldsr_path = t; end;
-t = '/space/syn03/1/data/GWAS_SUMSTAT/LDSR';               if exist(t, 'dir'), ldsr_path = t; end;
-if ~exist('ldsr_path', 'var'), error('Unable to locate data folder'); end;
+load('reference_data/mafvec.mat','mafvec');
+load('reference_data/chrnumvec.mat','chrnumvec');
+load('reference_data/posvec.mat','posvec');
+ref_ld2 = load('reference_data/ref_l2.mat');
+biased_ref_ld4 = load('reference_data/biased_ref_l4.mat');
+biased_ref_ld2 = load('reference_data/biased_ref_l2.mat');
+w_ld2 = load('reference_data/w_ld.mat');
 
-load(fullfile(ldsr_path, 'MATLAB_Annot/ldmat_1m_p8.mat'),'mafvec');
-load(fullfile(ldsr_path, 'MATLAB_Annot/infomat.mat'));
-ref_ld2 = load(fullfile(ldsr_path, 'MATLAB_Annot/1000G_EUR_Phase3_ref_ld2.mat'));
-ref_ld4 = load(fullfile(ldsr_path, 'MATLAB_Annot/1000G_EUR_Phase3_ref_ld4.mat'));
-w_ld2 = load(fullfile(ldsr_path, 'MATLAB_Annot/1000G_EUR_Phase3_w_ld2.mat'));
-
-ref_ld = struct();
-ref_ld.sum_r2 = ref_ld2.annomat;
-ref_ld.sum_r4 = ref_ld4.annomat;
-
-z = @(logpvec, zvec) -norminv(10.^-logpvec/2).*sign(zvec);
+ref_ld = struct('sum_r2', biased_ref_ld2.annomat, 'chi_r4', biased_ref_ld4.annomat ./ biased_ref_ld2.annomat);
 Hvec = 2*mafvec .* (1-mafvec);  w_ld  = w_ld2.annomat;
+
+% Remember to exclude MHC, also for summary stats called ending with
+% no_MHC.mat. no_MHC suffix imply exclusion of 26-34, as done by LD score
+% regresison. In some cases this seems to be not enough. 25-35 is the 
+% standard from Ricopilli pipeline.
 mhc = (chrnumvec==6) & (posvec > 25e6) & (posvec < 35e6);
 
-TotalHET = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
+% mafvec_all = load('mafvec_all_snps_1000G_Phase3_frq.mat')
+% options.total_het = 2*sum(mafvec_all.mafvec .* (1-mafvec_all.mafvec))
+options.total_het = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
+options.verbose = true;
 
-% Run the model
-options = struct('verbose', false, 'plot_costlines', false, 'plot_costmaps', false, 'total_het', TotalHET);
-data1  = load(fullfile(fullfile(ldsr_path, 'MATLAB_Data', trait1)));
-
+data1  = load(fullfile(data_path, trait1)); data1.zvec(mhc) = nan;
 if exist('trait2', 'var'),
-    data2  = load(fullfile(fullfile(ldsr_path, 'MATLAB_Data', trait2)));
+    data2 = load(fullfile(data_path, trait2)); data2.zvec(mhc) = nan;
     result = BGMG_fit([data1.zvec, data2.zvec], Hvec, [data1.nvec, data2.nvec], w_ld, ref_ld, options);
     result.trait1 = trait1;
     result.trait2 = trait2;
@@ -62,23 +62,6 @@ else
 end
 
 fileID = fopen([fname '.txt'], 'w');
-% Describe results in a plain text file
-for i=1:length(result.univariate)
-    if i==1, fprintf(fileID,'Univariate analysis for %s:\n', result.trait1); else  fprintf(fileID,'Univariate analysis for %s:\n', result.trait2); end;
-    u = result.univariate{i}.params.uncertainty;
-    fn = fieldnames(u);
-    for j=1:length(fn)
-        p = u.(fn{j});
-        fprintf(fileID,'\t%s=%.3g, se=%.3g, ci@95%%=[%.3g,%.3g], wald=%.3f, H0="%s", Pvalue=%.3g\n', fn{j}, p.value, p.se, p.ci(1), p.ci(2), p.wald, p.H0, p.pvalue);
-    end
-end
-if isfield(result, 'bivariate')
-    fprintf(fileID,'Bivariate analysis for %s vs %s:\n', result.trait1, result.trait2);
-    u = result.bivariate.params.uncertainty;
-    fn = fieldnames(u);
-    for j=1:length(fn)
-        p = u.(fn{j});
-        fprintf(fileID,'\t%s=%.3g, se=%.3g, ci@95%%=[%.3g,%.3g], wald=%.3f, H0="%s", Pvalue=%.3g\n', fn{j}, p.value, p.se, p.ci(1), p.ci(2), p.wald, p.H0, p.pvalue);
-    end
-end
+BGMG_util.result2str(1,      result)
+BGMG_util.result2str(fileID, result)
 fclose(fileID);

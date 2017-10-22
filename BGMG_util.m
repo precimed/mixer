@@ -128,7 +128,7 @@ classdef BGMG_util
         v = reshape(M,[1 numel(M)]);
     end
 
-    function result2str(result)
+    function result2str(fileID, result)
         cis = {};
         if isfield(result, 'univariate')
             for i=1:length(result.univariate)
@@ -163,11 +163,11 @@ classdef BGMG_util
                         data = [data mat2str(value) '\t'];
                     end
 
-                    if i==1 && k==1, fprintf([header '\n']); end
-                    fprintf([data '\n']);
+                    if i==1 && k==1, fprintf(fileID, [header '\n']); end
+                    fprintf(fileID, [data '\n']);
                 end
             end
-            fprintf('\n');
+            fprintf(fileID, '\n');
         end
     end
   end

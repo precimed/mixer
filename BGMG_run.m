@@ -13,6 +13,9 @@
 fprintf('trait1: %s\n', trait1);
 if exist('trait2', 'var'), fprintf('trait2: %s\n', trait2); end;
 
+[~, trait1_name, ~] = fileparts(trait1);
+if exist('trait2', 'var'), [~, trait2_name, ~] = fileparts(trait2); end;
+
 if ~exist('data_path', 'var')
 t = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR\MATLAB_Data';                       if exist(t, 'dir'), data_path = t; end;
 t = '/work/users/oleksanf/NORSTORE/GWAS_SUMSTAT/LDSR/MATLAB_Data';     if exist(t, 'dir'), data_path = t; end;
@@ -52,14 +55,14 @@ if exist('trait2', 'var'),
     result.trait2 = trait2;
 
     % Save the result in .mat file
-    fname = sprintf('BGMG_run_%s_vs_%s', trait1, trait2);
+    fname = sprintf('BGMG_run_%s_vs_%s', trait1_name, trait2_name);
     save([fname '.mat'], 'result');
 else
     result = BGMG_fit(data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options);
     result.trait1 = trait1;
 
     % Save the result in .mat file
-    fname = sprintf('UGMG_run_%s', trait1);
+    fname = sprintf('UGMG_run_%s', trait1_name);
     save([fname '.mat'], 'result');
 end
 

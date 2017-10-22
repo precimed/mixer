@@ -50,14 +50,17 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     % distribution before taking mean or median statistic.
     if ~isfield(options, 'delta_hat_std_limit'), options.delta_hat_std_limit = 20; end;
     if ~isfield(options, 'delta_hat_std_step'),  options.delta_hat_std_step  = 0.5; end;
-    if ~isfield(options, 'calculate_delta_hat'), options.calculate_delta_hat = true; end;
+    if ~isfield(options, 'calculate_delta_hat'), options.calculate_delta_hat = false; end;
 
     % z_cdf_limit and z_cdf_step are used in cdf estimation
     if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;
     if ~isfield(options, 'calculate_z_cdf_step'), options.calculate_z_cdf_step = 0.25; end;
     if ~isfield(options, 'calculate_z_cdf'), options.calculate_z_cdf = false; end;
 
+    if ~isfield(options, 'calculate_fdr'), options.calculate_fdr = false; end;
+
     % Validate input params
+    result=[];
     if ~BGMG_util.validate_params(params); cost = nan; return; end;
     if isempty(ref_ld), error('ref_ld argument is required'); cost = nan; return; end;
     
@@ -169,8 +172,31 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         %hold on; plot(-log10(pdf),-log10(pdf_by_conv),'.'); plot([0 7], [0 7]); hold off
     end
 
+    % Cumulated distribution function for Z scores
+    if (nargout > 1) && options.calculate_z_cdf
+        fprintf('Estimate cumulated distribution function for Z scores...\n');
+        z_grid =  (-options.calculate_z_cdf_limit:options.calculate_z_cdf_step:options.calculate_z_cdf_limit);
+        snps=length(zvec);
+        result.cdf = nan(snps, length(z_grid));
+        chunksize = floor(snps/length(z_grid));
+        for snpi=1:chunksize:snps
+            snpj = min(snpi+chunksize-1, snps);
+            z_grid_zvec = repmat(z_grid, [snpj-snpi+1, 1]);
+            RC = @(x, ci)repmat(x(snpi:snpj, ci), [1 length(z_grid)]);
+
+            z_grid_pdf = RC(pi0, 1) .* fast_normpdf1(z_grid_zvec, params.sig2_zero);
+            for mixi = 1:num_mix
+                z_grid_pdf = z_grid_pdf + RC(pi_vec_norm, mixi) .* fast_normpdf1(z_grid_zvec, RC(sig2_beta, mixi) .* RC(Hvec, 1) .* RC(Nvec, 1) + params.sig2_zero);
+            end
+
+            result.cdf(snpi:snpj, :)  = cumsum(z_grid_pdf, 2) ./ repmat(sum(z_grid_pdf, 2), [1, length(z_grid)]);
+            fprintf('\tFinish %i SNPs out of %i\n', snpj, snps);
+        end
+        %result.cdf_z_grid = z_grid;
+    end
+
     % TBD: all options below this line are broken - must be fixed.
-    if nargout > 1,
+    if nargout > 1 && options.calculate_fdr
         % probability density function
         result.pdf = pdf;
         
@@ -185,26 +211,6 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         result.fdr_global = cdf0 ./ cdf;
     end 
 
-    % Cumulated distribution function for Z scores
-    if (nargout > 1) && options.calculate_z_cdf
-        fprintf('Estimate cumulated distribution function for Z scores...\n');
-        z_grid =  (-options.calculate_z_cdf_limit:options.calculate_z_cdf_step:options.calculate_z_cdf_limit);
-        snps=length(zvec);
-        result.cdf = nan(snps, length(z_grid));
-        chunksize = floor(snps/length(z_grid));
-        for snpi=1:chunksize:snps
-            snpj = min(snpi+chunksize-1, snps);
-            z_grid_data = struct('pi0', pi0, 'pi1', pi1, 'sbt_sqr', sbt_sqr, 'Hvec', Hvec, 'Nvec', Nvec);
-            fn = fieldnames(z_grid_data); for fi = 1:length(fn), d = z_grid_data.(fn{fi}); z_grid_data.(fn{fi}) = repmat(d(snpi:snpj, :), [1, length(z_grid)]); end;
-            z_grid_zvec = repmat(z_grid, [snpj-snpi+1, 1]);
-            z_grid_pdf0 = z_grid_data.pi0 .* fast_normpdf1(z_grid_zvec, sigma0_sqr);
-            z_grid_pdf1 = z_grid_data.pi1 .* fast_normpdf1(z_grid_zvec, sigma0_sqr + z_grid_data.sbt_sqr .* z_grid_data.Hvec .* z_grid_data.Nvec);
-            z_grid_pdf  = z_grid_pdf0 + z_grid_pdf1;
-            result.cdf(snpi:snpj, :)  = cumsum(z_grid_pdf, 2) ./ repmat(sum(z_grid_pdf, 2), [1, length(z_grid)]);
-            fprintf('\tFinish %i SNPs out of %i\n', snpj, snps);
-        end
-    end
-    
     % Posterior effect size estimates
     if (nargout > 1) && options.calculate_delta_hat
         fprintf('Estimate posterior effect sizes...\n');

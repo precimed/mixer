@@ -89,14 +89,18 @@ BGMG_bivariate_cost(tg_cd_new.bivariate.params, [tg.zvec cd.zvec], Hvec, [tg.nve
 BGMG_util.result2str(tg_cd_new)
 end
 
-return 
+return
+
+o2 = options; o2.calculate_z_cdf = true; [cost, result_scz] = BGMG_univariate_cost(scz_bip_new.univariate{1}.params, scz.zvec, Hvec, scz.nvec, w_ld, ref_ld, o2);
+o2 = options; o2.calculate_z_cdf = true; [cost, result_bip] = BGMG_univariate_cost(scz_bip_new.univariate{2}.params, bip.zvec, Hvec, bip.nvec, w_ld, ref_ld, o2);
+o2 = options; o2.calculate_z_cdf = true; [cost, result_cd] = BGMG_univariate_cost(scz_cd_new.univariate{2}.params, cd.zvec, Hvec, cd.nvec, w_ld, ref_ld, o2);
+o2 = options; o2.calculate_z_cdf = true; [cost, result_tg] = BGMG_univariate_cost(bip_tg_new.univariate{2}.params, tg.zvec, Hvec, tg.nvec, w_ld, ref_ld, o2);
+
 
 %scz_params = BGMG_fit(scz.zvec, Hvec, scz.nvec, w_ld, ref_ld, options);
 %bip_params = BGMG_fit(bip.zvec, Hvec, bip.nvec, w_ld, ref_ld, options);
 %tg_params = BGMG_fit(tg.zvec, Hvec, tg.nvec, w_ld, ref_ld, options);
 %cd_params = BGMG_fit(cd.zvec, Hvec, cd.nvec, w_ld, ref_ld, options);
-
-%BGMG_univariate_cost(scz_params.univariate{1}.params, scz.zvec, Hvec, scz.nvec, w_ld, ref_ld, options);
 
 %sbo = options; sbo.params1 = scz_params.univariate{1}.params; sbo.params2 = bip_params.univariate{1}.params;
 scz_bip_params2 = BGMG_fit([scz.zvec bip.zvec], Hvec, [scz.nvec bip.nvec], w_ld, ref_ld, sbo);
@@ -146,4 +150,48 @@ BGMG_bivariate_cost(struct('pi_vec', [0.1 0.2 0.3], 'sig2_zero', [1.05; 1.10], '
 
 
 BGMG_bivariate_cost(struct('pi_vec', [2.649e-03 1.128e-06 4.255e-05 ], 'rho_beta', [0 0 0.050 ], 'sig2_beta', [5.92e-05 0 5.92e-05; 0 2.76e-03 2.76e-03], 'rho_zero', 0.067, 'sig2_zero', [1.181; 1.092 ]), [scz.zvec cd.zvec], Hvec, [scz.nvec cd.nvec], w_ld, ref_ld, options)
+end
+
+if 0
+    if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;
+    if ~isfield(options, 'calculate_z_cdf_step'), options.calculate_z_cdf_step = 0.25; end;
+    z_grid =  (-options.calculate_z_cdf_limit:options.calculate_z_cdf_step:options.calculate_z_cdf_limit);
+    
+    clf
+    zvec = tg.zvec; result_cdf = result_tg.cdf;
+    numstrata = 4;
+    
+    x = ref_ld.sum_r2;
+    y = Hvec;
+    % y = ref_ld.chi_r4;
+    defvec=isfinite(zvec+x+y);
+    zvec=zvec(defvec); x=x(defvec); y=y(defvec); result_cdf = result_cdf(defvec, :);
+    
+    strat = false(numstrata,numstrata,sum(defvec));
+    xq = [-Inf, quantile(x,numstrata-2), +Inf];
+    yq = [-Inf, quantile(y,numstrata-2), +Inf];
+    for i=1:numstrata
+        for j=1:numstrata
+            idx = true(size(x));
+            titl = '';
+            if i ~= numstrata, idx = idx & ((x >= xq(i)) & (x <= xq(i+1))); titl = sprintf('%s%.1f<=TLD <=%.1f', titl, xq(i), xq(i+1)); end;
+            if i ~= numstrata && j ~= numstrata, titl = sprintf('%s\n', titl); end;
+            if j ~= numstrata, idx = idx & ((y >= yq(j)) & (y <= yq(j+1))); titl = sprintf('%s%.3f<=HVEC<=%.3f', titl, yq(j), yq(j+1)); end;
+            subplot(numstrata,numstrata, (i-1)*numstrata+j);
+            title(titl);
+            
+            hold on
+            qqlim=6;
+            plot(-log10(nanmean(result_cdf(idx, :))),-log10(normcdf(z_grid,0,1)),'b'); 
+
+            zvecI = sort(zvec(idx));
+            plot(-log10((1:length(zvecI)) / length(zvecI)),-log10(normcdf(zvecI, 0, 1)),'g'); 
+
+            plot([0 qqlim],[0 qqlim], 'k');
+            xlim([0 qqlim]); ylim([0 qqlim]);
+        end
+    end
+    
+    
+    %legend('model-conv', 'model-amd', 'model-kl', 'null', 'Location', 'SouthEast');
 end

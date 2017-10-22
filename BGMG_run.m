@@ -13,9 +13,11 @@
 fprintf('trait1: %s\n', trait1);
 if exist('trait2', 'var'), fprintf('trait2: %s\n', trait2); end;
 
+if ~exist('data_path', 'var')
 t = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR\MATLAB_Data';                       if exist(t, 'dir'), data_path = t; end;
 t = '/work/users/oleksanf/NORSTORE/GWAS_SUMSTAT/LDSR/MATLAB_Data';     if exist(t, 'dir'), data_path = t; end;
 t = '/space/syn03/1/data/GWAS_SUMSTAT/LDSR/MATLAB_Data';               if exist(t, 'dir'), data_path = t; end;
+end
 if ~exist('data_path', 'var'), error('Unable to locate data folder'); end;
 
 addpath('DERIVESTsuite');
@@ -57,7 +59,7 @@ else
     result.trait1 = trait1;
 
     % Save the result in .mat file
-    fname = sprintf('BGMG_run_%s', trait1);
+    fname = sprintf('UGMG_run_%s', trait1);
     save([fname '.mat'], 'result');
 end
 

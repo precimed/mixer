@@ -1,0 +1,4 @@
+*.mat
+*.asv
+*.log
+!reference_data/*

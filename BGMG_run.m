@@ -9,7 +9,7 @@
 % parameters, later all parameters will be exposed as a text config file.
 %
 % For information about various parameters look into BGMG_fit.m.
-
+try
 fprintf('trait1: %s\n', trait1);
 if exist('trait2', 'var'), fprintf('trait2: %s\n', trait2); end;
 
@@ -55,7 +55,7 @@ if exist('trait2', 'var'),
     result.trait2 = trait2;
 
     % Save the result in .mat file
-    fname = sprintf('BGMG_run_%s_vs_%s', trait1_name, trait2_name);
+    fname = sprintf('BGMG_run_%s-%s', trait1_name, trait2_name);
     save([fname '.mat'], 'result');
 else
     result = BGMG_fit(data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options);
@@ -70,3 +70,5 @@ fileID = fopen([fname '.txt'], 'w');
 BGMG_util.result2str(1,      result)
 BGMG_util.result2str(fileID, result)
 fclose(fileID);
+catch err
+end

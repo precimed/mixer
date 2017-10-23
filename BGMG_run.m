@@ -8,8 +8,13 @@
 % Currently you may need to modify this file to pass additional
 % parameters, later all parameters will be exposed as a text config file.
 %
+% You may also set trait1 to a file containing Nx2 zvec and nvec,
+% this will trigger bivariate analysis even though trait2 is not set.
+% This is handfull, for example, in simulations when two GWAS results
+% are saved in one file.
+%
 % For information about various parameters look into BGMG_fit.m.
-try
+%try
 fprintf('trait1: %s\n', trait1);
 if exist('trait2', 'var'), fprintf('trait2: %s\n', trait2); end;
 
@@ -47,9 +52,11 @@ mhc = (chrnumvec==6) & (posvec > 25e6) & (posvec < 35e6);
 options.total_het = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 options.verbose = true;
 
-data1  = load(fullfile(data_path, trait1)); data1.zvec(mhc) = nan;
+data1  = load(fullfile(data_path, trait1)); data1.zvec(mhc, :) = nan;
+if exist('data1_neff', 'var'), data1.nvec = ones(size(data1.zvec)) * data1_neff; end;
 if exist('trait2', 'var'),
-    data2 = load(fullfile(data_path, trait2)); data2.zvec(mhc) = nan;
+    data2 = load(fullfile(data_path, trait2)); data2.zvec(mhc, :) = nan;
+    if exist('data2_neff', 'var'), data2.nvec = ones(size(data2.zvec)) * data2_neff; end;
     result = BGMG_fit([data1.zvec, data2.zvec], Hvec, [data1.nvec, data2.nvec], w_ld, ref_ld, options);
     result.trait1 = trait1;
     result.trait2 = trait2;
@@ -60,9 +67,13 @@ if exist('trait2', 'var'),
 else
     result = BGMG_fit(data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options);
     result.trait1 = trait1;
-
+    
     % Save the result in .mat file
-    fname = sprintf('UGMG_run_%s', trait1_name);
+    if size(data1.zvec, 2) == 1
+        fname = sprintf('UGMG_run_%s', trait1_name);
+    else
+        fname = sprintf('BGMG_run_%s', trait1_name);
+    end
     save([fname '.mat'], 'result');
 end
 
@@ -70,5 +81,5 @@ fileID = fopen([fname '.txt'], 'w');
 BGMG_util.result2str(1,      result)
 BGMG_util.result2str(fileID, result)
 fclose(fileID);
-catch err
-end
+%catch err
+%end

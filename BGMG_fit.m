@@ -51,18 +51,19 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
                 ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_univariate_cost(UGMG_mapparams1(x), zvec, Hvec, Nvec, w_ld, ref_ld, options), UGMG_mapparams1(results.univariate{itrait}.params)); warning(ws);
                 results.univariate{itrait}.ci_hess = hess;
                 results.univariate{itrait}.ci_hess_err = err;
+                ci_params = [];
                 try
+                    hess(diag(any(abs(inv(hess)) > 1e10))) = +Inf;
                     ci_sample = mvnrnd(UGMG_mapparams1(results.univariate{itrait}.params), inv(hess), options.ci_sample);
-
                     ci_params = cell(options.ci_sample, 1);
                     for i=1:options.ci_sample, ci_params{i} = UGMG_mapparams1(ci_sample(i, :)); end;
-                    results.univariate{itrait}.ci_params = ci_params;
-
-                    [ci_univariate_funcs, ~] = find_extract_funcs(options);
-                    results.univariate{itrait}.ci = extract_ci_funcs(ci_params, ci_univariate_funcs, results.univariate{itrait}.params, options.ci_alpha);
                 catch err
                     fprintf('Error, %s\n', err.message);
                 end
+
+                results.univariate{itrait}.ci_params = ci_params;
+                [ci_univariate_funcs, ~] = find_extract_funcs(options);
+                results.univariate{itrait}.ci = extract_ci_funcs(ci_params, ci_univariate_funcs, results.univariate{itrait}.params, options.ci_alpha);
             end
         end
     end
@@ -104,6 +105,8 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
             ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_bivariate_cost(BGMG_mapparams3(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), BGMG_mapparams3(results.bivariate.params)); warning(ws);
             results.bivariate.ci_hess = hess;
             results.bivariate.ci_hess_err = err;
+
+            ci_params = [];
             try
                 % Some elements in hessian might be misscalculated
                 % due to various reasons:
@@ -113,19 +116,19 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
                 % Below we detect which variables in hessian appear to be
                 % miscalculated, save the list in nanidx, and ignore
                 % such hessian elements in the code below.
-                hess(diag(any(abs(inv(hess)) > 1e10))) = +Inf
+                hess(diag(any(abs(inv(hess)) > 1e10))) = +Inf;
 
                 ci_sample = mvnrnd(BGMG_mapparams3(results.bivariate.params), inv(hess), options.ci_sample);
 
                 ci_params = cell(options.ci_sample, 1);
                 for i=1:options.ci_sample, ci_params{i} = BGMG_mapparams3(ci_sample(i, :)); end;
-                results.bivariate.ci_params = ci_params;
-
-                [~, ci_bivariate_funcs] = find_extract_funcs(options);
-                results.bivariate.ci = extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);
             catch err
                 fprintf('Error, %s\n', err.message);
             end
+
+            results.bivariate.ci_params = ci_params;
+            [~, ci_bivariate_funcs] = find_extract_funcs(options);
+            results.bivariate.ci = extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);
         end
     end
 
@@ -167,8 +170,13 @@ function ci = extract_ci_funcs(ci_params, ci_funcs, params, ci_alpha)
         ci_func      = ci_funcs.(ci_func_name);
 
         pe = ci_func(params);  % pe = point estimate
-        dist = nan(length(ci_params), numel(pe));
-        for j=1:length(ci_params), dist(j, :) = BGMG_util.rowvec(ci_func(ci_params{j})); end
+
+        if ~isempty(ci_params)
+            dist = nan(length(ci_params), numel(pe));
+            for j=1:length(ci_params), dist(j, :) = BGMG_util.rowvec(ci_func(ci_params{j})); end
+        else
+            dist = nan(2, numel(pe));
+        end
 
         ci_result.point_estimate = pe;
         ci_result.mean = reshape(mean(dist), size(pe));

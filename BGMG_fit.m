@@ -113,14 +113,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
                 % Below we detect which variables in hessian appear to be
                 % miscalculated, save the list in nanidx, and ignore
                 % such hessian elements in the code below.
-                nanidx = false(size(hess, 1), 1)';
-                for ii=1:length(nanidx),
-                    nanmat = isnan(hess) | ~isfinite(hess) | (abs(err ./ hess) > 1) | (hess == 0);
-                    [m, i] = max(sum(nanmat) + sum(nanmat'));
-                    if m == 0, break; end;
-                    if (m > 0), nanidx(i) = true; hess(i, :) = +Inf; hess(:, i) = +Inf; end;
-                end
-                hess(nanidx, :) = 0; hess(:, nanidx) = 0; hess(nanidx, nanidx) = +Inf;
+                hess(diag(any(abs(inv(hess)) > 1e10))) = +Inf
 
                 ci_sample = mvnrnd(BGMG_mapparams3(results.bivariate.params), inv(hess), options.ci_sample);
 

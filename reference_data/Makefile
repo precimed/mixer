@@ -1,5 +1,5 @@
 LDSR=/mnt/h/NORSTORE/MMIL/SUMSTAT/LDSR
-WORK=/mnt/h/work/bgmg-annot
+WORK=/mnt/h/work/bgmg-annot-1000G-Phase3-EUR
 PYTHON=python
 GITHUB=/mnt/c/Users/Oleksandr/Documents/GitHub
 
@@ -90,4 +90,6 @@ $(WORK)/mafvec.mat: | input
 $(WORK)/mafvec_all_snps_1000G_Phase3_frq.mat: | input
 	$(PYTHON) $(SUMSTATS_PY) frq-to-mat --out $@ --force \
 		--frq $(LDSR)/LDSR_Annot/1000G_Phase3_frq/1000G.EUR.QC.@.frq
-		
+	
+upload:	
+	rsync -avzP $(WORK) oleksanf@login.nird.sigma2.no:/nird/home/oleksanf/NS9114K/users/oleksanf/bgmg-annot

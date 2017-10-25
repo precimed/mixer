@@ -30,13 +30,14 @@ if ~exist('data_path', 'var'), error('Unable to locate data folder'); end;
 
 addpath('DERIVESTsuite');
 
-load('reference_data/mafvec.mat','mafvec');
-load('reference_data/chrnumvec.mat','chrnumvec');
-load('reference_data/posvec.mat','posvec');
-ref_ld2 = load('reference_data/ref_l2.mat');
-biased_ref_ld4 = load('reference_data/biased_ref_l4.mat');
-biased_ref_ld2 = load('reference_data/biased_ref_l2.mat');
-w_ld2 = load('reference_data/w_ld.mat');
+if ~exist('reference_data', 'var'), reference_data = 'reference_data'; end;
+load(fullfile(reference_data, 'mafvec.mat'),'mafvec');
+load(fullfile(reference_data, 'chrnumvec.mat'),'chrnumvec');
+load(fullfile(reference_data, 'posvec.mat'),'posvec');
+ref_ld2 = load(fullfile(reference_data, 'ref_l2.mat'));
+biased_ref_ld4 = load(fullfile(reference_data, 'biased_ref_l4.mat'));
+biased_ref_ld2 = load(fullfile(reference_data, 'biased_ref_l2.mat'));
+w_ld2 = load(fullfile(reference_data, 'w_ld.mat'));
 
 ref_ld = struct('sum_r2', biased_ref_ld2.annomat, 'chi_r4', biased_ref_ld4.annomat ./ biased_ref_ld2.annomat);
 Hvec = 2*mafvec .* (1-mafvec);  w_ld  = w_ld2.annomat;

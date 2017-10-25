@@ -31,6 +31,7 @@ if ~exist('data_path', 'var'), error('Unable to locate data folder'); end;
 addpath('DERIVESTsuite');
 
 if ~exist('reference_data', 'var'), reference_data = 'reference_data'; end;
+fprintf('Loading reference data from %s...\n', reference_data);
 load(fullfile(reference_data, 'mafvec.mat'),'mafvec');
 load(fullfile(reference_data, 'chrnumvec.mat'),'chrnumvec');
 load(fullfile(reference_data, 'posvec.mat'),'posvec');

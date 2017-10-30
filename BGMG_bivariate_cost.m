@@ -68,36 +68,102 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     sigma0_sqr = [params.sig2_zero(1), sqrt(prod(params.sig2_zero)) * params.rho_zero; ...
                                        sqrt(prod(params.sig2_zero)) * params.rho_zero, params.sig2_zero(2)];
 
-    % Approximation that preserves variance and kurtosis
-    pi_vec     = repmat(params.pi_vec, [num_snps 1]);
-    eta_factor = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix]) + (1-pi_vec) .* repmat(ref_ld_chi_r4, [1, num_mix]));
-    pi_vec     = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix])) ./ eta_factor;
-        
-    % Normalize pi vector, and compensate total variance by adjusting eta_factor
-    [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
-    eta_factor  = eta_factor .* (pi_vec ./ pi_vec_norm);
-    eta_factor(pi_vec == 0) = 0;
+    if ~options.use_legacy_impl
+        % Approximation that preserves variance and kurtosis
+        pi_vec     = repmat(params.pi_vec, [num_snps 1]);
+        eta_factor = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix]) + (1-pi_vec) .* repmat(ref_ld_chi_r4, [1, num_mix]));
+        pi_vec     = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix])) ./ eta_factor;
 
-    % Multiply sig2_beta by eta_factor
-    a11=zeros(num_snps, num_mix); a22=a11; a12=a11;
-    for mixi = 1:num_mix
-        a11(:, mixi) = eta_factor(:, mixi) .* Hvec .* Nmat(:, 1) * params.sig2_beta(1, mixi);
-        a22(:, mixi) = eta_factor(:, mixi) .* Hvec .* Nmat(:, 2) * params.sig2_beta(2, mixi);
-        a12(:, mixi) = sqrt(a11(:, mixi) .* a22(:, mixi)) * params.rho_beta(1, mixi);
-    end
-    
-    % Calculate p.d.f. from the mixture model
-    pdf = pi0 .* fast_normpdf2(zmat(:, 1), zmat(:, 2), sigma0_sqr(1,1), sigma0_sqr(1,2), sigma0_sqr(2,2));
-    for mixi = 1:num_mix
-        pdf = pdf + pi_vec_norm(:, mixi) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11(:, mixi) + sigma0_sqr(1,1), a12(:, mixi) + sigma0_sqr(1,2), a22(:, mixi) + sigma0_sqr(2,2));
+        % Normalize pi vector, and compensate total variance by adjusting eta_factor
+        [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
+        eta_factor  = eta_factor .* (pi_vec ./ pi_vec_norm);
+        eta_factor(pi_vec == 0) = 0;
+
+        % Multiply sig2_beta by eta_factor
+        a11=zeros(num_snps, num_mix); a22=a11; a12=a11;
+        for mixi = 1:num_mix
+            a11(:, mixi) = eta_factor(:, mixi) .* Hvec .* Nmat(:, 1) * params.sig2_beta(1, mixi);
+            a22(:, mixi) = eta_factor(:, mixi) .* Hvec .* Nmat(:, 2) * params.sig2_beta(2, mixi);
+            a12(:, mixi) = sqrt(a11(:, mixi) .* a22(:, mixi)) * params.rho_beta(1, mixi);
+        end
+
+        % Calculate p.d.f. from the mixture model
+        pdf = pi0 .* fast_normpdf2(zmat(:, 1), zmat(:, 2), sigma0_sqr(1,1), sigma0_sqr(1,2), sigma0_sqr(2,2));
+        for mixi = 1:num_mix
+            pdf = pdf + pi_vec_norm(:, mixi) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11(:, mixi) + sigma0_sqr(1,1), a12(:, mixi) + sigma0_sqr(1,2), a22(:, mixi) + sigma0_sqr(2,2));
+        end
+
+        % Likelihood term, weighted by inverse TLD
+        weights = 1 ./ w_ld;
+        weights(w_ld < 1) = 1;
+        cost = sum(weights .* -log(pdf));
+        if ~isfinite(cost), cost = NaN; end;
+        if ~isreal(cost), cost = NaN; end;
     end
 
-    % Likelihood term, weighted by inverse TLD
-    weights = 1 ./ w_ld;
-    weights(w_ld < 1) = 1;
-    cost = sum(weights .* -log(pdf));
-    if ~isfinite(cost), cost = NaN; end;
-    if ~isreal(cost), cost = NaN; end;
+    if options.use_legacy_impl
+        unique_non_zero = @(x)unique(x(x~=0));
+        sig2_beta1 = unique_non_zero(params.sig2_beta(1, :));
+        sig2_beta2 = unique_non_zero(params.sig2_beta(2, :));
+        rho_beta   = unique_non_zero(params.rho_beta);
+
+        % Covariance matrix [a11 a12; a12 a22]
+        a11 = repmat(sig2_beta1, [num_snps 1]);
+        a12 = repmat(sqrt(sig2_beta1*sig2_beta2) * rho_beta, [num_snps 1]);
+        a22 = repmat(sig2_beta2, [num_snps 1]);
+        if length(params.pi_vec) == 1
+            pivec = repmat([0 0 params.pi_vec], [num_snps, 1]); pi0 = 1-sum(pivec, 2);
+        else
+            pivec = repmat(params.pi_vec, [num_snps, 1]); pi0 = 1-sum(pivec, 2);
+        end
+
+        sum_p = @(p1, p2)(1-(1-p1).*(1-p2));
+
+        %new approximation
+        pi1 = pivec(:, 1); pi2 = pivec(:, 2); pi3 = pivec(:, 3); pi0 = 1 - pi1 - pi2 - pi3;
+
+        f1 = (pi1+pi3) .* ref_ld_sum_r2 + (pi0+pi2) .* ref_ld_chi_r4;
+        f2 = (pi2+pi3) .* ref_ld_sum_r2 + (pi0+pi1) .* ref_ld_chi_r4;
+
+        pi1_plus_pi3_eff = (pi1+pi3) .* ref_ld_sum_r2 ./ f1;
+        pi2_plus_pi3_eff = (pi2+pi3) .* ref_ld_sum_r2 ./ f2;
+        %pi3_eff = sum_p(pi3 .* ref_ld_r2 ./ (pi3 .* ref_ld_r2 + (pi0 + pi1 + pi2) .* r2eff), pi1_plus_pi3_eff .* pi2_plus_pi3_eff);
+        pi3_eff = sum_p(ref_ld_sum_r2 .* ref_ld_chi_r4 .* (pi3 - pi1 .* pi2) ./ (f1 .* f2), pi1_plus_pi3_eff .* pi2_plus_pi3_eff);
+        pi1_eff = max(pi1_plus_pi3_eff - pi3_eff, 0);
+        pi2_eff = max(pi2_plus_pi3_eff - pi3_eff, 0);
+        pivec = [pi1_eff pi2_eff pi3_eff]; pi0 = max(1-sum(pivec, 2), 0);
+        a11 = a11 .* f1;
+        a22 = a22 .* f2;
+        %a12 = a12 .* pi3 .* ref_ld_r2 ./ (pi3_eff .* sqrt(a11 .* a22));
+        a12 = sqrt(a11 .* a22) * rho_beta;
+
+        % Covariance matrix [a11 a12; a12 a22]
+        a11 = a11 .* Hvec .* Nmat(:, 1);
+        a12 = a12 .* Hvec .* sqrt(Nmat(:, 1) .* Nmat(:, 2));
+        a22 = a22 .* Hvec .* Nmat(:, 2);
+
+        % Components
+        pdf0 = pi0         .* fast_normpdf2(zmat(:, 1), zmat(:, 2),       sigma0_sqr(1,1),       sigma0_sqr(1,2),       sigma0_sqr(2,2));
+        pdf1 = pivec(:, 1) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11 + sigma0_sqr(1,1),       sigma0_sqr(1,2),       sigma0_sqr(2,2));
+        pdf2 = pivec(:, 2) .* fast_normpdf2(zmat(:, 1), zmat(:, 2),       sigma0_sqr(1,1),       sigma0_sqr(1,2), a22 + sigma0_sqr(2,2));
+        pdf3 = pivec(:, 3) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11 + sigma0_sqr(1,1), a12 + sigma0_sqr(1,2), a22 + sigma0_sqr(2,2));
+        pdf_legacy  = pdf0 + pdf1 + pdf2 + pdf3;
+        %plot(pdf, pdf_legacy, '.')
+        %plot(-log10(pdf), -log10(pdf_legacy), '.')
+
+        weights = 1 ./ w_ld;
+        weights(w_ld < 1) = 1;
+        cost_legacy = sum(weights .* -log(pdf_legacy));
+        if ~isfinite(cost_legacy), cost_legacy = NaN; end;
+        if ~isreal(cost_legacy), cost_legacy = NaN; end;
+        if isnan(cost_legacy)
+            fprintf('stop');
+        end
+
+        %fprintf('cost: %.5e vs %.5e, delta = %.5e\n', cost, cost_legacy, cost - cost_legacy);
+        pdf = pdf_legacy;
+        cost = cost_legacy;
+    end
 
     if options.use_convolution
         distr   = @(p)(p ./ sum(p));
@@ -184,70 +250,6 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
         fprintf('cost: %.5e vs %.5e, delta = %.5e\n', cost, cost_by_conv, cost - cost_by_conv);
         pdf = pdf_by_conv;
         cost = cost_by_conv;
-    end
-
-    if options.use_legacy_impl
-        unique_non_zero = @(x)unique(x(x~=0));
-        sig2_beta1 = unique_non_zero(params.sig2_beta(1, :));
-        sig2_beta2 = unique_non_zero(params.sig2_beta(2, :));
-        rho_beta   = unique_non_zero(params.rho_beta);
-
-        % Covariance matrix [a11 a12; a12 a22]
-        a11 = repmat(sig2_beta1, [num_snps 1]);
-        a12 = repmat(sqrt(sig2_beta1*sig2_beta2) * rho_beta, [num_snps 1]);
-        a22 = repmat(sig2_beta2, [num_snps 1]);
-        if length(params.pi_vec) == 1
-            pivec = repmat([0 0 params.pi_vec], [num_snps, 1]); pi0 = 1-sum(pivec, 2);
-        else
-            pivec = repmat(params.pi_vec, [num_snps, 1]); pi0 = 1-sum(pivec, 2);
-        end
-
-        sum_p = @(p1, p2)(1-(1-p1).*(1-p2));
-
-        %new approximation
-        pi1 = pivec(:, 1); pi2 = pivec(:, 2); pi3 = pivec(:, 3); pi0 = 1 - pi1 - pi2 - pi3;
-
-        f1 = (pi1+pi3) .* ref_ld_sum_r2 + (pi0+pi2) .* ref_ld_chi_r4;
-        f2 = (pi2+pi3) .* ref_ld_sum_r2 + (pi0+pi1) .* ref_ld_chi_r4;
-
-        pi1_plus_pi3_eff = (pi1+pi3) .* ref_ld_sum_r2 ./ f1;
-        pi2_plus_pi3_eff = (pi2+pi3) .* ref_ld_sum_r2 ./ f2;
-        %pi3_eff = sum_p(pi3 .* ref_ld_r2 ./ (pi3 .* ref_ld_r2 + (pi0 + pi1 + pi2) .* r2eff), pi1_plus_pi3_eff .* pi2_plus_pi3_eff);
-        pi3_eff = sum_p(ref_ld_sum_r2 .* ref_ld_chi_r4 .* (pi3 - pi1 .* pi2) ./ (f1 .* f2), pi1_plus_pi3_eff .* pi2_plus_pi3_eff);
-        pi1_eff = max(pi1_plus_pi3_eff - pi3_eff, 0);
-        pi2_eff = max(pi2_plus_pi3_eff - pi3_eff, 0);
-        pivec = [pi1_eff pi2_eff pi3_eff]; pi0 = max(1-sum(pivec, 2), 0);
-        a11 = a11 .* f1;
-        a22 = a22 .* f2;
-        %a12 = a12 .* pi3 .* ref_ld_r2 ./ (pi3_eff .* sqrt(a11 .* a22));
-        a12 = sqrt(a11 .* a22) * rho_beta;
-
-        % Covariance matrix [a11 a12; a12 a22]
-        a11 = a11 .* Hvec .* Nmat(:, 1);
-        a12 = a12 .* Hvec .* sqrt(Nmat(:, 1) .* Nmat(:, 2));
-        a22 = a22 .* Hvec .* Nmat(:, 2);
-
-        % Components
-        pdf0 = pi0         .* fast_normpdf2(zmat(:, 1), zmat(:, 2),       sigma0_sqr(1,1),       sigma0_sqr(1,2),       sigma0_sqr(2,2));
-        pdf1 = pivec(:, 1) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11 + sigma0_sqr(1,1),       sigma0_sqr(1,2),       sigma0_sqr(2,2));
-        pdf2 = pivec(:, 2) .* fast_normpdf2(zmat(:, 1), zmat(:, 2),       sigma0_sqr(1,1),       sigma0_sqr(1,2), a22 + sigma0_sqr(2,2));
-        pdf3 = pivec(:, 3) .* fast_normpdf2(zmat(:, 1), zmat(:, 2), a11 + sigma0_sqr(1,1), a12 + sigma0_sqr(1,2), a22 + sigma0_sqr(2,2));
-        pdf_legacy  = pdf0 + pdf1 + pdf2 + pdf3;
-        %plot(pdf, pdf_legacy, '.')
-        %plot(-log10(pdf), -log10(pdf_legacy), '.')
-
-        weights = 1 ./ w_ld;
-        weights(w_ld < 1) = 1;
-        cost_legacy = sum(weights .* -log(pdf_legacy));
-        if ~isfinite(cost_legacy), cost_legacy = NaN; end;
-        if ~isreal(cost_legacy), cost_legacy = NaN; end;
-        if isnan(cost_legacy)
-            fprintf('stop');
-        end
-
-        %fprintf('cost: %.5e vs %.5e, delta = %.5e\n', cost, cost_legacy, cost - cost_legacy);
-        pdf = pdf_legacy;
-        cost = cost_legacy;
     end
 
     % TBD: all options below this line are broken - must be fixed.

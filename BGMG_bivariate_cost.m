@@ -34,7 +34,7 @@ function [cost, result] = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, re
     if ~exist('options', 'var'), options = struct(); end;
     if ~isfield(options, 'verbose'), options.verbose = false; end;  % enable or disable verbose logging
     if ~isfield(options, 'use_convolution'), options.use_convolution = false; end;  % experimental VERY SLOW option to calculate pdf via convolution
-    if ~isfield(options, 'use_legacy_impl'), options.use_legacy_impl = false; end;  % legacy approximation implementation
+    if ~isfield(options, 'use_legacy_impl'), options.use_legacy_impl = true; end;   % legacy approximation implementation
     if ~isfield(options, 'zmax'), options.zmax = +Inf; end;
 
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size

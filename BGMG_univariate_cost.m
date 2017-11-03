@@ -192,6 +192,11 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             result.cdf(snpi:snpj, :)  = cumsum(z_grid_pdf, 2) ./ repmat(sum(z_grid_pdf, 2), [1, length(z_grid)]);
             fprintf('\tFinish %i SNPs out of %i\n', snpj, snps);
         end
+        % Average adjacent elements
+        X = result.cdf;
+        X1 = ones(size(X, 1), 1);
+        X0 = zeros(size(X, 1), 1);
+        result.cdf = 0.5 * ([X0, X(:, 1:(end-1))] + [X(:, 1:(end-1)), X1]);
         %result.cdf_z_grid = z_grid;
     end
 

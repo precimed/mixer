@@ -20,6 +20,7 @@ if exist('trait2', 'var'), fprintf('trait2: %s\n', trait2); end;
 
 %DO_RANDPRUNE_p8 = 1;
 %DO_RANDPRUNE_p2 = 1;
+%DO_RANDPRUNE_p1 = 1;
 
 [~, trait1_name, ~] = fileparts(trait1);
 if exist('trait2', 'var'), [~, trait2_name, ~] = fileparts(trait2); end;
@@ -60,22 +61,25 @@ end
 if exist('DO_RANDPRUNE_p2', 'var') && DO_RANDPRUNE_p2 && ~exist('LDmat', 'var')
     load(fullfile(reference_data, 'binary_ld_p2.mat'))  % => LDmat
 end
+if exist('DO_RANDPRUNE_p1', 'var') && DO_RANDPRUNE_p1 && ~exist('LDmat', 'var')
+    load(fullfile(reference_data, 'binary_ld_p1.mat'))  % => LDmat
+end
 
 % mafvec_all = load('mafvec_all_snps_1000G_Phase3_frq.mat')
 % options.total_het = 2*sum(mafvec_all.mafvec .* (1-mafvec_all.mafvec))
 options.total_het = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs
 options.verbose = true;
 
-data1  = load(fullfile(data_path, trait1)); data1.zvec(mhc, :) = nan; if isfield(data1, 'infovec'), data1.zvec(data1.infovec < 0.9, :) = nan; defvec = isfinite(data1.zvec); end;
+data1  = load(fullfile(data_path, trait1)); data1.zvec(mhc, :) = nan; if isfield(data1, 'infovec'), data1.zvec(data1.infovec < 0.9, :) = nan; end; defvec = isfinite(data1.zvec); 
 if exist('data1_neff', 'var'), data1.nvec = ones(size(data1.zvec)) * data1_neff; end;
 if exist('trait2', 'var'),
-    data2 = load(fullfile(data_path, trait2)); data2.zvec(mhc, :) = nan;  if isfield(data2, 'infovec'), data2.zvec(data2.infovec < 0.9, :) = nan; defvec = isfinite(data1.zvec + data2.zvec); end;
+    data2 = load(fullfile(data_path, trait2)); data2.zvec(mhc, :) = nan;  if isfield(data2, 'infovec'), data2.zvec(data2.infovec < 0.9, :) = nan; end; defvec = isfinite(data1.zvec + data2.zvec); 
     if exist('data2_neff', 'var'), data2.nvec = ones(size(data2.zvec)) * data2_neff; end;
 end
 
 if exist('LDmat', 'var')
-    % do random prunin
-    nprune = 100;
+    % do random pruning
+    if ~exist('nprune','var'), nprune= 100;end;
     fprintf('Generate random-pruning indiced weights for %i SNPs, %i iterations\n', sum(defvec), nprune);
     hits = zeros(size(defvec));
     defidx = find(defvec);

@@ -45,9 +45,13 @@ binary_ld_p8: $(addprefix $(WORK)/binary_ld_p8/, $(addsuffix .ld.gz, $(CHRS))) |
 binary_ld_mat_p1: $(addprefix $(WORK)/binary_ld_p1/, $(addsuffix .mat, $(CHRS))) | input $(WORK)
 binary_ld_mat_p2: $(addprefix $(WORK)/binary_ld_p2/, $(addsuffix .mat, $(CHRS))) | input $(WORK)
 binary_ld_mat_p8: $(addprefix $(WORK)/binary_ld_p8/, $(addsuffix .mat, $(CHRS))) | input $(WORK)
+binary_ld_mat_ref_p1: $(addprefix $(WORK)/binary_ld_ref_p1/, $(addsuffix .mat, $(CHRS))) | input $(WORK)
+binary_ld_mat_ref_p2: $(addprefix $(WORK)/binary_ld_ref_p2/, $(addsuffix .mat, $(CHRS))) | input $(WORK)
+binary_ld_mat_ref_p8: $(addprefix $(WORK)/binary_ld_ref_p8/, $(addsuffix .mat, $(CHRS))) | input $(WORK)
 
 binary_ld: binary_ld_p1 binary_ld_p2 binary_ld_p8
 binary_ld_mat: binary_ld_mat_p1 binary_ld_mat_p2 binary_ld_mat_p8
+binary_ld_ref_mat: binary_ld_mat_ref_p1 binary_ld_mat_ref_p2 binary_ld_mat_ref_p8
 
 # Folder structure
 $(WORK):
@@ -77,6 +81,17 @@ $(WORK)/binary_ld_p2: | $(WORK)
 $(WORK)/binary_ld_p8: | $(WORK)
 	mkdir $@
 
+	
+$(WORK)/binary_ld_ref_p1: | $(WORK)
+	mkdir $@
+
+$(WORK)/binary_ld_ref_p2: | $(WORK)
+	mkdir $@
+
+$(WORK)/binary_ld_ref_p8: | $(WORK)
+	mkdir $@
+
+	
 $(WORK)/ref_l2/chr%.l2.ldscore.gz: | input $(WORK)/ref_l2 
 	$(PYTHON) $(LDSC_PY) --l2 --ld-wind-cm 1 --bfile $(LDSR)/LDSR_Annot/1000G_EUR_Phase3_plink_with_cm/1000G.EUR.QC.$* --out $(WORK)/ref_l2/chr$*
 
@@ -110,6 +125,16 @@ $(WORK)/binary_ld_p2/%.mat: $(WORK)/binary_ld_p2/%.ld.gz | $(WORK)/binary_ld_p2
 $(WORK)/binary_ld_p1/%.mat: $(WORK)/binary_ld_p1/%.ld.gz | $(WORK)/binary_ld_p1
 	$(PYTHON) $(MAKE_LD_MATRIX_PY) --ldfile $< --ref $(ALL_REFFILE) --savemat $@
 
+$(WORK)/binary_ld_ref_p8/%.mat: $(WORK)/binary_ld_p8/%.ld.gz | $(WORK)/binary_ld_ref_p8
+	$(PYTHON) $(MAKE_LD_MATRIX_PY) --ldfile $< --ref $(LDSR)/1m.ref --savemat $@
+
+$(WORK)/binary_ld_ref_p2/%.mat: $(WORK)/binary_ld_p2/%.ld.gz | $(WORK)/binary_ld_ref_p2
+	$(PYTHON) $(MAKE_LD_MATRIX_PY) --ldfile $< --ref $(LDSR)/1m.ref --savemat $@
+
+$(WORK)/binary_ld_ref_p1/%.mat: $(WORK)/binary_ld_p1/%.ld.gz | $(WORK)/binary_ld_ref_p1
+	$(PYTHON) $(MAKE_LD_MATRIX_PY) --ldfile $< --ref $(LDSR)/1m.ref --savemat $@
+
+	
 $(WORK)/ref_l2.mat: $(addprefix $(WORK)/ref_l2/chr, $(addsuffix .l2.ldscore.gz, $(CHRS))) 
 	$(PYTHON) $(SUMSTATS_PY) ldsc-to-mat --ref $(LDSR)/1m.ref --out $@ --force \
 		--ldscore $(WORK)/ref_l2/chr@.l2.ldscore.gz \

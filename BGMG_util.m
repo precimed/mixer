@@ -132,10 +132,12 @@ classdef BGMG_util
         cis = {};
         if isfield(result, 'univariate')
             for i=1:length(result.univariate)
-                cis{end+1, 1} = result.univariate{i}.ci;
+                if isfield(result.univariate{i}, 'ci')
+                    cis{end+1, 1} = result.univariate{i}.ci;
+                end
             end
         end
-        if isfield(result, 'bivariate')
+        if isfield(result, 'bivariate') && isfield(result.bivariate, 'ci')
             cis{end+1, 1} = result.bivariate.ci;
         end
 

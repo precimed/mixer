@@ -56,6 +56,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;
     if ~isfield(options, 'calculate_z_cdf_step'), options.calculate_z_cdf_step = 0.25; end;
     if ~isfield(options, 'calculate_z_cdf'), options.calculate_z_cdf = false; end;
+    if ~isfield(options, 'calculate_z_cdf_weights'), options.calculate_z_cdf_weights = ones(size(zvec)) / length(zvec); end;
 
     if ~isfield(options, 'calculate_fdr'), options.calculate_fdr = false; end;
 
@@ -78,6 +79,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
 
     zvec = zvec(defvec, :); Hvec = Hvec(defvec); Nvec = Nvec(defvec, :);
     w_ld = w_ld(defvec); ref_ld_sum_r2 = ref_ld_sum_r2(defvec); ref_ld_chi_r4 = ref_ld_chi_r4(defvec);
+    options.calculate_z_cdf_weights = options.calculate_z_cdf_weights(defvec)/nansum(options.calculate_z_cdf_weights(defvec));
 
     num_traits = length(params.sig2_zero);  % number of traits in the anslysis
     num_mix    = length(params.pi_vec);  % number of components in the mixture
@@ -177,8 +179,9 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         fprintf('Estimate cumulated distribution function for Z scores...\n');
         z_grid =  (-options.calculate_z_cdf_limit:options.calculate_z_cdf_step:options.calculate_z_cdf_limit);
         snps=length(zvec);
-        result.cdf = nan(snps, length(z_grid));
+        result_cdf = zeros(size(z_grid));
         chunksize = floor(snps/length(z_grid));
+
         for snpi=1:chunksize:snps
             snpj = min(snpi+chunksize-1, snps);
             z_grid_zvec = repmat(z_grid, [snpj-snpi+1, 1]);
@@ -189,15 +192,17 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
                 z_grid_pdf = z_grid_pdf + RC(pi_vec_norm, mixi) .* fast_normpdf1(z_grid_zvec, RC(sig2_beta, mixi) .* RC(Hvec, 1) .* RC(Nvec, 1) + params.sig2_zero);
             end
 
-            result.cdf(snpi:snpj, :)  = cumsum(z_grid_pdf, 2) ./ repmat(sum(z_grid_pdf, 2), [1, length(z_grid)]);
+            temp_cdf = cumsum(z_grid_pdf, 2) ./ repmat(sum(z_grid_pdf, 2), [1, length(z_grid)]);
+
+            % Average adjacent elements, to ensure that cdf(z=0)==0.5
+            X1 = ones(size(temp_cdf, 1), 1);
+            X0 = zeros(size(temp_cdf, 1), 1);
+            temp_cdf = 0.5 * ([X0, temp_cdf(:, 1:(end-1))] + [temp_cdf(:, 1:(end-1)), X1]);
+
+            result_cdf = result_cdf + sum(temp_cdf .* RC(options.calculate_z_cdf_weights, 1));
             fprintf('\tFinish %i SNPs out of %i\n', snpj, snps);
         end
-        % Average adjacent elements
-        X = result.cdf;
-        X1 = ones(size(X, 1), 1);
-        X0 = zeros(size(X, 1), 1);
-        result.cdf = 0.5 * ([X0, X(:, 1:(end-1))] + [X(:, 1:(end-1)), X1]);
-        %result.cdf_z_grid = z_grid;
+        result_cdf_z_grid = z_grid;
     end
 
     % TBD: all options below this line are broken - must be fixed.
@@ -245,10 +250,15 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     % project all results back into the original SNPs indexing (which may include undefined values)
     if exist('result', 'var'), result = restore_original_indexing(result, defvec); end
 
+    if exist('result_cdf', 'var')
+        result.cdf = result_cdf;
+        result.cdf_z_grid = result_cdf_z_grid;
+    end
+
     if options.verbose
-        fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, (eff. %.3f), sig2_zero^2=%.3e, h2=%.3f, cost=%.3e\n', ...
+        fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, (eff. %.3f), sig2_zero^2=%.3e, h2=%.3f, cost=%.3e, nsnp=%i\n', ...
                  params.pi_vec, params.sig2_beta, mean(sig2_beta(:)) .* mean(Hvec) .* mean(Nvec), params.sig2_zero, ...
-                 (params.sig2_beta*params.pi_vec')*options.total_het, cost);
+                 (params.sig2_beta*params.pi_vec')*options.total_het, cost, sum(defvec));
     end
 end
 

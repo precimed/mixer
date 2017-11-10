@@ -15,7 +15,9 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     if ~isfield(options, 'use_univariate_pi'), options.use_univariate_pi = false; end;
     if ~isfield(options, 'relax_sig2_beta'), options.relax_sig2_beta = false; end;
     if ~isfield(options, 'relax_rho_zero'), options.relax_rho_zero = false; end;
-    
+    if ~isfield(options, 'fit_infinitesimal'), options.fit_infinitesimal = false; end;  % infinitesimal model (implemented only for univariate analysis)
+    if ~isfield(options, 'fit_two_causal_components'), options.fit_two_causal_components = false; end;  % fit two causal components (implemented only for univariate analysis, without ci estimation)
+
     if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
 
     fminsearch_options = struct('Display', 'on');
@@ -40,12 +42,28 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
             params_inft0 = struct('sig2_zero', var(zvec(~isnan(zvec))), 'sig2_beta', 1 ./ mean(Nvec(~isnan(Nvec))));
             params_inft  = fit(params_inft0, @(x)UGMG_mapparams1(x, struct('pi_vec', 1.0)));
 
-            fprintf('Trait%i  : fit pi_vec and sig2_beta, constrained on sig2_zero and h2\n', itrait);
-            params_mix0  = fit(struct('pi_vec', 0.5), @(x)UGMG_mapparams1_h2(x, params_inft.sig2_beta, params_inft.sig2_zero));
+            if options.fit_infinitesimal
+                results.univariate{itrait}.params = params_inft;
+            else
+                fprintf('Trait%i  : fit pi_vec and sig2_beta, constrained on sig2_zero and h2\n', itrait);
+                params_mix0  = fit(struct('pi_vec', 0.5), @(x)UGMG_mapparams1_h2(x, params_inft.sig2_beta, params_inft.sig2_zero));
 
-            fprintf('Trait%i  : final unconstrained optimization\n', itrait);
-            results.univariate{itrait}.params = fit(params_mix0, @(x)UGMG_mapparams1(x));
- 
+                fprintf('Trait%i  : final unconstrained optimization\n', itrait);
+                results.univariate{itrait}.params = fit(params_mix0, @(x)UGMG_mapparams1(x));
+            end
+
+            if options.fit_two_causal_components
+                fprintf('Trait%i  : final second causal component\n', itrait);
+                params_mix2 = results.univariate{itrait}.params;
+
+                % initial approximation: split heritability in two equal components of small effects and large effects
+                % h2 = p * s = 0.5p * s + 0.25p * 2s (where p = pi_vec, s = sig2_beta)
+                params_mix2.pi_vec = [params_mix2.pi_vec*0.5 params_mix2.pi_vec*0.25];
+                params_mix2.sig2_beta = [params_mix2.sig2_beta params_mix2.sig2_beta * 2];
+
+                results.univariate{itrait}.params = fit(params_mix2, @(x)UGMG_mapparams2(x));
+            end
+
             if ~isnan(options.ci_alpha)
                 fprintf('Trait%i  : uncertainty estimation\n', itrait);
                 ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_univariate_cost(UGMG_mapparams1(x), zvec, Hvec, Nvec, w_ld, ref_ld, options), UGMG_mapparams1(results.univariate{itrait}.params)); warning(ws);
@@ -215,6 +233,21 @@ function ov = UGMG_mapparams1(iv, options)
     if ~isfield(options, 'pi_vec'), options.pi_vec = nan; end;
     if ~isfield(options, 'sig2_zero'), options.sig2_zero = nan; end;
     if ~isfield(options, 'sig2_beta'), options.sig2_beta = nan; end;
+
+    is_packing = isstruct(iv); cnti = 1;
+    if is_packing, ov = []; else ov = struct(); end;
+
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+end
+
+function ov = UGMG_mapparams2(iv, options)
+    % mapparams for univariate mixture with two causal components
+    if ~exist('options', 'var'), options=[]; end;
+    if ~isfield(options, 'pi_vec'), options.pi_vec = [nan nan]; end;
+    if ~isfield(options, 'sig2_zero'), options.sig2_zero = nan; end;
+    if ~isfield(options, 'sig2_beta'), options.sig2_beta = [nan nan]; end;
 
     is_packing = isstruct(iv); cnti = 1;
     if is_packing, ov = []; else ov = struct(); end;

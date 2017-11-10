@@ -79,7 +79,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
 
     zvec = zvec(defvec, :); Hvec = Hvec(defvec); Nvec = Nvec(defvec, :);
     w_ld = w_ld(defvec); ref_ld_sum_r2 = ref_ld_sum_r2(defvec); ref_ld_chi_r4 = ref_ld_chi_r4(defvec);
-    options.calculate_z_cdf_weights = options.calculate_z_cdf_weights(defvec)/nansum(options.calculate_z_cdf_weights(defvec));
+    options.calculate_z_cdf_weights = options.calculate_z_cdf_weights(defvec, :)./repmat(nansum(options.calculate_z_cdf_weights(defvec, :)), [sum(defvec) 1]);
 
     num_traits = length(params.sig2_zero);  % number of traits in the anslysis
     num_mix    = length(params.pi_vec);  % number of components in the mixture
@@ -179,7 +179,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         fprintf('Estimate cumulated distribution function for Z scores...\n');
         z_grid =  (-options.calculate_z_cdf_limit:options.calculate_z_cdf_step:options.calculate_z_cdf_limit);
         snps=length(zvec);
-        result_cdf = zeros(size(z_grid));
+        num_cdf_weights = size(options.calculate_z_cdf_weights, 2);
+        result_cdf = zeros(num_cdf_weights, length(z_grid));
         chunksize = floor(snps/length(z_grid));
 
         for snpi=1:chunksize:snps
@@ -199,7 +200,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             X0 = zeros(size(temp_cdf, 1), 1);
             temp_cdf = 0.5 * ([X0, temp_cdf(:, 1:(end-1))] + [temp_cdf(:, 1:(end-1)), X1]);
 
-            result_cdf = result_cdf + sum(temp_cdf .* RC(options.calculate_z_cdf_weights, 1));
+            result_cdf = result_cdf + options.calculate_z_cdf_weights(snpi:snpj, :)' * temp_cdf;
             fprintf('\tFinish %i SNPs out of %i\n', snpj, snps);
         end
         result_cdf_z_grid = z_grid;
@@ -256,9 +257,17 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     end
 
     if options.verbose
-        fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, (eff. %.3f), sig2_zero^2=%.3e, h2=%.3f, cost=%.3e, nsnp=%i\n', ...
-                 params.pi_vec, params.sig2_beta, mean(sig2_beta(:)) .* mean(Hvec) .* mean(Nvec), params.sig2_zero, ...
-                 (params.sig2_beta*params.pi_vec')*options.total_het, cost, sum(defvec));
+        if num_mix == 1
+            fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, (eff. %.3f), sig2_zero^2=%.3f, h2=%.3f, cost=%.3e, nsnp=%i\n', ...
+                     params.pi_vec, params.sig2_beta, mean(sig2_beta(:)) .* mean(Hvec) .* mean(Nvec), params.sig2_zero, ...
+                     (params.sig2_beta*params.pi_vec')*options.total_het, cost, sum(defvec));
+        else
+            fprintf('Univariate: pi_vec=[%s], sig2_beta^2=[%s], h2=[%s], sig2_zero^2=%.3f, cost=%.3e, nsnp=%i\n', ...
+                sprintf('%.3e ', params.pi_vec), ...
+                sprintf('%.3e ', params.sig2_beta), ...
+                sprintf('%.3f ', params.sig2_beta.*params.pi_vec*options.total_het), ...
+                params.sig2_zero, cost, sum(defvec));
+        end
     end
 end
 

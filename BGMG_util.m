@@ -127,6 +127,46 @@ classdef BGMG_util
     function v = rowvec(M)
         v = reshape(M,[1 numel(M)]);
     end
+    
+    function [lamGC] = lamGCfromQQ(logqvec,hv_logp)
+
+      qMedian=0.5;
+      xMedian = -log10(qMedian);                % == 0.3;  At q==0.5 (i.e., x=0.3), 50% of SNPs lie abiove and 50% lie below.
+      xd = BGMG_util.colvec(logqvec);                     % -log10(q) for Data.
+      
+      ixd = find(xd>xMedian,1);                 % q==0.5 is the median by definition -- with 50% proportion above and below.
+      
+      if ixd<=10 | isempty(ixd),  lamGC=nan;   return;  end
+      if ixd>length(xd)-10,       lamGC=nan;   return;  end
+      
+      %xd = xd(ixd-1:ixd);                      % xd minimally brackets the median.
+      %yd = hv_logp(ixd-1:ixd);                 % The y-axis values corresponding to xd.
+      xd = xd(ixd-10:ixd+10);
+      
+      if length(find(~isfinite(xd))),  lamGC=nan;   return;  end
+      
+      yd = hv_logp(ixd-10:ixd+10);
+      XD = [ones(length(xd),1) xd] ;
+      b1 = XD\yd'; %'
+      xx = xd;
+      yy = XD*b1;  %   yy = b1(2)*xd + b1(1)
+      %figure(99); plot(xx,yy,'*');
+      ixd = find(xx>xMedian,1);                 % q==0.5 is the median by definition -- with 50% proportion above and below.
+      xxd = xx(ixd-1:ixd);                      % xxd minimally brackets the median.
+      yyd = yy(ixd-1:ixd);                      % The y-axis values corresponding to xxd.
+      
+      % (xd,yd) forms a jaggidy staircase whereas (xxd,yyd) forms a straight line.
+      %ydMedian = interp1(xd,yd,xMedian);       % The y-axis value corresponding to xMedian.
+      ydMedian = interp1(xxd,yyd,xMedian);      % The y-axis value corresponding to xMedian.
+      pdMedian = 10^-ydMedian;                  % The data  p-value corresponding to qMedian;
+      z2_medianFromQQ_data = chi2inv(1-pdMedian,1);  % Note, hv_logp = -log10(2*normcdf(-abs(hv_z))); z2_data_median is the z^2 value at ydMedian.
+      z2_medianNull        = chi2inv(   qMedian,1);     % 0.454
+      % Equivalently:
+      %z2_medianFromQQ_data = norminv(pdMedian/2)^2;
+      %z2_medianNull        = norminv( qMedian/2)^2;
+      
+      lamGC = z2_medianFromQQ_data/z2_medianNull;
+    end
 
     function result2str(fileID, result)
         cis = {};

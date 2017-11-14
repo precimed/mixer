@@ -170,24 +170,31 @@ if 1
     result_mix2 = BGMG_fit(zvec, Hvec_9m, nvec, w_ld, ref_ld, options_mix2);
     result_mix2_cdf = [];
 end
-
+close all
 options.title = disp_trait1_name;
-[result_cdf, fig_tot, fig_bin] = UGMG_qq_plot(result.univariate{1}.params, zvec, Hvec_9m, nvec, pruneidxmat, ref_ld, options, result_cdf);
-print(fig_tot, sprintf('%s_%i', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
-set(fig_bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-print(fig_bin, sprintf('%s_%i_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+[result_cdf, figures] = UGMG_qq_plot(result.univariate{1}.params, zvec, Hvec_9m, nvec, pruneidxmat, ref_ld, options, result_cdf);
+print(figures.tot, sprintf('%s_%i', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+print(figures.bin, sprintf('%s_%i_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
 
 options.title = sprintf('%s (infinitesimal model)', disp_trait1_name);
-[result_inf_cdf, fig_tot, fig_bin] = UGMG_qq_plot(result_inf.univariate{1}.params, zvec, Hvec_9m, nvec, pruneidxmat, ref_ld, options, result_inf_cdf);
-print(fig_tot, sprintf('%s_%i_inf', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
-set(fig_bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-print(fig_bin, sprintf('%s_%i_inf_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+[result_inf_cdf, figures] = UGMG_qq_plot(result_inf.univariate{1}.params, zvec, Hvec_9m, nvec, pruneidxmat, ref_ld, options, result_inf_cdf);
+print(figures.tot, sprintf('%s_%i_inf', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+print(figures.bin, sprintf('%s_%i_inf_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
 
 options.title = sprintf('%s (null+small+large)', disp_trait1_name);
-[result_mix2_cdf, fig_tot, fig_bin] = UGMG_qq_plot(result_mix2.univariate{1}.params, zvec, Hvec_9m, nvec, pruneidxmat, ref_ld, options, result_mix2_cdf);
-print(fig_tot, sprintf('%s_%i_mix2', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
-set(fig_bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-print(fig_bin, sprintf('%s_%i_mix2_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+[result_mix2_cdf, figures] = UGMG_qq_plot(result_mix2.univariate{1}.params, zvec, Hvec_9m, nvec, pruneidxmat, ref_ld, options, result_mix2_cdf);
+print(figures.tot, sprintf('%s_%i_mix2', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+print(figures.bin, sprintf('%s_%i_mix2_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
 
-% TBD:
-%   plot with Dominic parameters
+if 0
+    params = struct('sig2_zero', 1.239, 'pi_vec', 0.004727, 'sig2_beta', 0.000041); result_dominic_cdf = []; % 1M SCZ
+    params = struct('sig2_zero', 1.204, 'pi_vec', 0.004795, 'sig2_beta', 0.000040); result_dominic_cdf = []; % 5M SCZ
+    options.title = sprintf('%s', disp_trait1_name);
+    [result_dominic_cdf, figures] = UGMG_qq_plot(params, zvec, Hvec_9m, nvec, pruneidxmat, ref_ld, options, result_dominic_cdf);
+    print(figures.tot, sprintf('%s_%i_Dominic_params', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+    set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+    print(figures.bin, sprintf('%s_%i_Dominic_params_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+end

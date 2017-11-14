@@ -98,8 +98,8 @@ function [ugmg_cdf, figures] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxma
                 qq_options.h2vec = (qq_options.pi_vec.*qq_options.sig2_beta) *options.total_het;
             end
         end
-        qq_options.lamGC_data = lamGCfromQQ(data_logpvec, hv_logp);
-        qq_options.lamGC_model = lamGCfromQQ(model_logpvec, hv_logp);
+        qq_options.lamGC_data = BGMG_util.lamGCfromQQ(data_logpvec, hv_logp);
+        qq_options.lamGC_model = BGMG_util.lamGCfromQQ(model_logpvec, hv_logp);
         qq_options.n_snps = sum(isfinite(zvec) & cdf_idx(:, ploti));
 
         annotate_qq_plot(qq_options);

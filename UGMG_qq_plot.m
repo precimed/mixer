@@ -1,36 +1,42 @@
-function [ugmg_cdf, fig_tot, fig_bin] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxmat, ref_ld, options, ugmg_cdf)
+function [ugmg_cdf, figures] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxmat, ref_ld, options, ugmg_cdf)
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
+    if ~isfield(options, 'plot_HL_bins'), options.plot_HL_bins = true; end;
 
-    fig_tot = figure; hold on;
-    fig_bin = figure('units','normalized','outerposition',[0 0 1 1]); hold on;
+    figures.tot = figure; hold on;
+    if options.plot_HL_bins, figures.bin = figure('units','normalized','outerposition',[0 0 1 1]); hold on; end;
 
     % QQ plot for data and model
     nprune = size(pruneidxmat, 2);
 
-    % Create a grid of HxL bins. Add last column for "all SNPs" bin.
-    numstrata = 4;
+    if options.plot_HL_bins
+        % Create a grid of HxL bins. Add last column for "all SNPs" bin.
+        numstrata = 4;
 
-    cdf_idx     = false(length(zvec), numstrata*numstrata + 1);
-    x_bin = Hvec; y_bin = ref_ld.sum_r2;
-    defvec = isfinite(zvec + x_bin + y_bin);
-    xq = [-Inf, quantile(x_bin(defvec),numstrata-1), +Inf];
-    yq = [-Inf, quantile(y_bin(defvec),numstrata-1), +Inf];
+        cdf_idx     = false(length(zvec), numstrata*numstrata + 1);
 
-    % Find SNP indices for each HxL bin.
-    fprintf('Distribution of SNPs into HxL bins:\n');
-    for i=1:numstrata,
-        for j=1:numstrata
-            idx = isfinite(zvec) & ((x_bin >= xq(i)) & (x_bin <= xq(i+1))) & ((y_bin >= yq(j)) & (y_bin <= yq(j+1)));
-            cdf_idx(:, (i-1)*numstrata + j) = idx;
-            fprintf('%i ', sum(idx));
+        x_bin = Hvec; y_bin = ref_ld.sum_r2;
+        defvec = isfinite(zvec + x_bin + y_bin);
+        xq = [-Inf, quantile(x_bin(defvec),numstrata-1), +Inf];
+        yq = [-Inf, quantile(y_bin(defvec),numstrata-1), +Inf];
+
+        % Find SNP indices for each HxL bin.
+        fprintf('Distribution of SNPs into HxL bins:\n');
+        for i=1:numstrata,
+            for j=1:numstrata
+                idx = isfinite(zvec) & ((x_bin >= xq(i)) & (x_bin <= xq(i+1))) & ((y_bin >= yq(j)) & (y_bin <= yq(j+1)));
+                cdf_idx(:, (i-1)*numstrata + j) = idx;
+                fprintf('%i ', sum(idx));
+            end
+            fprintf('\n');
         end
-        fprintf('\n');
+        cdf_idx(:, end) = isfinite(zvec);
+    else
+        cdf_idx         = isfinite(zvec);
     end
-	cdf_idx(:, end) = isfinite(zvec);
 
     if ~exist('ugmg_cdf', 'var') || isempty(ugmg_cdf)
         % For each bin, calculate weights based on random-pruning
-        cdf_weights = zeros(length(zvec), numstrata*numstrata + 1);
+        cdf_weights = zeros(length(zvec), size(cdf_idx, 2));
         for i=1:size(cdf_idx, 2)
             hits = sum(pruneidxmat & repmat(cdf_idx(:, i), [1 nprune]), 2);
             cdf_weights(:, i) = hits ./ nansum(hits);
@@ -49,15 +55,16 @@ function [ugmg_cdf, fig_tot, fig_bin] = UGMG_qq_plot(params, zvec, Hvec, Nvec, p
     hv_z = linspace(0, min(max(abs(zvec)), 38.0), 10000);
 
     for ploti=1:size(cdf_idx, 2)
-        stratj = mod(ploti, numstrata);
-        if stratj==0, stratj=stratj+numstrata; end;
-        strati = (ploti-stratj)/numstrata+1;
-        is_bin_plot = (ploti ~= size(cdf_idx, 2));
-        if is_bin_plot,
-            figure(fig_bin);
+        if options.plot_HL_bins && (ploti ~= size(cdf_idx, 2))
+            stratj = mod(ploti, numstrata);
+            if stratj==0, stratj=stratj+numstrata; end;
+            strati = (ploti-stratj)/numstrata+1;
+            is_bin_plot = true;
+            figure(figures.bin);
             subplot(numstrata,numstrata, ploti);
         else
-            figure(fig_tot);
+            is_bin_plot = false;
+            figure(figures.tot);
         end
 
         data_logpvec = zeros(size(hv_z));

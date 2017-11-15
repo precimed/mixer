@@ -49,7 +49,6 @@ function [ugmg_cdf, figures] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxma
         options.calculate_z_cdf_weights = cdf_weights;
         w_ld = ones(size(zvec)); % dummy parameter --- it is used in cost calculation, which we are not interested in.
         [~, ugmg_cdf] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, ref_ld, options);
-        return
     end
 
     hv_z = linspace(0, min(max(abs(zvec)), 38.0), 10000);

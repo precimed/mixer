@@ -40,7 +40,7 @@ biased_ref_ld4 = load(fullfile(reference_data, 'biased_ref_l4.mat'));
 biased_ref_ld2 = load(fullfile(reference_data, 'biased_ref_l2.mat'));
 w_ld2 = load(fullfile(reference_data, 'w_ld.mat'));
 
-ref_ld = struct('sum_r2', biased_ref_ld2.annomat, 'chi_r4', biased_ref_ld4.annomat ./ biased_ref_ld2.annomat);
+ref_ld = struct('sum_r2', ref_ld2.annomat, 'chi_r4', biased_ref_ld4.annomat ./ biased_ref_ld2.annomat);
 Hvec = 2*mafvec .* (1-mafvec);  w_ld  = w_ld2.annomat;
 
 % Remember to exclude MHC, also for summary stats called ending with

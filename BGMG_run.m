@@ -101,15 +101,15 @@ fclose(fileID);
 if ~exist('trait2', 'var')
     options.title = trait1; options.title(options.title=='_')= '-';
     [result.univariate{1}.cdf, figures] = UGMG_qq_plot(result.univariate{1}.params, data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options, result.univariate{1}.cdf);
-    print(figures.tot, sprintf('%s', trait1),'-dpdf')
+    print(figures.tot, sprintf('%s', fname),'-dpdf')
     set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-    print(figures.bin, sprintf('%s_HL', trait1),'-dpdf')
+    print(figures.bin, sprintf('%s_HL', fname),'-dpdf')
 
     options.title = sprintf('%s (infinitesimal model)', trait1); options.title(options.title=='_')= '-';
     [result_inf.univariate{1}.cdf, figures] = UGMG_qq_plot(result_inf.univariate{1}.params, data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options, result_inf.univariate{1}.cdf);
-    print(figures.tot, sprintf('%s_inf', trait1),'-dpdf')
+    print(figures.tot, sprintf('%s_inf', fname),'-dpdf')
     set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3');
-    print(figures.bin, sprintf('%s_inf_HL', trait1),'-dpdf')
+    print(figures.bin, sprintf('%s_inf_HL', fname),'-dpdf')
 
     fileID = fopen([fname '.inf.txt'], 'w');
     BGMG_util.result2str(1,      result_inf)
@@ -118,9 +118,9 @@ if ~exist('trait2', 'var')
     
     options.title = sprintf('%s (null+small+large)', trait1); options.title(options.title=='_')= '-';
     [result_mix2.univariate{1}.cdf, figures] = UGMG_qq_plot(result_mix2.univariate{1}.params, data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options, result_mix2.univariate{1}.cdf);
-    print(figures.tot, sprintf('%s_mix2', trait1),'-dpdf')
+    print(figures.tot, sprintf('%s_mix2', fname),'-dpdf')
     set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3');
-    print(figures.bin, sprintf('%s_mix2_HL', trait1),'-dpdf')
+    print(figures.bin, sprintf('%s_mix2_HL', fname),'-dpdf')
     
     fileID = fopen([fname '.mix2.txt'], 'w');
     BGMG_util.result2str(1,      result_mix2)

@@ -73,45 +73,108 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     % Hvec = [Hvec; Hvec]; Nvec = [Nvec; Nvec]; w_ld = 2 * [w_ld; w_ld]; % twice w_ld to preserve sum(1./w_ld).
     % ref_ld = struct('sum_r2', [ref_ld.sum_r2; ref_ld.sum_r2], 'sum_r4', [ref_ld.sum_r4; ref_ld.sum_r4]);
 
-    defvec = isfinite(zvec + Hvec + Nvec + w_ld + ref_ld_sum_r2 + ref_ld_chi_r4) & (Hvec > 0);
+    defvec = isfinite(zvec + Hvec + Nvec + w_ld + sum(ref_ld_sum_r2, 2) + sum(ref_ld_chi_r4, 2)) & (Hvec > 0);
     defvec(any(abs(zvec) > options.zmax, 2)) = false;
-    defvec((ref_ld_chi_r4 < 0) | (ref_ld_chi_r4 > 1) | (ref_ld_sum_r2 < 0)) = false;
+    defvec(any(ref_ld_chi_r4 < 0, 2) | any(ref_ld_chi_r4 > 1, 2) | any(ref_ld_sum_r2 < 0, 2)) = false;
 
     zvec = zvec(defvec, :); Hvec = Hvec(defvec); Nvec = Nvec(defvec, :);
-    w_ld = w_ld(defvec); ref_ld_sum_r2 = ref_ld_sum_r2(defvec); ref_ld_chi_r4 = ref_ld_chi_r4(defvec);
+    w_ld = w_ld(defvec); ref_ld_sum_r2 = ref_ld_sum_r2(defvec, :); ref_ld_chi_r4 = ref_ld_chi_r4(defvec, :);
     options.calculate_z_cdf_weights = options.calculate_z_cdf_weights(defvec, :)./repmat(nansum(options.calculate_z_cdf_weights(defvec, :)), [sum(defvec) 1]);
+    
+    % Weights as inverse TLD
+    weights = 1 ./ w_ld;
+    weights(w_ld < 1) = 1;
 
     num_traits = length(params.sig2_zero);  % number of traits in the anslysis
     num_mix    = length(params.pi_vec);  % number of components in the mixture
     num_snps   = length(Hvec);           % number of SNPs in the analysis
     if num_traits ~= 1, error('Params define more than one trait, unable to calculate univariate cost.'); end;
 
-    % Approximation that preserves variance and kurtosis
-    pi_vec     = repmat(params.pi_vec, [num_snps 1]);
-    eta_factor = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix]) + (1-pi_vec) .* repmat(ref_ld_chi_r4, [1, num_mix]));
-    pi_vec     = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix])) ./ eta_factor;
-    
-    % Normalize pi vector, and compensate total variance by adjusting eta_factor
-    [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
-    eta_factor  = eta_factor .* (pi_vec ./ pi_vec_norm);
-    eta_factor(pi_vec == 0) = 0;
+    if 0
+        % Approximation that preserves variance and kurtosis
+        pi_vec     = repmat(params.pi_vec, [num_snps 1]);
+        eta_factor = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix]) + (1-pi_vec) .* repmat(ref_ld_chi_r4, [1, num_mix]));
+        pi_vec     = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix])) ./ eta_factor;
 
-    % Multiply sig2_beta by eta_factor
-    sig2_beta  = repmat(params.sig2_beta, [num_snps 1]) .* eta_factor;
+        % Normalize pi vector, and compensate total variance by adjusting eta_factor
+        [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
+        eta_factor  = eta_factor .* (pi_vec ./ pi_vec_norm);
+        eta_factor(pi_vec == 0) = 0;
 
-    % Calculate p.d.f. from the mixture model
-    pdf0 = pi0 .* fast_normpdf1(zvec, params.sig2_zero);
-    pdf = pi_vec_norm .* fast_normpdf1(repmat(zvec, [1 num_mix]), sig2_beta .* repmat(Hvec .* Nvec, [1 num_mix]) + params.sig2_zero);
-    pdf  = pdf0 + sum(pdf, 2);
+        % Multiply sig2_beta by eta_factor
+        sig2_beta  = repmat(params.sig2_beta, [num_snps 1]) .* eta_factor;
 
-    % Likelihood term, weighted by inverse TLD
-    weights = 1 ./ w_ld;
-    weights(w_ld < 1) = 1;
-    cost = sum(weights .* -log(pdf));
-    if ~isfinite(cost), cost = NaN; end;
-    if ~isreal(cost), cost = NaN; end;
+        % Calculate p.d.f. from the mixture model
+        pdf0 = pi0 .* fast_normpdf1(zvec, params.sig2_zero);
+        pdf = pi_vec_norm .* fast_normpdf1(repmat(zvec, [1 num_mix]), sig2_beta .* repmat(Hvec .* Nvec, [1 num_mix]) + params.sig2_zero);
+        pdf  = pdf0 + sum(pdf, 2);
+
+        % Likelihood term, weighted by inverse TLD
+        cost = sum(weights .* -log(pdf));
+        if ~isfinite(cost), cost = NaN; end;
+        if ~isreal(cost), cost = NaN; end;
+    end
+    cost = 0;
 
     if options.use_convolution
+        % Do binning on (N*H), TLD and chi2.
+        bin_num = [5, 5, 5];
+        bin_factor = {ref_ld_sum_r2, ref_ld_chi_r4, Nvec .* Hvec};
+
+        bin_edges{1} = [-Inf, quantile(bin_factor{1}, bin_num(1)-1), +Inf];
+        bin_edges{2} = [-Inf, quantile(bin_factor{2}, bin_num(2)-1), +Inf];
+        bin_edges{3} = [-Inf, quantile(bin_factor{3}, bin_num(3)-1), +Inf];
+        
+        bins_idx = false(num_snps, prod(bin_num));
+        for bini1 = 1:bin_num(1)
+            idx1 = (bin_factor{1} >= bin_edges{1}(bini1)) & (bin_factor{1} < bin_edges{1}(bini1+1));
+            for bini2 = 1:bin_num(2)
+                idx2 = (bin_factor{2} >= bin_edges{2}(bini2)) & (bin_factor{2} < bin_edges{2}(bini2+1));
+                for bini3 = 1:bin_num(3)
+                    idx3 = (bin_factor{3} >= bin_edges{3}(bini3)) & (bin_factor{3} < bin_edges{3}(bini3+1));
+                    bins_idx(:, sub2ind(bin_num, bini1, bini2, bini3)) = idx1 & idx2 & idx3;
+                end
+            end
+        end
+        bins_idx = bins_idx(:, sum(bins_idx) ~= 0);  % make sure all bins are non-empty
+        assert(all(sum(bins_idx, 2)==1))             % make sure bins cover all SNPs
+        %histogram(sum(bins))                        % inspect distribution of bin sizes
+        
+        cost_by_conv = 0;
+        for bini = 1:size(bins_idx, 2)
+            bin_idx = bins_idx(:, bini);
+            bin_ref_ld_chi_r4 = mean(ref_ld_chi_r4(bin_idx)); std(ref_ld_chi_r4(bin_idx));
+            bin_ref_ld_sum_r2 = mean(ref_ld_sum_r2(bin_idx)); std(ref_ld_sum_r2(bin_idx));
+            bin_n_times_h_vec = mean(Nvec(bin_idx) .* Hvec(bin_idx)); std(Nvec(bin_idx) .* Hvec(bin_idx));
+            bin_zvec          = zvec(bin_idx);
+            bin_weights       = weights(bin_idx);
+            
+            % calculate approximation in a binned way
+            eta_factor = (params.pi_vec .* repmat(bin_ref_ld_sum_r2, [1, num_mix]) + (1-params.pi_vec) .* repmat(bin_ref_ld_chi_r4, [1, num_mix]));
+            pi_vec     = (params.pi_vec .* repmat(bin_ref_ld_sum_r2, [1, num_mix])) ./ eta_factor;
+
+            % Normalize pi vector, and compensate total variance by adjusting eta_factor
+            [pi0, pi_vec_norm] = BGMG_util.normalize_pi_vec(pi_vec);
+            eta_factor  = eta_factor .* (pi_vec ./ pi_vec_norm);
+            eta_factor(pi_vec == 0) = 0;
+
+            % Multiply sig2_beta by eta_factor
+            sig2_beta  = params.sig2_beta .* eta_factor;
+
+            % Calculate p.d.f. from the mixture model
+            pdf0 = pi0 .* normpdf(bin_zvec, params.sig2_zero);
+            pdf = pi_vec_norm .* normpdf(repmat(bin_zvec, [1 num_mix]), 0, sqrt(sig2_beta .* bin_n_times_h_vec + params.sig2_zero));
+            pdf  = pdf0 + sum(pdf, 2);
+
+            cost_by_conv = cost_by_conv + sum(bin_weights .* -log(pdf));
+            if ~isfinite(cost_by_conv), keyboard; end;
+        end
+        
+        if 0
+        ld_block_bins = [-Inf unique(floor(logspace(0, log10(max(ref_ld_chi_r4)+1), num_ld_block_bins)))];
+        ld_sigma_bins = [-Inf quantile(ld_sigma, num_ld_sigma_bins) Inf];
+        
+        
         distr   = @(p)(p ./ sum(p));
         conv_n  = @(p, n)BGMG_util.op_power(p, @(a,b)conv(a, b, 'same'), n);
         dirac   = @(n)([zeros(1, (n-1)/2), 1, zeros(1,(n-1)/2)]);
@@ -161,6 +224,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         end
         
         cost_by_conv = sum(weights .* -log(pdf_by_conv));
+        end
+        
         if ~isfinite(cost_by_conv), cost_by_conv = NaN; end;
         if ~isreal(cost_by_conv), cost_by_conv = NaN; end;
         if isnan(cost_by_conv)
@@ -168,7 +233,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         end
 
         fprintf('cost: %.5e vs %.5e, delta = %.5e\n', cost, cost_by_conv, cost - cost_by_conv);
-        pdf = pdf_by_conv;
+        %pdf = pdf_by_conv;
         cost = cost_by_conv;
 
         %hold on; plot(-log10(pdf),-log10(pdf_by_conv),'.'); plot([0 7], [0 7]); hold off
@@ -183,14 +248,45 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         result_cdf = zeros(num_cdf_weights, length(z_grid));
         chunksize = floor(snps/length(z_grid));
 
+        if 0
+            lambda(end+1, 1) = pi1u * sum_r2 ./ ((1-pi1u) * chi2);
+            sig1_delta(end+1, 1) = params.sigb_1(mixi).^2 * (1-pi1u) * chi2 / poisscdf(kmax - 1, lambda(end));
+            k  = product(kindex, :);
+            p  = prod(lambda' .^ k) * exp(-sum(lambda)) / prod(factorial(k));
+            s2 = dot(k, sig1_delta);
+            model_cdf = model_cdf + p * normcdf(delvals, 0, sqrt(s2 .* Hvec .* Hvec + params.sig0_1.^2));
+            model_pdf = model_pdf + p * normpdf(delvals, 0, sqrt(s2 .* Hvec .* Hvec + params.sig0_1.^2));
+        end
+
+        DO_POISSON = true;
+        POISSON_KMAX = 7;
+        if DO_POISSON
+            assert(num_mix == 1);  % not implemented for 2 or more components
+            pi1u = params.pi_vec(1);
+            poisson_lambda = pi1u * ref_ld_sum_r2 ./ ((1-pi1u) * ref_ld_chi_r4);
+            poisson_sigma  = params.sig2_beta(1) .* (1-pi1u) .* ref_ld_chi_r4 ./ poisscdf(POISSON_KMAX - 1, poisson_lambda);
+        end
+
         for snpi=1:chunksize:snps
             snpj = min(snpi+chunksize-1, snps);
             z_grid_zvec = repmat(z_grid, [snpj-snpi+1, 1]);
             RC = @(x, ci)repmat(x(snpi:snpj, ci), [1 length(z_grid)]);
 
-            z_grid_pdf = RC(pi0, 1) .* fast_normpdf1(z_grid_zvec, params.sig2_zero);
-            for mixi = 1:num_mix
-                z_grid_pdf = z_grid_pdf + RC(pi_vec_norm, mixi) .* fast_normpdf1(z_grid_zvec, RC(sig2_beta, mixi) .* RC(Hvec, 1) .* RC(Nvec, 1) + params.sig2_zero);
+            if DO_POISSON
+                z_grid_pdf = zeros(snpj-snpi+1, length(z_grid));
+                for k1=0:POISSON_KMAX
+                    for k2=0:POISSON_KMAX
+                        poisson_pdf1 = (poisson_lambda(snpi:snpj, 1) .^ k1) .* exp(-poisson_lambda(snpi:snpj, 1)) / factorial(k1);
+                        poisson_pdf2 = (poisson_lambda(snpi:snpj, 2) .^ k2) .* exp(-poisson_lambda(snpi:snpj, 2)) / factorial(k2);
+                        sig = k1 * RC(poisson_sigma(:, 1), 1) + k2 * RC(poisson_sigma(:, 2), 1);
+                        z_grid_pdf = z_grid_pdf + repmat(poisson_pdf1.*poisson_pdf2, [1 length(z_grid)]) .* fast_normpdf1(z_grid_zvec, sig .* RC(Hvec, 1) .* RC(Nvec, 1) + params.sig2_zero);
+                    end
+                end
+            else
+                z_grid_pdf = RC(pi0, 1) .* fast_normpdf1(z_grid_zvec, params.sig2_zero);
+                for mixi = 1:num_mix
+                    z_grid_pdf = z_grid_pdf + RC(pi_vec_norm, mixi) .* fast_normpdf1(z_grid_zvec, RC(sig2_beta, mixi) .* RC(Hvec, 1) .* RC(Nvec, 1) + params.sig2_zero);
+                end
             end
 
             temp_cdf = cumsum(z_grid_pdf, 2) ./ repmat(sum(z_grid_pdf, 2), [1, length(z_grid)]);
@@ -256,7 +352,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         result.cdf_z_grid = result_cdf_z_grid;
     end
 
-    if options.verbose
+    if 0
         if num_mix == 1
             fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, (eff. %.3f), sig2_zero^2=%.3f, h2=%.3f, cost=%.3e, nsnp=%i\n', ...
                      params.pi_vec, params.sig2_beta, mean(sig2_beta(:)) .* mean(Hvec) .* mean(Nvec), params.sig2_zero, ...

@@ -21,7 +21,7 @@ function [ugmg_cdf, figures] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxma
 
         cdf_idx     = false(length(zvec), numstrata*numstrata + 1);
 
-        x_bin = Hvec; y_bin = ref_ld.sum_r2;
+        x_bin = Hvec; y_bin = sum(ref_ld.sum_r2, 2);
         defvec = isfinite(zvec + x_bin + y_bin);
         xq = [-Inf, quantile(x_bin(defvec),numstrata-1), +Inf];
         yq = [-Inf, quantile(y_bin(defvec),numstrata-1), +Inf];

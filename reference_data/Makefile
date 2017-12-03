@@ -72,10 +72,10 @@ $(WORK)/biased_LDr4hist: | $(WORK)
 
 # ================ ref_10m and ref_1m ==================
 $(WORK)/ref_10m.mat: $(REF_10M)
-	$(PYTHON) $(SUMSTATS_PY) ref-to-mat --ref $(REF_10M) --out $@ --force
+	$(PYTHON) $(SUMSTATS_PY) ref-to-mat --ref $(REF_10M) --out $@ --force --numeric-only
 
 $(WORK)/ref_1m.mat: $(REF_1M)
-	$(PYTHON) $(SUMSTATS_PY) ref-to-mat --ref $(REF_1M) --out $@ --force
+	$(PYTHON) $(SUMSTATS_PY) ref-to-mat --ref $(REF_1M) --out $@ --force --numeric-only
 
 # ======================== w_ld ========================
 

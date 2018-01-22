@@ -21,6 +21,31 @@ hist_r2 = hist_r2 / sum(hist_r2);
 nsnp = 400;
 count_r2 = round(nsnp*hist_r2);
 
+if 0
+    bar(vals_r2, count_r2, 'BarWidth', 1.5)
+    xlim([0 1])
+    xlabel('r2');
+    ylabel('Number of SNPs');
+    
+    count_r2_eff = count_r2;
+    count_r2_eff(:) = 0;
+    for i=1:2 
+        if i==1, idx=1:10; else idx=11:20; end;
+        sum_r2 = sum(vals_r2(idx)    .* count_r2(idx));
+        sum_r4 = sum(vals_r2(idx).^2 .* count_r2(idx));
+        r2_eff = sum_r4 / sum_r2;
+        n2_eff = sum_r2 / r2_eff;
+        [~, id] = min(abs(vals_r2-r2_eff))
+        count_r2_eff(id) = n2_eff;
+    end
+    
+    bar(vals_r2, count_r2_eff, 'BarWidth', 1.5)
+    xlim([0 1])
+    xlabel('r2');
+    ylabel('Number of SNPs');
+    
+end
+
 clear params
 if iterPARAMS == 1, params.pi_1 = [1e-4 1e-5]; params.sigb_1 = [3.0 10.0]; params.sig0_1 = 1; end;
 if iterPARAMS == 2, params.pi_1 = [1e-3 1e-4]; params.sigb_1 = [3.0 10.0]; params.sig0_1 = 1; end;

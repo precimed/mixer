@@ -17,6 +17,8 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     if ~isfield(options, 'relax_rho_zero'), options.relax_rho_zero = false; end;
     if ~isfield(options, 'fit_infinitesimal'), options.fit_infinitesimal = false; end;  % infinitesimal model (implemented only for univariate analysis)
     if ~isfield(options, 'fit_two_causal_components'), options.fit_two_causal_components = false; end;  % fit two causal components (implemented only for univariate analysis, without ci estimation)
+    
+    options.use_poisson = false;  % initial fit without poisson approximation, final with including poisson approximation
 
     if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
 
@@ -36,20 +38,24 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         if isfield(options, sprintf('params%i', itrait)),
             results.univariate{itrait}.params = options.(sprintf('params%i', itrait));
         else
-            fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_univariate_cost(mapparams(x), zvec, Hvec, Nvec, w_ld, ref_ld, options), mapparams(x0), fminsearch_options));
+            fit = @(x0, mapparams, fit_options)mapparams(fminsearch(@(x)BGMG_univariate_cost(mapparams(x), zvec, Hvec, Nvec, w_ld, ref_ld, fit_options), mapparams(x0), fminsearch_options));
 
             fprintf('Trait%i  : fit infinitesimal model to find initial sig2_zero\n', itrait);
             params_inft0 = struct('sig2_zero', var(zvec(~isnan(zvec))), 'sig2_beta', 1 ./ mean(Nvec(~isnan(Nvec))));
-            params_inft  = fit(params_inft0, @(x)UGMG_mapparams1(x, struct('pi_vec', 1.0)));
+            params_inft  = fit(params_inft0, @(x)UGMG_mapparams1(x, struct('pi_vec', 1.0)), options);
 
             if options.fit_infinitesimal
                 results.univariate{itrait}.params = params_inft;
             else
                 fprintf('Trait%i  : fit pi_vec and sig2_beta, constrained on sig2_zero and h2\n', itrait);
-                params_mix0  = fit(struct('pi_vec', 0.5), @(x)UGMG_mapparams1_h2(x, params_inft.sig2_beta, params_inft.sig2_zero));
+                params_mix0  = fit(struct('pi_vec', 0.5), @(x)UGMG_mapparams1_h2(x, params_inft.sig2_beta, params_inft.sig2_zero), options);
 
                 fprintf('Trait%i  : final unconstrained optimization\n', itrait);
-                results.univariate{itrait}.params = fit(params_mix0, @(x)UGMG_mapparams1(x));
+                non_poisson_params = fit(params_mix0, @(x)UGMG_mapparams1(x), options);
+                
+                fprintf('Trait%i  : optimization with poisson cost function\n', itrait);
+                poisson_options = options; poisson_options.use_poisson=true;
+                results.univariate{itrait}.params = fit(non_poisson_params, @(x)UGMG_mapparams1(x), poisson_options);
             end
 
             if options.fit_two_causal_components
@@ -61,7 +67,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
                 params_mix2.pi_vec = [params_mix2.pi_vec*0.5 params_mix2.pi_vec*0.25];
                 params_mix2.sig2_beta = [params_mix2.sig2_beta params_mix2.sig2_beta * 2];
 
-                results.univariate{itrait}.params = fit(params_mix2, @(x)UGMG_mapparams2(x));
+                results.univariate{itrait}.params = fit(params_mix2, @(x)UGMG_mapparams2(x), options);
             end
 
             if ~isnan(options.ci_alpha)

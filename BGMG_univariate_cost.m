@@ -45,6 +45,9 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
     if ~isfield(options, 'zmax'), options.zmax = +Inf; end;
 
+    if ~isfield(options, 'use_poisson'), options.use_poisson = false; end;
+    if ~isfield(options, 'poisson_kmax'), options.poisson_kmax = nan; end;
+
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
     % estimation. They express the grid to calculate posterior delta
     % distribution before taking mean or median statistic.
@@ -65,8 +68,25 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~BGMG_util.validate_params(params); cost = nan; return; end;
     if isempty(ref_ld), error('ref_ld argument is required'); cost = nan; return; end;
     
+    if ~options.use_poisson && (size(ref_ld.sum_r2, 2) ~= 1)
+        ref_ld.sum_r2 = sum(ref_ld.sum_r2, 2);
+        ref_ld.sum_r2_biased = sum(ref_ld.sum_r2_biased, 2);
+        ref_ld.sum_r4_biased = sum(ref_ld.sum_r4_biased, 2);
+    end
+
+    if size(ref_ld.sum_r2, 2) > 2, error('UGMG cost: at max 2 columns in ref_ld are supported'); end;
+    DO_POISSON_2 = options.use_poisson && (size(ref_ld.sum_r2, 2) == 2);
+    DO_POISSON_1 = options.use_poisson && (size(ref_ld.sum_r2, 2) == 1);
+    if ~isfinite(options.poisson_kmax)
+        %if DO_POISSON_2, options.poisson_kmax=[20 10]; end
+        if DO_POISSON_2, options.poisson_kmax=[12 8]; end
+        if DO_POISSON_1, options.poisson_kmax=49; end
+    end
+
     ref_ld_sum_r2 = ref_ld.sum_r2;
-    ref_ld_chi_r4 = ref_ld.chi_r4;
+    ref_ld_sum_r2_biased = ref_ld.sum_r2_biased;
+    ref_ld_sum_r4_biased = ref_ld.sum_r4_biased;
+    ref_ld_chi_r4 = ref_ld_sum_r4_biased ./ ref_ld_sum_r2_biased;
 
     % Symmetrization trick - disable, doesn't seems to make a difference
     % zvec = [zvec; -zvec];
@@ -90,7 +110,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     num_snps   = length(Hvec);           % number of SNPs in the analysis
     if num_traits ~= 1, error('Params define more than one trait, unable to calculate univariate cost.'); end;
 
-    if 0
+    if ~options.use_poisson
         % Approximation that preserves variance and kurtosis
         pi_vec     = repmat(params.pi_vec, [num_snps 1]);
         eta_factor = (pi_vec .* repmat(ref_ld_sum_r2, [1, num_mix]) + (1-pi_vec) .* repmat(ref_ld_chi_r4, [1, num_mix]));
@@ -108,13 +128,36 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         pdf0 = pi0 .* fast_normpdf1(zvec, params.sig2_zero);
         pdf = pi_vec_norm .* fast_normpdf1(repmat(zvec, [1 num_mix]), sig2_beta .* repmat(Hvec .* Nvec, [1 num_mix]) + params.sig2_zero);
         pdf  = pdf0 + sum(pdf, 2);
+    else
+        % Poisson approximation
+        assert(num_mix == 1);  % not implemented for 2 or more components
+        pi1u = params.pi_vec(1);
+        poisson_lambda = pi1u * ref_ld_sum_r2 ./ ((1-pi1u) * ref_ld_chi_r4);
+        poisson_sigma  = params.sig2_beta(1) .* (1-pi1u) .* ref_ld_chi_r4 ./ poisscdf(repmat(options.poisson_kmax - 1, [size(poisson_lambda, 1), 1]), poisson_lambda);
 
-        % Likelihood term, weighted by inverse TLD
-        cost = sum(weights .* -log(pdf));
-        if ~isfinite(cost), cost = NaN; end;
-        if ~isreal(cost), cost = NaN; end;
+        pdf = zeros(num_snps, 1);
+        if DO_POISSON_2
+            for k1=0:options.poisson_kmax(1)
+                for k2=0:options.poisson_kmax(2)
+                    poisson_pdf1 = (poisson_lambda(:, 1) .^ k1) .* exp(-poisson_lambda(:, 1)) ./ factorial(k1);
+                    poisson_pdf2 = (poisson_lambda(:, 2) .^ k2) .* exp(-poisson_lambda(:, 2)) ./ factorial(k2);
+                    sig = k1 *poisson_sigma(:, 1) + k2 * poisson_sigma(:, 2);
+                    pdf = pdf + poisson_pdf1 .* poisson_pdf2 .* fast_normpdf1(zvec, sig .* Hvec .* Nvec + params.sig2_zero);
+                end
+            end
+        elseif DO_POISSON_1
+            for k1=0:options.poisson_kmax
+                poisson_pdf1 = (poisson_lambda(:, 1) .^ k1) .* exp(-poisson_lambda(:, 1)) ./ factorial(k1);
+                sig = k1 *poisson_sigma(:, 1);
+                pdf = pdf + poisson_pdf1 .* fast_normpdf1(zvec, sig .* Hvec .* Nvec + params.sig2_zero);
+            end
+        end
     end
-    cost = 0;
+
+    % Likelihood term, weighted by inverse TLD
+    cost = sum(weights .* -log(pdf));
+    if ~isfinite(cost), cost = NaN; end;
+    if ~isreal(cost), cost = NaN; end;
 
     if options.use_convolution
         % Do binning on (N*H), TLD and chi2.
@@ -248,23 +291,11 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         result_cdf = zeros(num_cdf_weights, length(z_grid));
         chunksize = floor(snps/length(z_grid));
 
-        if 0
-            lambda(end+1, 1) = pi1u * sum_r2 ./ ((1-pi1u) * chi2);
-            sig1_delta(end+1, 1) = params.sigb_1(mixi).^2 * (1-pi1u) * chi2 / poisscdf(kmax - 1, lambda(end));
-            k  = product(kindex, :);
-            p  = prod(lambda' .^ k) * exp(-sum(lambda)) / prod(factorial(k));
-            s2 = dot(k, sig1_delta);
-            model_cdf = model_cdf + p * normcdf(delvals, 0, sqrt(s2 .* Hvec .* Hvec + params.sig0_1.^2));
-            model_pdf = model_pdf + p * normpdf(delvals, 0, sqrt(s2 .* Hvec .* Hvec + params.sig0_1.^2));
-        end
-
-        DO_POISSON = true;
-        POISSON_KMAX = 7;
-        if DO_POISSON
+        if DO_POISSON_1 || DO_POISSON_2
             assert(num_mix == 1);  % not implemented for 2 or more components
             pi1u = params.pi_vec(1);
             poisson_lambda = pi1u * ref_ld_sum_r2 ./ ((1-pi1u) * ref_ld_chi_r4);
-            poisson_sigma  = params.sig2_beta(1) .* (1-pi1u) .* ref_ld_chi_r4 ./ poisscdf(POISSON_KMAX - 1, poisson_lambda);
+            poisson_sigma  = params.sig2_beta(1) .* (1-pi1u) .* ref_ld_chi_r4 ./ poisscdf(repmat(options.poisson_kmax - 1, [size(poisson_lambda, 1), 1]), poisson_lambda);
         end
 
         for snpi=1:chunksize:snps
@@ -272,15 +303,22 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             z_grid_zvec = repmat(z_grid, [snpj-snpi+1, 1]);
             RC = @(x, ci)repmat(x(snpi:snpj, ci), [1 length(z_grid)]);
 
-            if DO_POISSON
+            if DO_POISSON_2
                 z_grid_pdf = zeros(snpj-snpi+1, length(z_grid));
-                for k1=0:POISSON_KMAX
-                    for k2=0:POISSON_KMAX
+                for k1=0:options.poisson_kmax(1)
+                    for k2=0:options.poisson_kmax(2)
                         poisson_pdf1 = (poisson_lambda(snpi:snpj, 1) .^ k1) .* exp(-poisson_lambda(snpi:snpj, 1)) / factorial(k1);
                         poisson_pdf2 = (poisson_lambda(snpi:snpj, 2) .^ k2) .* exp(-poisson_lambda(snpi:snpj, 2)) / factorial(k2);
                         sig = k1 * RC(poisson_sigma(:, 1), 1) + k2 * RC(poisson_sigma(:, 2), 1);
                         z_grid_pdf = z_grid_pdf + repmat(poisson_pdf1.*poisson_pdf2, [1 length(z_grid)]) .* fast_normpdf1(z_grid_zvec, sig .* RC(Hvec, 1) .* RC(Nvec, 1) + params.sig2_zero);
                     end
+                end
+            elseif DO_POISSON_1
+                z_grid_pdf = zeros(snpj-snpi+1, length(z_grid));
+                for k1=0:options.poisson_kmax
+                    poisson_pdf1 = (poisson_lambda(snpi:snpj, 1) .^ k1) .* exp(-poisson_lambda(snpi:snpj, 1)) / factorial(k1);
+                    sig = k1 * RC(poisson_sigma(:, 1), 1);
+                    z_grid_pdf = z_grid_pdf + repmat(poisson_pdf1, [1 length(z_grid)]) .* fast_normpdf1(z_grid_zvec, sig .* RC(Hvec, 1) .* RC(Nvec, 1) + params.sig2_zero);
                 end
             else
                 z_grid_pdf = RC(pi0, 1) .* fast_normpdf1(z_grid_zvec, params.sig2_zero);
@@ -352,18 +390,16 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         result.cdf_z_grid = result_cdf_z_grid;
     end
 
-    if 0
-        if num_mix == 1
-            fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, (eff. %.3f), sig2_zero^2=%.3f, h2=%.3f, cost=%.3e, nsnp=%i\n', ...
-                     params.pi_vec, params.sig2_beta, mean(sig2_beta(:)) .* mean(Hvec) .* mean(Nvec), params.sig2_zero, ...
-                     (params.sig2_beta*params.pi_vec')*options.total_het, cost, sum(defvec));
-        else
-            fprintf('Univariate: pi_vec=[%s], sig2_beta^2=[%s], h2=[%s], sig2_zero^2=%.3f, cost=%.3e, nsnp=%i\n', ...
-                sprintf('%.3e ', params.pi_vec), ...
-                sprintf('%.3e ', params.sig2_beta), ...
-                sprintf('%.3f ', params.sig2_beta.*params.pi_vec*options.total_het), ...
-                params.sig2_zero, cost, sum(defvec));
-        end
+    if num_mix == 1
+        fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, sig2_zero^2=%.3f, h2=%.3f, cost=%.3e, nsnp=%i\n', ...
+                 params.pi_vec, params.sig2_beta, params.sig2_zero, ...
+                 (params.sig2_beta*params.pi_vec')*options.total_het, cost, sum(defvec));
+    else
+        fprintf('Univariate: pi_vec=[%s], sig2_beta^2=[%s], h2=[%s], sig2_zero^2=%.3f, cost=%.3e, nsnp=%i\n', ...
+            sprintf('%.3e ', params.pi_vec), ...
+            sprintf('%.3e ', params.sig2_beta), ...
+            sprintf('%.3f ', params.sig2_beta.*params.pi_vec*options.total_het), ...
+            params.sig2_zero, cost, sum(defvec));
     end
 end
 

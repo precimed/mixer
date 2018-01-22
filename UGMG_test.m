@@ -2,7 +2,8 @@ addpath('DERIVESTsuite');
 addpath('H:\NORSTORE\oleksanf\holland_genetics\GPSIM');  % for GenStats_meta
 addpath('H:\NORSTORE\oleksanf\holland_matlab\qq');
 
-workspace_data_file = 'data_2017_11_15.mat';
+%workspace_data_file = 'data_2017_11_15.mat';
+workspace_data_file = 'data_2017_12_06.mat';
 if 0
     % Test consistency with Dominic's model
     info1m = load('H:\NORSTORE\MMIL\SUMSTAT\LDSR\MATLAB_Annot\infomat.mat');
@@ -43,13 +44,22 @@ if 0
     minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
     numSNPsInLDr2_gt_r2min_vec = sum(LDr2hist_9m(:,minr2bin:end),2);
     
+    % calculate chi2 for two r2 bins ("low" and "high" r2)
     minr2 = 0.05; minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
+    r2_bin_index = false(2, ldr2binsNum);
+    r2_bin_index(1, minr2bin:(ldr2binsNum/2)) = true;
+    r2_bin_index(2, ((ldr2binsNum/2) + 1):end) = true;
+    
     LDr2tot_9m = LDr2hist_9m .* repmat(ldr2binsCenters, [size(LDr2hist_9m, 1), 1]);
     LDr4tot_9m = LDr2hist_9m .* repmat(ldr2binsCenters.^2, [size(LDr2hist_9m, 1), 1]);
-    sum_r2 = sum(LDr2tot_9m(:, minr2bin:end), 2);
-    sum_r4 = sum(LDr4tot_9m(:, minr2bin:end), 2);
-    alex_shape_param = sum_r4 ./ sum_r2;
-
+    
+    alex_sum_r2=zeros(nsnps9m, 2);
+    alex_sum_r4=zeros(nsnps9m, 2);
+    for r2_bini=1:2
+        alex_sum_r2(:, r2_bini) = sum(LDr2tot_9m(:, r2_bin_index(r2_bini, :)), 2);
+        alex_sum_r4(:, r2_bini) = sum(LDr4tot_9m(:, r2_bin_index(r2_bini, :)), 2);
+    end
+    
     fullFileName = 'H:\NORSTORE\MMIL\new_9m_SNPs_processed_summary\GWAS_Data\PGC2_SCZ52_multisites.mat';    
     scz_meta = load(fullFileName,'logpmat','logormat','N_A_vec','N_U_vec');
     scz_meta.Neffvec = 4./(1./scz_meta.N_A_vec+1./scz_meta.N_U_vec);   % CHANGE THE 2 to 4.    % Neffvec is the 1x52 vector of sample sizes over the 52 sub-studies.
@@ -149,14 +159,14 @@ if 0
     for repi=1:nprune, tmp=rand(size(chrnumvec,1),1); tmp(~scz3.defvec_1M) = NaN; scz3.pruneidxmat_1M(:,repi) = isfinite(FastPrune(tmp, LDmat)); fprintf('.'); end; fprintf('\n');
 
     %save(data_file, 'scz', 'bip', 'alex',                     'chrnumvec', 'posvec', 'mask_in_9m', 'index_to_9m', 'mafvec_9m', 'Hvec_9m', 'tldvec_9m', 'numSNPsInLDr2_gt_r2min_vec');
-    save(workspace_data_file, 'scz', 'bip', 'bmi', 'height', 'scz3',  'alex_shape_param', 'chrnumvec', 'posvec', 'mask_in_9m', 'index_to_9m', 'mafvec_9m', 'Hvec_9m', 'tldvec_9m', 'numSNPsInLDr2_gt_r2min_vec', 'nprune');
+    save(workspace_data_file, 'scz', 'bip', 'bmi', 'height', 'scz3',  'alex_sum_r2', 'alex_sum_r4', 'chrnumvec', 'posvec', 'mask_in_9m', 'index_to_9m', 'mafvec_9m', 'Hvec_9m', 'tldvec_9m', 'numSNPsInLDr2_gt_r2min_vec', 'nprune');
     keyboard
     clear
     return
 else
     load(workspace_data_file);
-    ref_ld  = struct('sum_r2', tldvec_9m, 'chi_r4', alex_shape_param);
-    %ref_ld  = struct('sum_r2', alex.ref_ld2, 'chi_r4', alex.biased_ref_ld4 ./ alex.biased_ref_ld2);
+    %ref_ld  = struct('sum_r2', tldvec_9m, 'sum_r2_biased', tldvec_9m, 'sum_r4_biased', alex_shape_param .* tldvec_9m);
+    ref_ld  = struct('sum_r2', alex_sum_r2, 'sum_r2_biased', alex_sum_r2, 'sum_r4_biased', alex_sum_r4);
 end
 
 
@@ -164,12 +174,12 @@ end
 
 %task=scz; disp_trait1_name='SCZ'; zvec=task.zvec; zvec(~task.defvec_1M) = nan; nvec=task.Neff; pruneidxmat=task.pruneidxmat_1M;clear('task');
 %task=scz; disp_trait1_name='SCZ'; zvec=task.zvec; zvec(~task.defvec_5M) = nan; nvec=task.Neff; pruneidxmat=task.pruneidxmat_5M;clear('task');
-%task=bip; disp_trait1_name='BIP'; zvec=task.zvec; zvec(~task.defvec_1M) = nan; nvec=task.Neff; pruneidxmat=task.pruneidxmat_1M;clear('task');
+task=bip; disp_trait1_name='BIP'; zvec=task.zvec; zvec(~task.defvec_1M) = nan; nvec=task.Neff; pruneidxmat=task.pruneidxmat_1M;clear('task');
 %task=bip; disp_trait1_name='BIP'; zvec=task.zvec; zvec(~task.defvec_5M) = nan; nvec=task.Neff; pruneidxmat=task.pruneidxmat_5M;clear('task');
 
 %task=bmi; disp_trait1_name='BMI'; zvec=task.zvec; zvec(~task.defvec_1M) = nan; nvec=task.nvec; pruneidxmat=task.pruneidxmat_1M;clear('task');
 %task=height; disp_trait1_name='HEIGHT'; zvec=task.zvec; zvec(~task.defvec_1M) = nan; nvec=task.nvec; pruneidxmat=task.pruneidxmat_1M;clear('task');
-task=scz3; disp_trait1_name='SCZsep17'; zvec=task.zvec; zvec(~task.defvec_1M) = nan; nvec=task.nvec; pruneidxmat=task.pruneidxmat_1M;clear('task');
+%task=scz3; disp_trait1_name='SCZsep17'; zvec=task.zvec; zvec(~task.defvec_1M) = nan; nvec=task.nvec; pruneidxmat=task.pruneidxmat_1M;clear('task');
 
 if 1
     options.total_het = 2 * 1037117.5140529468;  % Total heterozigosity across all SNPs in 1kG phase3
@@ -181,6 +191,7 @@ if 1
     result = BGMG_fit(zvec, Hvec_9m, nvec, w_ld, ref_ld, options);
     result_cdf = [];
     
+    if 0
     % Infinitesimal model (only causal component, without null)
     options_inf = options; options_inf.fit_infinitesimal=true;
     result_inf = BGMG_fit(zvec, Hvec_9m, nvec, w_ld, ref_ld, options_inf);
@@ -190,14 +201,17 @@ if 1
     options_mix2 = options; options_mix2.fit_two_causal_components=true;
     result_mix2 = BGMG_fit(zvec, Hvec_9m, nvec, w_ld, ref_ld, options_mix2);
     result_mix2_cdf = [];
+    end
 end
 close all
 options.title = disp_trait1_name;
+options.use_poisson = true;
 [result_cdf, figures] = UGMG_qq_plot(result.univariate{1}.params, zvec, Hvec_9m, nvec, pruneidxmat, ref_ld, options, result_cdf);
-print(figures.tot, sprintf('%s_%i', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+print(figures.tot, sprintf('%s_poisson_with_r2bins_%i', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
 set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-print(figures.bin, sprintf('%s_%i_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
+print(figures.bin, sprintf('%s_poisson_with_r2bins_%i_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
 
+if 0
 options.title = sprintf('%s (infinitesimal model)', disp_trait1_name);
 [result_inf_cdf, figures] = UGMG_qq_plot(result_inf.univariate{1}.params, zvec, Hvec_9m, nvec, pruneidxmat, ref_ld, options, result_inf_cdf);
 print(figures.tot, sprintf('%s_%i_inf', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
@@ -209,7 +223,7 @@ options.title = sprintf('%s (null+small+large)', disp_trait1_name);
 print(figures.tot, sprintf('%s_%i_mix2', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
 set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
 print(figures.bin, sprintf('%s_%i_mix2_HL', disp_trait1_name, sum(isfinite(zvec))),'-dpdf')
-
+end
 if 0
     params = struct('sig2_zero', 1.239, 'pi_vec', 0.004727, 'sig2_beta', 0.000041); result_dominic_cdf = []; % 1M SCZ
     params = struct('sig2_zero', 1.204, 'pi_vec', 0.004795, 'sig2_beta', 0.000040); result_dominic_cdf = []; % 5M SCZ

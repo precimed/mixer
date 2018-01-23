@@ -1,11 +1,13 @@
-addpath('from_Anders')
+addpath('C:\Users\oleksanf\Documents\GitHub\BGMG\holland_genetics_GPSIM');  % for GenStats_meta
+addpath('C:\Users\oleksanf\Documents\GitHub\BGMG\holland_matlab_qq');
+addpath('C:\Users\oleksanf\Documents\GitHub\BGMG\from_Anders')
 %nobs=1e6;
-nobs=1e6;
-%nobs=1e4;
+%nobs=1e6;
+nobs=1e5;
 
 figure(11); 
-for iterHIST = 1 %1:3
-for iterPARAMS = 3 %1:3
+for iterHIST = 2 %1:3
+for iterPARAMS = 2 %1:3
 fprintf('.');   
 % Simulate bivariate associateion stats, given counts of potential causal SNPs across different LD r^2 bins
 
@@ -28,9 +30,13 @@ if iterPARAMS == 3, params.pi_1 = 1e-2; params.pi_2 = 1e-2; params.pi_3 = 0; par
 
 delvals = linspace(-21,21,2^14+1); delstep = delvals(2)-delvals(1); 
 
-if 1
+if 0
+hc_z = zeros(length(delvals));   
+for iter=1:20
+    fprintf('.');
 [zmat delmat_total delmat_indep delmat_pleio] = BGMG_generate_random_stats(params,vals_r2,count_r2,nobs);
-hc_z = hist3(zmat,{delvals delvals}); 
+hc_z = hc_z + hist3(zmat,{delvals delvals}); 
+end
 pdfmat_z_obs = hc_z/(sum(hc_z(:))*delstep^2);
 [qqvec1_obs qqvec2_obs logpvals_qq zvals_qq] = BGMG_compute_qq(pdfmat_z_obs,delvals);
 end
@@ -66,15 +72,25 @@ for ell=1:L
 end
 else
     % poisson approximation
+    if 0
     idx = false(nbins_r2, 2);
     idx(1:nbins_r2/2, 1) = true;
     idx((nbins_r2/2)+1 : nbins_r2, 2) = true;
+    end
+    
+    nbinsbins=2;
+    idx = false(nbins_r2, nbinsbins);
+    for t=1:nbinsbins
+        idx((1:nbins_r2/nbinsbins) + (t-1)*(nbins_r2/nbinsbins), t) = true;
+    end
+    
+    %idx = true(nbins_r2, 1);
     
     lambda=[];sig1_delta=[];
     
-    kmax = 4;
+    kmax = 5;
     pi1u = params.pi_1 + params.pi_3;
-    for r2bini=1:2
+    for r2bini=1:size(idx, 2)
         i=idx(:, r2bini);
         sum_r2 = sum(vals_r2(:, i)    .* count_r2(:, i));
         sum_r4 = sum(vals_r2(:, i).^2 .* count_r2(:, i));
@@ -108,10 +124,34 @@ else
             p1 = lambda(1).^k1 * exp(-lambda(1)) / factorial(k1);
             s1 = k1 * sig1_delta(1);
             p2 = 1; s2 = 0;
-            model_cdf = model_cdf + p1 * p2 * normcdf(delvals, 0, sqrt((s1 + s2) .* Hvec .* Hvec + params.sig0_1.^2));
-            model_pdf = model_pdf + p1 * p2 * normpdf(delvals, 0, sqrt((s1 + s2) .* Hvec .* Hvec + params.sig0_1.^2));
+            model_cdf = model_cdf + p1 * p2 * normcdf(delvals, 0, sqrt((s1 + s2) .* Hvec .* Hvec +  params.sig0_1.^2));
+            model_pdf = model_pdf + p1 * p2 * normpdf(delvals, 0, sqrt((s1 + s2) .* Hvec .* Hvec +  params.sig0_1.^2));
         end
     else
+
+        grid_step = params.sigb_1.^2 / 5;
+        grid_size = 100;
+        grid_coef = zeros(1, grid_size); grid_coef(1) = 1;
+        
+        for i=1:length(lambda)
+            k              = (0:kmax)';
+            p              = lambda(i).^ k * exp(-lambda(i)) ./ factorial(k);
+            grid_idx       = k * sig1_delta(i) / grid_step;
+            grid_idx_floor = floor(grid_idx);
+            grid_coef_tmp  = accumarray(1+grid_idx_floor, p .* (1 - grid_idx + grid_idx_floor), [grid_size 1]) + ...
+                             accumarray(2+grid_idx_floor, p .* (0 + grid_idx - grid_idx_floor), [grid_size, 1]);
+            grid_coef = conv(grid_coef, grid_coef_tmp); grid_coef=grid_coef(1:grid_size);
+        end
+        assert(sum(grid_coef) > 0.999);
+        
+        for k=1:grid_size
+            model_cdf = model_cdf + grid_coef(k) * normcdf(delvals, 0, sqrt((k-1) .* grid_step .* Hvec .* Hvec + params.sig0_1.^2));
+            model_pdf = model_pdf + grid_coef(k) * normpdf(delvals, 0, sqrt((k-1) .* grid_step .* Hvec .* Hvec + params.sig0_1.^2));
+        end
+        
+        if 0
+        model_cdf = zeros(size(delvals));
+        model_pdf = zeros(size(delvals));
         for k1=0:kmax
             for k2=0:kmax
                 p1 = lambda(1).^k1 * exp(-lambda(1)) / factorial(k1);
@@ -121,6 +161,7 @@ else
                 model_cdf = model_cdf + p1 * p2 * normcdf(delvals, 0, sqrt((s1 + s2) .* Hvec .* Hvec + params.sig0_1.^2));
                 model_pdf = model_pdf + p1 * p2 * normpdf(delvals, 0, sqrt((s1 + s2) .* Hvec .* Hvec + params.sig0_1.^2));
             end
+        end
         end
     end
 end

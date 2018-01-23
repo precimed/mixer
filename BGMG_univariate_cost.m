@@ -45,8 +45,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'zmax'), options.zmax = +Inf; end;           % ignore z scores above zmax
 
     if ~isfield(options, 'use_poisson'), options.use_poisson = false; end;  % enable accurate pdf(z) estimation
-    if ~isfield(options, 'poisson_sigma_grid_step'), options.poisson_sigma_grid_step = 1.0; end;   % grid step of poisson projection
-    if ~isfield(options, 'poisson_sigma_grid_limit'), options.poisson_sigma_grid_limit = 20; end;  % grid size of poisson projection
+    if ~isfield(options, 'poisson_sigma_grid_limit'), options.poisson_sigma_grid_limit = nan; end;  % grid limit of poisson projection
+    if ~isfield(options, 'poisson_sigma_grid_nodes'), options.poisson_sigma_grid_nodes = 10;  end;  % grid size of poisson projection
 
     % z_cdf_limit and z_cdf_step are used in cdf estimation
     if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;
@@ -132,19 +132,28 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         % Compensate for low kmax (commented out because kmax is not known yet... this is some kind of "circular dependency")
         % poisson_sigma =poisson_sigma ./ poisscdf(repmat(options.poisson_kmax - 1, [size(poisson_lambda, 1), 1]), poisson_lambda);
 
-        poisson_sigma_grid_step = options.poisson_sigma_grid_step;
-        poisson_sigma_grid_size = floor(options.poisson_sigma_grid_limit / options.poisson_sigma_grid_step) + 1;
-        poisson_sigma_grid_max  = poisson_sigma_grid_step * (poisson_sigma_grid_size - 1);
-        poisson_sigma_grid      = 0:poisson_sigma_grid_step:poisson_sigma_grid_max;
-        snp_chunk_size  = floor(num_snps/poisson_sigma_grid_size);
+        if ~isfinite(options.poisson_sigma_grid_limit)
+            % auto-detect so that 0.999 of the probability mass nicely fits into the range of poisson sigma_grid
+            quantile_value = 0.999;
+            options.poisson_sigma_grid_limit = ceil(poissinv(quantile_value, quantile(poisson_lambda(:), quantile_value)) * quantile(poisson_sigma(:), quantile_value));
+            options.poisson_sigma_grid_delta = options.poisson_sigma_grid_limit / (options.poisson_sigma_grid_nodes - 1);
+        end
+
+        poisson_sigma_grid_delta = options.poisson_sigma_grid_delta;
+        poisson_sigma_grid_nodes = options.poisson_sigma_grid_nodes;
+        poisson_sigma_grid_limit = poisson_sigma_grid_delta * (poisson_sigma_grid_nodes - 1);
+        poisson_sigma_grid       = 0:poisson_sigma_grid_delta:poisson_sigma_grid_limit;
+        snp_chunk_size  = floor(num_snps/poisson_sigma_grid_nodes);
 
         % Cumulated distribution function for Z scores
         if (nargout > 1) && options.calculate_z_cdf
+            fprintf('Estimate cumulated distribution function for Z scores... \n');
+            fprintf('\tPoisson grid 0:%.2f:%.2f (%i nodes)\n', poisson_sigma_grid_delta, poisson_sigma_grid_limit, poisson_sigma_grid_nodes);
             result_cdf_z_grid = (-options.calculate_z_cdf_limit:options.calculate_z_cdf_step:options.calculate_z_cdf_limit);
             num_cdf_weights = size(options.calculate_z_cdf_weights, 2);
             result_cdf = zeros(num_cdf_weights, length(result_cdf_z_grid));
-            cdfmat = zeros(length(result_cdf_z_grid), poisson_sigma_grid_size);
-            for i=1:poisson_sigma_grid_size, cdfmat(:, i) = normcdf(result_cdf_z_grid, 0, sqrt(poisson_sigma_grid(i) + params.sig2_zero)); end
+            cdfmat = zeros(length(result_cdf_z_grid), poisson_sigma_grid_nodes);
+            for i=1:poisson_sigma_grid_nodes, cdfmat(:, i) = normcdf(result_cdf_z_grid, 0, sqrt(poisson_sigma_grid(i) + params.sig2_zero)); end
         end
         
         pdf = zeros(num_snps, 1);
@@ -155,29 +164,30 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             sigma_grid_pi   = [];
             for ldr2_bini = 1:num_ldr2bins
                 % auto-detect reasonable kmax for poisson approximation
-                kmax      = floor(median(poisson_sigma_grid_max ./ poisson_sigma(snpi:snpj, ldr2_bini)));
+                kmax      = floor(median(poisson_sigma_grid_limit ./ poisson_sigma(snpi:snpj, ldr2_bini)));
                 k         = 0:kmax;
                 p         = repmat(poisson_lambda(snpi:snpj, ldr2_bini), [1 kmax+1]) .^ repmat(k, [num_snps_in_chunk, 1]) .* ...
                             repmat(exp(-poisson_lambda(snpi:snpj, ldr2_bini)), [1 kmax+1]) ./ repmat(factorial(k), [num_snps_in_chunk, 1]);
-                grid_idx  = repmat(k, [num_snps_in_chunk 1])  .* repmat(poisson_sigma(snpi:snpj, ldr2_bini), [1 1+kmax]) ./ poisson_sigma_grid_step;
-                grid_idx  = min(grid_idx, poisson_sigma_grid_size - 2);
+                grid_idx  = repmat(k, [num_snps_in_chunk 1])  .* repmat(poisson_sigma(snpi:snpj, ldr2_bini), [1 1+kmax]) ./ poisson_sigma_grid_delta;
+                grid_idx  = min(grid_idx, poisson_sigma_grid_nodes - 2);
                 grid_idx_floor = floor(grid_idx);
                 grid_idx_frac  = grid_idx - grid_idx_floor;
 
                 grid_idx_floor = grid_idx_floor'; p = p'; grid_idx_frac = grid_idx_frac';
-                grid_coef_tmp  = accummatrix(1+grid_idx_floor, p .* (1 - grid_idx_frac), [poisson_sigma_grid_size, size(p, 2)]) + ...
-                                 accummatrix(2+grid_idx_floor, p .* (    grid_idx_frac), [poisson_sigma_grid_size, size(p, 2)]);
+                grid_coef_tmp  = accummatrix(1+grid_idx_floor, p .* (1 - grid_idx_frac), [poisson_sigma_grid_nodes, size(p, 2)]) + ...
+                                 accummatrix(2+grid_idx_floor, p .* (    grid_idx_frac), [poisson_sigma_grid_nodes, size(p, 2)]);
                 grid_coef_tmp  = grid_coef_tmp';
 
                 sigma_grid_pi = convmatrix(sigma_grid_pi, grid_coef_tmp);
             end
 
-            for k=1:poisson_sigma_grid_size
+            for k=1:poisson_sigma_grid_nodes
                 pdf(snpi:snpj) = pdf(snpi:snpj) + sigma_grid_pi(:, k) .* normpdf(zvec(snpi:snpj), 0, sqrt(poisson_sigma_grid(k) + params.sig2_zero));
             end
             
             if exist('result_cdf', 'var')
                 result_cdf = result_cdf + options.calculate_z_cdf_weights(snpi:snpj, :)' * (sigma_grid_pi * cdfmat');
+                fprintf('Finish %i SNPs out of %i\n', snpj, num_snps);
             end
         end
     end

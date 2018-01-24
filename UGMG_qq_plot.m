@@ -1,6 +1,7 @@
-function [ugmg_cdf, figures] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxmat_or_w_ld, ref_ld, options, ugmg_cdf)
+function [figures, plot_data] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxmat_or_w_ld, ref_ld, options)
     % QQ plot for data and model
 
+    plot_data = [];
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
     if ~isfield(options, 'plot_HL_bins'), options.plot_HL_bins = true; end;
 
@@ -105,6 +106,8 @@ function [ugmg_cdf, figures] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxma
 
         hData     = plot(data_logpvec, hv_logp, '-', 'LineWidth',1); hold on;
         hModel    = plot(model_logpvec,hv_logp, '-', 'LineWidth',1); hold on;
+
+        plot_data = struct('hv_logp', hv_logp, 'data_logpvec', data_logpvec, 'model_logpvec', model_logpvec);
 
         qq_options = [];
         if is_bin_plot

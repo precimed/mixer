@@ -45,8 +45,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'zmax'), options.zmax = +Inf; end;           % ignore z scores above zmax
 
     if ~isfield(options, 'use_poisson'), options.use_poisson = false; end;  % enable accurate pdf(z) estimation
-    if ~isfield(options, 'poisson_sigma_grid_limit'), options.poisson_sigma_grid_limit = nan; end;  % grid limit of poisson projection
-    if ~isfield(options, 'poisson_sigma_grid_nodes'), options.poisson_sigma_grid_nodes = 10;  end;  % grid size of poisson projection
+    if ~isfield(options, 'poisson_sigma_grid_limit'), options.poisson_sigma_grid_limit = 100; end;   % grid limit of poisson projection
+    if ~isfield(options, 'poisson_sigma_grid_nodes'), options.poisson_sigma_grid_nodes = 101;  end;  % grid size of poisson projection
 
     % z_cdf_limit and z_cdf_step are used in cdf estimation
     if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;
@@ -79,6 +79,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     ref_ld_sum_r2_biased = ref_ld.sum_r2_biased;
     ref_ld_sum_r4_biased = ref_ld.sum_r4_biased;
     ref_ld_chi_r4 = ref_ld_sum_r4_biased ./ ref_ld_sum_r2_biased;
+    ref_ld_chi_r4(ref_ld_sum_r4_biased == 0) = 0;
 
     % Symmetrization trick - disable, doesn't seems to make a difference
     % zvec = [zvec; -zvec];
@@ -126,6 +127,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         assert(num_mix == 1);  % not implemented for 2 or more components
         pi1u = params.pi_vec(1);
         poisson_lambda = pi1u * ref_ld_sum_r2 ./ ((1-pi1u) * ref_ld_chi_r4);
+        poisson_lambda(~isfinite(poisson_lambda)) = 0;
         poisson_sigma  = repmat(Hvec .* Nvec, [1 num_ldr2bins]) .* ...
                          params.sig2_beta(1) .* (1-pi1u) .* ref_ld_chi_r4;
         
@@ -136,10 +138,9 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             % auto-detect so that 0.999 of the probability mass nicely fits into the range of poisson sigma_grid
             quantile_value = 0.999;
             options.poisson_sigma_grid_limit = ceil(poissinv(quantile_value, quantile(poisson_lambda(:), quantile_value)) * quantile(poisson_sigma(:), quantile_value));
-            options.poisson_sigma_grid_delta = options.poisson_sigma_grid_limit / (options.poisson_sigma_grid_nodes - 1);
         end
 
-        poisson_sigma_grid_delta = options.poisson_sigma_grid_delta;
+        poisson_sigma_grid_delta = options.poisson_sigma_grid_limit / (options.poisson_sigma_grid_nodes - 1);
         poisson_sigma_grid_nodes = options.poisson_sigma_grid_nodes;
         poisson_sigma_grid_limit = poisson_sigma_grid_delta * (poisson_sigma_grid_nodes - 1);
         poisson_sigma_grid       = 0:poisson_sigma_grid_delta:poisson_sigma_grid_limit;
@@ -164,7 +165,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             sigma_grid_pi   = [];
             for ldr2_bini = 1:num_ldr2bins
                 % auto-detect reasonable kmax for poisson approximation
-                kmax      = floor(median(poisson_sigma_grid_limit ./ poisson_sigma(snpi:snpj, ldr2_bini)));
+                kvals     = poisson_sigma_grid_limit ./ poisson_sigma(snpi:snpj, ldr2_bini);
+                kmax      = ceil(quantile(kvals(isfinite(kvals)), 0.999));
                 k         = 0:kmax;
                 p         = repmat(poisson_lambda(snpi:snpj, ldr2_bini), [1 kmax+1]) .^ repmat(k, [num_snps_in_chunk, 1]) .* ...
                             repmat(exp(-poisson_lambda(snpi:snpj, ldr2_bini)), [1 kmax+1]) ./ repmat(factorial(k), [num_snps_in_chunk, 1]);

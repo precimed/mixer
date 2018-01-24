@@ -8,21 +8,7 @@ load('/space/syn03/1/data/oleksandr/SynGen2/11015833/mafvec.mat')               
 load('/space/syn03/1/data/oleksandr/SynGen2/11015833/chrpos_11015833.mat')                                 % chrnumvec, posvec
 load('/space/syn03/1/data/oleksandr/hapgen/snpIDs_11p3m.mat')                                              % snpIDs
 load('/space/syn03/1/data/oleksandr/hapgen/TLDr2_zontr2_p1_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat');       % tldvec
-hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat')                            % A1vec, A2vec, chrnumvec, posvec, snpidlist 
-
-% parameterResults{rep_index, pi_index, h2_index}:
-%                         C
-%                 Hmean_All
-%         Hmean_CausalsOnly
-%                     nsnps
-%              nsnpsCausals
-%   sig2betaTrueCausalsOnly
-%           sig2betaTrueAll
-%               sig2betaEst
-%                   pi1True
-%                    h2True
-%             h2Est_FromAll
-%     h2Est_FromCausalsOnly
+hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');                           % A1vec, A2vec, chrnumvec, posvec, snpidlist 
 
 num_snps = length(chrnumvec);  % 11015833
 
@@ -40,7 +26,7 @@ minr2 = 0.1;  % If r^2<0.05, ignore --> noise.
 minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
 numSNPsInLDr2_gt_r2min_vec = sum(LDr2hist(:,minr2bin:end),2);
 
-minr2 = 0.02; minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
+minr2 = 0.05; minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
 LDr2 = LDr2hist .* repmat(ldr2binsCenters, [num_snps, 1]);
 LDr4 = LDr2hist .* repmat(ldr2binsCenters.^2, [num_snps, 1]);
 end
@@ -116,25 +102,41 @@ sum(task.pruneidxmat)
 pivec_str = {'1e-5', '1e-4', '1e-3', '1e-2'};
 h2vec_str = {'0.10', '0.40', '0.70'};
 
-task.options = []
+task.options = [];
 task.options.total_het = total_het;  % Total heterozigosity across all SNPs in 1kG phase3
 task.options.verbose = true;
 task.options.ci_alpha = nan;
 task.options.use_poisson = 1;
 task.options.title = sprintf('HAPGEN pi=%s h2=%s rep=%i', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index);
 
+poisson_sigma_grid_limit_vec = [150 75 15 15];
+poisson_sigma_grid_nodes_vec = [151 76 31 31];
+task.options.poisson_sigma_grid_limit = poisson_sigma_grid_limit_vec(pi_index); 
+task.options.poisson_sigma_grid_nodes = poisson_sigma_grid_nodes_vec(pi_index);
 
-task.params = struct('sig2_zero', 1, 'pi_vec', task.gwasParams.pi1True, 'sig2_beta', task.gwasParams.sig2betaEst); result_true_params_cdf = [];
+task.params = struct('sig2_zero', 1, 'pi_vec', task.gwasParams.pi1True, 'sig2_beta', task.gwasParams.sig2betaEst);
 disp(task.options.title)
 disp(task)
 save(sprintf('task_pi=%s_h2=%s_rep=%i_ldr2bins=%i.mat', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index, task.ref_ld_bins), 'task');
 close all
 
-[result_true_params_cdf, figures] = UGMG_qq_plot(task.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options, result_true_params_cdf);
-
+[figures, plot_data] = UGMG_qq_plot(task.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options);
+% To reproduce the same curve:
+% plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
+save(sprintf('plot_data_%s_%i_r2bin%i.mat', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)), 'plot_data');
 print(figures.tot, sprintf('%s_%i_r2bin%i.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
 print(figures.bin, sprintf('%s_%i_r2bin%i_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+
+if 0
+    % Perform fitting of the parameters
+    hits = sum(task.pruneidxmat, 2); w_ld = 1./hits; w_ld(hits==0) = nan;
+    result = BGMG_fit(task.zvec, task.Hvec, task.nvec, w_ld, task.ref_ld, task.options);
+    figures = UGMG_qq_plot(result.univariate{1}.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options);
+    print(figures.tot, sprintf('%s_%i_r2bin%i_fitted.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+    set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+    print(figures.bin, sprintf('%s_%i_r2bin%i_fitted_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+end
 
 end;end;end
 

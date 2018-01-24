@@ -1,5 +1,5 @@
 addpath('DERIVESTsuite');
-if 1
+if ~exist('LDr2_p8sparse', 'var') 
 load('/space/syn03/1/data/oleksandr/hapgen/LD_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat')  % LDr2_p8sparse
 load('/space/syn03/1/data/oleksandr/hapgen/LDr2hist_zontr2_p5_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat')     % LDr2hist
 load('/space/syn03/1/data/oleksandr/hapgen/setUpParameterResults_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat')  % parameterResults
@@ -40,12 +40,15 @@ minr2 = 0.1;  % If r^2<0.05, ignore --> noise.
 minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
 numSNPsInLDr2_gt_r2min_vec = sum(LDr2hist(:,minr2bin:end),2);
 
-minr2 = 0.05; minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
+minr2 = 0.02; minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
 LDr2 = LDr2hist .* repmat(ldr2binsCenters, [num_snps, 1]);
 LDr4 = LDr2hist .* repmat(ldr2binsCenters.^2, [num_snps, 1]);
+end
 
 % calculate chi2 for two r2 bins ("low" and "high" r2)
-r2_aggregated_bins = 4;
+r2_aggregated_bins = 10;
+
+if ~exist('ref_ld') || (size(ref_ld.sum_r2, 2) ~= r2_aggregated_bins)
 r2_aggregated_bin_size = ldr2binsNum / r2_aggregated_bins;
 assert(mod(ldr2binsNum,r2_aggregated_bins) == 0);
 assert(r2_aggregated_bin_size > minr2bin);
@@ -58,20 +61,18 @@ for r2_bini=1:r2_aggregated_bins
 end
 shape_param = sum_r4 ./ sum_r2;
 ref_ld  = struct('sum_r2', sum_r2, 'sum_r4_biased', sum_r4, 'sum_r2_biased', sum_r2);
+end
 
 TLD_MAX=600;
 LD_BLOCK_SIZE_MAX = 2000;
 MAF_THRESH = 0.01;
 mhcvec = chrnumvec==6 & posvec >= 25e6 & posvec <= 35e6;
-
-USE_HAPMAP = false;
-
+USE_HAPMAP = true;
 z = @(logpvec, zvec) -norminv(10.^-logpvec/2).*sign(zvec);
-end
 
 for rep_index = 1:10
+for h2_index = [2 1 3]
 for pi_index = 1:4
-for h2_index = 1:3
 
 task = [];
 task.zvec = z(-log10(pvecs{rep_index,pi_index,h2_index}), randn(num_snps, 1));
@@ -89,19 +90,26 @@ defvec = defvec & (mafvec >= MAF_THRESH); fprintf('%i SNPs left after filtering 
 if USE_HAPMAP
   defvec = defvec & mask_in_11m; fprintf('%i SNPs left after excluding all non-HapMap3 SNPs\n', sum(defvec));
 end
-task.defvec = defvec;
-task.zvec(~task.defvec) = nan;
+
+%task.defvec = defvec;
+task.defvec = true(sum(defvec), 1);
+task.zvec = task.zvec(defvec);
+task.nvec = task.nvec(defvec);
+task.Hvec = task.Hvec(defvec);
+task.ref_ld = struct('sum_r2', ref_ld.sum_r2(defvec, :), 'sum_r4_biased', ref_ld.sum_r4_biased(defvec, :), 'sum_r2_biased', ref_ld.sum_r2_biased(defvec, :));
+task.ref_ld_bins = size(task.ref_ld.sum_r2, 2);
 
 % Perform random pruning at LDr2 0.8 threshold....
 nprune = 10;
 fprintf('Perform %i iterations of random pruning ', nprune);
-task.pruneidxmat = false(size(task.defvec,1), nprune);
+task.pruneidxmat = false(size(defvec,1), nprune);
 for prune_repi=1:nprune,
     tmp=rand(size(chrnumvec,1),1);
-    tmp(~task.defvec) = NaN;
+    tmp(~defvec) = NaN;
     task.pruneidxmat(:,prune_repi) = isfinite(FastPrune(tmp, LDr2_p8sparse));
     fprintf('.');
 end;
+task.pruneidxmat = task.pruneidxmat(defvec, :);
 fprintf('done.\nEffective number of SNPs on each iteration of random pruning:\n');
 sum(task.pruneidxmat)
 
@@ -115,16 +123,18 @@ task.options.ci_alpha = nan;
 task.options.use_poisson = 1;
 task.options.title = sprintf('HAPGEN pi=%s h2=%s rep=%i', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index);
 
+
 task.params = struct('sig2_zero', 1, 'pi_vec', task.gwasParams.pi1True, 'sig2_beta', task.gwasParams.sig2betaEst); result_true_params_cdf = [];
 disp(task.options.title)
-%save('last_task.mat', 'task');
+disp(task)
+save(sprintf('task_pi=%s_h2=%s_rep=%i_ldr2bins=%i.mat', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index, task.ref_ld_bins), 'task');
 close all
 
 [result_true_params_cdf, figures] = UGMG_qq_plot(task.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options, result_true_params_cdf);
 
-print(figures.tot, sprintf('%s_%i.pdf', task.options.title, sum(isfinite(task.zvec))),'-dpdf')
+print(figures.tot, sprintf('%s_%i_r2bin%i.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-print(figures.bin, sprintf('%s_%i_HL.pdf', task.options.title, sum(isfinite(task.zvec))),'-dpdf')
+print(figures.bin, sprintf('%s_%i_r2bin%i_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 
 end;end;end
 

@@ -55,6 +55,8 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
                 
                 fprintf('Trait%i  : optimization with poisson cost function\n', itrait);
                 poisson_options = options; poisson_options.use_poisson=true;
+                [~, detected_options] = BGMG_univariate_cost(non_poisson_params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options);
+                poisson_options.poisson_sigma_grid_limit = detected_options.poisson_sigma_grid_limit;
                 results.univariate{itrait}.params = fit(non_poisson_params, @(x)UGMG_mapparams1(x), poisson_options);
             end
 

@@ -247,6 +247,9 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     % project all results back into the original SNPs indexing (which may include undefined values)
     if exist('result', 'var'), result = restore_original_indexing(result, defvec); end
 
+    % save non-vectorized parameters
+    if exist('result', 'var'), result.poisson_sigma_grid_limit = options.poisson_sigma_grid_limit; end
+
     if exist('result_cdf', 'var')
         result.cdf = result_cdf;
         result.cdf_z_grid = result_cdf_z_grid;

@@ -139,7 +139,6 @@ end;end;end
 % Load and display previously generated results
 if 0
 
-figure;hold on;
 for pi_index = 1:4
 for h2_index = 1:3
 
@@ -147,6 +146,16 @@ for h2_index = 1:3
     h2 = h2vec_str{h2_index};
     r2bins = 4;
 
+    RECALCULATE_MODEL = false;
+    if RECALCULATE_MODEL  % re-calculate model prediction from tasks
+    load(sprintf('C:/Storage/UGMG_tasks/task_pi=%s_h2=%s_rep=X_ldr2bins=%i.mat', pi, h2, r2bins));
+    task.options.poisson_sigma_grid_limit = nan;
+    task.options.poisson_sigma_grid_nodes = 10;
+    task.options.plot_HL_bins = false;
+    [figures, my_plot_data] = UGMG_qq_plot(task.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options);
+    end
+
+    figure(666); hold on;
     subplot(3,4, pi_index + (h2_index-1) * 4); hold on;
 
     loaded = 0;
@@ -156,7 +165,11 @@ for h2_index = 1:3
             load(['C:/Storage/UGMG_results/plot_data/' file.name]);
             loaded = loaded + 1;
             set(gca,'ColorOrderIndex',1)
-            plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp);
+            if RECALCULATE_MODEL
+                plot(plot_data.data_logpvec, plot_data.hv_logp, my_plot_data.model_logpvec, my_plot_data.hv_logp);
+            else
+                plot(plot_data.data_logpvec, plot_data.hv_logp,    plot_data.model_logpvec,    plot_data.hv_logp);
+            end
         catch
         end
     end
@@ -166,8 +179,12 @@ for h2_index = 1:3
     qq_options.qqlimx = 7;
     plot([0 qq_options.qqlimy],[0 qq_options.qqlimy], 'k--');
     xlim([0 qq_options.qqlimx]); ylim([0 qq_options.qqlimy]);
+    drawnow
 end
 end
+
+set(666,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+print(666, 'test.pdf', '-dpdf')
 
 end
 

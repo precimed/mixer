@@ -22,18 +22,13 @@ ldr2binsNum     = size(LDr2hist,2);  %  100
 ldr2binsEdges   = linspace( 0,1,ldr2binsNum+1);
 ldr2binsCenters = nan(1,ldr2binsNum); for i=1:ldr2binsNum, ldr2binsCenters(i) = (ldr2binsEdges(i+1)+ldr2binsEdges(i))/2; end
 
-minr2 = 0.1;  % If r^2<0.05, ignore --> noise.
-minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
-numSNPsInLDr2_gt_r2min_vec = sum(LDr2hist(:,minr2bin:end),2);
-
 minr2 = 0.05; minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
 LDr2 = LDr2hist .* repmat(ldr2binsCenters, [num_snps, 1]);
 LDr4 = LDr2hist .* repmat(ldr2binsCenters.^2, [num_snps, 1]);
+numSNPsInLDr2_gt_r2min_vec = sum(LDr2hist(:,minr2bin:end),2);
 end
 
-% calculate chi2 for two r2 bins ("low" and "high" r2)
-r2_aggregated_bins = 10;
-
+r2_aggregated_bins = 4;
 if ~exist('ref_ld') || (size(ref_ld.sum_r2, 2) ~= r2_aggregated_bins)
 r2_aggregated_bin_size = ldr2binsNum / r2_aggregated_bins;
 assert(mod(ldr2binsNum,r2_aggregated_bins) == 0);
@@ -59,6 +54,7 @@ z = @(logpvec, zvec) -norminv(10.^-logpvec/2).*sign(zvec);
 for rep_index = 1:10
 for h2_index = [2 1 3]
 for pi_index = 1:4
+try
 
 task = [];
 task.zvec = z(-log10(pvecs{rep_index,pi_index,h2_index}), randn(num_snps, 1));
@@ -109,16 +105,12 @@ task.options.ci_alpha = nan;
 task.options.use_poisson = 1;
 task.options.title = sprintf('HAPGEN pi=%s h2=%s rep=%i', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index);
 
-poisson_sigma_grid_limit_vec = [150 75 15 15];
-poisson_sigma_grid_nodes_vec = [151 76 31 31];
-task.options.poisson_sigma_grid_limit = poisson_sigma_grid_limit_vec(pi_index); 
-task.options.poisson_sigma_grid_nodes = poisson_sigma_grid_nodes_vec(pi_index);
-
 task.params = struct('sig2_zero', 1, 'pi_vec', task.gwasParams.pi1True, 'sig2_beta', task.gwasParams.sig2betaEst);
 disp(task.options.title)
+disp(task.options)
 disp(task)
-save(sprintf('task_pi=%s_h2=%s_rep=%i_ldr2bins=%i.mat', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index, task.ref_ld_bins), 'task');
 close all
+save(sprintf('/home/oleksandr/space/SynGen2/11015833/BGMG_results/task_pi=%s_h2=%s_rep=%i_ldr2bins=%i.mat', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index, task.ref_ld_bins), 'task');
 
 [figures, plot_data] = UGMG_qq_plot(task.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options);
 % To reproduce the same curve:
@@ -138,6 +130,45 @@ if 0
     print(figures.bin, sprintf('%s_%i_r2bin%i_fitted_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 end
 
+catch
+    disp('error');
+end
+
 end;end;end
+
+% Load and display previously generated results
+if 0
+
+figure;hold on;
+for pi_index = 1:4
+for h2_index = 1:3
+
+    pi = pivec_str{pi_index};
+    h2 = h2vec_str{h2_index};
+    r2bins = 4;
+
+    subplot(3,4, pi_index + (h2_index-1) * 4); hold on;
+
+    loaded = 0;
+    files = dir(sprintf('C:/Storage/UGMG_results/plot_data/plot_data_HAPGEN pi=%s h2=%s rep=*_*_r2bin%i.mat', pi, h2, r2bins));
+    for file = files'
+        try
+            load(['C:/Storage/UGMG_results/plot_data/' file.name]);
+            loaded = loaded + 1;
+            set(gca,'ColorOrderIndex',1)
+            plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp);
+        catch
+        end
+    end
+    if loaded == 0, error('No files found'); end;
+    title(sprintf('pi=%s h2=%s r2bins=%i #rep=%i', pi, h2, r2bins, loaded));
+    qq_options.qqlimy = 20;
+    qq_options.qqlimx = 7;
+    plot([0 qq_options.qqlimy],[0 qq_options.qqlimy], 'k--');
+    xlim([0 qq_options.qqlimx]); ylim([0 qq_options.qqlimy]);
+end
+end
+
+end
 
 

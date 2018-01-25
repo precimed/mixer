@@ -48,7 +48,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
                 results.univariate{itrait}.params = params_inft;
             else
                 fprintf('Trait%i  : fit pi_vec and sig2_beta, constrained on sig2_zero and h2\n', itrait);
-                params_mix0  = fit(struct('pi_vec', 0.5), @(x)UGMG_mapparams1_h2(x, params_inft.sig2_beta, params_inft.sig2_zero), options);
+                params_mix0  = fit(struct('pi_vec', 0.01), @(x)UGMG_mapparams1_h2(x, params_inft.sig2_beta, params_inft.sig2_zero), options);
 
                 fprintf('Trait%i  : final unconstrained optimization\n', itrait);
                 non_poisson_params = fit(params_mix0, @(x)UGMG_mapparams1(x), options);

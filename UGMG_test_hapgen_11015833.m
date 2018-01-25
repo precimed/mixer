@@ -156,13 +156,13 @@ for h2_index = 1:3
     end
 
     figure(666); hold on;
-    subplot(3,4, pi_index + (h2_index-1) * 4); hold on;
+    myAxis{pi_index, h2_index} = subplot(3,4, pi_index + (h2_index-1) * 4); hold on;
 
     loaded = 0;
-    files = dir(sprintf('C:/Storage/UGMG_results/plot_data/plot_data_HAPGEN pi=%s h2=%s rep=*_*_r2bin%i.mat', pi, h2, r2bins));
+    files = dir(sprintf('C:/Storage/UGMG_results_11M/plot_data_HAPGEN pi=%s h2=%s rep=*_9*_r2bin%i.mat', pi, h2, r2bins));
     for file = files'
         try
-            load(['C:/Storage/UGMG_results/plot_data/' file.name]);
+            load(['C:/Storage/UGMG_results_11M/' file.name]);
             loaded = loaded + 1;
             set(gca,'ColorOrderIndex',1)
             if RECALCULATE_MODEL
@@ -183,7 +183,13 @@ for h2_index = 1:3
 end
 end
 
-set(666,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+for pi_index = 1:4
+for h2_index = 1:3
+set(myAxis{pi_index,h2_index}, 'Position', myAxis{pi_index,h2_index}.Position - [0.01 * (pi_index - 1)  0.00 0 0])
+end
+end
+
+set(666,'PaperOrientation','landscape','DefaultFigurePaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
 print(666, 'test.pdf', '-dpdf')
 
 end

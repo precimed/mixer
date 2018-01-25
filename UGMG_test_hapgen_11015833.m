@@ -122,7 +122,7 @@ print(figures.bin, sprintf('%s_%i_r2bin%i_HL.pdf', task.options.title, sum(isfin
 
 if 0
     % Perform fitting of the parameters
-    hits = sum(task.pruneidxmat, 2); w_ld = 1./hits; w_ld(hits==0) = nan;
+    hits = sum(task.pruneidxmat, 2); w_ld = size(task.pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
     task.options.poisson_sigma_grid_nodes = 11;
     result = BGMG_fit(task.zvec, task.Hvec, task.nvec, w_ld, task.ref_ld, task.options);
     task.options.poisson_sigma_grid_nodes = 51;

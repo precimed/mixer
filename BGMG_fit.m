@@ -13,11 +13,13 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     if ~isfield(options, 'ci_sample'), options.ci_sample = 10000; end;
     if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
     if ~isfield(options, 'use_univariate_pi'), options.use_univariate_pi = false; end;
+    if ~isfield(options, 'use_poisson'), options.use_poisson = true; end;
     if ~isfield(options, 'relax_sig2_beta'), options.relax_sig2_beta = false; end;
     if ~isfield(options, 'relax_rho_zero'), options.relax_rho_zero = false; end;
     if ~isfield(options, 'fit_infinitesimal'), options.fit_infinitesimal = false; end;  % infinitesimal model (implemented only for univariate analysis)
     if ~isfield(options, 'fit_two_causal_components'), options.fit_two_causal_components = false; end;  % fit two causal components (implemented only for univariate analysis, without ci estimation)
     
+    options.use_poisson_original = options.use_poisson;
     options.use_poisson = false;  % initial fit without poisson approximation, final with including poisson approximation
 
     if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
@@ -53,11 +55,15 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
                 fprintf('Trait%i  : final unconstrained optimization\n', itrait);
                 non_poisson_params = fit(params_mix0, @(x)UGMG_mapparams1(x), options);
                 
-                fprintf('Trait%i  : optimization with poisson cost function\n', itrait);
-                poisson_options = options; poisson_options.use_poisson=true;
-                [~, detected_options] = BGMG_univariate_cost(non_poisson_params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options);
-                poisson_options.poisson_sigma_grid_limit = detected_options.poisson_sigma_grid_limit;
-                results.univariate{itrait}.params = fit(non_poisson_params, @(x)UGMG_mapparams1(x), poisson_options);
+                if options.use_poisson_original
+                    fprintf('Trait%i  : optimization with poisson cost function\n', itrait);
+                    poisson_options = options; poisson_options.use_poisson=true;
+                    [~, detected_options] = BGMG_univariate_cost(non_poisson_params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options);
+                    poisson_options.speedup_info = detected_options.speedup_info;
+                    results.univariate{itrait}.params = fit(non_poisson_params, @(x)UGMG_mapparams1(x), poisson_options);
+                else
+                    results.univariate{itrait}.params = non_poisson_params;
+                end
             end
 
             if options.fit_two_causal_components

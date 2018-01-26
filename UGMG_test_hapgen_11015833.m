@@ -123,9 +123,7 @@ print(figures.bin, sprintf('%s_%i_r2bin%i_HL.pdf', task.options.title, sum(isfin
 if 0
     % Perform fitting of the parameters
     hits = sum(task.pruneidxmat, 2); w_ld = size(task.pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
-    task.options.poisson_sigma_grid_nodes = 11;
     result = BGMG_fit(task.zvec, task.Hvec, task.nvec, w_ld, task.ref_ld, task.options);
-    task.options.poisson_sigma_grid_nodes = 51;
     [figures, plot_data_fitted] = UGMG_qq_plot(result.univariate{1}.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options);
     save(sprintf('plot_data_%s_%i_r2bin%i_fitted.mat', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)), 'plot_data_fitted');
     print(figures.tot, sprintf('%s_%i_r2bin%i_fitted.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')

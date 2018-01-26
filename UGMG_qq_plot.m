@@ -4,6 +4,7 @@ function [figures, plot_data] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxm
     plot_data = [];
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
     if ~isfield(options, 'plot_HL_bins'), options.plot_HL_bins = true; end;
+    options.use_poisson = true;
 
     figures.tot = figure; hold on;
     if options.plot_HL_bins, figures.bin = figure('units','normalized','outerposition',[0 0 1 1]); hold on; end;
@@ -63,6 +64,7 @@ function [figures, plot_data] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxm
         options.calculate_z_cdf_weights = cdf_weights;
         w_ld_dummy = ones(size(zvec)); % dummy parameter --- it is used in cost calculation, which we are not interested in.
         [~, ugmg_cdf] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld_dummy, ref_ld, options);
+        % options.speedup_info = ugmg_cdf.speedup_info; profile on; BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld_dummy, ref_ld, options); profile viewer; profile off;
     end
 
     hv_z = linspace(0, min(max(abs(zvec)), 38.0), 10000);

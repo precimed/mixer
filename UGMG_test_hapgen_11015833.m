@@ -188,11 +188,11 @@ end
 
 for pi_index = 1:4
 for h2_index = 1:3
-set(myAxis{pi_index,h2_index}, 'Position', myAxis{pi_index,h2_index}.Position - [0.01 * (pi_index - 1)  0.00 0 0])
+set(myAxis{pi_index,h2_index}, 'Position', myAxis{pi_index,h2_index}.Position - [0.005 * (pi_index - 1)  0.00 0 0])
 end
 end
 
-set(666,'PaperOrientation','landscape','DefaultFigurePaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+set(666,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
 print(666, 'test.pdf', '-dpdf')
 
 end

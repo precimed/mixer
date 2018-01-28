@@ -45,7 +45,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'zmax'), options.zmax = +Inf; end;           % ignore z scores above zmax
 
     if ~isfield(options, 'use_poisson'), options.use_poisson = false; end;  % enable accurate pdf(z) estimation
-    if ~isfield(options, 'poisson_sigma_grid_nodes'), options.poisson_sigma_grid_nodes = 15;  end;  % grid size of poisson projection
+    if ~isfield(options, 'poisson_sigma_grid_nodes'), options.poisson_sigma_grid_nodes = 25;  end;  % grid size of poisson projection
 
     % z_cdf_limit and z_cdf_step are used in cdf estimation
     if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;

@@ -37,7 +37,7 @@ LDr4 = LDr2hist .* repmat(ldr2binsCenters.^2, [num_snps, 1]);
 numSNPsInLDr2_gt_r2min_vec = sum(LDr2hist(:,minr2bin:end),2);
 end
 
-r2_aggregated_bins = 1;
+r2_aggregated_bins = 4;
 if ~exist('ref_ld') || (size(ref_ld.sum_r2, 2) ~= r2_aggregated_bins)
 r2_aggregated_bin_size = ldr2binsNum / r2_aggregated_bins;
 assert(mod(ldr2binsNum,r2_aggregated_bins) == 0);
@@ -110,7 +110,7 @@ task.options = [];
 task.options.total_het = total_het;  % Total heterozigosity
 task.options.verbose = true;
 task.options.ci_alpha = nan;
-task.options.use_poisson = 1;
+task.options.use_poisson = false;
 task.options.title = sprintf('%s - %s', gwas_name1, gwas_name2);
 
 disp(task.options.title)
@@ -121,12 +121,26 @@ close all
 
 % Perform fitting of the parameters
 hits = sum(task.pruneidxmat, 2); w_ld = size(task.pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
+task.options.use_poisson = 1;
 result = BGMG_fit(task.zmat, task.Hvec, task.nmat, w_ld, task.ref_ld, task.options);
-[figures, plot_data_fitted] = UGMG_qq_plot(result.univariate{1}.params, task.zmat, task.Hvec, task.nmat, task.pruneidxmat, task.ref_ld, task.options);
-save(sprintf('plot_data_%s_%i_r2bin%i.mat',  gwas_name, sum(isfinite(task.zmat)), size(task.ref_ld.sum_r2, 2)), 'plot_data_fitted');
+
+%result1 = BGMG_fit(task.zmat(:, 1), task.Hvec, task.nmat(:, 1), w_ld, task.ref_ld, task.options);
+%result2 = BGMG_fit(task.zmat(:, 2), task.Hvec, task.nmat(:, 2), w_ld, task.ref_ld, task.options);
+
+% Show bivariate results, and univariate results in context of poisson and gaussian mixtures
+disp(result.bivariate.params)
+%disp(result.univariate{1}.params)
+%disp(result.univariate{2}.params)
+%disp(result1.univariate{1}.params)
+%disp(result2.univariate{1}.params)
+
+if 0
+[figures, plot_data] = UGMG_qq_plot(result.univariate{1}.params, task.zmat, task.Hvec, task.nmat, task.pruneidxmat, task.ref_ld, task.options);
+save(sprintf('plot_data_%s_%i_r2bin%i.mat',  gwas_name1, sum(isfinite(task.zmat)), size(task.ref_ld.sum_r2, 2)), 'plot_data');
 print(figures.tot, sprintf('%s_%i_r2bin%i_fitted.pdf', task.options.title, sum(isfinite(task.zmat)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
 print(figures.bin, sprintf('%s_%i_r2bin%i_fitted_HL.pdf', task.options.title, sum(isfinite(task.zmat)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+end
 
 catch
     disp('error');

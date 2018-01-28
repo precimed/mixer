@@ -116,19 +116,26 @@ save(sprintf('/home/oleksandr/space/SynGen2/11015833/BGMG_results/task_pi=%s_h2=
 % To reproduce the same curve:
 % plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
 save(sprintf('plot_data_%s_%i_r2bin%i.mat', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)), 'plot_data');
-print(figures.tot, sprintf('%s_%i_r2bin%i.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
-set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-print(figures.bin, sprintf('%s_%i_r2bin%i_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+%print(figures.tot, sprintf('%s_%i_r2bin%i.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+%set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+%print(figures.bin, sprintf('%s_%i_r2bin%i_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 
-if 0
+if 1
     % Perform fitting of the parameters
     hits = sum(task.pruneidxmat, 2); w_ld = size(task.pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
+    task.options.use_poisson = false;
     result = BGMG_fit(task.zvec, task.Hvec, task.nvec, w_ld, task.ref_ld, task.options);
-    [figures, plot_data_fitted] = UGMG_qq_plot(result.univariate{1}.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options);
-    save(sprintf('plot_data_%s_%i_r2bin%i_fitted.mat', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)), 'plot_data_fitted');
-    print(figures.tot, sprintf('%s_%i_r2bin%i_fitted.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
-    set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-    print(figures.bin, sprintf('%s_%i_r2bin%i_fitted_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+    [figures, plot_data] = UGMG_qq_plot(result.univariate{1}.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options);
+    save(sprintf('plot_data_%s_%i_r2bin%i_fitted_gaussian.mat', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)), 'plot_data');
+
+    task.options.use_poisson = true;
+    result = BGMG_fit(task.zvec, task.Hvec, task.nvec, w_ld, task.ref_ld, task.options);
+    [figures, plot_data] = UGMG_qq_plot(result.univariate{1}.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options);
+    save(sprintf('plot_data_%s_%i_r2bin%i_fitted_poisson.mat', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)), 'plot_data');
+
+    %print(figures.tot, sprintf('%s_%i_r2bin%i_fitted.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+    %set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+    %print(figures.bin, sprintf('%s_%i_r2bin%i_fitted_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 end
 
 catch

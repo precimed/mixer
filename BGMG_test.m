@@ -1,4 +1,24 @@
 addpath('DERIVESTsuite');
+if 0
+    load('scz_vs_bip_1m.task.mat');
+    hits = sum(task.pruneidxmat, 2); w_ld = size(task.pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
+    task.options.use_poisson=false;
+    task.Hvec = task.Hvec(:);
+end
+params = []; t = 1e-3;
+params.pi_vec = [0.002466-t, 0.001944-t, t];
+params.sig2_zero = [1.213; 1.113];
+params.sig2_beta = [0.000133 0 0.000133; 0 0.000132 0.000132];
+params.rho_zero = [0.3];
+params.rho_beta = [0 0 0.8];
+
+task.options.MaxFunEvals = nan;
+task.options.fit_poisson=false;
+result = BGMG_fit(task.zvec, task.Hvec, task.nvec, w_ld, task.ref_ld, task.options);
+
+%[cost, result] = BGMG_bivariate_cost(params, task.zvec, task.Hvec, task.nvec, w_ld, task.ref_ld, task.options);
+
+return
 
 if ~exist('mafvec', 'var'),
     load(fullfile('test_data/ldmat_1m_p8.mat'),'mafvec');

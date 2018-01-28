@@ -75,10 +75,8 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     end
 
     ref_ld_sum_r2 = ref_ld.sum_r2;
-    ref_ld_sum_r2_biased = ref_ld.sum_r2_biased;
-    ref_ld_sum_r4_biased = ref_ld.sum_r4_biased;
-    ref_ld_chi_r4 = ref_ld_sum_r4_biased ./ ref_ld_sum_r2_biased;
-    ref_ld_chi_r4(ref_ld_sum_r4_biased == 0) = 0;
+    ref_ld_chi_r4 = ref_ld.sum_r4_biased ./ ref_ld.sum_r2_biased;
+    ref_ld_chi_r4(ref_ld.sum_r4_biased == 0) = 0;
 
     % Symmetrization trick - disable, doesn't seems to make a difference
     % zvec = [zvec; -zvec];

@@ -18,7 +18,9 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     if ~isfield(options, 'relax_rho_zero'), options.relax_rho_zero = false; end;
     if ~isfield(options, 'fit_infinitesimal'), options.fit_infinitesimal = false; end;  % infinitesimal model (implemented only for univariate analysis)
     if ~isfield(options, 'fit_two_causal_components'), options.fit_two_causal_components = false; end;  % fit two causal components (implemented only for univariate analysis, without ci estimation)
-    
+    if ~isfield(options, 'bivariate_penalty_factor'), options.bivariate_penalty_factor = 10; end;
+
+    poisson_options = {};
     options.use_poisson_original = options.use_poisson;
     options.use_poisson = false;  % initial fit without poisson approximation, final with including poisson approximation
 
@@ -54,13 +56,13 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
 
                 fprintf('Trait%i  : final unconstrained optimization\n', itrait);
                 non_poisson_params = fit(params_mix0, @(x)UGMG_mapparams1(x), options);
-                
+
                 if options.use_poisson_original
                     fprintf('Trait%i  : optimization with poisson cost function\n', itrait);
-                    poisson_options = options; poisson_options.use_poisson=true;
-                    [~, detected_options] = BGMG_univariate_cost(non_poisson_params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options);
-                    poisson_options.speedup_info = detected_options.speedup_info;
-                    results.univariate{itrait}.params = fit(non_poisson_params, @(x)UGMG_mapparams1(x), poisson_options);
+                    poisson_options{itrait} = options; poisson_options{itrait}.use_poisson=true;
+                    [~, detected_options] = BGMG_univariate_cost(non_poisson_params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options{itrait});
+                    poisson_options{itrait}.speedup_info = detected_options.speedup_info;
+                    results.univariate{itrait}.params = fit(non_poisson_params, @(x)UGMG_mapparams1(x), poisson_options{itrait});
                 else
                     results.univariate{itrait}.params = non_poisson_params;
                 end
@@ -106,6 +108,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         p2 = results.univariate{2}.params;
         
         fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_bivariate_cost(mapparams(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), mapparams(x0), fminsearch_options));
+        fitWithPenalty = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_bivariate_cost_with_penalty(mapparams(x), zmat, Hvec, Nmat, w_ld, ref_ld, options, poisson_options), mapparams(x0), fminsearch_options));
 
         corrmat = corr(zmat(all(~isnan(zmat), 2), :));
         
@@ -129,7 +132,16 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         init_pi12 = min(p1.pi_vec, p2.pi_vec)/exp(1);
         params_final0.pi_vec = [p1.pi_vec-init_pi12 p2.pi_vec-init_pi12 init_pi12];
         params_final0.rho_beta = [0 0 params_inft.rho_beta];
-        results.bivariate.params = fit(params_final0, func_map_params);
+
+        if options.use_poisson_original
+            % user requested to use poisson, which isn't implemented for
+            % bivariate. best we can do is to fit with penalized cost
+            % function - univariate estimates respect poisson, bivariate
+            % estimates are our "best effort".
+            results.bivariate.params = fitWithPenalty(params_final0, func_map_params);
+        else
+            results.bivariate.params = fit(params_final0, func_map_params);
+        end
 
         % Step3. Uncertainty estimation. 
         if ~isnan(options.ci_alpha)
@@ -392,4 +404,27 @@ function so = struct_to_display(si)
             so.(field) = si.(field);
         end
     end
+end
+
+function cost = BGMG_bivariate_cost_with_penalty(params, zmat, Hvec, Nmat, w_ld, ref_ld, options, poisson_options)
+    options.use_poisson = false;
+    cost12 = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, options);
+
+    params1.pi_vec = sum(params.pi_vec([1 3]));
+    params1.sig2_beta = params.sig2_beta(1, 3);
+    params1.sig2_zero = params.sig2_zero(1);
+
+    params2.pi_vec = sum(params.pi_vec([2 3]));
+    params2.sig2_beta = params.sig2_beta(2, 3);
+    params2.sig2_zero = params.sig2_zero(2);
+
+    options.use_poisson = true;
+
+    options.speedup_info = poisson_options{1}.speedup_info;
+    cost1 = BGMG_univariate_cost(params1, zmat(:, 1), Hvec, Nmat(:, 1), w_ld, ref_ld, options);
+
+    options.speedup_info = poisson_options{2}.speedup_info;
+    cost2 = BGMG_univariate_cost(params2, zmat(:, 2), Hvec, Nmat(:, 2), w_ld, ref_ld, options);
+
+    cost = cost12 + options.bivariate_penalty_factor * (cost1 + cost2);
 end

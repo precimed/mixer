@@ -4,7 +4,7 @@ if USE_HAPMAP && ~exist('hapmap', 'var')
     load('/space/syn03/1/data/oleksandr/hapgen/snpIDs_11p3m.mat')                                              % snpIDs
     hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');                           % A1vec, A2vec, chrnumvec, posvec, snpidlist
     [is_in_11m, index_to_11m] = ismember(hapmap.snpidlist, snpIDs);
-    mask_in_11m = false(num_snps, 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;                     % 1184120 SNPs in the mask
+    mask_in_11m = false(length(snpIDs), 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;                     % 1184120 SNPs in the mask
 end
 
 if ~exist('LDr2_p8sparse', 'var')

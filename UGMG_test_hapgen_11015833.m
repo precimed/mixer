@@ -1,4 +1,13 @@
 addpath('DERIVESTsuite');
+
+USE_HAPMAP = false;
+if USE_HAPMAP && ~exist('hapmap', 'var')
+    load('/space/syn03/1/data/oleksandr/hapgen/snpIDs_11p3m.mat')                                              % snpIDs
+    hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');                           % A1vec, A2vec, chrnumvec, posvec, snpidlist
+    [is_in_11m, index_to_11m] = ismember(hapmap.snpidlist, snpIDs);
+    mask_in_11m = false(num_snps, 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;                     % 1184120 SNPs in the mask
+end
+
 if ~exist('LDr2_p8sparse', 'var') 
 load('/space/syn03/1/data/oleksandr/hapgen/LD_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat')  % LDr2_p8sparse
 load('/space/syn03/1/data/oleksandr/hapgen/LDr2hist_zontr2_p5_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat')     % LDr2hist
@@ -6,14 +15,9 @@ load('/space/syn03/1/data/oleksandr/hapgen/setUpParameterResults_HG80p3m_HG80p3m
 load('/space/syn03/1/data/oleksandr/hapgen/p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat')                      % pvecs (cell 10x4x3),  h2list, pi1list
 load('/space/syn03/1/data/oleksandr/SynGen2/11015833/mafvec.mat')                                          % mafvec
 load('/space/syn03/1/data/oleksandr/SynGen2/11015833/chrpos_11015833.mat')                                 % chrnumvec, posvec
-load('/space/syn03/1/data/oleksandr/hapgen/snpIDs_11p3m.mat')                                              % snpIDs
 load('/space/syn03/1/data/oleksandr/hapgen/TLDr2_zontr2_p1_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat');       % tldvec
-hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');                           % A1vec, A2vec, chrnumvec, posvec, snpidlist 
 
 num_snps = length(chrnumvec);  % 11015833
-
-[is_in_11m, index_to_11m] = ismember(hapmap.snpidlist, snpIDs);
-mask_in_11m = false(num_snps, 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;  % 1184120 SNPs in the mask
 
 total_het = nansum(2 .* mafvec .* (1-mafvec));
 Hvec      = 2 .* mafvec .* (1 - mafvec);
@@ -48,7 +52,6 @@ TLD_MAX=600;
 LD_BLOCK_SIZE_MAX = 2000;
 MAF_THRESH = 0.01;
 mhcvec = chrnumvec==6 & posvec >= 25e6 & posvec <= 35e6;
-USE_HAPMAP = true;
 z = @(logpvec, zvec) -norminv(10.^-logpvec/2).*sign(zvec);
 
 for rep_index = 1:10
@@ -58,6 +61,7 @@ try
 
 task = [];
 task.zvec = z(-log10(pvecs{rep_index,pi_index,h2_index}), randn(num_snps, 1));
+task.zvec(pvecs{rep_index,pi_index,h2_index} == 0) = log10(1e-300); assert(all(isfinite(task.zvec)));
 task.gwasParams = parameterResults{rep_index,pi_index,h2_index};
 task.nvec   = 100000 * ones(size(task.zvec));
 task.ref_ld = ref_ld;
@@ -81,6 +85,7 @@ task.Hvec = task.Hvec(defvec);
 task.ref_ld = struct('sum_r2', ref_ld.sum_r2(defvec, :), 'sum_r4_biased', ref_ld.sum_r4_biased(defvec, :), 'sum_r2_biased', ref_ld.sum_r2_biased(defvec, :));
 task.ref_ld_bins = size(task.ref_ld.sum_r2, 2);
 
+if 0 
 % Perform random pruning at LDr2 0.8 threshold....
 nprune = 10;
 fprintf('Perform %i iterations of random pruning ', nprune);
@@ -91,8 +96,18 @@ for prune_repi=1:nprune,
     task.pruneidxmat(:,prune_repi) = isfinite(FastPrune(tmp, LDr2_p8sparse));
     fprintf('.');
 end;
+fprintf('done.\n');
+% pruneidxmat = task.pruneidxmat;
+% defvec = task.defvec;
+% save('/space/syn03/1/data/oleksandr/SynGen2/11015833/pruneidxmat_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat', 'pruneidxmat', 'defvec');
+else
+load('/space/syn03/1/data/oleksandr/SynGen2/11015833/pruneidxmat_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat')
+if any(task.defvec ~= defvec), error('pre-generated random pruning indices are incompatible with current defvec'); end
+task.pruneidxmat = pruneidxmat;
+end
+
 task.pruneidxmat = task.pruneidxmat(defvec, :);
-fprintf('done.\nEffective number of SNPs on each iteration of random pruning:\n');
+fprintf('Effective number of SNPs on each iteration of random pruning:\n');
 sum(task.pruneidxmat)
 
 pivec_str = {'1e-5', '1e-4', '1e-3', '1e-2'};
@@ -110,7 +125,7 @@ disp(task.options.title)
 disp(task.options)
 disp(task)
 close all
-save(sprintf('/home/oleksandr/space/SynGen2/11015833/BGMG_results/task_pi=%s_h2=%s_rep=%i_ldr2bins=%i.mat', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index, task.ref_ld_bins), 'task');
+%save(sprintf('/home/oleksandr/space/SynGen2/11015833/BGMG_results/task_pi=%s_h2=%s_rep=%i_ldr2bins=%i.mat', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index, task.ref_ld_bins), 'task');
 
 [figures, plot_data] = UGMG_qq_plot(task.params, task.zvec, task.Hvec, task.nvec, task.pruneidxmat, task.ref_ld, task.options);
 % To reproduce the same curve:
@@ -138,7 +153,9 @@ if 1
     %print(figures.bin, sprintf('%s_%i_r2bin%i_fitted_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 end
 
-catch
+catch e
+    fprintf(1, 'The identifier was:\n%s',e.identifier);
+    fprintf(1, 'There was an error! The message was:\n%s',e.message);
     disp('error');
 end
 

@@ -1,12 +1,18 @@
 addpath('DERIVESTsuite');
+USE_HAPMAP = false;
+if USE_HAPMAP && ~exist('hapmap', 'var')
+    load('/space/syn03/1/data/oleksandr/hapgen/snpIDs_11p3m.mat')                                              % snpIDs
+    hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');                           % A1vec, A2vec, chrnumvec, posvec, snpidlist
+    [is_in_11m, index_to_11m] = ismember(hapmap.snpidlist, snpIDs);
+    mask_in_11m = false(num_snps, 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;                     % 1184120 SNPs in the mask
+end
+
 if ~exist('LDr2_p8sparse', 'var')
 load('/space/syn03/1/data/oleksandr/SynGen2/11015833/1000Genome_ldmat/ldmat_p8_BPwind10M_n503.mat'); LDr2_p8sparse=LDmat;        % LDr2_p8sparse
 load('/space/md10/8/data/holland/genetics/LDhistAndTLD_1kGPhase3_hg19/LDr2hist_zontr2_p5_1kGHG1pc.mat')    % LDr2hist
 load('/space/md10/8/data/holland/genetics/LDhistAndTLD_1kGPhase3_hg19/TLDr2_zontr2_p5_1kGHG1pc');          % tldvec
 load('/space/md10/8/data/holland/genetics/LDhistAndTLD_1kGPhase3_hg19/mafvec_1kGPIII14p9m_n_HG1pc');       % mafvec
 load('/space/syn03/1/data/oleksandr/SynGen2/11015833/chrpos_11015833.mat')                                 % chrnumvec, posvec
-load('/space/syn03/1/data/oleksandr/hapgen/snpIDs_11p3m.mat')                                              % snpIDs
-hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');                           % A1vec, A2vec, chrnumvec, posvec, snpidlist
 
 mafvec = mafvec(:);
 
@@ -20,9 +26,6 @@ for gwas_index = 1:length(GWAS_NAMES)
 end
 
 num_snps = length(chrnumvec);  % 11015833
-
-[is_in_11m, index_to_11m] = ismember(hapmap.snpidlist, snpIDs);
-mask_in_11m = false(num_snps, 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;  % 1184120 SNPs in the mask
 
 total_het = nansum(2 .* mafvec .* (1-mafvec));
 Hvec      = 2 .* mafvec .* (1 - mafvec);
@@ -57,7 +60,6 @@ TLD_MAX=600;
 LD_BLOCK_SIZE_MAX = 2000;
 MAF_THRESH = 0.01;
 mhcvec = chrnumvec==6 & posvec >= 25e6 & posvec <= 35e6;
-USE_HAPMAP = true;
 
 gwas_indices = [1 2];
 
@@ -110,7 +112,7 @@ task.options = [];
 task.options.total_het = total_het;  % Total heterozigosity
 task.options.verbose = true;
 task.options.ci_alpha = nan;
-task.options.use_poisson = false;
+task.options.use_poisson = true;
 task.options.title = sprintf('%s - %s', gwas_name1, gwas_name2);
 
 disp(task.options.title)
@@ -121,28 +123,27 @@ close all
 
 % Perform fitting of the parameters
 hits = sum(task.pruneidxmat, 2); w_ld = size(task.pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
-task.options.use_poisson = 1;
 result = BGMG_fit(task.zmat, task.Hvec, task.nmat, w_ld, task.ref_ld, task.options);
-
-%result1 = BGMG_fit(task.zmat(:, 1), task.Hvec, task.nmat(:, 1), w_ld, task.ref_ld, task.options);
-%result2 = BGMG_fit(task.zmat(:, 2), task.Hvec, task.nmat(:, 2), w_ld, task.ref_ld, task.options);
 
 % Show bivariate results, and univariate results in context of poisson and gaussian mixtures
 disp(result.bivariate.params)
-%disp(result.univariate{1}.params)
-%disp(result.univariate{2}.params)
-%disp(result1.univariate{1}.params)
-%disp(result2.univariate{1}.params)
+sum(result.bivariate.params.pi_vec([1, 3]))
+sum(result.bivariate.params.pi_vec([2, 3]))
 
-if 0
-[figures, plot_data] = UGMG_qq_plot(result.univariate{1}.params, task.zmat, task.Hvec, task.nmat, task.pruneidxmat, task.ref_ld, task.options);
-save(sprintf('plot_data_%s_%i_r2bin%i.mat',  gwas_name1, sum(isfinite(task.zmat)), size(task.ref_ld.sum_r2, 2)), 'plot_data');
-print(figures.tot, sprintf('%s_%i_r2bin%i_fitted.pdf', task.options.title, sum(isfinite(task.zmat)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+disp(result.univariate{1}.params)
+disp(result.univariate{2}.params)
+
+for plot_trait_index = 1:2
+[figures, plot_data] = UGMG_qq_plot(result.univariate{plot_trait_index}.params, task.zmat(:, plot_trait_index), task.Hvec, task.nmat(:, plot_trait_index), task.pruneidxmat, task.ref_ld, task.options);
+save(sprintf('BGMG_plot_data_%s_%i_r2bin%i.mat',  GWAS_NAMES{gwas_indices(gwas_index, plot_trait_index)} , sum(isfinite(task.zmat(:, plot_trait_index))), size(task.ref_ld.sum_r2, 2)), 'plot_data');
+print(figures.tot, sprintf('BGMG_%s_%i_r2bin%i_fitted.pdf',GWAS_NAMES{gwas_indices(gwas_index, plot_trait_index)} , sum(isfinite(task.zmat(:, plot_trait_index))), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-print(figures.bin, sprintf('%s_%i_r2bin%i_fitted_HL.pdf', task.options.title, sum(isfinite(task.zmat)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+print(figures.bin, sprintf('BGMG_%s_%i_r2bin%i_fitted_HL.pdf', GWAS_NAMES{gwas_indices(gwas_index, plot_trait_index)}, sum(isfinite(task.zmat(:, plot_trait_index))), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 end
 
-catch
+catch e
+    fprintf(1, 'The identifier was:\n%s',e.identifier);
+    fprintf(1, 'There was an error! The message was:\n%s',e.message);
     disp('error');
 end
 

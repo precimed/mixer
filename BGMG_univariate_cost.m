@@ -121,19 +121,20 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         pdf  = pdf0 + sum(pdf, 2);
     else
         % Poisson approximation + "fixed sigma grid"
-        assert(num_mix == 1);  % not implemented for 2 or more components
-        pi1u = params.pi_vec(1);
-        poisson_lambda = pi1u * ref_ld_sum_r2 ./ ((1-pi1u) * ref_ld_chi_r4);
-        poisson_lambda(~isfinite(poisson_lambda)) = 0;
-        poisson_sigma  = repmat(Hvec .* Nvec, [1 num_ldr2bins]) .* ...
-                         params.sig2_beta(1) .* (1-pi1u) .* ref_ld_chi_r4;
-        
+        poisson_lambda = cell(num_mix, 1); poisson_sigma = cell(num_mix, 1);
+        snp_contribution = 0;
+        for mixi = 1:num_mix
+            pi1u = params.pi_vec(mixi);
+            poisson_lambda{mixi} = pi1u * ref_ld_sum_r2 ./ ((1-pi1u) * ref_ld_chi_r4);
+            poisson_lambda{mixi}(~isfinite(poisson_lambda{mixi})) = 0;
+            poisson_sigma{mixi}  = repmat(Hvec .* Nvec, [1 num_ldr2bins]) .* ...
+                             params.sig2_beta(1) .* (1-pi1u) .* ref_ld_chi_r4;
+            snp_contribution = snp_contribution + sum(poisson_lambda{mixi} .* poisson_sigma{mixi}, 2);
+        end
         % Compensate for low kmax (commented out because kmax is not known yet... this is some kind of "circular dependency")
         % poisson_sigma =poisson_sigma ./ poisscdf(repmat(options.poisson_kmax - 1, [size(poisson_lambda, 1), 1]), poisson_lambda);
 
         snp_chunk_size  = floor(num_snps/20);  % TBD - what's reasonable number of SNPs chunks?
-
-        snp_contribution = sum(poisson_lambda .* poisson_sigma, 2);
         [~, sorted_snps] = sort(snp_contribution);
 
         pdf = zeros(num_snps, 1);
@@ -165,8 +166,11 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             if ~has_speedup_info
                 % detect parameters of the grid
                 quantile_value = 0.999;
-                poisson_sigma_grid_limit = quantile(max(1, poissinv(quantile_value, poisson_lambda(snps_in_chunk, :))) .* poisson_sigma(snps_in_chunk, :), quantile_value);
-                poisson_sigma_grid_limit = max(2.0, 1.05 * max(poisson_sigma_grid_limit));
+                poisson_sigma_grid_limit = nan(num_mix, num_ldr2bins);
+                for mixi = 1:num_mix
+                    poisson_sigma_grid_limit(mixi, :) = quantile(max(1, poissinv(quantile_value, poisson_lambda{mixi}(snps_in_chunk, :))) .* poisson_sigma{mixi}(snps_in_chunk, :), quantile_value);
+                end
+                poisson_sigma_grid_limit = max(2.0, 1.05 * max(poisson_sigma_grid_limit(:)));
                 options.speedup_info.poisson_sigma_grid_limit(snp_vals_index) = poisson_sigma_grid_limit;
             end
             poisson_sigma_grid_limit = options.speedup_info.poisson_sigma_grid_limit(snp_vals_index);
@@ -180,19 +184,20 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             end
 
             sigma_grid_pi   = [];
+            for mixi = 1:num_mix
             for ldr2_bini = 1:num_ldr2bins
                 if ~has_speedup_info
                     % auto-detect reasonable kmax for poisson approximation
                     poisson_quantile_value = 0.999;
-                    kmax      = poissinv(poisson_quantile_value, quantile(poisson_lambda(:, ldr2_bini), poisson_quantile_value));
+                    kmax      = poissinv(poisson_quantile_value, quantile(poisson_lambda{mixi}(:, ldr2_bini), poisson_quantile_value));
                     kmax      = max(min(kmax + 1, 40), 4);  assert(isfinite(kmax));
                     options.speedup_info.kmax(snp_vals_index, ldr2_bini) = kmax;
                 end
                 kmax      = options.speedup_info.kmax(snp_vals_index, ldr2_bini);
                 k         = 0:kmax;
-                p         = repmat(poisson_lambda(snps_in_chunk, ldr2_bini), [1 kmax+1]) .^ repmat(k, [num_snps_in_chunk, 1]) .* ...
-                            repmat(exp(-poisson_lambda(snps_in_chunk, ldr2_bini)), [1 kmax+1]) ./ repmat(factorial(k), [num_snps_in_chunk, 1]);
-                grid_idx  = repmat(k, [num_snps_in_chunk 1])  .* repmat(poisson_sigma(snps_in_chunk, ldr2_bini), [1 1+kmax]) ./ poisson_sigma_grid_delta;
+                p         = repmat(poisson_lambda{mixi}(snps_in_chunk, ldr2_bini), [1 kmax+1]) .^ repmat(k, [num_snps_in_chunk, 1]) .* ...
+                            repmat(exp(-poisson_lambda{mixi}(snps_in_chunk, ldr2_bini)), [1 kmax+1]) ./ repmat(factorial(k), [num_snps_in_chunk, 1]);
+                grid_idx  = repmat(k, [num_snps_in_chunk 1])  .* repmat(poisson_sigma{mixi}(snps_in_chunk, ldr2_bini), [1 1+kmax]) ./ poisson_sigma_grid_delta;
                 grid_idx  = min(grid_idx, poisson_sigma_grid_nodes - 2);
                 grid_idx_floor = floor(grid_idx);
                 grid_idx_frac  = grid_idx - grid_idx_floor;
@@ -203,6 +208,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
                 grid_coef_tmp  = grid_coef_tmp';
 
                 sigma_grid_pi = convmatrix(sigma_grid_pi, grid_coef_tmp);
+            end
             end
             for k=1:poisson_sigma_grid_nodes
                 pdf(snps_in_chunk) = pdf(snps_in_chunk) + sigma_grid_pi(:, k) .* normpdf(zvec(snps_in_chunk), 0, sqrt(poisson_sigma_grid(k) + params.sig2_zero));

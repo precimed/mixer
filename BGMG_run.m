@@ -21,6 +21,7 @@ if 0
     trait2 = 'PGC_SCZ_2014.mat';
     reference_data='reference_data_11M.mat';
     data_path='H:/GitHub/BGMG/reference_data_11M/SUMSTAT';
+    %out_file='my_results';  % name of the output file (without extention). auto-generated if not exists;
     USE_HAPMAP=true;
 end
 
@@ -105,6 +106,7 @@ if exist('trait2', 'var'),
 
     % Save the result in .mat file
     fname = sprintf('BGMG_run_%s-%s', trait1_name, trait2_name);
+    if exist('out_file', 'var'), fname = out_file; end;
     save([fname '.mat'], 'result');
 else
     result = BGMG_fit(data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options);
@@ -126,6 +128,7 @@ else
     else
         fname = sprintf('BGMG_run_%s', trait1_name);
     end
+    if exist('out_file', 'var'), fname = out_file; end;
     save([fname '.mat'], 'result');
 end
 

@@ -63,6 +63,10 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
 
     if ~isfield(options, 'calculate_fdr'), options.calculate_fdr = false; end;
 
+    non_zero_mixi = (params.sig2_beta ~=0) & (params.pi_vec ~= 0);
+    params.sig2_beta = params.sig2_beta(non_zero_mixi);
+    params.pi_vec = params.pi_vec(non_zero_mixi);
+
     % Validate input params
     result=[];
     if ~BGMG_util.validate_params(params); cost = nan; return; end;
@@ -129,7 +133,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
             poisson_lambda{mixi} = pi1u * ref_ld_sum_r2 ./ ((1-pi1u) * ref_ld_chi_r4);
             poisson_lambda{mixi}(~isfinite(poisson_lambda{mixi})) = 0;
             poisson_sigma{mixi}  = repmat(Hvec .* Nvec, [1 num_ldr2bins]) .* ...
-                             params.sig2_beta(1) .* (1-pi1u) .* ref_ld_chi_r4;
+                             params.sig2_beta(mixi) .* (1-pi1u) .* ref_ld_chi_r4;
             snp_contribution = snp_contribution + sum(poisson_lambda{mixi} .* poisson_sigma{mixi}, 2);
         end
         % Compensate for low kmax (commented out because kmax is not known yet... this is some kind of "circular dependency")

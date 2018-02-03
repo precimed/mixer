@@ -46,6 +46,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
 
     if ~isfield(options, 'use_poisson'), options.use_poisson = false; end;  % enable accurate pdf(z) estimation
     if ~isfield(options, 'poisson_sigma_grid_nodes'), options.poisson_sigma_grid_nodes = 25;  end;  % grid size of poisson projection
+    if ~isfield(options, 'poisson_sigma_grid_scale'), options.poisson_sigma_grid_scale = 1;  end;
 
     % z_cdf_limit and z_cdf_step are used in cdf estimation
     if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;
@@ -170,12 +171,12 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
                 for mixi = 1:num_mix
                     poisson_sigma_grid_limit(mixi, :) = quantile(max(1, poissinv(quantile_value, poisson_lambda{mixi}(snps_in_chunk, :))) .* poisson_sigma{mixi}(snps_in_chunk, :), quantile_value);
                 end
-                poisson_sigma_grid_limit = max(2.0, 1.05 * max(poisson_sigma_grid_limit(:)));
+                poisson_sigma_grid_limit = options.poisson_sigma_grid_scale * max(2.0, 1.05 * max(poisson_sigma_grid_limit(:)));
                 options.speedup_info.poisson_sigma_grid_limit(snp_vals_index) = poisson_sigma_grid_limit;
             end
             poisson_sigma_grid_limit = options.speedup_info.poisson_sigma_grid_limit(snp_vals_index);
-            poisson_sigma_grid_delta = poisson_sigma_grid_limit / (options.poisson_sigma_grid_nodes - 1);
-            poisson_sigma_grid_nodes = options.poisson_sigma_grid_nodes;
+            poisson_sigma_grid_nodes = (options.poisson_sigma_grid_scale.^2) * options.poisson_sigma_grid_nodes;
+            poisson_sigma_grid_delta = poisson_sigma_grid_limit / (poisson_sigma_grid_nodes - 1);
             poisson_sigma_grid       = 0:poisson_sigma_grid_delta:poisson_sigma_grid_limit;
 
             if (nargout > 1) && options.calculate_z_cdf
@@ -190,7 +191,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
                     % auto-detect reasonable kmax for poisson approximation
                     poisson_quantile_value = 0.999;
                     kmax      = poissinv(poisson_quantile_value, quantile(poisson_lambda{mixi}(:, ldr2_bini), poisson_quantile_value));
-                    kmax      = max(min(kmax + 1, 40), 4);  assert(isfinite(kmax));
+                    kmax      = options.poisson_sigma_grid_scale * max(min(kmax + 1, 40), 4);  assert(isfinite(kmax));
                     options.speedup_info.kmax(snp_vals_index, ldr2_bini) = kmax;
                 end
                 kmax      = options.speedup_info.kmax(snp_vals_index, ldr2_bini);

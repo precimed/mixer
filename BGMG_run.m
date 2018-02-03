@@ -16,14 +16,16 @@
 % For information about various parameters look into BGMG_fit.m.
 %try
 
-if 0
+if 0  % the options below are required.
     trait1 = 'PGC_BIP_2016_qc.mat';
     trait2 = 'PGC_SCZ_2014.mat';
     reference_data='reference_data_11M.mat';
     data_path='H:/GitHub/BGMG/reference_data_11M/SUMSTAT';
     %out_file='my_results';  % name of the output file (without extention). auto-generated if not exists;
-    USE_HAPMAP=true;
 end
+
+if ~exist('USE_POISSON', 'var'), USE_POISSON = true; end;
+if ~exist('USE_HAPMAP', 'var'), USE_HAPMAP = false; end;
 
 fprintf('trait1: %s\n', trait1);
 if exist('trait2', 'var'), fprintf('trait2: %s\n', trait2); end;
@@ -91,7 +93,7 @@ options = [];
 options.total_het = 2*sum(mafvec .* (1-mafvec));
 options.verbose = true;
 options.ci_alpha = nan;
-options.use_poisson = false;
+options.use_poisson = USE_POISSON;
 options.title = sprintf('%s - %s', trait1_name, trait2_name);
 
 data1.zvec(~defvec) = nan;

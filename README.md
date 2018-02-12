@@ -75,7 +75,9 @@ Alternatively, you may open matlab, create variables ``trait1``, ``reference_dat
 
 ## Interpret univariate results (UGMG)
 
-After execution you should see approximately the following log file.
+After execution you should see approximately the following log file,
+and a ``.pdf`` file with the following QQ plot.
+![PGC_SCZ_2014.png](https://raw.githubusercontent.com/precimed/bgmg/master/PGC_SCZ_2014.png)
 
 ```
 >> BGMG_run

@@ -1,26 +1,36 @@
-# BGMG (Bivariate Gaussian Mixture for GWAS summary statistics) `v1.0`
+# UGMG and BGMG - Univariate and Bivariate Gaussian Mixtures for GWAS summary statistics - `v1.0`
 
-`BGMG` is a set of matlab scripts for estimating polygenicity and polygenic overlap between two traits given their GWAS summary statistics.
+`UGMG` model allows you to estimate polygenicity (e.i. proportion of causal variants) of a complex trait given GWAS summary statistics. 
+`BGMG` model allows you to quantify polygenic overlap (e.i. proportion of causal variants shared between two complex traits) given GWAS summary statistics. As of today both methods published on biorxiv:
+* D. Holland et al., [Estimating phenotypic polygenicity and causal effect size variance from GWAS summary statistics while accounting for inflation due to cryptic relatedness](https://www.biorxiv.org/content/early/2017/06/23/133132)
+* O. Frei et al., [Bivariate Gaussian Mixture Model of GWAS (BGMG) quantifies polygenic overlap between complex traits beyond genetic correlation](https://www.biorxiv.org/content/early/2017/12/27/240275)
+
+## Requirements
+
+1. ``Matlab`` (tested with ``8.6.0.267246 (R2015b)``, may work with other versions as well)
+2. ``python 3 > version >= 2.7`` --- to convert summary stats into ``BGMG``-compatible format. 
 
 ## Getting Started
 
 To download `BGMG` you should clone these two repositories:
 ```  
-git clone https://github.com/precimed/bgmg.git
-git clone https://github.com/precimed/python_convert.git
+git clone https://github.com/precimed/bgmg.git            # or git@github.com:precimed/BGMG.git
+git clone https://github.com/precimed/python_convert.git  # or git@github.com:precimed/python_convert.git
 ```
 
-``BGMG`` repository contains the actual matlab code of the model.
+``BGMG`` repository contains the actual matlab code of the models (both UGMG and BGMG).
 ``python_convert`` repository contains supplementary code that loads summary statistics into ``BGMG``-compatible format.
 
-In addition, you may want to clone ``https://github.com/ofrei/ldsc.git``, a modified version of LD Score Regression code,
-to calculate LD scores (sum of squared allelic calculation, `r2`, and sum of its fourth power, `r4`).
-If you summary statistics came from european population you may proceed using LD scores from ``reference_data`` folder, included in this repository. In this case  you DO NOT need ``ofrei/ldsc`` code, but you still need ``precimed/python_convert`` code to load summary statistics into BGMG format.
+You also need to download reference data:
+* [BGMG_reference_data_11Msnps_2018_02_12.mat](https://www.dropbox.com/s/lxjwc5ub4yblqz0/BGMG_reference_data_11Msnps_2018_02_12.mat?dl=0)
+* [all_chromosomes_multiallelic_replaced_with_AT.ref.gz](https://www.dropbox.com/s/5cvqzaayg1tn5u0/all_chromosomes_multiallelic_replaced_with_AT.ref.gz?dl=0)
+ 
+``BGMG_reference_data_11Msnps.mat`` contains information about linkage disequilibrium structure, extracted for EUR population from 1000 genomes project, phase 3. Additional details are given further below.
+``all_chromosomes_multiallelic_replaced_with_AT.ref.gz`` contains a list of 11015833 variants that we use to fit UGMG and BGMG model, with additional hack to replace multiallelic SNPs with ``A/T`` to workaround limitations of ``sumstats.py`` script. The original reference file can be downloaded [here](https://www.dropbox.com/s/j08f848raabcmcf/all_chromosomes.ref.gz?dl=0). It was produced after basic QC steps, applied to all SNPs from 1000 genomes project, phase 3. 
 
 ## Prepare summary statistics
 
-First step is to load summary statistics into `BGMG`-compatible format, using ``sumstats.py`` tool from ``python_convert`` repository.
-The following example shows how to load Schizophrenia and Triglycerides level GWAS from PGC and LIPIDS consortia:
+First step is to convert summary statistics into `BGMG`-compatible format, using ``sumstats.py`` tool from ``python_convert`` repository. The following example shows how to convert Schizophrenia ([PGC, 2014, scz2.snp.results.txt.gz](https://www.med.unc.edu/pgc/results-and-downloads)) and Years of Education ([SSGAC, 2016, EduYears_Main.txt](https://www.thessgac.org/data)).
 
 ```
 python sumstats.py csv \
@@ -32,13 +42,13 @@ python sumstats.py csv \
 	--out PGC_SCZ_2014.csv && gzip PGC_SCZ_2014.csv \
 
 python sumstats.py csv \
-	--sumstats jointGwasMc_TG.txt.gz
+	--sumstats EduYears_Main.txt.gz
 	--auto  \
-	--chrpos SNP_hg19 \
-	--out LIPIDS_TG_2013.csv && gzip LIPIDS_TG_2013.csv \
+	--n-val 293723 \
+	--out SSGAC_EDU_2016.csv && gzip SSGAC_EDU_2016.csv \
   
-python sumstats.py mat --sumstats PGC_SCZ_2014.csv.gz   --ref reference_data/1m.ref.gz --out PGC_SCZ_2014.mat
-python sumstats.py mat --sumstats LIPIDS_TG_2013.csv.gz --ref reference_data/1m.ref.gz --out LIPIDS_TG_2013.mat
+python sumstats.py mat --sumstats PGC_SCZ_2014.csv.gz   --ref all_chromosomes_multiallelic_replaced_with_AT.ref.gz --out PGC_SCZ_2014.mat
+python sumstats.py mat --sumstats SSGAC_EDU_2016.csv.gz --ref all_chromosomes_multiallelic_replaced_with_AT.ref.gz --out SSGAC_EDU_2016.mat
 ```
 For more information about ``sumstats.py`` utility see ``python_convert`` repository,
 or type ``sumstats.py --help`` or ``sumstats.py <command> --help`` where ``<command>`` is either ``csv`` or ``mat``.
@@ -46,10 +56,10 @@ or type ``sumstats.py --help`` or ``sumstats.py <command> --help`` where ``<comm
 This results in a separate ``.mat`` file for each trait.
 Each file contains two variables, ``zvec`` and ``nvec`` ---
 a signed test statistic (`z-score`) and effective sample size (`nvec`) for each variant. 
-``zvec`` and ``nvec`` will be a column vector of length `N` (number of variants from the reference file, ``1m.ref.gz``).
+``zvec`` and ``nvec`` will be a column vector of length `N` (number of variants from the reference file, ``all_chromosomes.ref.gz``).
 The order of the variants will match the reference file.
 ``zvec`` or ``nvec`` might contain undefined values, ``nan``.
-In this case the analysis will be limited to a subset of variants where ``zvec`` and ``nvec`` are defined across both traits.
+In this case the analysis will be limited to a subset of variants where ``zvec`` and ``nvec`` are defined.
 
 ## Running BGMG model
 
@@ -104,10 +114,9 @@ Note that in this case ``make`` is not used to build ``C++`` code,
 but rather as a fancy alternative to writting shell scripts --- just to automate the process.
 You can also run it in parallel with ``make -j8``.
 
-## Requirements
-
-1. ``Matlab`` (tested with ``8.6.0.267246 (R2015b)``, may work with other versions as well)
-2. ``python 3 > version >= 2.7`` --- to estimate 
+You may want to clone ``https://github.com/ofrei/ldsc.git``, a modified version of LD Score Regression code,
+to calculate LD scores (sum of squared allelic calculation, `r2`, and sum of its fourth power, `r4`).
+If you summary statistics came from european population you may proceed using LD scores from ``reference_data`` folder, included in this repository. In this case  you DO NOT need ``ofrei/ldsc`` code, but you still need ``precimed/python_convert`` code to load summary statistics into BGMG format.
 
 ## Authors
 

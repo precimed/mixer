@@ -94,10 +94,10 @@ options.total_het = 2*sum(mafvec .* (1-mafvec));
 options.verbose = true;
 options.ci_alpha = nan;
 options.use_poisson = USE_POISSON;
-options.title = sprintf('%s - %s', trait1_name, trait2_name);
 
 data1.zvec(~defvec) = nan;
 if exist('trait2', 'var'),
+    options.title = sprintf('%s - %s', trait1_name, trait2_name);
     data2.zvec(~defvec) = nan;
     result = BGMG_fit([data1.zvec, data2.zvec], Hvec, [data1.nvec, data2.nvec], w_ld, ref_ld, options);
     result.trait1 = trait1;
@@ -111,6 +111,7 @@ if exist('trait2', 'var'),
     if exist('out_file', 'var'), fname = out_file; end;
     save([fname '.mat'], 'result');
 else
+    options.title = trait1_name;
     result = BGMG_fit(data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options);
     result.trait1 = trait1;
     

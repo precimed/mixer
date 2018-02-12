@@ -139,6 +139,6 @@ to calculate LD scores (sum of squared allelic calculation, `r2`, and sum of its
 
 ## Authors
 
-Dominic Holland (Center for Multimodal Imaging and Genetics, University of California at San Diego)
-Oleksandr Frei (NORMENT, University of Oslo)
-Anders M. Dale (Center for Multimodal Imaging and Genetics, University of California at San Diego)
+* Dominic Holland (Center for Multimodal Imaging and Genetics, University of California at San Diego)
+* Oleksandr Frei (NORMENT, University of Oslo)
+* Anders M. Dale (Center for Multimodal Imaging and Genetics, University of California at San Diego)

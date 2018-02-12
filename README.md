@@ -119,27 +119,23 @@ TBD.
 
 TBD.
 
-## ``reference_data`` folder for EUR populations.
+## ``BGMG_reference_data_11Msnps.mat`` file
 
-``BGMG`` comes with pre-calculated LD scores for european populations.
-LD scores are calculated for ``1190321`` markers from ``reference_data\1m.ref.gz`` file,
-defined as overlap between hapmap3 and 1kG phase3 markers.
-LD scores are calculated towards all markers, available in 1kG phase3 data,
-except for ``w_ld`` scores which are calculated withing ``1m.ref`` template (e.g. towareds ``1190321`` markers).
+TBD - add more details.
 
-Input data used in LD score estimation:
-* https://data.broadinstitute.org/alkesgroup/LDSCORE/w_hm3.snplist.bz2 --- list of hapmap3 SNPs
-* https://data.broadinstitute.org/alkesgroup/LDSCORE/1000G_Phase3_plinkfiles.tgz --- 1kG phase 3 genotypes, 489 EUR individuals (14 excluded due to relatedness)
+``BGMG`` comes with pre-calculated LD scores for european populations, stored in ``BGMG_reference_data_11Msnps.mat``.
+The file contains the following information:
+* chrnumvec - chromosome label, 1 to 22, for each variant from the reference
+* posvec - base-pair position, build hg19, one value for each variant
+* mafvec - minor allele frequency
+* tldvec - total LD score
+* numSNPsInLDr2_gt_r2min_vec - size of LD block
+* hapmap3_mask - boolean mask of hapmap3 SNPs (to constrain inference to 1.1M SNPs, same as in LD score regression)
+* LDr2_p8sparse - binary LD matrix for random pruning, thresholded at ``r2 >= 0.8``
+* ref_ld - additional information about LD structure
 
-The procedure is self-described by ``reference_data/Makefile``.
-To run ``Makefile`` you need ``GNU Make`` utility.
-Note that in this case ``make`` is not used to build ``C++`` code,
-but rather as a fancy alternative to writting shell scripts --- just to automate the process.
-You can also run it in parallel with ``make -j8``.
-
-You may want to clone ``https://github.com/ofrei/ldsc.git``, a modified version of LD Score Regression code,
+The later field, ``ref_ld``, collected using ``https://github.com/ofrei/ldsc.git``, a modified version of LD Score Regression code,
 to calculate LD scores (sum of squared allelic calculation, `r2`, and sum of its fourth power, `r4`).
-If you summary statistics came from european population you may proceed using LD scores from ``reference_data`` folder, included in this repository. In this case  you DO NOT need ``ofrei/ldsc`` code, but you still need ``precimed/python_convert`` code to load summary statistics into BGMG format.
 
 ## Authors
 

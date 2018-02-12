@@ -61,40 +61,62 @@ The order of the variants will match the reference file.
 ``zvec`` or ``nvec`` might contain undefined values, ``nan``.
 In this case the analysis will be limited to a subset of variants where ``zvec`` and ``nvec`` are defined.
 
-## Running BGMG model
+## Running univariate model (UGMG)
 
-You may run ``BGMG`` from console as follows:
+To run UGMG model you need to ``cd`` to the root of BGMG repository. Then you may run UGMG from console as follows.
 ```
-matlab -nodisplay -nosplash -nodesktop -r "trait1='PGC_SCZ_2014.mat'; trait2='LIPIDS_TG_2013.mat'; data_path='.'; BGMG_run; exit;"
+matlab -nodisplay -nosplash -nodesktop -r "trait1='PGC_SCZ_2014.mat'; reference_data='BGMG_reference_data_11Msnps_2018_02_12.mat'; data_path='.'; out_file='PGC_SCZ_2014.result.mat'; BGMG_run; exit;"
 ```
-Here ``data_path`` refers to location of ``PGC_SCZ_2014.mat`` and ``LIPIDS_TG_2013.mat`` files.
-Set ``data_path=''`` if you choose to specify full path for ``trait1`` and ``trait2`` files.
+Alternatively, you may open matlab, create variables ``trait1``, ``reference_data``, ``data_path``, ``out_file`` with values as in the script above, and then execute ``BGMG_run.m`` script. The meaning of the parameters is as follows:
+* ``trait1`` points to the output of ``sumstats.py``, e.i. summary stats converted to matlab format. It must be a filename, without path, of the ``.mat`` file containing ``zvec`` of the trait to be analyzed.
+* ``data_path`` absolute or relative location of ``trait1`` file. Set this to ``.`` if file is located in current working directory.
+* ``reference_data`` should be set to absolute or relative path of ``BGMG_reference_data_11Msnps_2018_02_12.mat``
+* ``out_file`` specifies the name of the resulting file
 
-Remember to set your working directory to the folder containing ``BGMG_run``.
+## Interpret univariate results (UGMG)
 
-Other supported options:
+After execution you should see approximately the following log file.
 
-1. Use ``reference_data`` to specify path of your custom reference (see below for instructions how to generate one):
 ```
-matlab -nodisplay -nosplash -nodesktop -r "trait1='PGC_SCZ_2014.mat'; trait2='LIPIDS_TG_2013.mat'; data_path='.'; reference_data='<full_path_to_reference_data_folder>'; BGMG_run; exit;"
+>> BGMG_run
+trait1: PGC_SCZ_2014.mat
+Loading reference data from BGMG_reference_data_11Msnps_2018_02_12.mat...
+11015833 SNPs in the template
+6610991 SNPs left after filtering missing zvec and nvec values, trait PGC_SCZ_2014.mat
+6610991 SNPs left after filtering missing values (maf, tld, etc)
+6506468 SNPs left after filtering large LD blocks (<= 2000.00)
+6476539 SNPs left after filtering high LD SNPs (<= 600.00)
+6464140 SNPs left after filtering MHC
+6269232 SNPs left after filtering low MAF SNPs (>= 0.010)
+Perform 10 iterations of random pruning ..........done.
+Effective number of SNPs on each iteration of random pruning:
+ans =
+     1484530     1484565     1484573     1484484     1484443     1484957     1484539     1484464     1484637     1484352
+Trait1  : fit infinitesimal model to find initial sig2_zero
+Univariate: pi_vec=1.000e+00, sig2_beta^2=2.477e-05, sig2_zero^2=1.607, h2=58.888, cost=3.062431e+06, nsnp=3679974
+Univariate: pi_vec=1.000e+00, sig2_beta^2=2.477e-05, sig2_zero^2=1.646, h2=58.888, cost=3.066076e+06, nsnp=3679974
+...
+Trait1  : fit pi_vec and sig2_beta, constrained on sig2_zero and h2
+Univariate: pi_vec=1.000e-02, sig2_beta^2=3.773e-05, sig2_zero^2=1.176, h2=0.897, cost=2.324904e+06, nsnp=3679974
+Univariate: pi_vec=7.964e-03, sig2_beta^2=4.738e-05, sig2_zero^2=1.176, h2=0.897, cost=2.324866e+06, nsnp=3679974
+Trait1  : final unconstrained optimization
+Univariate: pi_vec=5.434e-03, sig2_beta^2=6.943e-05, sig2_zero^2=1.176, h2=0.897, cost=2.324807e+06, nsnp=3679974
+Univariate: pi_vec=4.193e-03, sig2_beta^2=6.943e-05, sig2_zero^2=1.176, h2=0.692, cost=2.325562e+06, nsnp=3679974
+...
+Trait1  : optimization with poisson cost function
+Univariate: pi_vec=5.160e-03, sig2_beta^2=7.546e-05, sig2_zero^2=1.174, h2=0.926, cost=2.323772e+06, nsnp=3679974
+Univariate: pi_vec=5.160e-03, sig2_beta^2=7.546e-05, sig2_zero^2=1.174, h2=0.926, cost=2.323772e+06, nsnp=3679974
+...
+done.
 ```
 
-## Interpret BGMG results
+## Running bivariate model (BGMG)
 
 TBD.
 
-Results of ``BGMG_run`` script are stored in a text file, named after input files, for example ``BGMG_run_PGC_SCZ_2014-LIPIDS_TG_2013.txt``. It includes univariate analysis for each of the traits, and bivariate cross-traits analysis.
+## Interpret bivariate results (BGMG)
 
-## Estimating polygenicity via univariate analysis (UGMG model)
-
-``BGMG_run`` script also supports univariate model, triggered as follows:
-
-```
-matlab -nodisplay -nosplash -nodesktop -r "trait1='PGC_SCZ_2014.mat';   BGMG_run; exit;"
-matlab -nodisplay -nosplash -nodesktop -r "trait1='LIPIDS_TG_2013.mat'; BGMG_run; exit;"
-```
-
-The result is stored in files ``UGMG_run_PGC_SCZ_2014.txt`` and ``UGMG_run_LIPIDS_TG_2013.txt``.
+TBD.
 
 ## ``reference_data`` folder for EUR populations.
 
@@ -120,6 +142,6 @@ If you summary statistics came from european population you may proceed using LD
 
 ## Authors
 
+Dominic Holland (Center for Multimodal Imaging and Genetics, University of California at San Diego)
 Oleksandr Frei (NORMENT, University of Oslo)
-
 Anders M. Dale (Center for Multimodal Imaging and Genetics, University of California at San Diego)

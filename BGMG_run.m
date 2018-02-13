@@ -100,6 +100,7 @@ if exist('trait2', 'var'),
     options.title = sprintf('%s - %s', trait1_name, trait2_name);
     data2.zvec(~defvec) = nan;
     result = BGMG_fit([data1.zvec, data2.zvec], Hvec, [data1.nvec, data2.nvec], w_ld, ref_ld, options);
+    fprintf('done.\n');
     result.trait1 = trait1;
     result.trait2 = trait2;
     result.pruneidxmat = pruneidxmat;
@@ -113,6 +114,7 @@ if exist('trait2', 'var'),
 else
     options.title = trait1_name;
     result = BGMG_fit(data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options);
+    fprintf('done.\n');
     result.trait1 = trait1;
     
     if 0
@@ -144,9 +146,10 @@ if ~exist('trait2', 'var')
     options.title = trait1; options.title(options.title=='_')= '-';
     options.plot_HL_bins = false;
     [figures] = UGMG_qq_plot(result.univariate{1}.params, data1.zvec, Hvec, data1.nvec, pruneidxmat, ref_ld, options);
-    print(figures.tot, sprintf('%s', fname),'-dpdf')
-    set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-    print(figures.bin, sprintf('%s_HL', fname),'-dpdf')
+    print(figures.tot, sprintf('%s.pdf', fname),'-dpdf')
+    fprintf('Result saved to %s.pdf\n', fname);
+    %set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+    %print(figures.bin, sprintf('%s_HL.pdf', fname),'-dpdf')
 
     if 0
     options.title = sprintf('%s (infinitesimal model)', trait1); options.title(options.title=='_')= '-';

@@ -78,7 +78,7 @@ Alternatively, you may open matlab, create variables ``trait1``, ``reference_dat
 ## Interpret univariate results (UGMG)
 
 After execution you should see approximately the following log file,
-and a ``.pdf`` file with the following [QQ plot](https://github.com/precimed/BGMG/blob/master/PGC_SCZ_2014.png).
+and a ``.pdf`` file with the following [QQ plot](https://github.com/precimed/BGMG/blob/master/PGC_SCZ_2014.result.pdf).
 
 ```
 >> BGMG_run
@@ -112,6 +112,12 @@ Univariate: pi_vec=3.122e-03, sig2_beta^2=5.746e-05, sig2_zero^2=1.171, h2=0.428
 Univariate: pi_vec=3.122e-03, sig2_beta^2=5.746e-05, sig2_zero^2=1.171, h2=0.428, cost=2.323818e+06, nsnp=3678219
 ...
 done.
+Estimate cumulated distribution function for Z scores...
+Finish 313461 SNPs out of 6269232 - Poisson grid 0:0.09:2.16 (25 nodes)
+Finish 626922 SNPs out of 6269232 - Poisson grid 0:0.10:2.45 (25 nodes)
+...
+Univariate: pi_vec=3.039e-03, sig2_beta^2=5.989e-05, sig2_zero^2=1.164, h2=0.434, cost=1.026881e+07, nsnp=6269232
+Result saved to PGC_SCZ_2014.result.pdf
 ```
 
 ## Running bivariate model (BGMG)

@@ -81,8 +81,7 @@ if USE_HAPMAP
   defvec = defvec & mask_in_11m; fprintf('%i SNPs left after excluding all non-HapMap3 SNPs\n', sum(defvec));
 end
 
-%task.defvec = defvec;
-task.defvec = true(sum(defvec), 1);
+task.defvec = defvec;
 task.zvec = task.zvec(defvec);
 task.nvec = task.nvec(defvec);
 task.Hvec = task.Hvec(defvec);
@@ -100,6 +99,7 @@ for prune_repi=1:nprune,
     fprintf('.');
 end;
 task.pruneidxmat = task.pruneidxmat(defvec, :);
+task.defvec = task.defvec(defvec);  % now task.defvec is constant true
 fprintf('done.\nEffective number of SNPs on each iteration of random pruning:\n');
 sum(task.pruneidxmat)
 

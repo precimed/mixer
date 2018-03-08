@@ -130,21 +130,22 @@ TBD.
 
 ## ``BGMG_reference_data_11Msnps.mat`` file
 
-TBD - add more details.
+Reference file is based on certain genotype reference (for example from 1000 genomes project).
+However, reference file might represent a subset of the genotyped variants (for example HapMap3 variants).
 
-``BGMG`` comes with pre-calculated LD scores for european populations, stored in ``BGMG_reference_data_11Msnps.mat``.
-The file contains the following information:
-* chrnumvec - chromosome label, 1 to 22, for each variant from the reference
-* posvec - base-pair position, build hg19, one value for each variant
-* mafvec - minor allele frequency
-* tldvec - total LD score
-* numSNPsInLDr2_gt_r2min_vec - size of LD block
-* hapmap3_mask - boolean mask of hapmap3 SNPs (to constrain inference to 1.1M SNPs, same as in LD score regression)
-* LDr2_p8sparse - binary LD matrix for random pruning, thresholded at ``r2 >= 0.8``
-* ref_ld - additional information about LD structure
+* `chrnumvec` - chromosome labels, integer column vector, one value for each variant in the reference, coded from 1 to 22
+* `posvec` - base pair positions, integer column vector, one value for each variant in the reference, unity-based (as ENSEMBL)
+* `mafvec` - allele frequencies, double-precision column vector, one value for each variant in the reference. `mafvec` is used to calculate heterozigosity ``2*maf*(1-maf)``, thus ``mafvec`` may corresponds to either minor or major allele.
+* `total_het` - total heterozigosity, double-precision scalar value. Total heterozigosity must be calculated as a sum of `2*maf*(1-maf)` across all genotyped variants.
+* `w_ld` - LD score, double-precision column vector, one value for each variant in the reference. LD scores must be calculated towards variants within the reference.
+* `sum_r2` - LD scores, double-precision matrix, rows correspond to variants in the reference, columns correspond to bins of allelic correlation.
+* `biased_sum_r2` - same format as `sum_r2`, but based on allelic correlation that was not corrected for bias
+* `biased_sum_r4` - same format as `sum_r2`, but based on 4-th power of allelic correlation that was not corrected for bias
 
-The later field, ``ref_ld``, collected using ``https://github.com/ofrei/ldsc.git``, a modified version of LD Score Regression code,
-to calculate LD scores (sum of squared allelic calculation, `r2`, and sum of its fourth power, `r4`).
+`posvec` and `chrnumvec` are optional, but we recommend to include them to keep track of what variants are used in the analysis.
+We don't recommend to save list of variant IDs, such as RS numbers, because of performance limitations in matlab (saving long cell arrays is to slow).
+
+TBD: add step-by-step procedure how to gather reference.
 
 ## Authors
 

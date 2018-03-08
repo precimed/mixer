@@ -130,6 +130,9 @@ TBD.
 
 ## ``BGMG_reference_data_11Msnps.mat`` file
 
+[This](https://www.dropbox.com/s/7trec3ma6u1m6uy/HAPGEN_EUR_100K_11015883_reference_holland.mat?dl=0) 
+is an example of a reference file,
+compatible with UGMG and BGMG model.
 Reference file is based on certain genotype reference (for example from 1000 genomes project).
 However, reference file might represent a subset of the genotyped variants (for example HapMap3 variants).
 

@@ -135,20 +135,21 @@ is an example of a reference file,
 compatible with UGMG and BGMG model.
 Reference file is based on certain genotype reference (for example from 1000 genomes project).
 However, reference file might represent a subset of the genotyped variants (for example HapMap3 variants).
+Reference file contains the following variables.
 
 * `chrnumvec` - chromosome labels, integer column vector, one value for each variant in the reference, coded from 1 to 22
 * `posvec` - base pair positions, integer column vector, one value for each variant in the reference, unity-based (as ENSEMBL)
 * `mafvec` - allele frequencies, double-precision column vector, one value for each variant in the reference. `mafvec` is used to calculate heterozigosity ``2*maf*(1-maf)``, thus ``mafvec`` may corresponds to either minor or major allele.
 * `total_het` - total heterozigosity, double-precision scalar value. Total heterozigosity must be calculated as a sum of `2*maf*(1-maf)` across all genotyped variants.
 * `w_ld` - LD score, double-precision column vector, one value for each variant in the reference. LD scores must be calculated towards variants within the reference.
-* `sum_r2` - LD scores, double-precision matrix, rows correspond to variants in the reference, columns correspond to bins of allelic correlation.
+* `sum_r2` - LD scores, double-precision matrix, rows correspond to variants in the reference, columns correspond to bins of allelic correlation (for example 0.05 to 0.25, 0.25 to 0.50, 0.50 to 0.75, and 0.75 to 1.00). 
 * `biased_sum_r2` - same format as `sum_r2`, but based on allelic correlation that was not corrected for bias
 * `biased_sum_r4` - same format as `sum_r2`, but based on 4-th power of allelic correlation that was not corrected for bias
 
 `posvec` and `chrnumvec` are optional, but we recommend to include them to keep track of what variants are used in the analysis.
 We don't recommend to save list of variant IDs, such as RS numbers, because of performance limitations in matlab (saving long cell arrays is to slow).
 
-TBD: add step-by-step procedure how to gather reference.
+Procedure to gather reference: TBD.
 
 ## Authors
 

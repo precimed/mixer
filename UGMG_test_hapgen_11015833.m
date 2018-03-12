@@ -60,6 +60,23 @@ MAF_THRESH = 0.01;
 mhcvec = chrnumvec==6 & posvec >= 25e6 & posvec <= 35e6;
 z = @(logpvec, zvec) -norminv(10.^-logpvec/2).*sign(zvec);
 
+if 0
+    for rep_index = 1:10
+    for h2_index = 1:3
+    for pi_index = 1:4
+        zvec = z(-log10(pvecs{rep_index,pi_index,h2_index}), randn(num_snps, 1));
+        zvec(pvecs{rep_index,pi_index,h2_index} == 0) = log10(1e-300); assert(all(isfinite(zvec)));
+        gwasParams = parameterResults{rep_index,pi_index,h2_index};       
+        causal_pi = gwasParams.pi1True; 
+        sigsq = gwasParams.sig2betaEst;
+        fname = sprintf('H:\\Dropbox\\shared\\BGMG\\p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc\\simu_h2=%s_pi1u=%s_rep=%i.ugmg.mat', h2vec_str{h2_index}, pivec_str{pi_index}, rep_index);
+        fprintf('saving %s...\n', fname);
+        save(fname, 'zvec', 'causal_pi', 'sigsq');
+    end
+    end
+    end
+end
+
 for rep_index = 1 % 1:10
 for h2_index = [2 1 3]
 for pi_index = 1:4

@@ -30,6 +30,8 @@ wget https://www.dropbox.com/s/j08f848raabcmcf/all_chromosomes.ref.gz?dl=1 -O al
 ``BGMG_reference_data_11Msnps.mat`` contains information about linkage disequilibrium structure, extracted for EUR population from 1000 genomes project, phase 3. Additional details are given further below.
 ``all_chromosomes_multiallelic_replaced_with_AT.ref.gz`` contains a list of 11015833 variants that we use to fit UGMG and BGMG model, with additional hack to replace multiallelic SNPs with ``A/T`` to workaround limitations of ``sumstats.py`` script. The original reference file is also enclosed (all_chromosomes.ref.gz). It was produced after basic QC steps, applied to all SNPs from 1000 genomes project, phase 3. 
 
+For further information about the reference file please refer to [out wiki pages](https://github.com/precimed/BGMG/wiki/How-to-create-a-reference-file).
+
 ## Prepare summary statistics
 
 First step is to convert summary statistics into `BGMG`-compatible format, using ``sumstats.py`` tool from ``python_convert`` repository. The following example shows how to convert Schizophrenia ([PGC, 2014, scz2.snp.results.txt.gz](https://www.med.unc.edu/pgc/results-and-downloads)) and Years of Education ([SSGAC, 2016, EduYears_Main.txt](https://www.thessgac.org/data)).
@@ -127,29 +129,6 @@ TBD.
 ## Interpret bivariate results (BGMG)
 
 TBD.
-
-## ``BGMG_reference_data_11Msnps.mat`` file
-
-[This](https://www.dropbox.com/s/7trec3ma6u1m6uy/HAPGEN_EUR_100K_11015883_reference_holland.mat?dl=0) 
-is an example of a reference file,
-compatible with UGMG and BGMG model.
-Reference file is based on certain genotype reference (for example from 1000 genomes project).
-However, reference file might represent a subset of the genotyped variants (for example HapMap3 variants).
-Reference file contains the following variables.
-
-* `chrnumvec` - chromosome labels, integer column vector, one value for each variant in the reference, coded from 1 to 22
-* `posvec` - base pair positions, integer column vector, one value for each variant in the reference, unity-based (as ENSEMBL)
-* `mafvec` - allele frequencies, double-precision column vector, one value for each variant in the reference. `mafvec` is used to calculate heterozigosity ``2*maf*(1-maf)``, thus ``mafvec`` may corresponds to either minor or major allele.
-* `total_het` - total heterozigosity, double-precision scalar value. Total heterozigosity must be calculated as a sum of `2*maf*(1-maf)` across all genotyped variants.
-* `w_ld` - LD score, double-precision column vector, one value for each variant in the reference. LD scores must be calculated towards variants within the reference.
-* `sum_r2` - LD scores, double-precision matrix, rows correspond to variants in the reference, columns correspond to bins of allelic correlation (for example 0.05 to 0.25, 0.25 to 0.50, 0.50 to 0.75, and 0.75 to 1.00). 
-* `biased_sum_r2` - same format as `sum_r2`, but based on allelic correlation that was not corrected for bias
-* `biased_sum_r4` - same format as `sum_r2`, but based on 4-th power of allelic correlation that was not corrected for bias
-
-`posvec` and `chrnumvec` are optional, but we recommend to include them to keep track of what variants are used in the analysis.
-We don't recommend to save list of variant IDs, such as RS numbers, because of performance limitations in matlab (saving long cell arrays is to slow).
-
-Procedure to gather reference: TBD.
 
 ## Authors
 

@@ -96,7 +96,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
                 end
 
                 results.univariate{itrait}.ci_params = ci_params;
-                [ci_univariate_funcs, ~] = find_extract_funcs(options);
+                [ci_univariate_funcs, ~] = BGMG_util.find_extract_funcs(options);
                 results.univariate{itrait}.ci = extract_ci_funcs(ci_params, ci_univariate_funcs, results.univariate{itrait}.params, options.ci_alpha);
             end
         end
@@ -171,7 +171,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
             end
 
             results.bivariate.ci_params = ci_params;
-            [~, ci_bivariate_funcs] = find_extract_funcs(options);
+            [~, ci_bivariate_funcs] = BGMG_util.find_extract_funcs(options);
             results.bivariate.ci = extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);
         end
     end
@@ -181,30 +181,6 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
        for itrait=1:ntraits, disp(struct_to_display(results.univariate{itrait}.params)); end;
        if ntraits==2, disp(struct_to_display(results.bivariate.params)); end;
     end
-end
-
-function [univariate_ci_funcs, bivariate_ci_funcs] = find_extract_funcs(options)
-    univariate_ci_funcs.sig2_zero        = @(params)(params.sig2_zero);
-    univariate_ci_funcs.sig2_zero_minus1 = @(params)(params.sig2_zero - 1);
-    univariate_ci_funcs.sig2_beta        = @(params)(params.sig2_beta);
-    univariate_ci_funcs.pi_vec           = @(params)(params.pi_vec);
-    univariate_ci_funcs.h2               = @(params)((params.sig2_beta*params.pi_vec')*options.total_het);
-
-    bivariate_ci_funcs = univariate_ci_funcs;
-    bivariate_ci_funcs.rho_zero          = @(params)(params.rho_zero);
-    bivariate_ci_funcs.rho_beta          = @(params)(params.rho_beta);
-    bivariate_ci_funcs.pi1u              = @(params)(sum(params.pi_vec([1 3])));
-    bivariate_ci_funcs.pi2u              = @(params)(sum(params.pi_vec([2 3])));
-    bivariate_ci_funcs.rg                = @(params)(params.rho_beta * params.pi_vec(3) / sqrt(sum(params.pi_vec([1 3])) * sum(params.pi_vec([2 3]))));
-    bivariate_ci_funcs.pi12_minus_pi1u_times_pi2u = @(params)(params.pi_vec(3) - sum(params.pi_vec([1 3])) * sum(params.pi_vec([2 3])));
-    bivariate_ci_funcs.pi12_over_pi1u    = @(params)(params.pi_vec(3) / sum(params.pi_vec([1 3])));
-    bivariate_ci_funcs.pi12_over_pi2u    = @(params)(params.pi_vec(3) / sum(params.pi_vec([2 3])));
-    bivariate_ci_funcs.pi1_over_pi1u     = @(params)(params.pi_vec(1) / sum(params.pi_vec([1 3])));
-    bivariate_ci_funcs.pi2_over_pi2u     = @(params)(params.pi_vec(2) / sum(params.pi_vec([2 3])));
-    bivariate_ci_funcs.pi1u_over_pi2u    = @(params)(sum(params.pi_vec([1 3])) / sum(params.pi_vec([2 3])));
-    bivariate_ci_funcs.pi2u_over_pi1u    = @(params)(sum(params.pi_vec([2 3])) / sum(params.pi_vec([1 3])));
-    bivariate_ci_funcs.h2pleio           = @(params)(params.sig2_beta(:, 3)*params.pi_vec(3)*options.total_het);
-    bivariate_ci_funcs.h2pleio_over_h2   = @(params)((params.sig2_beta(:, 3)*params.pi_vec(3)) ./ (params.sig2_beta*params.pi_vec'));
 end
 
 function ci = extract_ci_funcs(ci_params, ci_funcs, params, ci_alpha)

@@ -168,6 +168,71 @@ classdef BGMG_util
       lamGC = z2_medianFromQQ_data/z2_medianNull;
     end
 
+    function [univariate_ci_funcs, bivariate_ci_funcs, all_funcs] = find_extract_funcs(options)
+        univariate_ci_funcs.sig2_zero         = @(params)(params.sig2_zero);
+        univariate_ci_funcs.sig2_zero_minus1  = @(params)(params.sig2_zero - 1);
+        univariate_ci_funcs.sig2_beta         = @(params)(params.sig2_beta);
+        univariate_ci_funcs.pi_vec            = @(params)(params.pi_vec);
+        univariate_ci_funcs.h2                = @(params)((params.sig2_beta*params.pi_vec')*options.total_het);
+
+        bivariate_ci_funcs.sig2_zero_T1       = @(params)(params.sig2_zero(1));
+        bivariate_ci_funcs.sig2_zero_T1_minus1= @(params)(params.sig2_zero(1) - 1);
+        bivariate_ci_funcs.sig2_zero_T2       = @(params)(params.sig2_zero(2));
+        bivariate_ci_funcs.sig2_zero_T2_minus1= @(params)(params.sig2_zero(2) - 1);
+        bivariate_ci_funcs.pi_vec_C1          = @(params)(params.pi_vec(1));
+        bivariate_ci_funcs.pi_vec_C2          = @(params)(params.pi_vec(2));
+        bivariate_ci_funcs.pi_vec_C3          = @(params)(params.pi_vec(3));
+        bivariate_ci_funcs.h2_T1              = @(params)((params.sig2_beta(1, :)*params.pi_vec')*options.total_het);
+        bivariate_ci_funcs.h2_T2              = @(params)((params.sig2_beta(2, :)*params.pi_vec')*options.total_het);
+        bivariate_ci_funcs.rho_zero           = @(params)(params.rho_zero);
+        bivariate_ci_funcs.sig2_beta_T1       = @(params)(params.sig2_beta(1,1));
+        bivariate_ci_funcs.sig2_beta_T2       = @(params)(params.sig2_beta(2,2));
+        bivariate_ci_funcs.rho_beta           = @(params)(params.rho_beta(3));
+        bivariate_ci_funcs.pi1u               = @(params)(sum(params.pi_vec([1 3])));
+        bivariate_ci_funcs.pi2u               = @(params)(sum(params.pi_vec([2 3])));
+        bivariate_ci_funcs.rg                 = @(params)(params.rho_beta(3) * params.pi_vec(3) / sqrt(sum(params.pi_vec([1 3])) * sum(params.pi_vec([2 3]))));
+        bivariate_ci_funcs.pi12_minus_pi1u_times_pi2u = @(params)(params.pi_vec(3) - sum(params.pi_vec([1 3])) * sum(params.pi_vec([2 3])));
+        bivariate_ci_funcs.pi12_over_pi1u     = @(params)(params.pi_vec(3) / sum(params.pi_vec([1 3])));
+        bivariate_ci_funcs.pi12_over_pi2u     = @(params)(params.pi_vec(3) / sum(params.pi_vec([2 3])));
+        bivariate_ci_funcs.pi1_over_pi1u      = @(params)(params.pi_vec(1) / sum(params.pi_vec([1 3])));
+        bivariate_ci_funcs.pi2_over_pi2u      = @(params)(params.pi_vec(2) / sum(params.pi_vec([2 3])));
+        bivariate_ci_funcs.pi1u_over_pi2u     = @(params)(sum(params.pi_vec([1 3])) / sum(params.pi_vec([2 3])));
+        bivariate_ci_funcs.pi2u_over_pi1u     = @(params)(sum(params.pi_vec([2 3])) / sum(params.pi_vec([1 3])));
+        bivariate_ci_funcs.h2pleio_T1         = @(params)(params.sig2_beta(1, 3)*params.pi_vec(3)*options.total_het);
+        bivariate_ci_funcs.h2pleio_over_h2_T1 = @(params)((params.sig2_beta(1, 3)*params.pi_vec(3)) ./ (params.sig2_beta(1, :)*params.pi_vec'));
+        bivariate_ci_funcs.h2pleio_T2         = @(params)(params.sig2_beta(2, 3)*params.pi_vec(3)*options.total_het);
+        bivariate_ci_funcs.h2pleio_over_h2_T2 = @(params)((params.sig2_beta(2, 3)*params.pi_vec(3)) ./ (params.sig2_beta(2, :)*params.pi_vec'));
+        
+        fns = fieldnames(univariate_ci_funcs);
+        for i=1:length(fns)
+            all_funcs.(['UGMG_T1_', fns{i}]) = @(result)(univariate_ci_funcs.(fns{i})(result.univariate{1}.params));
+            all_funcs.(['UGMG_T2_', fns{i}]) = @(result)(univariate_ci_funcs.(fns{i})(result.univariate{2}.params));
+        end
+        
+        fns = fieldnames(bivariate_ci_funcs);
+        for i=1:length(fns)
+            all_funcs.(['BGMG_', fns{i}]) = @(result)(bivariate_ci_funcs.(fns{i})(result.bivariate.params));
+        end
+    end
+    
+    % extract point estimates
+    function [header, data] = result2str_point_estimates(result, options)
+        [~, ~, funcs] = BGMG_util.find_extract_funcs(options);
+
+        data = ''; header = '';
+        ci_func_names = fieldnames(funcs);
+        for j=1:length(ci_func_names)
+            func = funcs.(ci_func_names{j});
+            try
+                val = mat2str(func(result));
+            catch
+                val = '';
+            end
+            data = sprintf('%s%s\t', data, val);
+            header = sprintf('%s%s\t', header, ci_func_names{j});
+        end
+    end
+
     function result2str(fileID, result)
         cis = {};
         if isfield(result, 'univariate')

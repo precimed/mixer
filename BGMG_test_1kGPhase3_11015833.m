@@ -1,28 +1,29 @@
 addpath('DERIVESTsuite');
 USE_HAPMAP = false;
 if USE_HAPMAP && ~exist('hapmap', 'var')
-    load('/space/syn03/1/data/oleksandr/hapgen/snpIDs_11p3m.mat')                                              % snpIDs
-    hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');                           % A1vec, A2vec, chrnumvec, posvec, snpidlist
+    load('H:/GitHub/BGMG/reference_data_11M/snpIDs_11p3m.mat')                                              % snpIDs
+    hapmap = load('H:/NORSTORE/MMIL/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');                           % A1vec, A2vec, chrnumvec, posvec, snpidlist
     [is_in_11m, index_to_11m] = ismember(hapmap.snpidlist, snpIDs);
     mask_in_11m = false(length(snpIDs), 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;                     % 1184120 SNPs in the mask
 end
 
 if ~exist('LDr2_p8sparse', 'var')
-load('/space/syn03/1/data/oleksandr/SynGen2/11015833/1000Genome_ldmat/ldmat_p8_BPwind10M_n503.mat'); LDr2_p8sparse=LDmat;        % LDr2_p8sparse
-load('/space/md10/8/data/holland/genetics/LDhistAndTLD_1kGPhase3_hg19/LDr2hist_zontr2_p5_1kGHG1pc.mat')    % LDr2hist
-load('/space/md10/8/data/holland/genetics/LDhistAndTLD_1kGPhase3_hg19/TLDr2_zontr2_p5_1kGHG1pc');          % tldvec
-load('/space/md10/8/data/holland/genetics/LDhistAndTLD_1kGPhase3_hg19/mafvec_1kGPIII14p9m_n_HG1pc');       % mafvec
-load('/space/syn03/1/data/oleksandr/SynGen2/11015833/chrpos_11015833.mat')                                 % chrnumvec, posvec
+load('H:/GitHub/BGMG/reference_data_11M/ldmat_p8_BPwind10M_n503.mat'); LDr2_p8sparse=LDmat;        % LDr2_p8sparse
+load('H:/GitHub/BGMG/reference_data_11M/LDr2hist_zontr2_p5_1kGHG1pc.mat')    % LDr2hist
+load('H:/GitHub/BGMG/reference_data_11M/TLDr2_zontr2_p5_1kGHG1pc.mat');          % tldvec
+load('H:/GitHub/BGMG/reference_data_11M/mafvec_1kGPIII14p9m_n_HG1pc.mat');       % mafvec
+load('H:/GitHub/BGMG/reference_data_11M/chrpos_11015833.mat')                                 % chrnumvec, posvec
 
 mafvec = mafvec(:);
 
 GWAS_STUDIES = [];
-GWAS_FOLDER = '/space/syn03/1/data/oleksandr/SynGen2/11015833/SUMSTAT/';
+GWAS_FOLDER = 'H:/GitHub/BGMG/reference_data_11M/SUMSTAT/';
 GWAS_NAMES = {'PGC_SCZ_2014', 'PGC_BIP_2016_qc'};
 for gwas_index = 1:length(GWAS_NAMES)
 	fname = fullfile(GWAS_FOLDER, GWAS_NAMES{gwas_index});
 	fprintf('Loading %s...\n', fname);
 	GWAS_STUDIES.(GWAS_NAMES{gwas_index}) = load(fname);
+    % TBD: multiply by 2 if case/control trait.
 end
 
 num_snps = length(chrnumvec);  % 11015833
@@ -60,6 +61,8 @@ TLD_MAX=600;
 LD_BLOCK_SIZE_MAX = 2000;
 MAF_THRESH = 0.01;
 mhcvec = chrnumvec==6 & posvec >= 25e6 & posvec <= 35e6;
+
+% hapmap3_mask = mask_in_11m; save('reference_data_11M.mat', 'chrnumvec', 'posvec', 'ref_ld', 'numSNPsInLDr2_gt_r2min_vec', 'mafvec', 'tldvec', 'hapmap3_mask', 'LDr2_p8sparse', '-v7.3');
 
 gwas_indices = [1 2];
 
@@ -123,6 +126,7 @@ close all
 
 % Perform fitting of the parameters
 hits = sum(task.pruneidxmat, 2); w_ld = size(task.pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
+task.options.use_poisson = false;
 result = BGMG_fit(task.zmat, task.Hvec, task.nmat, w_ld, task.ref_ld, task.options);
 
 % Show bivariate results, and univariate results in context of poisson and gaussian mixtures
@@ -133,12 +137,29 @@ sum(result.bivariate.params.pi_vec([2, 3]))
 disp(result.univariate{1}.params)
 disp(result.univariate{2}.params)
 
+rbp = result.bivariate.params;
+n1 = nanmedian(task.nmat(:, 1));
+n2 = nanmedian(task.nmat(:, 2));
+params_plus.pi_vec = rbp.pi_vec;
+params_plus.sig2_zero = rbp.sig2_zero(1) + 2 * rbp.rho_zero * sqrt(prod(rbp.sig2_zero)) + rbp.sig2_zero(2);
+params_plus.sig2_beta = [n1*rbp.sig2_beta(1, 1), n2*rbp.sig2_beta(2, 2), (n1*rbp.sig2_beta(1, 3)) + 2 * rbp.rho_beta(1, 3) * sqrt(n1*n2*prod(rbp.sig2_beta(:, 3))) + n2*rbp.sig2_beta(2, 3)];
+
+params_minus.pi_vec = rbp.pi_vec;
+params_minus.sig2_zero = rbp.sig2_zero(1) - 2 * rbp.rho_zero * sqrt(prod(rbp.sig2_zero)) + rbp.sig2_zero(2);
+params_minus.sig2_beta = [n1*rbp.sig2_beta(1, 1), n2*rbp.sig2_beta(2, 2), n1*rbp.sig2_beta(1, 3) - 2 * rbp.rho_beta(1, 3) * sqrt(n1*n2*prod(rbp.sig2_beta(:, 3))) + n2*rbp.sig2_beta(2, 3)];
+
+[figures, plot_data] = UGMG_qq_plot(params_plus, task.zmat(:, 1)+task.zmat(:, 2), task.Hvec, ones(size(task.Hvec)), task.pruneidxmat, task.ref_ld, task.options);
+
+% tbd: plus_indep
+% tbd: minux_indep
+
 for plot_trait_index = 1:2
+task.options.plot_HL_bins = false;
 [figures, plot_data] = UGMG_qq_plot(result.univariate{plot_trait_index}.params, task.zmat(:, plot_trait_index), task.Hvec, task.nmat(:, plot_trait_index), task.pruneidxmat, task.ref_ld, task.options);
-save(sprintf('BGMG_plot_data_%s_%i_r2bin%i.mat',  GWAS_NAMES{gwas_indices(gwas_index, plot_trait_index)} , sum(isfinite(task.zmat(:, plot_trait_index))), size(task.ref_ld.sum_r2, 2)), 'plot_data');
-print(figures.tot, sprintf('BGMG_%s_%i_r2bin%i_fitted.pdf',GWAS_NAMES{gwas_indices(gwas_index, plot_trait_index)} , sum(isfinite(task.zmat(:, plot_trait_index))), size(task.ref_ld.sum_r2, 2)),'-dpdf')
-set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-print(figures.bin, sprintf('BGMG_%s_%i_r2bin%i_fitted_HL.pdf', GWAS_NAMES{gwas_indices(gwas_index, plot_trait_index)}, sum(isfinite(task.zmat(:, plot_trait_index))), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+%save(sprintf('BGMG_plot_data_%s_%i_r2bin%i.mat',  GWAS_NAMES{gwas_indices(gwas_index, plot_trait_index)} , sum(isfinite(task.zmat(:, plot_trait_index))), size(task.ref_ld.sum_r2, 2)), 'plot_data');
+%print(figures.tot, sprintf('BGMG_%s_%i_r2bin%i_fitted.pdf',GWAS_NAMES{gwas_indices(gwas_index, plot_trait_index)} , sum(isfinite(task.zmat(:, plot_trait_index))), size(task.ref_ld.sum_r2, 2)),'-dpdf')
+%set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+%print(figures.bin, sprintf('BGMG_%s_%i_r2bin%i_fitted_HL.pdf', GWAS_NAMES{gwas_indices(gwas_index, plot_trait_index)}, sum(isfinite(task.zmat(:, plot_trait_index))), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 end
 
 catch e

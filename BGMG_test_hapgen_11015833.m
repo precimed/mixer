@@ -1,27 +1,38 @@
+% You are expected to change active directry to the folder that contains this script
 addpath('DERIVESTsuite');
 
-datapath = 'H:\NORSTORE\oleksanf\11015833\hapgen';
-%datapath = '/space/syn03/1/data/oleksandr/hapgen/';
-
-pivec_str = {'1e-5', '1e-4', '1e-3', '1e-2'};
-h2vec_str = {'0.10', '0.40', '0.70'};
-
-USE_HAPMAP = false;
-if USE_HAPMAP && ~exist('hapmap', 'var')
-    load(fullfile(datapath, 'snpIDs_11p3m.mat'))                                          % snpIDs
-    hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');      % A1vec, A2vec, chrnumvec, posvec, snpidlist
-    [is_in_11m, index_to_11m] = ismember(hapmap.snpidlist, snpIDs);
-    mask_in_11m = false(length(snpIDs), 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;                     % 1184120 SNPs in the mask
+if ~exist('reference_path', 'var'), reference_path = 'H:\work\HAPGEN_EUR_100K_11015883_reference_holland'; end;
+if ~exist('USE_HAPMAP', 'var'), USE_HAPMAP = false; end;
+if ~exist('USE_POISSON', 'var'), USE_POISSON = true; end;
+if ~exist('USE_SAVED_PRUNING_INDICES', 'var'), USE_SAVED_PRUNING_INDICES = false; end;
+if ~exist('r2_aggregated_bins', 'var'), r2_aggregated_bins = 4; end;
+if ~exist('trait1_file', 'var'), trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; end;
+if ~exist('trait2_file', 'var'), trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; end;
+if ~exist('sample_size', 'var'), sample_size = 100000; end;
+ 
+if USE_SAVED_PRUNING_INDICES && USE_HAPMAP
+    error('USE_SAVED_PRUNING_INDICES is incompatible with USE_HAPMAP')
 end
 
-if ~exist('LDr2_p8sparse', 'var') 
-load(fullfile(datapath, 'LD_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))  % LDr2_p8sparse
-load(fullfile(datapath, 'LDr2hist_zontr2_p5_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))     % LDr2hist
-%load(fullfile(datapath, 'setUpParameterResults_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))  % parameterResults
-%load(fullfile(datapath, 'p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))                      % pvecs (cell 10x4x3),  h2list, pi1list
-load(fullfile(datapath, 'mafvec.mat'))                                                    % mafvec
-load(fullfile(datapath, 'chrpos_11015833.mat'))                                           % chrnumvec, posvec
-load(fullfile(datapath, 'TLDr2_zontr2_p1_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'));       % tldvec
+if USE_HAPMAP && ~exist('hapmap', 'var')
+    load(fullfile(reference_path, 'snpIDs_11p3m.mat'))                                          % snpIDs
+    hapmap = load(fullfile(reference_path, 'infomat_hapmap3.mat'));      % A1vec, A2vec, chrnumvec, posvec, snpidlist
+    [is_in_11m, index_to_11m] = ismember(hapmap.snpidlist, snpIDs);
+    mask_in_11m = false(length(snpIDs), 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;                     % 1184120 SNPs in the mask
+    defvec = mask_in_11m; save('H:\Dropbox\shared\BGMG\defvec_hapmap3.mat', 'defvec');
+end
+
+if ~USE_SAVED_PRUNING_INDICES && ~exist('LDr2_p8sparse', 'var') 
+    load(fullfile(reference_path, 'LD_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))  % LDr2_p8sparse
+end
+
+if ~exist('LDr2hist', 'var')
+    load(fullfile(reference_path, 'LDr2hist_zontr2_p5_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))     % LDr2hist
+end
+
+load(fullfile(reference_path, 'mafvec.mat'))                                                    % mafvec
+load(fullfile(reference_path, 'chrpos_11015833.mat'))                                           % chrnumvec, posvec
+load(fullfile(reference_path, 'TLDr2_zontr2_p1_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'));       % tldvec
 
 num_snps = length(chrnumvec);  % 11015833
 
@@ -36,10 +47,7 @@ minr2 = 0.05; minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
 LDr2 = LDr2hist .* repmat(ldr2binsCenters, [num_snps, 1]);
 LDr4 = LDr2hist .* repmat(ldr2binsCenters.^2, [num_snps, 1]);
 numSNPsInLDr2_gt_r2min_vec = sum(LDr2hist(:,minr2bin:end),2);
-end
 
-r2_aggregated_bins = 4;
-if ~exist('ref_ld') || (size(ref_ld.sum_r2, 2) ~= r2_aggregated_bins)
 r2_aggregated_bin_size = ldr2binsNum / r2_aggregated_bins;
 assert(mod(ldr2binsNum,r2_aggregated_bins) == 0);
 assert(r2_aggregated_bin_size > minr2bin);
@@ -52,106 +60,83 @@ for r2_bini=1:r2_aggregated_bins
 end
 shape_param = sum_r4 ./ sum_r2;
 ref_ld  = struct('sum_r2', sum_r2, 'sum_r4_biased', sum_r4, 'sum_r2_biased', sum_r2);
-end
 
 TLD_MAX=600;
 LD_BLOCK_SIZE_MAX = 2000;
 MAF_THRESH = 0.01;
 mhcvec = chrnumvec==6 & posvec >= 25e6 & posvec <= 35e6;
-z = @(logpvec, zvec) -norminv(10.^-logpvec/2).*sign(zvec);
 
-if 0
-    for rep_index = 1:10
-    for h2_index = 1:3
-    for pi_index = 1:4
-        zvec = z(-log10(pvecs{rep_index,pi_index,h2_index}), randn(num_snps, 1));
-        zvec(pvecs{rep_index,pi_index,h2_index} == 0) = log10(1e-300); assert(all(isfinite(zvec)));
-        gwasParams = parameterResults{rep_index,pi_index,h2_index};       
-        causal_pi = gwasParams.pi1True; 
-        sigsq = gwasParams.sig2betaEst;
-        fname = sprintf('H:\\Dropbox\\shared\\BGMG\\p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc\\simu_h2=%s_pi1u=%s_rep=%i.ugmg.mat', h2vec_str{h2_index}, pivec_str{pi_index}, rep_index);
-        fprintf('saving %s...\n', fname);
-        save(fname, 'zvec', 'causal_pi', 'sigsq');
-    end
-    end
-    end
-end
-
-for rep_index = 1 % 1:10
-for h2_index = [2 1 3]
-for pi_index = 1:4
-try
-
-simu_data = load(sprintf('E:\\SynGen2_11015833\\simu_gwas_from_abel\\pi1=%s_h2=%s.trait1.mat', pivec_str{pi_index}, h2vec_str{h2_index}));
-    
-task = [];
-%task.zvec = z(-log10(pvecs{rep_index,pi_index,h2_index}), randn(num_snps, 1));
-task.zvec = simu_data.zvec; task.zvec(~isfinite(task.zvec)) = log10(1e-300);
-%task.zvec(pvecs{rep_index,pi_index,h2_index} == 0) = log10(1e-300); assert(all(isfinite(task.zvec)));
-%task.gwasParams = parameterResults{rep_index,pi_index,h2_index};
-task.gwasParams.pi1True = double(simu_data.num_causals) / length(simu_data.zvec);
-task.gwasParams.sig2betaEst = simu_data.sig2_beta;
-task.nvec   = 100000 * ones(size(task.zvec));
-task.ref_ld = ref_ld;
-task.Hvec   = Hvec;
+trait1_data = load(trait1_file);
+trait2_data = load(trait2_file);
 
 defvec = true(num_snps, 1); fprintf('%i SNPs in the template\n', sum(defvec));
-defvec = defvec & isfinite(Hvec) & isfinite(tldvec) & isfinite(task.zvec);  fprintf('%i SNPs left after filtering missing values (maf, tld, zvec, etc)\n', sum(defvec));
+defvec = defvec & isfinite(Hvec) & isfinite(tldvec) & isfinite(trait1_data.zvec + trait2_data.zvec);  fprintf('%i SNPs left after filtering missing values (maf, tld, zvec, etc)\n', sum(defvec));
 defvec = defvec & (numSNPsInLDr2_gt_r2min_vec <= LD_BLOCK_SIZE_MAX); fprintf('%i SNPs left after filtering large LD blocks (<= %.2f)\n', sum(defvec), LD_BLOCK_SIZE_MAX);
 defvec = defvec & (tldvec <= TLD_MAX); fprintf('%i SNPs left after filtering high LD SNPs (<= %.2f)\n', sum(defvec), TLD_MAX);
 defvec = defvec & ~mhcvec; fprintf('%i SNPs left after filtering MHC\n', sum(defvec));
 defvec = defvec & (mafvec >= MAF_THRESH); fprintf('%i SNPs left after filtering low MAF SNPs (>= %.3f)\n', sum(defvec), MAF_THRESH);
+% save('H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'defvec')
 if USE_HAPMAP
   defvec = defvec & mask_in_11m; fprintf('%i SNPs left after excluding all non-HapMap3 SNPs\n', sum(defvec));
 end
 
-task.defvec = defvec;
-task.zvec = task.zvec(defvec);
-task.nvec = task.nvec(defvec);
-task.Hvec = task.Hvec(defvec);
-task.ref_ld = struct('sum_r2', ref_ld.sum_r2(defvec, :), 'sum_r4_biased', ref_ld.sum_r4_biased(defvec, :), 'sum_r2_biased', ref_ld.sum_r2_biased(defvec, :));
-task.ref_ld_bins = size(task.ref_ld.sum_r2, 2);
-
-if 0 
-% Perform random pruning at LDr2 0.8 threshold....
-nprune = 10;
-fprintf('Perform %i iterations of random pruning ', nprune);
-task.pruneidxmat = false(size(defvec,1), nprune);
-for prune_repi=1:nprune,
-    tmp=rand(size(chrnumvec,1),1);
-    tmp(~defvec) = NaN;
-    task.pruneidxmat(:,prune_repi) = isfinite(FastPrune(tmp, LDr2_p8sparse));
-    fprintf('.');
-end;
-fprintf('done.\n');
-% pruneidxmat = task.pruneidxmat;
-% defvec = task.defvec;
-% save('/space/syn03/1/data/oleksandr/SynGen2/11015833/pruneidxmat_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat', 'pruneidxmat', 'defvec');
+if ~USE_SAVED_PRUNING_INDICES 
+    % Perform random pruning at LDr2 0.8 threshold....
+    nprune = 10;
+    fprintf('Perform %i iterations of random pruning ', nprune);
+    pruneidxmat = false(size(defvec,1), nprune);
+    for prune_repi=1:nprune,
+        tmp=rand(size(chrnumvec,1),1);
+        tmp(~defvec) = NaN;
+        pruneidxmat(:,prune_repi) = isfinite(FastPrune(tmp, LDr2_p8sparse));
+        fprintf('.');
+    end;
+    fprintf('done.\n');
+    
+    % This is how pre-saved pruning indices were created:
+    % save('/space/syn03/1/data/oleksandr/SynGen2/11015833/pruneidxmat_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat', 'pruneidxmat', 'defvec');
 else
-tmp = load(fullfile(datapath, 'pruneidxmat_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'));
-%if any(task.defvec ~= tmp.defvec), error('pre-generated random pruning indices are incompatible with current defvec'); end
-task.pruneidxmat = tmp.pruneidxmat;
+    saved_pruning_indices = load(fullfile(reference_path, 'pruneidxmat_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'));
+    if any(defvec ~= saved_pruning_indices.defvec), error('pre-generated random pruning indices are incompatible with current defvec'); end
+    pruneidxmat = saved_pruning_indices.pruneidxmat;
 end
 
-task.pruneidxmat = task.pruneidxmat(defvec, :);
-task.defvec = task.defvec(defvec);  % now task.defvec is constant true
 fprintf('Effective number of SNPs on each iteration of random pruning:\n');
-sum(task.pruneidxmat)
+sum(pruneidxmat)
+hits = sum(pruneidxmat, 2); w_ld = size(pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
 
-task.defvec = task.defvec(task.defvec);
+trait1_data.zvec(~defvec) = nan;
+trait2_data.zvec(~defvec) = nan;
 
-task.options = [];
-task.options.total_het = total_het;  % Total heterozigosity across all SNPs in 1kG phase3
-task.options.verbose = true;
-task.options.ci_alpha = nan;
-task.options.use_poisson = 1;
-task.options.title = sprintf('HAPGEN pi=%s h2=%s rep=%i', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index);
+options = [];
+options.total_het = total_het;  % Total heterozigosity across all SNPs in 1kG phase3
+options.verbose = true;
+options.ci_alpha = nan;
+options.use_poisson = USE_POISSON;
+options.title = 'title';
 
-task.params = struct('sig2_zero', 1, 'pi_vec', task.gwasParams.pi1True, 'sig2_beta', task.gwasParams.sig2betaEst);
-disp(task.options.title)
-disp(task.options)
-disp(task)
+sum_r2 = ref_ld.sum_r2;
+sum_r4_biased = ref_ld.sum_r4_biased;
+sum_r2_biased = ref_ld.sum_r2_biased;
+save('H:\work\HAPGEN_EUR_100K_11015883_reference_holland_cleaned\reference.mat', 'sum_r2', 'sum_r2_biased', 'sum_r4_biased', 'w_ld', 'mafvec', 'total_het', 'chrnumvec', 'posvec');
+
+result = BGMG_fit([trait1_data.zvec, trait2_data.zvec], Hvec, ones(num_snps, 2) * sample_size, w_ld, ref_ld, options);
+result.trait1 = trait1;
+result.trait2 = trait2;
+result.pruneidxmat = pruneidxmat;
+result.defvec = defvec;
+result.options = options;
+
+% Save the result in .mat file
+fname = sprintf('BGMG_run_%s-%s', trait1_name, trait2_name);
+if exist('out_file', 'var'), fname = out_file; end;
+save([fname '.mat'], 'result');
+
 close all
+
+
+
+
 %save(sprintf('/home/oleksandr/space/SynGen2/11015833/BGMG_results/task_pi=%s_h2=%s_rep=%i_ldr2bins=%i.mat', pivec_str{pi_index}, h2vec_str{h2_index}, rep_index, task.ref_ld_bins), 'task');
 
 task.options.plot_HL_bins = false;
@@ -187,13 +172,6 @@ if 0
     %print(figures.bin, sprintf('%s_%i_r2bin%i_fitted_HL.pdf', task.options.title, sum(isfinite(task.zvec)), size(task.ref_ld.sum_r2, 2)),'-dpdf')
 end
 
-catch e
-    fprintf(1, 'The identifier was:\n%s',e.identifier);
-    fprintf(1, 'There was an error! The message was:\n%s',e.message);
-    disp('error');
-end
-
-end;end;end
 
 % Load and display previously generated results
 if 0

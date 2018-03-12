@@ -1,12 +1,14 @@
 addpath('DERIVESTsuite');
-if ~exist('LDr2_p8sparse', 'var') 
-load('/space/syn03/1/data/oleksandr/SynGen2/11015833/1000Genome_ldmat/ldmat_p8_BPwind10M_n503.mat'); LDr2_p8sparse=LDmat;       % LDr2_p8sparse
-load('/space/md10/8/data/holland/genetics/LDhistAndTLD_1kGPhase3_hg19/LDr2hist_zontr2_p5_1kGHG1pc.mat')    % LDr2hist
-load('/space/md10/8/data/holland/genetics/LDhistAndTLD_1kGPhase3_hg19/TLDr2_zontr2_p5_1kGHG1pc');          % tldvec
-load('/space/md10/8/data/holland/genetics/LDhistAndTLD_1kGPhase3_hg19/mafvec_1kGPIII14p9m_n_HG1pc');       % mafvec
-load('/space/syn03/1/data/oleksandr/SynGen2/11015833/chrpos_11015833.mat')                                 % chrnumvec, posvec
-load('/space/syn03/1/data/oleksandr/hapgen/snpIDs_11p3m.mat')                                              % snpIDs
-hapmap = load('/space/syn03/1/data/GWAS/SUMSTAT/LDSR/MATLAB_Annot/infomat.mat');                           % A1vec, A2vec, chrnumvec, posvec, snpidlist 
+
+if ~exist('reference_path', 'var'), reference_path = 'H:\NORSTORE\oleksanf\11015833\1kG_phase3_EUR_11015883_reference_holland'; end;
+
+load(fullfile(reference_path, 'ldmat_p8_BPwind10M_n503.mat')); LDr2_p8sparse=LDmat;       % LDr2_p8sparse
+load(fullfile(reference_path, 'LDr2hist_zontr2_p5_1kGHG1pc.mat'));    % LDr2hist
+load(fullfile(reference_path, 'TLDr2_zontr2_p5_1kGHG1pc'));          % tldvec
+load(fullfile(reference_path, 'mafvec_1kGPIII14p9m_n_HG1pc'));       % mafvec
+load(fullfile(reference_path, 'chrpos_11015833.mat'))                                 % chrnumvec, posvec
+load(fullfile(reference_path, 'snpIDs_11p3m.mat'))                                              % snpIDs
+hapmap = load(fullfile(reference_path, 'infomat_hapmap3.mat'));                           % A1vec, A2vec, chrnumvec, posvec, snpidlist 
 
 mafvec = mafvec(:);
 
@@ -35,10 +37,9 @@ minr2 = 0.05; minr2bin = find(ldr2binsEdges < minr2,1,'last')+1;
 LDr2 = LDr2hist .* repmat(ldr2binsCenters, [num_snps, 1]);
 LDr4 = LDr2hist .* repmat(ldr2binsCenters.^2, [num_snps, 1]);
 numSNPsInLDr2_gt_r2min_vec = sum(LDr2hist(:,minr2bin:end),2);
-end
 
 r2_aggregated_bins = 4;
-if ~exist('ref_ld') || (size(ref_ld.sum_r2, 2) ~= r2_aggregated_bins)
+
 r2_aggregated_bin_size = ldr2binsNum / r2_aggregated_bins;
 assert(mod(ldr2binsNum,r2_aggregated_bins) == 0);
 assert(r2_aggregated_bin_size > minr2bin);
@@ -51,7 +52,11 @@ for r2_bini=1:r2_aggregated_bins
 end
 shape_param = sum_r4 ./ sum_r2;
 ref_ld  = struct('sum_r2', sum_r2, 'sum_r4_biased', sum_r4, 'sum_r2_biased', sum_r2);
-end
+
+sum_r2 = ref_ld.sum_r2;
+sum_r4_biased = ref_ld.sum_r4_biased;
+sum_r2_biased = ref_ld.sum_r2_biased;
+save('H:\Dropbox\shared\BGMG\1kG_phase3_EUR_11015883_reference_holland.mat', 'sum_r2', 'sum_r2_biased', 'sum_r4_biased', 'mafvec', 'total_het', 'chrnumvec', 'posvec');
 
 TLD_MAX=600;
 LD_BLOCK_SIZE_MAX = 2000;
@@ -72,7 +77,8 @@ task.ref_ld = ref_ld;
 task.Hvec   = Hvec;
 
 defvec = true(num_snps, 1); fprintf('%i SNPs in the template\n', sum(defvec));
-defvec = defvec & isfinite(Hvec) & isfinite(tldvec) & isfinite(task.zvec + task.nvec);  fprintf('%i SNPs left after filtering missing values (maf, tld, zvec, nvec, etc)\n', sum(defvec));
+defvec = defvec & isfinite(Hvec) & isfinite(tldvec);  fprintf('%i SNPs left after filtering missing values (maf, tld, etc)\n', sum(defvec));
+defvec = defvec & isfinite(task.zvec + task.nvec);  fprintf('%i SNPs left after filtering missing values (zvec, nvec)\n', sum(defvec));
 defvec = defvec & (numSNPsInLDr2_gt_r2min_vec <= LD_BLOCK_SIZE_MAX); fprintf('%i SNPs left after filtering large LD blocks (<= %.2f)\n', sum(defvec), LD_BLOCK_SIZE_MAX);
 defvec = defvec & (tldvec <= TLD_MAX); fprintf('%i SNPs left after filtering high LD SNPs (<= %.2f)\n', sum(defvec), TLD_MAX);
 defvec = defvec & ~mhcvec; fprintf('%i SNPs left after filtering MHC\n', sum(defvec));
@@ -80,6 +86,7 @@ defvec = defvec & (mafvec >= MAF_THRESH); fprintf('%i SNPs left after filtering 
 if USE_HAPMAP
   defvec = defvec & mask_in_11m; fprintf('%i SNPs left after excluding all non-HapMap3 SNPs\n', sum(defvec));
 end
+save('H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat', 'defvec')
 
 task.defvec = defvec;
 task.zvec = task.zvec(defvec);

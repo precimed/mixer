@@ -1,6 +1,6 @@
 % This script can be run univariate or bivariate mixture analysis from command line like this:
 %
-%   matlab -nodisplay -nosplash -nodesktop -r "trait1='PGC_SCZ_2014'; trait2='LIPIDS_TG_2013'; BGMG_run; exit;"
+%   matlab -nodisplay -nosplash -nodesktop -r "trait1_file='PGC_SCZ_2014.mat'; trait2_file='LIPIDS_TG_2013.mat'; reference_file='1kG_phase3_EUR_11015883_reference_holland.mat'; BGMG_run; exit;"
 %
 % You may use this script with one trait (univariate analysis) or with two
 % traits (bivariate analysis).
@@ -8,193 +8,214 @@
 % Currently you may need to modify this file to pass additional
 % parameters, later all parameters will be exposed as a text config file.
 %
-% You may also set trait1 to a file containing Nx2 zvec and nvec,
-% this will trigger bivariate analysis even though trait2 is not set.
-% This is handfull, for example, in simulations when two GWAS results
-% are saved in one file.
-%
 % For information about various parameters look into BGMG_fit.m.
-%try
 
-if 0  % the options below are required.
-    trait1 = 'PGC_BIP_2016_qc.mat';
-    trait2 = 'PGC_SCZ_2014.mat';
-    reference_data='reference_data_11M.mat';
-    data_path='H:/GitHub/BGMG/reference_data_11M/SUMSTAT';
-    %out_file='my_results';  % name of the output file (without extention). auto-generated if not exists;
-end
-
-if ~exist('USE_POISSON', 'var'), USE_POISSON = true; end;
-if ~exist('USE_HAPMAP', 'var'), USE_HAPMAP = false; end;
-
-fprintf('trait1: %s\n', trait1);
-if exist('trait2', 'var'), fprintf('trait2: %s\n', trait2); end;
-
-[~, trait1_name, ~] = fileparts(trait1);
-if exist('trait2', 'var'), [~, trait2_name, ~] = fileparts(trait2); end;
-
-assert(exist('data_path', 'var') ~= 0);
-assert(exist('reference_data', 'var') ~= 0);
 addpath('DERIVESTsuite');
 
-if ~exist('LDr2_p8sparse', 'var')
-    fprintf('Loading reference data from %s...\n', reference_data);
-    load(reference_data);
+if ~exist('reference_file', 'var'), error('reference_file is required'); end;
+if ~exist('trait1_file', 'var'), error('trait1_file is required'); end;
+if ~exist('trait2_file', 'var'), trait2_file = ''; end;
+if ~exist('defvec_files', 'var'), defvec_files = {}; end;
+if ~exist('LDmat_file', 'var'), LDmat_file = ''; end;
+if ~exist('LDmat_file_variable', 'var'), LDmat_file_variable = 'LDr2_p8sparse'; end;
+if ~exist('nprune', 'var'), nprune = 10; end;
+if ~exist('trait1_nvec', 'var'), trait1_nvec = 100000; end;
+if ~exist('trait2_nvec', 'var'), trait2_nvec = 100000; end;
+if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
+
+if ~exist('USE_POISSON', 'var'), USE_POISSON = true; end;
+
+if ~exist('DO_FIT', 'var'), DO_FIT = true; end;                % perform fitting
+if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots with true parameters
+if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
+if ~exist('TITLE', 'var'), TITLE = 'title'; end;
+
+if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
+
+% defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'}
+% defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'}
+% LDmat_file = 'H:\NORSTORE\oleksanf\11015833\hapgen\LD_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat';
+% trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'
+% trait1_file = 'H:\Dropbox\shared\BGMG\p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc\simu_h2=0.40_pi1u=1e-3_rep=1.ugmg.mat'
+% reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_holland.mat'
+% DO_FIT = false; QQ_PLOT_TRUE = true;
+
+clear('pruneidxmat_or_w_ld', 'pruneidxmat', 'w_ld');
+fprintf('Loading reference from %s...\n', reference_file);
+load(reference_file); num_snps = length(mafvec);
+if ~exist('w_ld', 'var') && isempty(LDmat_file), error('Binary pruning matrix is required for reference without w_ld'); end;
+if ~isempty(LDmat_file), w_ld = zeros(num_snps, 1); end;  % ignore w_ld because we will re-generate it based on random pruning
+defvec = true(num_snps, 1);
+fprintf('%i SNPs in the reference\n', num_snps);
+ref_ld  = struct('sum_r2', sum_r2, 'sum_r4_biased', sum_r4_biased, 'sum_r2_biased', sum_r2_biased);
+cur_defvec = struct('defvec', isfinite(sum(sum_r2, 2) + sum(sum_r4_biased, 2) + sum(sum_r2_biased, 2) + mafvec + w_ld));
+defvec = defvec & cur_defvec.defvec;
+fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec));
+
+for i=1:length(defvec_files)
+    fprintf('Loading %s...\n', defvec_files{i});
+    cur_defvec = load(defvec_files{i});
+    defvec = defvec & cur_defvec.defvec;
+    fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec));
 end
 
-num_snps = length(chrnumvec);
-TLD_MAX=600;
-LD_BLOCK_SIZE_MAX = 2000;
-MAF_THRESH = 0.01;
-Hvec = 2*mafvec .* (1-mafvec);  
-mhcvec = (chrnumvec==6) & (posvec > 25e6) & (posvec < 35e6);
+fprintf('Loading %s...\n', trait1_file);
+trait1_data = load(trait1_file);
+if ~isfield(trait1_data, 'nvec'), trait1_data.nvec = ones(size(trait1_data.zvec)) * trait1_nvec; end;
+cur_defvec.defvec = isfinite(trait1_data.zvec + trait1_data.nvec);
+defvec = defvec & cur_defvec.defvec;
+fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec));
 
-data1  = load(fullfile(data_path, trait1));
-if exist('data1_neff', 'var'), data1.nvec = ones(size(data1.zvec)) * data1_neff; end;
-if exist('trait2', 'var'),
-    data2 = load(fullfile(data_path, trait2)); 
-    if exist('data2_neff', 'var'), data2.nvec = ones(size(data2.zvec)) * data2_neff; end;
+if ~isempty(trait2_file),
+    fprintf('Loading %s...\n', trait2_file);
+    trait2_data = load(trait2_file);
+    if ~isfield(trait2_data, 'nvec'), trait2_data.nvec = ones(size(trait2_data.zvec)) * trait2_nvec; end;
+    cur_defvec.defvec = isfinite(trait2_data.zvec + trait2_data.nvec);
+    defvec = defvec & cur_defvec.defvec;
+    fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec));
 end
 
-defvec = true(num_snps, 1); fprintf('%i SNPs in the template\n', sum(defvec));
-defvec = defvec & isfinite(data1.zvec + data1.nvec);  fprintf('%i SNPs left after filtering missing zvec and nvec values, trait %s\n', sum(defvec), trait1);
-if exist('trait2', 'var'), defvec = defvec & isfinite(data2.zvec + data2.nvec);  fprintf('%i SNPs left after filtering missing zvec and nvec values, trait %s\n', sum(defvec), trait2); end;
-defvec = defvec & isfinite(Hvec) & isfinite(tldvec);  fprintf('%i SNPs left after filtering missing values (maf, tld, etc)\n', sum(defvec));
-defvec = defvec & (numSNPsInLDr2_gt_r2min_vec <= LD_BLOCK_SIZE_MAX); fprintf('%i SNPs left after filtering large LD blocks (<= %.2f)\n', sum(defvec), LD_BLOCK_SIZE_MAX);
-defvec = defvec & (tldvec <= TLD_MAX); fprintf('%i SNPs left after filtering high LD SNPs (<= %.2f)\n', sum(defvec), TLD_MAX);
-defvec = defvec & ~mhcvec; fprintf('%i SNPs left after filtering MHC\n', sum(defvec));
-defvec = defvec & (mafvec >= MAF_THRESH); fprintf('%i SNPs left after filtering low MAF SNPs (>= %.3f)\n', sum(defvec), MAF_THRESH);
-if exist('USE_HAPMAP', 'var') && USE_HAPMAP
-  defvec = defvec & hapmap3_mask; fprintf('%i SNPs left after excluding all non-HapMap3 SNPs\n', sum(defvec));
-end
-
-nprune = 10;
-if ~exist('last_prune_options', 'var') || ...
-        last_prune_options.nprune ~= nprune || ...
-        any(last_prune_options.defvec ~= defvec)
+if ~isempty(LDmat_file)
+    fprintf('Loading %s...\n', LDmat_file);
+    LDmat = load(LDmat_file);
+    if isfield(LDmat, 'mafvec')
+        cur_defvec.defvec = isfinite(LDmat.mafvec);
+        defvec = defvec & cur_defvec.defvec;
+        fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec));
+    end
+    
+    % perform random pruning
     fprintf('Perform %i iterations of random pruning ', nprune);
     pruneidxmat = false(size(defvec,1), nprune);
     for prune_repi=1:nprune,
         tmp=rand(size(chrnumvec,1),1);
         tmp(~defvec) = NaN;
-        pruneidxmat(:,prune_repi) = isfinite(FastPrune(tmp, LDr2_p8sparse));
+        pruneidxmat(:,prune_repi) = isfinite(FastPrune(tmp, LDmat.(LDmat_file_variable)));
         fprintf('.');
     end;
-    fprintf('done.\nEffective number of SNPs on each iteration of random pruning:\n');
+    fprintf('done.\n');
+
+    fprintf('Effective number of SNPs on each iteration of random pruning:\n');
     sum(pruneidxmat)
-    last_prune_options.nprune = nprune;
-    last_prune_options.defvec = defvec; 
-else
-    fprintf('Reuse pruning indices from previous run.\n');
+
+    fprintf('w_ld was changed to random pruning-based weighting\n');
+    hits = sum(pruneidxmat, 2); w_ld = size(pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
+    
+    cur_defvec.defvec = isfinite(w_ld);
+    defvec = defvec & cur_defvec.defvec;
+    fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec));
 end
-hits = sum(pruneidxmat, 2); w_ld = size(pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
+
+if exist('pruneidxmat', 'var'),
+	pruneidxmat_or_w_ld = pruneidxmat;
+else
+    pruneidxmat_or_w_ld = w_ld;
+end;
+
+trait1_data.zvec(~defvec) = nan;
+if ~isempty(trait2_file), trait2_data.zvec(~defvec) = nan; end;
 
 options = [];
-options.total_het = 2*sum(mafvec .* (1-mafvec));
+options.total_het = total_het;
 options.verbose = true;
 options.ci_alpha = nan;
 options.use_poisson = USE_POISSON;
+options.title = TITLE;
 
-data1.zvec(~defvec) = nan;
-if exist('trait2', 'var'),
-    options.title = sprintf('%s - %s', trait1_name, trait2_name);
-    data2.zvec(~defvec) = nan;
-    result = BGMG_fit([data1.zvec, data2.zvec], Hvec, [data1.nvec, data2.nvec], w_ld, ref_ld, options);
-    fprintf('done.\n');
-    result.trait1 = trait1;
-    result.trait2 = trait2;
-    result.pruneidxmat = pruneidxmat;
-    result.defvec = defvec;
-    result.options = options;
+% Save true parameters (if available)
+if isfield(trait1_data, 'causal_pi'), options.causal_pi_T1 = trait1_data.causal_pi; end;
+if isfield(trait1_data, 'sigsq'), options.sigsq_T1 = trait1_data.sigsq; end;
+if ~isempty(trait2_file),
+    if isfield(trait2_data, 'causal_pi'), options.causal_pi_T2 = trait2_data.causal_pi; end;
+    if isfield(trait2_data, 'sigsq'), options.sigsq_T2 = trait2_data.sigsq; end;
+end
 
-    % Save the result in .mat file
-    fname = sprintf('BGMG_run_%s-%s', trait1_name, trait2_name);
-    if exist('out_file', 'var'), fname = out_file; end;
-    save([fname '.mat'], 'result');
-else
-    options.title = trait1_name;
-    result = BGMG_fit(data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options);
-    fprintf('done.\n');
-    result.trait1 = trait1;
-    
-    if 0
-    % Infinitesimal model (pi1 constrained to 1)
-    options_inf = options; options_inf.fit_infinitesimal=true;
-    result_inf = BGMG_fit(data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options_inf);
-
-    % 3-component mixture (null + two causal components)
-    options_mix2 = options; options_mix2.fit_two_causal_components=true;
-    result_mix2 = BGMG_fit(data1.zvec, Hvec, data1.nvec, w_ld, ref_ld, options_mix2);
-    end
-    
-    % Save the result in .mat file
-    if size(data1.zvec, 2) == 1
-        fname = sprintf('UGMG_run_%s', trait1_name);
+% Fit bivariate or univariate model to the data
+if DO_FIT
+    if ~isempty(trait2_file),
+        result = BGMG_fit([trait1_data.zvec, trait2_data.zvec], 2 .* mafvec .* (1-mafvec), [trait1_data.nvec, trait2_data.nvec], w_ld, ref_ld, options);
     else
-        fname = sprintf('BGMG_run_%s', trait1_name);
+        result = BGMG_fit(trait1_data.zvec, 2 .* mafvec .* (1-mafvec), trait1_data.nvec, w_ld, ref_ld, options);
     end
-    if exist('out_file', 'var'), fname = out_file; end;
-    save([fname '.mat'], 'result');
+
+    result.trait1_file = trait1_file;
+    result.trait2_file = trait2_file;
+    result.reference_file = reference_file;
+    result.options = options;
 end
 
-fileID = fopen([fname '.txt'], 'w');
-BGMG_util.result2str(1,      result)
-BGMG_util.result2str(fileID, result)
-fclose(fileID);
+% Produce QQ plots with true params (only works for synthetic data, of course)
+if QQ_PLOT_TRUE
+    for trait_index = 1:(1 + ~isempty(trait2_file))
+        if trait_index==1
+            qq_params = struct('sig2_zero', 1, 'pi_vec', trait1_data.causal_pi, 'sig2_beta', trait1_data.sigsq);
+            qq_data = trait1_data;
+        else
+            qq_params = struct('sig2_zero', 1, 'pi_vec', trait2_data.causal_pi, 'sig2_beta', trait2_data.sigsq);
+            qq_data = trait2_data;
+        end
+        options.plot_HL_bins = plot_HL_bins;
+        [figures, plot_data] = UGMG_qq_plot(qq_params, qq_data.zvec, 2 .* mafvec .* (1-mafvec), qq_data.nvec, pruneidxmat_or_w_ld, ref_ld, options);
 
-if ~exist('trait2', 'var')
-    options.title = trait1; options.title(options.title=='_')= '-';
-    options.plot_HL_bins = false;
-    [figures] = UGMG_qq_plot(result.univariate{1}.params, data1.zvec, Hvec, data1.nvec, pruneidxmat, ref_ld, options);
-    print(figures.tot, sprintf('%s.pdf', fname),'-dpdf')
-    fprintf('Result saved to %s.pdf\n', fname);
-    %set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-    %print(figures.bin, sprintf('%s_HL.pdf', fname),'-dpdf')
+        % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
+        result.univariate{trait_index}.qq_plot_true_data = plot_data;
+        print(figures.tot, sprintf('%s.trait%i.qq.true.pdf', out_file, trait_index), '-dpdf')
 
-    if 0
-    options.title = sprintf('%s (infinitesimal model)', trait1); options.title(options.title=='_')= '-';
-    [figures] = UGMG_qq_plot(result_inf.univariate{1}.params, data1.zvec, Hvec, data1.nvec, pruneidxmat, ref_ld, options);
-    print(figures.tot, sprintf('%s_inf', fname),'-dpdf')
-    set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3');
-    print(figures.bin, sprintf('%s_inf_HL', fname),'-dpdf')
-
-    fileID = fopen([fname '.inf.txt'], 'w');
-    BGMG_util.result2str(1,      result_inf)
-    BGMG_util.result2str(fileID, result_inf)
-    fclose(fileID);
-    
-    options.title = sprintf('%s (null+small+large)', trait1); options.title(options.title=='_')= '-';
-    [figures] = UGMG_qq_plot(result_mix2.univariate{1}.params, data1.zvec, Hvec, data1.nvec, pruneidxmat, ref_ld, options);
-    print(figures.tot, sprintf('%s_mix2', fname),'-dpdf')
-    set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3');
-    print(figures.bin, sprintf('%s_mix2_HL', fname),'-dpdf')
-    
-    fileID = fopen([fname '.mix2.txt'], 'w');
-    BGMG_util.result2str(1,      result_mix2)
-    BGMG_util.result2str(fileID, result_mix2)
-    fclose(fileID);
+        if (plot_HL_bins)
+            set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+            print(figures.bin, sprintf('%s.trait%i.qq-bin.true.pdf', out_file, trait_index),'-dpdf')
+        end
     end
 end
+
+% Produce QQ plots with fitted params
+if QQ_PLOT_FIT
+    for trait_index = 1:length(result.univariate)
+        if trait_index==1
+            qq_params = result.univariate{trait_index}.params;
+            qq_data = trait1_data;
+        else
+            qq_params = result.univariate{trait_index}.params;
+            qq_data = trait2_data;
+        end
+        options.plot_HL_bins = plot_HL_bins;
+        [figures, plot_data] = UGMG_qq_plot(qq_params, qq_data.zvec, 2 .* mafvec .* (1-mafvec), qq_data.nvec, pruneidxmat_or_w_ld, ref_ld, options);
+
+        % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
+        result.univariate{trait_index}.qq_plot_fit_data = plot_data;
+        print(figures.tot, sprintf('%s.trait%i.qq.fit.pdf', out_file, trait_index), '-dpdf')
+
+        if (plot_HL_bins)
+            set(figures.bin,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+            print(figures.bin, sprintf('%s.trait%i.qq-bin.fit.pdf', out_file, trait_index),'-dpdf')
+        end
+    end
+end
+
+if ~exist('result', 'var')
+    error('No options selected; please enable DO_FIT or QQ_PLOT_TRUE');
+end
+
+% Save the result in .mat file
+% (this overrides previously saved file)
+save([out_file '.mat'], 'result');
+fprintf('Results saved to %s.mat\n', out_file);
 
 if 0
-    rbp = result.bivariate.params;
-    n1 = nanmedian(data1.nvec);
-    n2 = nanmedian(data2.nvec);
-    
-    a=0; b=1;
-    params_plus.pi_vec = rbp.pi_vec;
-    params_plus.sig2_zero = a^2 * rbp.sig2_zero(1) + 2 * rbp.rho_zero * sqrt(a*b*prod(rbp.sig2_zero)) + b^2 * rbp.sig2_zero(2);
-    params_plus.sig2_beta = [a^2 * n1*rbp.sig2_beta(1, 1), ...
-        b^2 * n2*rbp.sig2_beta(2, 2)];  
-     x= (a^2 * n1*rbp.sig2_beta(1, 3)) + 2 *a*b* rbp.rho_beta(1, 3) * ...
-        sqrt(n1*n2*prod(rbp.sig2_beta(:, 3))) +(b^2)* n2*rbp.sig2_beta(2, 3);
-     params_plus.sig2_beta(1,3) = x;
+    % Helper code to save all results to a text file
+    dirs=dir('H:\work\simu_2018_03_12.bgmg.mat.tar\*.bgmg.mat');
+    fileID = fopen(['bgmg_results.csv'], 'w');
+    for i=1:length(dirs)
+        x = load(fullfile('H:\work\simu_2018_03_12.bgmg.mat.tar', dirs(i).name));
+        [header, data] = BGMG_util.result2str_point_estimates(x.result, x.result.options);
+        if i==1,
+            fprintf(fileID, 'trait1_file\ttrait2_file\treference_file\t%s\n', header);
+        end
+        fprintf(fileID, '%s\t%s\t%s\t%s\n', x.result.trait1_file, x.result.trait2_file, x.result.reference_file, data);
+    end
 
-    params_minus.pi_vec = rbp.pi_vec;
-    params_minus.sig2_zero = rbp.sig2_zero(1) - 2 * rbp.rho_zero * sqrt(prod(rbp.sig2_zero)) + rbp.sig2_zero(2);
-    params_minus.sig2_beta = [n1*rbp.sig2_beta(1, 1), n2*rbp.sig2_beta(2, 2), n1*rbp.sig2_beta(1, 3) - 2 * rbp.rho_beta(1, 3) * sqrt(n1*n2*prod(rbp.sig2_beta(:, 3))) + n2*rbp.sig2_beta(2, 3)];
-
-    options.poisson_sigma_grid_scale=1;
-    [figures, plot_data] = UGMG_qq_plot(params_plus, a*data1.zvec+b*data2.zvec, Hvec, ones(size(Hvec)), pruneidxmat, ref_ld, options);
-
+    fclose(fileID);
 end
+
+% TBD: re-test confidence intervals estimation
+  

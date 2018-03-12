@@ -42,7 +42,7 @@ function [figures, plot_data] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxm
         cdf_idx         = isfinite(zvec);
     end
 
-    if ~exist('ugmg_cdf', 'var') || isempty(ugmg_cdf)
+    if ~isempty(params) && (~exist('ugmg_cdf', 'var') || isempty(ugmg_cdf))
         % For each bin, calculate weights based on random-pruning
         cdf_weights = zeros(length(zvec), size(cdf_idx, 2));
 
@@ -102,15 +102,19 @@ function [figures, plot_data] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxm
             data_logpvec = interp1(data_y(data_idx), data_x(data_idx), hv_logp);
         end
 
-        z_grid = ugmg_cdf.cdf_z_grid;
-        model_logpvec = -log10(2*interp1(-z_grid(z_grid<=0), ugmg_cdf.cdf(ploti, z_grid<=0), hv_z')); % hv_z is to fine, can't afford calculation on it - do interpolation instead; don't matter for QQ plot (no visual difference), but lamGCfromQQ doesn't work for z_grid (to coarse)
+        if ~isempty(params)
+            z_grid = ugmg_cdf.cdf_z_grid;
+            model_logpvec = -log10(2*interp1(-z_grid(z_grid<=0), ugmg_cdf.cdf(ploti, z_grid<=0), hv_z')); % hv_z is to fine, can't afford calculation on it - do interpolation instead; don't matter for QQ plot (no visual difference), but lamGCfromQQ doesn't work for z_grid (to coarse)
 
-        hData     = plot(data_logpvec, hv_logp, '-', 'LineWidth',1); hold on;
-        hModel    = plot(model_logpvec,hv_logp, '-', 'LineWidth',1); hold on;
+            hData     = plot(data_logpvec, hv_logp, '-', 'LineWidth',1); hold on;
+            hModel    = plot(model_logpvec,hv_logp, '-', 'LineWidth',1); hold on;
 
-        plot_data = struct('hv_logp', hv_logp, 'data_logpvec', data_logpvec, 'model_logpvec', model_logpvec);
-        plot_data.params = params;
-        plot_data.options = rmfield(options, 'calculate_z_cdf_weights');
+            plot_data = struct('hv_logp', hv_logp, 'data_logpvec', data_logpvec, 'model_logpvec', model_logpvec);
+            plot_data.params = params;
+            plot_data.options = rmfield(options, 'calculate_z_cdf_weights');
+        else
+            plot_data = struct('hv_logp', hv_logp, 'data_logpvec', data_logpvec);
+        end
 
         qq_options = [];
         if is_bin_plot
@@ -123,13 +127,17 @@ function [figures, plot_data] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxm
         else
             qq_options = params; % must be on the top of other lines, otherwise this assigment overwrites all qq_options
             qq_options.title = options.title;
-            qq_options.h2 = sum(qq_options.pi_vec.*qq_options.sig2_beta)*options.total_het;
-            if length(qq_options.pi_vec) > 1
-                qq_options.h2vec = (qq_options.pi_vec.*qq_options.sig2_beta) *options.total_het;
+            if isfield(params, 'pi_vec')
+                qq_options.h2 = sum(qq_options.pi_vec.*qq_options.sig2_beta)*options.total_het;
+                if length(qq_options.pi_vec) > 1
+                    qq_options.h2vec = (qq_options.pi_vec.*qq_options.sig2_beta) *options.total_het;
+                end
             end
         end
         qq_options.lamGC_data = BGMG_util.lamGCfromQQ(data_logpvec, hv_logp);
-        qq_options.lamGC_model = BGMG_util.lamGCfromQQ(model_logpvec, hv_logp);
+        if exist('model_logpvec', 'var')
+            qq_options.lamGC_model = BGMG_util.lamGCfromQQ(model_logpvec, hv_logp);
+        end
         qq_options.n_snps = sum(isfinite(zvec) & cdf_idx(:, ploti));
 
         annotate_qq_plot(qq_options);

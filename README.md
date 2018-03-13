@@ -23,10 +23,10 @@ git clone https://github.com/precimed/python_convert.git  # or git@github.com:pr
 
 You also need to download reference data:
 ```
-wget https://www.dropbox.com/s/5cvqzaayg1tn5u0/all_chromosomes_multiallelic_replaced_with_AT.ref.gz?dl=1 -O all_chromosomes_multiallelic_replaced_with_AT.ref.gz
-wget https://www.dropbox.com/s/u3nhdznhcun7tok/1kG_phase3_EUR_11015883_reference_holland.mat?dl=1 -O 1kG_phase3_EUR_11015883_reference_holland.mat
-wget https://www.dropbox.com/s/nrhh96w8tzavcus/ldmat_p8_BPwind10M_n503.mat?dl=1 -O ldmat_p8_BPwind10M_n503.mat
-wget https://www.dropbox.com/s/j08f848raabcmcf/all_chromosomes.ref.gz?dl=1 -O all_chromosomes.ref.gz
+wget "https://www.dropbox.com/s/5cvqzaayg1tn5u0/all_chromosomes_multiallelic_replaced_with_AT.ref.gz?dl=1" -O all_chromosomes_multiallelic_replaced_with_AT.ref.gz
+wget "https://www.dropbox.com/s/u3nhdznhcun7tok/1kG_phase3_EUR_11015883_reference_holland.mat?dl=1" -O 1kG_phase3_EUR_11015883_reference_holland.mat
+wget "https://www.dropbox.com/s/nrhh96w8tzavcus/ldmat_p8_BPwind10M_n503.mat?dl=1" -O ldmat_p8_BPwind10M_n503.mat
+wget "https://www.dropbox.com/s/j08f848raabcmcf/all_chromosomes.ref.gz?dl=1" -O all_chromosomes.ref.gz
 ```
 ``1kG_phase3_EUR_11015883_reference_holland.mat`` and ``ldmat_p8_BPwind10M_n503.mat`` contains information about linkage disequilibrium structure, extracted for EUR population from 1000 genomes project, phase 3. Additional details are given further below.
 ``all_chromosomes_multiallelic_replaced_with_AT.ref.gz`` contains a list of 11015833 variants that we use to fit UGMG and BGMG model, with additional hack to replace multiallelic SNPs with ``A/T`` to workaround limitations of ``sumstats.py`` script. The original reference file is also enclosed (all_chromosomes.ref.gz). It was produced after basic QC steps, applied to all SNPs from 1000 genomes project, phase 3. 

@@ -27,6 +27,7 @@ wget "https://www.dropbox.com/s/5cvqzaayg1tn5u0/all_chromosomes_multiallelic_rep
 wget "https://www.dropbox.com/s/u3nhdznhcun7tok/1kG_phase3_EUR_11015883_reference_holland.mat?dl=1" -O 1kG_phase3_EUR_11015883_reference_holland.mat
 wget "https://www.dropbox.com/s/nrhh96w8tzavcus/ldmat_p8_BPwind10M_n503.mat?dl=1" -O ldmat_p8_BPwind10M_n503.mat
 wget "https://www.dropbox.com/s/j08f848raabcmcf/all_chromosomes.ref.gz?dl=1" -O all_chromosomes.ref.gz
+wget "https://www.dropbox.com/s/tcd4hmu71ks0xny/defvec_1kG_phase3_EUR.mat?dl=0" -O defvec_1kG_phase3_EUR.mat
 ```
 ``1kG_phase3_EUR_11015883_reference_holland.mat`` and ``ldmat_p8_BPwind10M_n503.mat`` contains information about linkage disequilibrium structure, extracted for EUR population from 1000 genomes project, phase 3. Additional details are given further below.
 ``all_chromosomes_multiallelic_replaced_with_AT.ref.gz`` contains a list of 11015833 variants that we use to fit UGMG and BGMG model, with additional hack to replace multiallelic SNPs with ``A/T`` to workaround limitations of ``sumstats.py`` script. The original reference file is also enclosed (all_chromosomes.ref.gz). It was produced after basic QC steps, applied to all SNPs from 1000 genomes project, phase 3. 
@@ -70,11 +71,12 @@ In this case the analysis will be limited to a subset of variants where ``zvec``
 
 To run UGMG model you need to ``cd`` to the root of BGMG repository. Then you may run UGMG from console as follows.
 ```
-matlab -nodisplay -nosplash -nodesktop -r "trait1_file='PGC_SCZ_2014.mat'; reference_file='1kG_phase3_EUR_11015883_reference_holland.mat'; QQ_PLOT_FIT=true; LDmat_file='ldmat_p8_BPwind10M_n503.mat'; LDmat_file_variable='LDmat'; out_file='PGC_SCZ_2014.result'; BGMG_run; exit;"
+matlab -nodisplay -nosplash -nodesktop -r "trait1_file='PGC_SCZ_2014.mat'; reference_file='1kG_phase3_EUR_11015883_reference_holland.mat'; QQ_PLOT_FIT=true; LDmat_file='ldmat_p8_BPwind10M_n503.mat'; LDmat_file_variable='LDmat'; out_file='PGC_SCZ_2014.result'; defvec_files={'defvec_1kG_phase3_EUR.mat'}; BGMG_run; exit;"
 ```
 Alternatively, you may open matlab, create variables ``trait1_file``, ``reference_file``, ``out_file`` with values as in the script above, and then execute ``BGMG_run.m`` script. The meaning of the parameters is as follows:
 * ``trait1_file`` points to the output of ``sumstats.py``, e.i. summary stats converted to matlab format. It must be a filename, without path, of the ``.mat`` file containing ``zvec`` of the trait to be analyzed.
 * ``reference_data`` should be set to absolute or relative path of ``B1kG_phase3_EUR_11015883_reference_holland.mat``
+* ``defvec_files`` specifies a cell array of files with defvec. Each defvec is a binary column-vector of length ``11015883`` (e.i. number of variants in the reference) with ``0`` for variants to exclude from the analysis (for example MHC, low maf, etc).
 * ``out_file`` specifies the name of the resulting file
 
 ## Interpret univariate results (UGMG)

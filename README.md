@@ -70,7 +70,7 @@ In this case the analysis will be limited to a subset of variants where ``zvec``
 
 To run UGMG model you need to ``cd`` to the root of BGMG repository. Then you may run UGMG from console as follows.
 ```
-matlab -nodisplay -nosplash -nodesktop -r "trait1_file='PGC_SCZ_2014.mat'; reference_file='1kG_phase3_EUR_11015883_reference_holland.mat'; QQ_PLOT_FIT=true; LDmat_file='ldmat_p8_BPwind10M_n503.mat'; out_file='PGC_SCZ_2014.result'; BGMG_run; exit;"
+matlab -nodisplay -nosplash -nodesktop -r "trait1_file='PGC_SCZ_2014.mat'; reference_file='1kG_phase3_EUR_11015883_reference_holland.mat'; QQ_PLOT_FIT=true; LDmat_file='ldmat_p8_BPwind10M_n503.mat'; LDmat_file_variable='LDmat'; out_file='PGC_SCZ_2014.result'; BGMG_run; exit;"
 ```
 Alternatively, you may open matlab, create variables ``trait1_file``, ``reference_file``, ``out_file`` with values as in the script above, and then execute ``BGMG_run.m`` script. The meaning of the parameters is as follows:
 * ``trait1_file`` points to the output of ``sumstats.py``, e.i. summary stats converted to matlab format. It must be a filename, without path, of the ``.mat`` file containing ``zvec`` of the trait to be analyzed.

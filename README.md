@@ -33,6 +33,7 @@ wget "https://www.dropbox.com/s/tcd4hmu71ks0xny/defvec_1kG_phase3_EUR.mat?dl=0" 
 ``all_chromosomes_multiallelic_replaced_with_AT.ref.gz`` contains a list of 11015833 variants that we use to fit UGMG and BGMG model, with additional hack to replace multiallelic SNPs with ``A/T`` to workaround limitations of ``sumstats.py`` script. The original reference file is also enclosed (all_chromosomes.ref.gz). It was produced after basic QC steps, applied to all SNPs from 1000 genomes project, phase 3. 
 
 For further information about the reference file please refer to [out wiki pages](https://github.com/precimed/BGMG/wiki/How-to-create-a-reference-file).
+For additional data files, including simulation data, look [here](https://www.dropbox.com/sh/kpwj02vxlbm2fh9/AABsep2F2xJGRK1iX198L5Bja?dl=0).
 
 ## Prepare summary statistics
 

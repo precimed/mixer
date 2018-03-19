@@ -28,6 +28,7 @@ if ~exist('USE_POISSON', 'var'), USE_POISSON = true; end;
 if ~exist('DO_FIT', 'var'), DO_FIT = true; end;                % perform fitting
 if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots with true parameters
 if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
+if ~exist('BGMG_RELAX_ALL', 'var'), BGMG_RELAX_ALL = false; end;
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 
 if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
@@ -121,6 +122,7 @@ options.verbose = true;
 options.ci_alpha = nan;
 options.use_poisson = USE_POISSON;
 options.title = TITLE;
+options.relax_all = BGMG_RELAX_ALL;
 
 % Save true parameters (if available)
 if isfield(trait1_data, 'causal_pi'), options.causal_pi_T1 = trait1_data.causal_pi; end;

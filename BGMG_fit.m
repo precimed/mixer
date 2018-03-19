@@ -16,6 +16,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     if ~isfield(options, 'use_poisson'), options.use_poisson = true; end;
     if ~isfield(options, 'relax_sig2_beta'), options.relax_sig2_beta = false; end;
     if ~isfield(options, 'relax_rho_zero'), options.relax_rho_zero = false; end;
+    if ~isfield(options, 'relax_all'), options.relax_all = false; end;
     if ~isfield(options, 'fit_infinitesimal'), options.fit_infinitesimal = false; end;  % infinitesimal model (implemented only for univariate analysis)
     if ~isfield(options, 'fit_two_causal_components'), options.fit_two_causal_components = false; end;  % fit two causal components (implemented only for univariate analysis, without ci estimation)
     if ~isfield(options, 'bivariate_penalty_factor'), options.bivariate_penalty_factor = 10; end;
@@ -125,6 +126,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         if options.relax_sig2_beta, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', rho_zero_constraint)); end;
         if options.relax_sig2_beta &&  options.use_univariate_pi, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(x, struct('pi1u', p1.pi_vec, 'pi2u', p2.pi_vec, 'sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', rho_zero_constraint)); end;
         if ~options.relax_sig2_beta && options.use_univariate_pi, error('--use_univariate_pi works only together with --relax_sig2_beta'); end;
+        if options.relax_all, func_map_params=@(x)BGMG_mapparams3(x); end;
         fprintf('Trait 1,2: final unconstrained optimization (%s)\n', func2str(func_map_params));
 
         params_final0 = params_inft;

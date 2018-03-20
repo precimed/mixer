@@ -64,8 +64,10 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
                     [~, detected_options] = BGMG_univariate_cost(non_poisson_params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options{itrait});
                     poisson_options{itrait}.speedup_info = detected_options.speedup_info;
                     results.univariate{itrait}.params = fit(non_poisson_params, @(x)UGMG_mapparams1(x), poisson_options{itrait});
+                    ci_options = poisson_options{itrait};
                 else
                     results.univariate{itrait}.params = non_poisson_params;
+                    ci_options = options;
                 end
             end
 
@@ -83,7 +85,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
 
             if ~isnan(options.ci_alpha)
                 fprintf('Trait%i  : uncertainty estimation\n', itrait);
-                ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_univariate_cost(UGMG_mapparams1(x), zvec, Hvec, Nvec, w_ld, ref_ld, options), UGMG_mapparams1(results.univariate{itrait}.params)); warning(ws);
+                ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_univariate_cost(UGMG_mapparams1(x), zvec, Hvec, Nvec, w_ld, ref_ld, ci_options), UGMG_mapparams1(results.univariate{itrait}.params)); warning(ws);
                 results.univariate{itrait}.ci_hess = hess;
                 results.univariate{itrait}.ci_hess_err = err;
                 ci_params = [];

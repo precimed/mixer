@@ -30,6 +30,7 @@ if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots w
 if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
 if ~exist('BGMG_RELAX_ALL', 'var'), BGMG_RELAX_ALL = false; end;
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
+if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
 
 if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 
@@ -119,7 +120,7 @@ if ~isempty(trait2_file), trait2_data.zvec(~defvec) = nan; end;
 options = [];
 options.total_het = total_het;
 options.verbose = true;
-options.ci_alpha = nan;
+options.ci_alpha = CI_ALPHA;
 options.use_poisson = USE_POISSON;
 options.title = TITLE;
 options.relax_all = BGMG_RELAX_ALL;

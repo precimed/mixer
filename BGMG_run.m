@@ -24,6 +24,7 @@ if ~exist('trait2_nvec', 'var'), trait2_nvec = 100000; end;
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
 
 if ~exist('USE_POISSON', 'var'), USE_POISSON = true; end;
+if ~exist('USE_POISSON_BGMG', 'var'), USE_POISSON_BGMG = false; end;
 
 if ~exist('DO_FIT', 'var'), DO_FIT = true; end;                % perform fitting
 if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots with true parameters
@@ -122,6 +123,7 @@ options.total_het = total_het;
 options.verbose = true;
 options.ci_alpha = CI_ALPHA;
 options.use_poisson = USE_POISSON;
+options.use_poisson_bgmg = USE_POISSON_BGMG;
 options.title = TITLE;
 options.relax_all = BGMG_RELAX_ALL;
 

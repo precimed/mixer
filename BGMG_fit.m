@@ -14,6 +14,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
     if ~isfield(options, 'use_univariate_pi'), options.use_univariate_pi = false; end;
     if ~isfield(options, 'use_poisson'), options.use_poisson = true; end;
+    if ~isfield(options, 'use_poisson_bgmg'), options.use_poisson_bgmg = false; end;
     if ~isfield(options, 'relax_sig2_beta'), options.relax_sig2_beta = false; end;
     if ~isfield(options, 'relax_rho_zero'), options.relax_rho_zero = false; end;
     if ~isfield(options, 'relax_all'), options.relax_all = false; end;
@@ -137,15 +138,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
         params_final0.pi_vec = [p1.pi_vec-init_pi12 p2.pi_vec-init_pi12 init_pi12];
         params_final0.rho_beta = [0 0 params_inft.rho_beta];
 
-        if options.use_poisson_original
-            % user requested to use poisson, which isn't implemented for
-            % bivariate. best we can do is to fit with penalized cost
-            % function - univariate estimates respect poisson, bivariate
-            % estimates are our "best effort".
-            results.bivariate.params = fitWithPenalty(params_final0, func_map_params);
-        else
-            results.bivariate.params = fit(params_final0, func_map_params);
-        end
+        results.bivariate.params = fitWithPenalty(params_final0, func_map_params);
 
         % Step3. Uncertainty estimation. 
         if ~isnan(options.ci_alpha)
@@ -387,24 +380,26 @@ function so = struct_to_display(si)
 end
 
 function cost = BGMG_bivariate_cost_with_penalty(params, zmat, Hvec, Nmat, w_ld, ref_ld, options, poisson_options)
-    options.use_poisson = false;
-    cost12 = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, options);
+    bgmg_options = options;
+    bgmg_options.use_poisson = options.use_poisson_bgmg;
+    bgmg_options.poisson_sigma_grid_nodes = nan;
+    cost = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, bgmg_options);
 
-    params1.pi_vec = sum(params.pi_vec([1 3]));
-    params1.sig2_beta = params.sig2_beta(1, 3);
-    params1.sig2_zero = params.sig2_zero(1);
+    if isfinite(options.bivariate_penalty_factor)
+        params1.pi_vec = sum(params.pi_vec([1 3]));
+        params1.sig2_beta = params.sig2_beta(1, 3);
+        params1.sig2_zero = params.sig2_zero(1);
 
-    params2.pi_vec = sum(params.pi_vec([2 3]));
-    params2.sig2_beta = params.sig2_beta(2, 3);
-    params2.sig2_zero = params.sig2_zero(2);
+        params2.pi_vec = sum(params.pi_vec([2 3]));
+        params2.sig2_beta = params.sig2_beta(2, 3);
+        params2.sig2_zero = params.sig2_zero(2);
 
-    options.use_poisson = true;
+        if options.use_poisson_original, options.use_poisson = true; options.speedup_info = poisson_options{1}.speedup_info; end;
+        cost1 = BGMG_univariate_cost(params1, zmat(:, 1), Hvec, Nmat(:, 1), w_ld, ref_ld, options);
 
-    options.speedup_info = poisson_options{1}.speedup_info;
-    cost1 = BGMG_univariate_cost(params1, zmat(:, 1), Hvec, Nmat(:, 1), w_ld, ref_ld, options);
+        if options.use_poisson_original, options.use_poisson = true; options.speedup_info = poisson_options{2}.speedup_info; end;
+        cost2 = BGMG_univariate_cost(params2, zmat(:, 2), Hvec, Nmat(:, 2), w_ld, ref_ld, options);
 
-    options.speedup_info = poisson_options{2}.speedup_info;
-    cost2 = BGMG_univariate_cost(params2, zmat(:, 2), Hvec, Nmat(:, 2), w_ld, ref_ld, options);
-
-    cost = cost12 + options.bivariate_penalty_factor * (cost1 + cost2);
+        cost = cost + options.bivariate_penalty_factor * (cost1 + cost2);
+    end
 end

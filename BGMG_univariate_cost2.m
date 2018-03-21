@@ -55,9 +55,8 @@ function [cost, result] = BGMG_univariate_cost2(params, zvec, Hvec, Nvec, w_ld, 
         pi1u = params.pi_vec(mixi);
         poisson_lambda{mixi} = pi1u * ref_ld_sum_r2 ./ ((1-pi1u) * ref_ld_chi_r4);
         poisson_lambda{mixi}(~isfinite(poisson_lambda{mixi})) = 0;
-        poisson_sigma{mixi}  = repmat(Hvec .* Nvec, [1 num_ldr2bins]) .* ...
-                         params.sig2_beta(mixi) .* (1-pi1u) .* ref_ld_chi_r4;
-        snp_contribution = snp_contribution + sum(poisson_lambda{mixi} .* poisson_sigma{mixi}, 2);
+        poisson_sigma{mixi}  = repmat(Hvec .* Nvec, [1 num_ldr2bins]) .* (1-pi1u) .* ref_ld_chi_r4;
+        snp_contribution = snp_contribution + sum(poisson_lambda{mixi} .* poisson_sigma{mixi} * params.sig2_beta(mixi), 2);
     end
 
     snp_chunk_size  = floor(num_snps/20);  % TBD - what's reasonable number of SNPs chunks?
@@ -98,8 +97,8 @@ function [cost, result] = BGMG_univariate_cost2(params, zvec, Hvec, Nvec, w_ld, 
         poisson_sigma_grid_delta = poisson_sigma_grid_limit / (poisson_sigma_grid_nodes - 1);
         poisson_sigma_grid       = 0:poisson_sigma_grid_delta:poisson_sigma_grid_limit;
 
-        sigma_grid_pi   = [];
         for mixi = 1:num_mix
+        sigma_grid_pi{mixi}   = [];
         for ldr2_bini = 1:num_ldr2bins
             if ~has_speedup_info
                 % auto-detect reasonable kmax for poisson approximation
@@ -122,11 +121,18 @@ function [cost, result] = BGMG_univariate_cost2(params, zvec, Hvec, Nvec, w_ld, 
                              accummatrix(2+grid_idx_floor, p .* (    grid_idx_frac), [poisson_sigma_grid_nodes, size(p, 2)]);
             grid_coef_tmp  = grid_coef_tmp';
 
-            sigma_grid_pi = convmatrix(sigma_grid_pi, grid_coef_tmp);
+            sigma_grid_pi{mixi} = convmatrix(sigma_grid_pi{mixi}, grid_coef_tmp);
         end
         end
-        for k=1:poisson_sigma_grid_nodes
-            pdf(snps_in_chunk) = pdf(snps_in_chunk) + sigma_grid_pi(:, k) .* normpdf(zvec(snps_in_chunk), 0, sqrt(poisson_sigma_grid(k) + params.sig2_zero));
+        
+        for k1=1:poisson_sigma_grid_nodes
+            for k2=1:poisson_sigma_grid_nodes
+                pdf(snps_in_chunk) = pdf(snps_in_chunk) + sigma_grid_pi{1}(:, k1) .* sigma_grid_pi{2}(:, k2) .* ...
+                    normpdf(zvec(snps_in_chunk), 0, sqrt(...
+                        poisson_sigma_grid(k1) * params.sig2_beta(1) +  ...
+                        poisson_sigma_grid(k2) * params.sig2_beta(2) + ...
+                        params.sig2_zero));
+            end
         end
     end
 
@@ -136,6 +142,9 @@ function [cost, result] = BGMG_univariate_cost2(params, zvec, Hvec, Nvec, w_ld, 
     cost = sum(weights .* -log(pdf));
     if ~isfinite(cost), cost = NaN; end;
     if ~isreal(cost), cost = NaN; end;
+    
+    result.speedup_info = options.speedup_info;
+    result.pdf = pdf;
 
     if num_mix == 1
         fprintf('Univariate: pi_vec=%.3e, sig2_beta^2=%.3e, sig2_zero^2=%.3f, h2=%.3f, cost=%.6e, nsnp=%i\n', ...

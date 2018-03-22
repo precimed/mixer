@@ -21,6 +21,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
     if ~isfield(options, 'fit_infinitesimal'), options.fit_infinitesimal = false; end;  % infinitesimal model (implemented only for univariate analysis)
     if ~isfield(options, 'fit_two_causal_components'), options.fit_two_causal_components = false; end;  % fit two causal components (implemented only for univariate analysis, without ci estimation)
     if ~isfield(options, 'bivariate_penalty_factor'), options.bivariate_penalty_factor = 10; end;
+    if ~isfield(options, 'scad_penalty'), options.scad_penalty = nan; end;
 
     poisson_options = {};
     options.use_poisson_original = options.use_poisson;
@@ -404,5 +405,30 @@ function cost = BGMG_bivariate_cost_with_penalty(params, zmat, Hvec, Nmat, w_ld,
         cost2 = BGMG_univariate_cost(params2, zmat(:, 2), Hvec, Nmat(:, 2), w_ld, ref_ld, options);
 
         cost = cost + options.bivariate_penalty_factor * (cost1 + cost2);
+    end
+    
+    if isfinite(options.scad_penalty)
+        % https://arxiv.org/pdf/1301.3558.pdf - Model Selection for Gaussian Mixture Models
+        % http://orfe.princeton.edu/~jqfan/papers/01/penlike.pdf - Variable Selection via Nonconcave Penalized Likelihood and its Oracle Properties
+        % http://www.kumc.edu/Documents/biostatistics/fridley/SCAD_Documentation.pdf - Use of Smoothly Clipped Absolute Deviation (SCAD) Penalty on Sparse Canonical Correlation Analysis
+        scad_lambda = 1e-3;
+        scad_a = 3.7;
+        Df = 9;
+        scad_eps = 1e-8;
+        n = nansum(1./w_ld);
+        
+        scad_pi = zeros(3, length(params.pi_vec));
+        scad_pi(1, :) = scad_lambda * params.pi_vec;
+        scad_pi(2, :) = -(params.pi_vec .^ 2 - 2 * scad_a * scad_lambda * params.pi_vec + scad_lambda .^ 2) / ( 2 * scad_a - 2 );
+        scad_pi(3, :) = ((scad_a + 1) .* scad_lambda^2) / 2;
+        scad_index = 1 + (params.pi_vec > scad_lambda) + (params.pi_vec > scad_a * scad_lambda);
+
+        scad_cost = 0;
+        num_mix = length(params.pi_vec);
+        for mixi = 1:num_mix
+            scad_cost = scad_cost + n * Df * scad_lambda * options.scad_penalty * ...
+                log(scad_eps + scad_pi(scad_index(mixi), mixi)) - log(scad_eps);
+        end
+        cost = cost + scad_cost;
     end
 end

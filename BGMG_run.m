@@ -33,6 +33,7 @@ if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots w
 if ~exist('BGMG_RELAX_ALL', 'var'), BGMG_RELAX_ALL = false; end;
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
+if ~exist('BIVARIATE_PENALTY_FACTOR', 'var'), BIVARIATE_PENALTY_FACTOR = 10; end;
 
 if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 
@@ -133,6 +134,7 @@ options.use_poisson = USE_POISSON;
 options.use_poisson_bgmg = USE_POISSON_BGMG;
 options.title = TITLE;
 options.relax_all = BGMG_RELAX_ALL;
+options.bivariate_penalty_factor = BIVARIATE_PENALTY_FACTOR;
 
 if ~isempty(init_file)
     fprintf('Loading %s...\n', init_file);
@@ -148,6 +150,8 @@ if ~isempty(trait2_file),
     if isfield(trait2_data, 'causal_pi'), options.causal_pi_T2 = trait2_data.causal_pi; end;
     if isfield(trait2_data, 'sigsq'), options.sigsq_T2 = trait2_data.sigsq; end;
 end
+
+disp(options)
 
 % Fit bivariate or univariate model to the data
 if DO_FIT

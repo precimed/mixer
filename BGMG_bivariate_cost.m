@@ -624,3 +624,28 @@ function values = restore_original_indexing(values, defvec)
         values(defvec, :) = tmp;
     end
 end
+
+
+function A = accummatrix(subs,val,sz)
+    % as accumarray, but val can be a matrix
+    % example:
+    % val = [ 0.1 1; 0.2 2; 0.4 4];
+    % subs= [ 1 1; 1 3; 3 3];
+    % A   = accummatrix(subs, val, [3 2]);   % [0.3 1.0;  0 0; 0.4 6.0]
+    subs = subs + repmat(sz(1) * (0:(size(val, 2) - 1)), [size(val, 1), 1]);
+    A = accumarray(subs(:), val(:), [prod(sz) 1]);
+    A = reshape(A, sz);
+end
+
+function A = convmatrix(B, C)
+    % apply convolution to each row of B and C.
+    if isempty(B), A=C; return; end;
+    assert(isequal(size(B), size(C)));
+    num_cols = size(B, 2);
+    A=zeros(size(B));
+    for i=1:num_cols
+        for j=1:i
+            A(:,i) = A(:, i) + B(:, j) .* C(:, i-j+1);
+        end
+    end
+end

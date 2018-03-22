@@ -390,7 +390,7 @@ function cost = BGMG_bivariate_cost_with_penalty(params, zmat, Hvec, Nmat, w_ld,
     bgmg_options.use_poisson = options.use_poisson_bgmg;
     bgmg_options.poisson_sigma_grid_nodes = nan;
     cost = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, bgmg_options);
-
+    fprintf('BGMG_cost = %.3f ', cost);
     if isfinite(options.bivariate_penalty_factor)
         params1.pi_vec = sum(params.pi_vec([1 3]));
         params1.sig2_beta = params.sig2_beta(1, 3);
@@ -407,6 +407,7 @@ function cost = BGMG_bivariate_cost_with_penalty(params, zmat, Hvec, Nmat, w_ld,
         cost2 = BGMG_univariate_cost(params2, zmat(:, 2), Hvec, Nmat(:, 2), w_ld, ref_ld, options);
 
         cost = cost + options.bivariate_penalty_factor * (cost1 + cost2);
+        fprintf(', UGMG_penalty_cost=%.3f*(%.3f + %.3f) ', options.bivariate_penalty_factor, cost1, cost2);
     end
     
     if isfinite(options.scad_penalty)
@@ -431,6 +432,8 @@ function cost = BGMG_bivariate_cost_with_penalty(params, zmat, Hvec, Nmat, w_ld,
             scad_cost = scad_cost + n * Df * scad_lambda * options.scad_penalty * ...
                 log(scad_eps + scad_pi(scad_index(mixi), mixi)) - log(scad_eps);
         end
+        fprintf(', SCAD_penalty_cost=%.3f*%.3f ', options.scad_penalty, scad_cost ./ options.scad_penalty);
         cost = cost + scad_cost;
     end
+    fprintf('; total: %.3f\n', cost);
 end

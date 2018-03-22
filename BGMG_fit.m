@@ -44,9 +44,11 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
 
         if isfield(options, sprintf('params%i', itrait)),
             results.univariate{itrait}.params = options.(sprintf('params%i', itrait));
-            poisson_options{itrait} = options; poisson_options{itrait}.use_poisson=true;
-            [~, detected_options] = BGMG_univariate_cost(results.univariate{itrait}.params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options{itrait});
-            poisson_options{itrait}.speedup_info = detected_options.speedup_info;
+            if options.use_poisson
+                poisson_options{itrait} = options; poisson_options{itrait}.use_poisson=true;
+                [~, detected_options] = BGMG_univariate_cost(results.univariate{itrait}.params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options{itrait});
+                poisson_options{itrait}.speedup_info = detected_options.speedup_info;
+            end
         else
             fit = @(x0, mapparams, fit_options)mapparams(fminsearch(@(x)BGMG_univariate_cost(mapparams(x), zvec, Hvec, Nvec, w_ld, ref_ld, fit_options), mapparams(x0), fminsearch_options));
 
@@ -411,17 +413,17 @@ function cost = BGMG_bivariate_cost_with_penalty(params, zmat, Hvec, Nmat, w_ld,
         % https://arxiv.org/pdf/1301.3558.pdf - Model Selection for Gaussian Mixture Models
         % http://orfe.princeton.edu/~jqfan/papers/01/penlike.pdf - Variable Selection via Nonconcave Penalized Likelihood and its Oracle Properties
         % http://www.kumc.edu/Documents/biostatistics/fridley/SCAD_Documentation.pdf - Use of Smoothly Clipped Absolute Deviation (SCAD) Penalty on Sparse Canonical Correlation Analysis
-        scad_lambda = 1e-3;
-        scad_a = 3.7;
+        scad_lambda = 5e-5;
+        scad_a = 100; %3.7;
         Df = 9;
-        scad_eps = 1e-8;
+        scad_eps = 1e-12;
         n = nansum(1./w_ld);
         
         scad_pi = zeros(3, length(params.pi_vec));
         scad_pi(1, :) = scad_lambda * params.pi_vec;
         scad_pi(2, :) = -(params.pi_vec .^ 2 - 2 * scad_a * scad_lambda * params.pi_vec + scad_lambda .^ 2) / ( 2 * scad_a - 2 );
         scad_pi(3, :) = ((scad_a + 1) .* scad_lambda^2) / 2;
-        scad_index = 1 + (params.pi_vec > scad_lambda) + (params.pi_vec > scad_a * scad_lambda);
+        scad_index = 1 + (params.pi_vec > scad_lambda) + (params.pi_vec > (scad_a * scad_lambda));
 
         scad_cost = 0;
         num_mix = length(params.pi_vec);

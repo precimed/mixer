@@ -34,6 +34,7 @@ if ~exist('BGMG_RELAX_ALL', 'var'), BGMG_RELAX_ALL = false; end;
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
 if ~exist('BIVARIATE_PENALTY_FACTOR', 'var'), BIVARIATE_PENALTY_FACTOR = 10; end;
+if ~exist('SCAD_PENALTY', 'var'), SCAD_PENALTY = nan; end;
 
 if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 
@@ -44,7 +45,7 @@ if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 % trait1_file = 'H:\Dropbox\shared\BGMG\p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc\simu_h2=0.40_pi1u=1e-3_rep=1.ugmg.mat'
 % reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_holland.mat'
 % DO_FIT = false; QQ_PLOT_TRUE = true;
-% init_file = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.hapmap.bgmg.mat';
+% init_file = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.bgmg.mat';
 % trait1_file  = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat';
 % trait2_file  = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat';
 
@@ -135,6 +136,7 @@ options.use_poisson_bgmg = USE_POISSON_BGMG;
 options.title = TITLE;
 options.relax_all = BGMG_RELAX_ALL;
 options.bivariate_penalty_factor = BIVARIATE_PENALTY_FACTOR;
+options.scad_penalty = SCAD_PENALTY;
 
 if ~isempty(init_file)
     fprintf('Loading %s...\n', init_file);

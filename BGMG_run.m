@@ -22,6 +22,7 @@ if ~exist('nprune', 'var'), nprune = 10; end;
 if ~exist('trait1_nvec', 'var'), trait1_nvec = 100000; end;
 if ~exist('trait2_nvec', 'var'), trait2_nvec = 100000; end;
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
+if ~exist('init_file', 'var'), init_file = ''; end;
 
 if ~exist('USE_POISSON', 'var'), USE_POISSON = true; end;
 if ~exist('USE_POISSON_BGMG', 'var'), USE_POISSON_BGMG = false; end;
@@ -42,6 +43,12 @@ if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 % trait1_file = 'H:\Dropbox\shared\BGMG\p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc\simu_h2=0.40_pi1u=1e-3_rep=1.ugmg.mat'
 % reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_holland.mat'
 % DO_FIT = false; QQ_PLOT_TRUE = true;
+% init_file = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.hapmap.bgmg.mat';
+% trait1_file  = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat';
+% trait2_file  = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat';
+
+if ~isempty(init_file) && isempty(trait2_file), error('init_file makes sence only for bivariate'); end;
+if ~isempty(init_file) && isfinite(CI_ALPHA), error('init_file is incompatible with CI_ALPHA'); end;
 
 clear('pruneidxmat_or_w_ld', 'pruneidxmat', 'w_ld');
 fprintf('Loading reference from %s...\n', reference_file);
@@ -126,6 +133,13 @@ options.use_poisson = USE_POISSON;
 options.use_poisson_bgmg = USE_POISSON_BGMG;
 options.title = TITLE;
 options.relax_all = BGMG_RELAX_ALL;
+
+if ~isempty(init_file)
+    fprintf('Loading %s...\n', init_file);
+    init_point = load(init_file);
+    options.params1 = init_point.result.univariate{1}.params;
+    options.params2 = init_point.result.univariate{2}.params;
+end
 
 % Save true parameters (if available)
 if isfield(trait1_data, 'causal_pi'), options.causal_pi_T1 = trait1_data.causal_pi; end;

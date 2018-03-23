@@ -44,7 +44,7 @@ function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
 
         if isfield(options, sprintf('params%i', itrait)),
             results.univariate{itrait}.params = options.(sprintf('params%i', itrait));
-            if options.use_poisson
+            if options.use_poisson_original
                 poisson_options{itrait} = options; poisson_options{itrait}.use_poisson=true;
                 [~, detected_options] = BGMG_univariate_cost(results.univariate{itrait}.params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options{itrait});
                 poisson_options{itrait}.speedup_info = detected_options.speedup_info;

@@ -14,6 +14,32 @@ if USE_HAPMAP && ~exist('hapmap', 'var')
     mask_in_11m = false(length(snpIDs), 1); mask_in_11m(index_to_11m(index_to_11m ~= 0)) = true;                     % 1184120 SNPs in the mask
 end
 
+if 0
+    load('H:\\Dropbox\\shared\\BGMG\\HAPGEN_EUR_100K_11015883_reference_holland.mat');
+    clear('sum_r2', 'sum_r2_biased', 'sum_r4_biased');
+    tmp=load('H:\NORSTORE\oleksanf\11015833\SynGen2\LDr2_biased_10Ksubj_50k_snps_100bins.mat'); LDr2=tmp.LDr2; clear('tmp');
+    tmp=load('H:\NORSTORE\oleksanf\11015833\SynGen2\LDr4_biased_10Ksubj_50k_snps_100bins.mat'); LDr4=tmp.LDr4; clear('tmp');
+    
+    % bias correction (best we can do based on histograms)
+    N=10000;
+    LDr2_hist = (LDr2 .^ 2) ./ LDr4; LDr2_hist(~isfinite(LDr2_hist)) = 0;
+    LDr2_bins = (LDr4 ./ LDr2); LDr2_bins(~isfinite(LDr2_bins)) = 0;
+    LDr2_unbias = LDr2_hist .* ( LDr2_bins * (N-1)/(N-2) - 1 / (N-2) );
+    
+    r2_aggregated_bins = 4;  minr2bin = 0; num_snps = size(LDr2, 1); ldr2binsNum=size(LDr2, 2);
+    %run code below to aggregate 100->4 bins
+    %save('H:\\Dropbox\\shared\\BGMG\\HAPGEN_EUR_100K_11015883_reference_10Ksubj_50k_snps_unbias_minr2bin1.mat', 'posvec', 'chrnumvec', 'total_het', 'mafvec',  'sum_r2', 'sum_r2_biased', 'sum_r4_biased', 'pruneidxmat', 'defvec');
+    
+    %sum_r2=sum_r2_biased; 
+    %save('H:\\Dropbox\\shared\\BGMG\\HAPGEN_EUR_100K_11015883_reference_10Ksubj_50k_snps_biased_minr2bin1.mat', 'posvec', 'chrnumvec', 'total_het', 'mafvec',  'sum_r2', 'sum_r2_biased', 'sum_r4_biased', 'pruneidxmat', 'defvec');
+    
+    minr2bin=2; % run code below to aggregate 10->4 bins;
+    sum_r2=sum_r2_biased; 
+    %save('H:\\Dropbox\\shared\\BGMG\\HAPGEN_EUR_100K_11015883_reference_10Ksubj_50k_snps_biased_minr2bin2.mat', 'posvec', 'chrnumvec', 'total_het', 'mafvec',  'sum_r2', 'sum_r2_biased', 'sum_r4_biased', 'pruneidxmat', 'defvec');
+    
+    %save('H:\\Dropbox\\shared\\BGMG\\HAPGEN_EUR_100K_11015883_reference_10Ksubj_50k_snps_unbias_minr2bin2.mat', 'posvec', 'chrnumvec', 'total_het', 'mafvec',  'sum_r2', 'sum_r2_biased', 'sum_r4_biased', 'pruneidxmat', 'defvec');
+end
+
 if ~exist('LDr2_p8sparse', 'var') 
 load(fullfile(datapath, 'LD_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))  % LDr2_p8sparse
 load(fullfile(datapath, 'LDr2hist_zontr2_p5_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))     % LDr2hist
@@ -38,17 +64,19 @@ LDr4 = LDr2hist .* repmat(ldr2binsCenters.^2, [num_snps, 1]);
 numSNPsInLDr2_gt_r2min_vec = sum(LDr2hist(:,minr2bin:end),2);
 end
 
-r2_aggregated_bins = 4;
+r2_aggregated_bins = 4;   % minr2bin = 0;
 if ~exist('ref_ld') || (size(ref_ld.sum_r2, 2) ~= r2_aggregated_bins)
 r2_aggregated_bin_size = ldr2binsNum / r2_aggregated_bins;
 assert(mod(ldr2binsNum,r2_aggregated_bins) == 0);
 assert(r2_aggregated_bin_size > minr2bin);
-sum_r2=zeros(num_snps, r2_aggregated_bins );
-sum_r4=zeros(num_snps, r2_aggregated_bins );
+sum_r2       =zeros(num_snps, r2_aggregated_bins );
+sum_r2_biased=zeros(num_snps, r2_aggregated_bins );
+sum_r4_biased=zeros(num_snps, r2_aggregated_bins );
 for r2_bini=1:r2_aggregated_bins
     r2_bin_index = max(minr2bin, 1+(r2_bini-1)*r2_aggregated_bin_size) : (r2_bini*r2_aggregated_bin_size);
-    sum_r2(:, r2_bini) = sum(LDr2(:, r2_bin_index), 2);
-    sum_r4(:, r2_bini) = sum(LDr4(:, r2_bin_index), 2);
+    sum_r2      (:, r2_bini)  = sum(LDr2_unbias(:, r2_bin_index), 2);
+    sum_r2_biased(:, r2_bini) = sum(LDr2(:, r2_bin_index), 2);
+    sum_r4_biased(:, r2_bini) = sum(LDr4(:, r2_bin_index), 2);
 end
 shape_param = sum_r4 ./ sum_r2;
 ref_ld  = struct('sum_r2', sum_r2, 'sum_r4_biased', sum_r4, 'sum_r2_biased', sum_r2);

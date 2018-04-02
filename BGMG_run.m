@@ -55,6 +55,10 @@ if ~isempty(init_file) && isfinite(CI_ALPHA), error('init_file is incompatible w
 clear('pruneidxmat_or_w_ld', 'pruneidxmat', 'w_ld');
 fprintf('Loading reference from %s...\n', reference_file);
 load(reference_file); num_snps = length(mafvec);
+if exist('pruneidxmat', 'var') && isempty(LDmat_file)
+    fprintf('w_ld was changed to random pruning-based weighting\n');
+    hits = sum(pruneidxmat, 2); w_ld = size(pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
+end
 if ~exist('w_ld', 'var') && isempty(LDmat_file), error('Binary pruning matrix is required for reference without w_ld'); end;
 if ~isempty(LDmat_file), w_ld = zeros(num_snps, 1); end;  % ignore w_ld because we will re-generate it based on random pruning
 defvec = true(num_snps, 1);

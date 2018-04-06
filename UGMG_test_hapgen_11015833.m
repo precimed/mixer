@@ -40,6 +40,26 @@ if 0
     %save('H:\\Dropbox\\shared\\BGMG\\HAPGEN_EUR_100K_11015883_reference_10Ksubj_50k_snps_unbias_minr2bin2.mat', 'posvec', 'chrnumvec', 'total_het', 'mafvec',  'sum_r2', 'sum_r2_biased', 'sum_r4_biased', 'pruneidxmat', 'defvec');
 end
 
+if 0
+    %load('H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_10Ksubj_50k_snps_biased_minr2bin1.mat')
+    load('H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_10Ksubj_50k_snps_biased_minr2bin2.mat')
+    idx = chrnumvec==1;
+    total_het = sum(idx);
+    defvec = true(sum(idx), 1);
+    mafvec = mafvec(idx);
+    posvec = posvec(idx);
+    chrnumvec = chrnumvec(idx);
+    clear('pruneidxmat');
+    sum_r2=sum_r2(idx, :);
+    sum_r2_biased=sum_r2_biased(idx, :);
+    sum_r4_biased=sum_r4_biased(idx, :);
+    clear('idx');
+    w_ld = sum(sum_r2, 2);
+    %save('H:\Dropbox\shared\BGMG\HAPGEN_EUR_10K_chr1_reference_10Ksubj_50k_snps_biased_minr2bin1.mat');
+    save('H:\Dropbox\shared\BGMG\HAPGEN_EUR_10K_chr1_reference_10Ksubj_50k_snps_biased_minr2bin2.mat');
+end
+
+
 if ~exist('LDr2_p8sparse', 'var') 
 load(fullfile(datapath, 'LD_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))  % LDr2_p8sparse
 load(fullfile(datapath, 'LDr2hist_zontr2_p5_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat'))     % LDr2hist

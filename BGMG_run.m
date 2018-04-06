@@ -35,6 +35,7 @@ if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
 if ~exist('BIVARIATE_PENALTY_FACTOR', 'var'), BIVARIATE_PENALTY_FACTOR = 10; end;
 if ~exist('SCAD_PENALTY', 'var'), SCAD_PENALTY = nan; end;
+if ~exist('MAF_THRESH', 'var'), MAF_THRESH = nan; end;
 
 if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 
@@ -52,19 +53,26 @@ if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 if ~isempty(init_file) && isempty(trait2_file), error('init_file makes sence only for bivariate'); end;
 if ~isempty(init_file) && isfinite(CI_ALPHA), error('init_file is incompatible with CI_ALPHA'); end;
 
-clear('pruneidxmat_or_w_ld', 'pruneidxmat', 'w_ld');
+clear('pruneidxmat_or_w_ld', 'pruneidxmat', 'w_ld', 'hvec');
 fprintf('Loading reference from %s...\n', reference_file);
 load(reference_file); num_snps = length(mafvec);
 if exist('pruneidxmat', 'var') && isempty(LDmat_file)
     fprintf('w_ld was changed to random pruning-based weighting\n');
     hits = sum(pruneidxmat, 2); w_ld = size(pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
 end
+
+if ~exist('hvec', 'var'),
+    hvec = 2 .* mafvec .* (1-mafvec);
+    warning('hvec does not exist in the reference; hvec is set based on mafvec.');
+end
+
+if exist('w_ld', 'var') && (size(w_ld, 2) > 1), w_ld = sum(w_ld, 2); end;
 if ~exist('w_ld', 'var') && isempty(LDmat_file), error('Binary pruning matrix is required for reference without w_ld'); end;
 if ~isempty(LDmat_file), w_ld = zeros(num_snps, 1); end;  % ignore w_ld because we will re-generate it based on random pruning
 defvec = true(num_snps, 1);
 fprintf('%i SNPs in the reference\n', num_snps);
 ref_ld  = struct('sum_r2', sum_r2, 'sum_r4_biased', sum_r4_biased, 'sum_r2_biased', sum_r2_biased);
-cur_defvec = struct('defvec', isfinite(sum(sum_r2, 2) + sum(sum_r4_biased, 2) + sum(sum_r2_biased, 2) + mafvec + w_ld));
+cur_defvec = struct('defvec', isfinite(sum(sum_r2, 2) + sum(sum_r4_biased, 2) + sum(sum_r2_biased, 2) + hvec + mafvec + w_ld));
 defvec = defvec & cur_defvec.defvec;
 fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec));
 
@@ -73,6 +81,10 @@ for i=1:length(defvec_files)
     cur_defvec = load(defvec_files{i});
     defvec = defvec & cur_defvec.defvec;
     fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec));
+end
+
+if isfinite(MAF_THRESH), defvec = defvec & (mafvec >= MAF_THRESH);
+    fprintf('Exclude %i variants due to mafvec (%i variants remain)\n', sum(mafvec < MAF_THRESH), sum(defvec));
 end
 
 fprintf('Loading %s...\n', trait1_file);
@@ -123,7 +135,7 @@ if ~isempty(LDmat_file)
 end
 
 if exist('pruneidxmat', 'var'),
-	pruneidxmat_or_w_ld = pruneidxmat;
+    pruneidxmat_or_w_ld = pruneidxmat;
 else
     pruneidxmat_or_w_ld = w_ld;
 end;
@@ -162,9 +174,9 @@ disp(options)
 % Fit bivariate or univariate model to the data
 if DO_FIT
     if ~isempty(trait2_file),
-        result = BGMG_fit([trait1_data.zvec, trait2_data.zvec], 2 .* mafvec .* (1-mafvec), [trait1_data.nvec, trait2_data.nvec], w_ld, ref_ld, options);
+        result = BGMG_fit([trait1_data.zvec, trait2_data.zvec], hvec, [trait1_data.nvec, trait2_data.nvec], w_ld, ref_ld, options);
     else
-        result = BGMG_fit(trait1_data.zvec, 2 .* mafvec .* (1-mafvec), trait1_data.nvec, w_ld, ref_ld, options);
+        result = BGMG_fit(trait1_data.zvec, hvec, trait1_data.nvec, w_ld, ref_ld, options);
     end
 
     result.trait1_file = trait1_file;
@@ -184,7 +196,7 @@ if QQ_PLOT_TRUE
             qq_data = trait2_data;
         end
         options.plot_HL_bins = plot_HL_bins;
-        [figures, plot_data] = UGMG_qq_plot(qq_params, qq_data.zvec, 2 .* mafvec .* (1-mafvec), qq_data.nvec, pruneidxmat_or_w_ld, ref_ld, options);
+        [figures, plot_data] = UGMG_qq_plot(qq_params, qq_data.zvec, hvec, qq_data.nvec, pruneidxmat_or_w_ld, ref_ld, options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
         result.univariate{trait_index}.qq_plot_true_data = plot_data;
@@ -208,7 +220,7 @@ if QQ_PLOT_FIT
             qq_data = trait2_data;
         end
         options.plot_HL_bins = plot_HL_bins;
-        [figures, plot_data] = UGMG_qq_plot(qq_params, qq_data.zvec, 2 .* mafvec .* (1-mafvec), qq_data.nvec, pruneidxmat_or_w_ld, ref_ld, options);
+        [figures, plot_data] = UGMG_qq_plot(qq_params, qq_data.zvec, hvec, qq_data.nvec, pruneidxmat_or_w_ld, ref_ld, options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
         result.univariate{trait_index}.qq_plot_fit_data = plot_data;
@@ -247,4 +259,4 @@ if 0
 end
 
 % TBD: re-test confidence intervals estimation
-  
+ 

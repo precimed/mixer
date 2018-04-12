@@ -196,6 +196,7 @@ if QQ_PLOT_TRUE
             qq_data = trait2_data;
         end
         options.plot_HL_bins = plot_HL_bins;
+        options.mafvec = mafvec;
         [figures, plot_data] = UGMG_qq_plot(qq_params, qq_data.zvec, hvec, qq_data.nvec, pruneidxmat_or_w_ld, ref_ld, options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
@@ -220,6 +221,7 @@ if QQ_PLOT_FIT
             qq_data = trait2_data;
         end
         options.plot_HL_bins = plot_HL_bins;
+        options.mafvec = mafvec;
         [figures, plot_data] = UGMG_qq_plot(qq_params, qq_data.zvec, hvec, qq_data.nvec, pruneidxmat_or_w_ld, ref_ld, options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)

@@ -22,7 +22,7 @@ function [figures, plot_data] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxm
 
         cdf_idx     = false(length(zvec), numstrata*numstrata + 1);
 
-        x_bin = Hvec; y_bin = sum(ref_ld.sum_r2, 2);
+        x_bin = options.mafvec; y_bin = sum(ref_ld.sum_r2, 2);
         defvec = isfinite(zvec + x_bin + y_bin);
         xq = [-Inf, quantile(x_bin(defvec),numstrata-1), +Inf];
         yq = [-Inf, quantile(y_bin(defvec),numstrata-1), +Inf];
@@ -118,7 +118,7 @@ function [figures, plot_data] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxm
 
         qq_options = [];
         if is_bin_plot
-            qq_options.title = sprintf('$$ H \\in [%.3f,%.3f) $$ \n $$ L \\in [%.3f,%.3f) $$', xq(strati), xq(strati+1), yq(stratj), yq(stratj+1));
+            qq_options.title = sprintf('$$ maf \\in [%.3f,%.3f) $$ \n $$ L \\in [%.3f,%.3f) $$', xq(strati), xq(strati+1), yq(stratj), yq(stratj+1));
             qq_options.fontsize=15;
             qq_options.legend=false;
             qq_options.xlabel=false;

@@ -111,7 +111,9 @@ function [figures, plot_data] = UGMG_qq_plot(params, zvec, Hvec, Nvec, pruneidxm
 
             plot_data = struct('hv_logp', hv_logp, 'data_logpvec', data_logpvec, 'model_logpvec', model_logpvec);
             plot_data.params = params;
-            plot_data.options = rmfield(options, 'calculate_z_cdf_weights');
+            plot_data.options = options;
+            plot_data.options.calculate_z_cdf_weights='removed';
+            plot_data.options.mafvec='removed';
         else
             plot_data = struct('hv_logp', hv_logp, 'data_logpvec', data_logpvec);
         end

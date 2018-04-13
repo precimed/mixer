@@ -36,6 +36,7 @@ if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
 if ~exist('BIVARIATE_PENALTY_FACTOR', 'var'), BIVARIATE_PENALTY_FACTOR = 10; end;
 if ~exist('SCAD_PENALTY', 'var'), SCAD_PENALTY = nan; end;
 if ~exist('MAF_THRESH', 'var'), MAF_THRESH = nan; end;
+if ~exist('FORCE_W_LD', 'var'), FORCE_W_LD = false; end;
 
 if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 
@@ -52,11 +53,12 @@ if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 
 if ~isempty(init_file) && isempty(trait2_file), error('init_file makes sence only for bivariate'); end;
 if ~isempty(init_file) && isfinite(CI_ALPHA), error('init_file is incompatible with CI_ALPHA'); end;
+if ~isempty(LDmat_file) && FORCE_W_LD, error('LDmat_file must not be used together with FORCE_W_LD'); end;
 
 clear('pruneidxmat_or_w_ld', 'pruneidxmat', 'w_ld', 'hvec');
 fprintf('Loading reference from %s...\n', reference_file);
 load(reference_file); num_snps = length(mafvec);
-if exist('pruneidxmat', 'var') && isempty(LDmat_file)
+if exist('pruneidxmat', 'var') && isempty(LDmat_file) && ~FORCE_W_LD
     fprintf('w_ld was changed to random pruning-based weighting\n');
     hits = sum(pruneidxmat, 2); w_ld = size(pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan;
 end

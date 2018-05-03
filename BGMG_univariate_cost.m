@@ -47,12 +47,15 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if ~isfield(options, 'use_poisson'), options.use_poisson = false; end;  % enable accurate pdf(z) estimation
     if ~isfield(options, 'poisson_sigma_grid_nodes'), options.poisson_sigma_grid_nodes = 25;  end;  % grid size of poisson projection
     if ~isfield(options, 'poisson_sigma_grid_scale'), options.poisson_sigma_grid_scale = 1;  end;
+    if ~isfield(options, 'poisson_sigma_grid_chunks'), options.poisson_sigma_grid_chunks = 20; end;
 
     % z_cdf_limit and z_cdf_step are used in cdf estimation
     if ~isfield(options, 'calculate_z_cdf_limit'), options.calculate_z_cdf_limit = 15; end;
     if ~isfield(options, 'calculate_z_cdf_step'), options.calculate_z_cdf_step = 0.25; end;
     if ~isfield(options, 'calculate_z_cdf'), options.calculate_z_cdf = false; end;
     if ~isfield(options, 'calculate_z_cdf_weights'), options.calculate_z_cdf_weights = ones(size(zvec)) / length(zvec); end;
+    if ~isfield(options, 'calculate_z_cdf_nscale'), options.calculate_z_cdf_nscale = 1; end;
+    if ~isfield(options, 'calculate_z_cdf_func'), options.calculate_z_cdf_func = @normcdf; end;
 
     % delta_hat_std_limit and delta_hat_std_step are used in posterior effect size
     % estimation. They express the grid to calculate posterior delta
@@ -139,7 +142,7 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         % Compensate for low kmax (commented out because kmax is not known yet... this is some kind of "circular dependency")
         % poisson_sigma =poisson_sigma ./ poisscdf(repmat(options.poisson_kmax - 1, [size(poisson_lambda, 1), 1]), poisson_lambda);
 
-        snp_chunk_size  = floor(num_snps/20);  % TBD - what's reasonable number of SNPs chunks?
+        snp_chunk_size  = floor(num_snps/options.poisson_sigma_grid_chunks);
         [~, sorted_snps] = sort(snp_contribution);
 
         pdf = zeros(num_snps, 1);
@@ -147,8 +150,13 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
         if (nargout > 1) && options.calculate_z_cdf
             fprintf('Estimate cumulated distribution function for Z scores... \n');
             result_cdf_z_grid = (-options.calculate_z_cdf_limit:options.calculate_z_cdf_step:options.calculate_z_cdf_limit);
+            [result_cdf_z_grid, result_cdf_nscale] = meshgrid(result_cdf_z_grid,options.calculate_z_cdf_nscale);
+            result_cdf_z_grid = result_cdf_z_grid(:)';
+            result_cdf_nscale = result_cdf_nscale(:)';
             num_cdf_weights = size(options.calculate_z_cdf_weights, 2);
             result_cdf = zeros(num_cdf_weights, length(result_cdf_z_grid));
+            % power_numerator = zeros(size(options.calculate_z_cdf_nscale)); power_numerator=power_numerator(:);
+            % power_denominator = zeros(size(options.calculate_z_cdf_nscale)); power_denominator=power_denominator(:);
         end
 
         % Make sure last chunk is as large as all previous
@@ -185,7 +193,10 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
 
             if (nargout > 1) && options.calculate_z_cdf
                 cdfmat = zeros(length(result_cdf_z_grid), poisson_sigma_grid_nodes);
-                for i=1:poisson_sigma_grid_nodes, cdfmat(:, i) = normcdf(result_cdf_z_grid, 0, sqrt(poisson_sigma_grid(i) + params.sig2_zero)); end
+                for i=1:poisson_sigma_grid_nodes
+                    cdfmat(:, i) = options.calculate_z_cdf_func(result_cdf_z_grid, ...
+                                           0, sqrt(poisson_sigma_grid(i) * result_cdf_nscale + params.sig2_zero));
+                end
             end
 
             sigma_grid_pi   = [];
@@ -281,6 +292,9 @@ function [cost, result] = BGMG_univariate_cost(params, zvec, Hvec, Nvec, w_ld, r
     if exist('result_cdf', 'var')
         result.cdf = result_cdf;
         result.cdf_z_grid = result_cdf_z_grid;
+        result.cdf_nscale = result_cdf_nscale;
+        if exist('power_denominator', 'var'), result.power_denominator = power_denominator; end
+        if exist('power_numerator', 'var'), result.power_numerator = power_numerator; end;
     end
 
     if num_mix == 1
@@ -348,5 +362,32 @@ function A = convmatrix(B, C)
         for j=1:i
             A(:,i) = A(:, i) + B(:, j) .* C(:, i-j+1);
         end
+    end
+end
+
+function make_power_plot_helper()
+    % misc code to make power plot (not used; keep just for the history)
+    options.power_zthresh = 4.75;
+    XXX_pdf = (sigma_grid_pi * cdfmat');
+    expected_shape = [length(options.calculate_z_cdf_nscale), size(XXX_pdf, 2) / length(options.calculate_z_cdf_nscale)];
+    for snpi_in_chunk = 1:num_snps_in_chunk
+        n = zeros(size(result_cdf_z_grid)); d = n;
+        for i=1:size(sigma_grid_pi, 2)
+            pdf_z_at_delta = 0.5 * normpdf(result_cdf_z_grid, sqrt(poisson_sigma_grid(i) * result_cdf_nscale), sqrt(params.sig2_zero)) + ...
+                             0.5 * normpdf(result_cdf_z_grid, -sqrt(poisson_sigma_grid(i) * result_cdf_nscale), sqrt(params.sig2_zero));
+            n = n + pdf_z_at_delta .* poisson_sigma_grid(i) .* result_cdf_nscale .* sigma_grid_pi(snpi_in_chunk, i);
+            d = d + pdf_z_at_delta .*                                               sigma_grid_pi(snpi_in_chunk, i);
+        end
+        delta2_expected = n./d; delta2_expected(~isfinite(delta2_expected)) = 0;
+        delta2_expected = reshape(delta2_expected, expected_shape);
+
+        XXX_cdf_z_grid = reshape(result_cdf_z_grid, expected_shape);
+        XXX_pdf_snp = reshape(XXX_pdf(snpi_in_chunk, :), expected_shape);
+
+        power_denominator = power_denominator + options.calculate_z_cdf_weights(snps_in_chunk(snpi_in_chunk)) * sum(delta2_expected .* XXX_pdf_snp, 2);
+        XXX_pdf_snp(abs(XXX_cdf_z_grid) < options.power_zthresh ) = 0;
+        power_numerator = power_numerator + options.calculate_z_cdf_weights(snps_in_chunk(snpi_in_chunk)) * sum(delta2_expected .* XXX_pdf_snp, 2);
+        plot(power_numerator ./ power_denominator)
+        fprintf('.');
     end
 end

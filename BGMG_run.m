@@ -30,6 +30,7 @@ if ~exist('USE_POISSON_BGMG', 'var'), USE_POISSON_BGMG = false; end;
 if ~exist('DO_FIT', 'var'), DO_FIT = true; end;                % perform fitting
 if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots with true parameters
 if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
+if ~exist('POWER_PLOT_FIT', 'var'), POWER_PLOT_FIT = false; end;  % make power plots with fitted parameters
 if ~exist('BGMG_RELAX_ALL', 'var'), BGMG_RELAX_ALL = false; end;
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
@@ -42,10 +43,16 @@ if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 
 % defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'}
 % defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'}
+% defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat' };
+% defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'}
 % LDmat_file = 'H:\NORSTORE\oleksanf\11015833\hapgen\LD_r2_gt_p8_chrs_1_22_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc.mat';
+% LDmat_file = 'H:\Dropbox\shared\BGMG\ldmat_p8_BPwind10M_n503.mat'; LDmat_file_variable='LDmat';
 % trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'
 % trait1_file = 'H:\Dropbox\shared\BGMG\p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc\simu_h2=0.40_pi1u=1e-3_rep=1.ugmg.mat'
-% reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_holland.mat'
+% trait1_file = 'H:\GitHub\BGMG\GIANT_HEIGHT_2014_lift.mat';
+% trait1_file = 'H:\GitHub\BGMG\PGC_SCZ_2014.mat';
+% reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat'
+% reference_file = 'H:\Dropbox\shared\BGMG\1kG_phase3_EUR_11015883_reference_p01_SNPwind50k_per_allele_4bins.mat'
 % DO_FIT = false; QQ_PLOT_TRUE = true;
 % init_file = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.bgmg.mat';
 % trait1_file  = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat';
@@ -54,6 +61,8 @@ if ~exist('plot_HL_bins', 'var'), plot_HL_bins = false; end;
 if ~isempty(init_file) && isempty(trait2_file), error('init_file makes sence only for bivariate'); end;
 if ~isempty(init_file) && isfinite(CI_ALPHA), error('init_file is incompatible with CI_ALPHA'); end;
 if ~isempty(LDmat_file) && FORCE_W_LD, error('LDmat_file must not be used together with FORCE_W_LD'); end;
+if POWER_PLOT_FIT && ~isempty(trait2_file), error('power plots are only supported for univariate traits'); end;
+if POWER_PLOT_FIT && ~DO_FIT, error('power plots are only supported with DO_FIT=true'); end;
 
 clear('pruneidxmat_or_w_ld', 'pruneidxmat', 'w_ld', 'hvec');
 fprintf('Loading reference from %s...\n', reference_file);
@@ -187,6 +196,25 @@ if DO_FIT
     result.options = options;
 end
 
+% Produce power plots (Proportion of narrow-sense chip heritability, S(N),
+% captured by genome-wide significant SNPs as a function of sample size)
+if POWER_PLOT_FIT && DO_FIT
+    trait_index=1;
+    power_plot_data = UGMG_power_plot(result.univariate{trait_index}.params, trait1_data.zvec, hvec, trait1_data.nvec, ref_ld, options);
+    result.univariate{trait_index}.power_plot_fit_data = power_plot_data;
+    power_plot_figure = figure; hold on;
+    plot(log10(power_plot_data.nvalues), power_plot_data.prop_h2, '-');
+    ax = gca; ax.ColorOrderIndex = 1;
+    plot(log10(power_plot_data.nvalue_current), power_plot_data.prop_h2_current, 'o');
+    set(gca, 'xtick', [3, 4, 5, 6, 7, 8]);
+    xlabel('log_1_0(N)');
+    ylabel('S(N)');
+    legend(sprintf('N=%.0f, S(N)=%.1f%%', power_plot_data.nvalue_current, 100*power_plot_data.prop_h2_current), 'Location', 'NorthWest')
+    trait1_name = strsplit(trait1_file, {'\\', '/'}); trait1_name=trait1_name{end};trait1_name(trait1_name=='_')='-';
+    title(trait1_name);
+    print(power_plot_figure, sprintf('%s.trait%i.power.fit.pdf', out_file, trait_index), '-dpdf')
+end
+
 % Produce QQ plots with true params (only works for synthetic data, of course)
 if QQ_PLOT_TRUE
     for trait_index = 1:(1 + ~isempty(trait2_file))
@@ -264,3 +292,18 @@ end
 
 % TBD: re-test confidence intervals estimation
  
+if 0
+    pp={};legend_text ={};
+    pp{end+1,1} =load('GIANT_HEIGHT_2014_lift.mat.mat'); legend_text{end+1, 1} = 'HEIGHT';
+    pp{end+1,1}=load('PGC_SCZ_2014.result.mat');legend_text{end+1, 1} = 'SCZ';
+    pp{end+1,1}=load('LIPIDS_HDL_2013.mat.mat');legend_text{end+1, 1} = 'HDL';
+    figure; hold on;
+    for i=1:length(pp), pp{i}=pp{i}.result.univariate{1}.power_plot_fit_data; end;
+    for i=1:length(pp), plot(log10(pp{i}.nvalues), pp{i}.prop_h2, '-'); end
+    ax = gca; ax.ColorOrderIndex = 1;
+    for i=1:length(pp), plot(log10(pp{i}.nvalue_current), pp{i}.prop_h2_current, 'o'); end
+    xlabel('log_1_0(N)'); ylabel('S(N)');
+    set(gca, 'xtick', [3, 4, 5, 6, 7, 8]);
+    for i=1:length(pp), legend_text{i}=sprintf('%s: N=%.0f, S(N)=%.1f%%',legend_text{i}, pp{i}.nvalue_current, 100*pp{i}.prop_h2_current); end
+    legend(legend_text, 'Location', 'NorthWest')
+end

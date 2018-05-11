@@ -45,6 +45,13 @@ endif (COMPILER_SUPPORTS_CXX11)
 #SET(BUILD_GTEST ON CACHE BOOL "Builds the googletest subproject")
 #add_subdirectory( googletest )
 
+find_package(OpenMP)
+if (OPENMP_FOUND)
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+    set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
+endif()
+
 set(SRC_LIST
 	source.cc
 	bgmg_calculator.cc

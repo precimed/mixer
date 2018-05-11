@@ -57,21 +57,15 @@ int64_t bgmg_set_hvec(int context_id, int length, double* values) {
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_w_ld(int context_id, int length, double* values) {
+int64_t bgmg_set_weights(int context_id, int length, double* values) {
   try {
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_w_ld(length, values);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_weights(length, values);
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_ref_ld_sum_r2(int context_id, int length, int r2bins, double* values) {
+int64_t bgmg_set_ref_ld(int context_id, int length, int r2bins, double* sum_r2, double* sum_r4) {
   try {
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_ref_ld_sum_r2(length, r2bins, values);
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_set_ref_ld_sum_r4(int context_id, int length, int r2bins, double* values) {
-  try {
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_ref_ld_sum_r4(length, r2bins, values);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_ref_ld(length, r2bins, sum_r2, sum_r4);
   } CATCH_EXCEPTIONS;
 }
 
@@ -87,13 +81,13 @@ double bgmg_calc_univariate_cost(int context_id, double pi_vec, double sig2_zero
   } CATCH_EXCEPTIONS;
 }
 
-double bgmg_calc_bivariate_cost(int context_id, int num_components, int num_traits, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero) {
+double bgmg_calc_bivariate_cost(int context_id, int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero) {
   try {
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_cost(num_components, num_traits, pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_cost(num_components, pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
   } CATCH_EXCEPTIONS;
 }
 
-int64_t dispose(int context_id) {
+int64_t bgmg_dispose(int context_id) {
   try {
     BgmgCalculatorManager::singleton().Erase(context_id);
     return 0;

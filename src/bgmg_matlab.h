@@ -24,11 +24,10 @@ const char* bgmg_get_last_error();
 int64_t bgmg_set_zvec(int context_id, int trait, int length, double* values);
 int64_t bgmg_set_nvec(int context_id, int trait, int length, double* values);
 int64_t bgmg_set_hvec(int context_id, int length, double* values);
-int64_t bgmg_set_w_ld(int context_id, int length, double* values);
-int64_t bgmg_set_ref_ld_sum_r2(int context_id, int length, int r2bins, double* values);
-int64_t bgmg_set_ref_ld_sum_r4(int context_id, int length, int r2bins, double* values);
+int64_t bgmg_set_weights(int context_id, int length, double* values);
+int64_t bgmg_set_ref_ld(int context_id, int length, int r2bins, double* sum_r2, double* sum_r4);
 int64_t bgmg_set_option(int context_id, char* option, int value);
 double bgmg_calc_univariate_cost(int context_id, double pi_vec, double sig2_zero, double sig2_beta);
-double bgmg_calc_bivariate_cost(int context_id, int num_components, int num_traits, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero);
-int64_t dispose(int context_id);
+double bgmg_calc_bivariate_cost(int context_id, int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero);
+int64_t bgmg_dispose(int context_id);
 

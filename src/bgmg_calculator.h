@@ -28,13 +28,16 @@
 // Singleton class to manage a collection of objects, identifiable with some integer ID.
 template<class Type>
 class TemplateManager : boost::noncopyable {
-public:
+ public:
   static TemplateManager<Type>& singleton() {
     static TemplateManager<Type> manager;
     return manager;
   }
 
-  Type& Get(int id) {
+  std::shared_ptr<Type> Get(int id) {
+    if (map_.find(id) == map_.end()) {
+      map_[id] = std::make_shared<Type>();
+    }
     return map_[id];
   }
 
@@ -42,24 +45,34 @@ public:
     map_.erase(id);
   }
 
-private:
+ private:
   TemplateManager() { }  // Singleton (make constructor private)
-  std::unordered_map<int, Type> map_;
+  std::unordered_map<int, std::shared_ptr<Type>> map_;
 };
 
 
 class BgmgCalculator {
- private:
  public:
-   int64_t set_zvec(int trait, int length, double* values);
-   int64_t set_nvec(int trait, int length, double* values);
-   int64_t set_hvec(int length, double* values);
-   int64_t set_w_ld(int length, double* values);
-   int64_t set_ref_ld_sum_r2(int length, int r2bins, double* values);
-   int64_t set_ref_ld_sum_r4(int length, int r2bins, double* values);
-   int64_t set_option(char* option, int value);
-   double calc_univariate_cost(double pi_vec, double sig2_zero, double sig2_beta);
-   double calc_bivariate_cost(int num_components, int num_traits, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero);
+  BgmgCalculator() : num_snps_(-1), r2bins_(-1), k_max_(100) {}
+  int64_t set_zvec(int trait, int length, double* values);
+  int64_t set_nvec(int trait, int length, double* values);
+  int64_t set_hvec(int length, double* values);
+  int64_t set_weights(int length, double* values);
+  int64_t set_ref_ld(int length, int r2bins, double* sum_r2, double* sum_r4);
+  int64_t set_option(char* option, int value);
+  double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_bivariate_cost(int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero);
+ private:
+  int num_snps_;
+  int r2bins_;
+  std::vector<float> zvec1_;
+  std::vector<float> nvec1_;
+  std::vector<float> hvec_;
+  std::vector<float> w_;
+  std::vector<float> r2_;       // matrix of size num_snps * r2bins, containing effective r2 in each bin
+  std::vector<int>   r2_hist_;  // matrix of size num_snps * r2bins, containing an integer number of SNPs in that bin
+  int k_max_;
+  void set_num_snps(int length);
 };
 
-typedef TemplateManager<std::shared_ptr<BgmgCalculator>> BgmgCalculatorManager;
+typedef TemplateManager<BgmgCalculator> BgmgCalculatorManager;

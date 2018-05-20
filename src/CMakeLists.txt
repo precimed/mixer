@@ -41,6 +41,10 @@ else (COMPILER_SUPPORTS_CXX11)
   message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif (COMPILER_SUPPORTS_CXX11)
 
+#SET(BUILD_GMOCK OFF CACHE BOOL "Builds the googlemock subproject")
+#SET(BUILD_GTEST ON CACHE BOOL "Builds the googletest subproject")
+#add_subdirectory( googletest )
+
 set(SRC_LIST
 	source.cc
 	bgmg_calculator.cc
@@ -52,8 +56,18 @@ add_library(bgmg SHARED ${SRC_LIST})
 # set_target_properties(bgmg PROPERTIES LINK_FLAGS "-static" )
 target_link_libraries(bgmg ${Boost_LIBRARIES})
 
+set(SRC_TEST_LIST
+	test/bgmg_main_unittest.cc
+	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
+	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
+)
+
+add_executable(bgmg-test ${SRC_TEST_LIST})
+
 target_include_directories(bgmg PUBLIC ${CMAKE_BINARY_DIR})
 target_include_directories(bgmg PUBLIC ${CMAKE_SOURCE_DIR})
+target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest/include)
+target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest)
 
 include(GenerateExportHeader)
 generate_export_header(bgmg

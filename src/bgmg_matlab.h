@@ -19,15 +19,23 @@
 #pragma once
 
 #include <stdint.h>
+#define DLL_PUBLIC
 
-const char* bgmg_get_last_error();
-int64_t bgmg_set_zvec(int context_id, int trait, int length, double* values);
-int64_t bgmg_set_nvec(int context_id, int trait, int length, double* values);
-int64_t bgmg_set_hvec(int context_id, int length, double* values);
-int64_t bgmg_set_weights(int context_id, int length, double* values);
-int64_t bgmg_set_ref_ld(int context_id, int length, int r2bins, double* sum_r2, double* sum_r4);
-int64_t bgmg_set_option(int context_id, char* option, int value);
-double bgmg_calc_univariate_cost(int context_id, double pi_vec, double sig2_zero, double sig2_beta);
-double bgmg_calc_bivariate_cost(int context_id, int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero);
-int64_t bgmg_dispose(int context_id);
+DLL_PUBLIC const char* bgmg_get_last_error();
+DLL_PUBLIC int64_t bgmg_set_zvec(int context_id, int trait, int length, float* values);
+DLL_PUBLIC int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values);
+DLL_PUBLIC int64_t bgmg_set_hvec(int context_id, int length, float* values);
+DLL_PUBLIC int64_t bgmg_set_weights(int context_id, int length, float* values);
+
+DLL_PUBLIC int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_indices);
+DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int length, int* snp_index, int* tag_index, float* r2);
+DLL_PUBLIC int64_t bgmg_set_ld_r2_csr(int context_id);
+
+DLL_PUBLIC int64_t bgmg_find_snp_sample(int context_id);
+
+DLL_PUBLIC int64_t bgmg_set_option(int context_id, char* option, double value);
+DLL_PUBLIC double bgmg_calc_univariate_cost(int context_id, double pi_vec, double sig2_zero, double sig2_beta);
+DLL_PUBLIC double bgmg_calc_bivariate_cost(int context_id, int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero);
+DLL_PUBLIC int64_t bgmg_dispose(int context_id);
+DLL_PUBLIC const char* bgmg_status(int context_id);
 

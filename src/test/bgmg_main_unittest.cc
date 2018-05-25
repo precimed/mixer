@@ -1,47 +1,124 @@
-// Copyright 2006, Google Inc.
-// All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions are
-// met:
-//
-//     * Redistributions of source code must retain the above copyright
-// notice, this list of conditions and the following disclaimer.
-//     * Redistributions in binary form must reproduce the above
-// copyright notice, this list of conditions and the following disclaimer
-// in the documentation and/or other materials provided with the
-// distribution.
-//     * Neither the name of Google Inc. nor the names of its
-// contributors may be used to endorse or promote products derived from
-// this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Author: wan@google.com (Zhanyong Wan)
-
 #include "gtest/gtest.h"
 
 #include <iostream>
+#include <random>
+#include <algorithm>
 
-// Tests that we don't have to define main() when we link to
-// gtest_main instead of gtest.
+#include "bgmg_calculator.h"
 
 namespace {
 
 TEST(BgmgMainTest, ShouldSucceed) {
 }
 
-}  // namespace
+TEST(BgmgTest, LoadData) {
+  // Input data:
+  // - LD structure as a set of pairwise LD r2 values
+  //   i1, i2, r2 <- currently this came from plink format (e.i. lower triangular, not limited to tag SNPs)
+  //   Split per chromosome
+  // - LD structure in a most convenient ways
+  // - Plink LD structure without differentiating tag and SNP variants
+  // - Several vectors, potentially with different length (#tag, #snp)
+  //   zvec, nvec, hvec, weights
+  // 
+}
 
-// We are using the main() function defined in gtest_main.cc, so we
-// don't define it here.
+class TestMother {
+public:
+  TestMother(int num_snp, int num_tag, int n) : num_snp_(num_snp), num_tag_(num_tag), rd_(), g_(rd_()) {
+    std::normal_distribution<float> norm_dist(0.0, 1.5);
+    std::uniform_real_distribution<> hvec_dist(0.0f, 0.5f); // 2*p(1-p).
+
+    for (int i = 0; i < num_snp_; i++) tag_to_snp_.push_back(i);
+    std::shuffle(tag_to_snp_.begin(), tag_to_snp_.end(), g_);
+    tag_to_snp_.resize(num_tag_);
+
+    for (int i = 0; i < num_tag_; i++) z_vec_.push_back(norm_dist(g_));
+    for (int i = 0; i < num_tag_; i++) n_vec_.push_back(n);
+    for (int i = 0; i < num_tag_; i++) weights_.push_back(1.0f);
+    for (int i = 0; i < num_snp_; i++) h_vec_.push_back(hvec_dist(g_));
+  }
+
+  std::vector<int>* tag_to_snp() { return &tag_to_snp_; }
+  std::vector<float>* zvec() { return &z_vec_; }
+  std::vector<float>* nvec() { return &n_vec_; }
+  std::vector<float>* hvec() { return &h_vec_; }
+  std::vector<float>* weights() { return &weights_; }
+
+  void make_r2(int num_r2, std::vector<int>* snp_index, std::vector<int>* tag_index, std::vector<float>* r2) {
+    std::uniform_int_distribution<> dis(0, num_snp_ - 1);
+    std::uniform_real_distribution<> dis2(0.0f, 1.0f);
+    while (tag_index->size() < num_r2) {
+      int tag = dis(g_);
+      int snp = dis(g_);
+      if (tag <= snp) continue;
+      tag_index->push_back(tag);
+      snp_index->push_back(snp);
+      r2->push_back(dis2(g_));
+    }
+  }
+
+private:
+  int num_snp_;
+  int num_tag_;
+  std::vector<int> tag_to_snp_;
+  std::vector<float> z_vec_;
+  std::vector<float> h_vec_;
+  std::vector<float> n_vec_;
+  std::vector<float> weights_;
+  std::random_device rd_;
+  std::mt19937 g_;
+
+};
+
+TEST(UgmgTest, CalcLikelihood) {
+  // Tests calculation of log likelihood, assuming that all data is already set
+  int num_snp = 10;
+  int num_tag = 5;
+  int kmax = 20; // #permutations
+  int N = 100;  // gwas sample size, constant across all variants
+  TestMother tm(num_snp, num_tag, N);
+  BgmgCalculator calc;
+  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+
+  int trait = 1;
+  calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
+  calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+  calc.set_weights(num_tag, &tm.weights()->at(0));
+
+  std::vector<int> snp_index, tag_index;
+  std::vector<float> r2;
+  tm.make_r2(20, &snp_index, &tag_index, &r2);
+  
+  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_csr();  // finalize csr structure
+                  
+  // TBD: validate CSR structure (set_ld_r2_csr is quite tricky)
+
+  calc.set_hvec(num_snp, &tm.hvec()->at(0));
+
+  calc.set_option("max_causals", num_snp);
+  calc.set_option("kmax", kmax);
+  calc.set_option("num_components", 1);
+
+  if (false) {
+    calc.find_snp_order();
+
+    // Now, let's calculate log likelihood.
+    calc.find_tag_r2sum(0, 2);
+    calc.find_tag_r2sum(0, 1);
+    calc.find_tag_r2sum(0, 3);
+  }
+
+  calc.calc_univariate_cost(0.2, 1.2, 0.1);
+
+  std::vector<float> zvec_grid, zvec_pdf;
+  for (float z = 0; z < 15; z += 0.1) {
+    zvec_grid.push_back(z);
+    zvec_pdf.push_back(0.0f);
+  }
+
+  calc.calc_univariate_pdf(0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf[0]);
+}
+
+}  // namespace

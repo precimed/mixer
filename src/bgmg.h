@@ -34,10 +34,12 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int length, int* snp_index, int* tag_index, float* r2);
   DLL_PUBLIC int64_t bgmg_set_ld_r2_csr(int context_id);
 
-  DLL_PUBLIC int64_t bgmg_find_snp_sample(int context_id);
+  DLL_PUBLIC int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, int num_causal, int length, float* buffer);
 
   DLL_PUBLIC int64_t bgmg_set_option(int context_id, char* option, double value);
   DLL_PUBLIC double bgmg_calc_univariate_cost(int context_id, double pi_vec, double sig2_zero, double sig2_beta);
+  DLL_PUBLIC double bgmg_calc_univariate_pdf(int context_id, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
+
   DLL_PUBLIC double bgmg_calc_bivariate_cost(int context_id, int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero);
   DLL_PUBLIC int64_t bgmg_dispose(int context_id);
   DLL_PUBLIC const char* bgmg_status(int context_id);

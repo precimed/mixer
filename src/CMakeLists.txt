@@ -65,6 +65,7 @@ target_link_libraries(bgmg ${Boost_LIBRARIES})
 
 set(SRC_TEST_LIST
 	test/bgmg_main_unittest.cc
+	bgmg_calculator.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )
@@ -75,6 +76,7 @@ target_include_directories(bgmg PUBLIC ${CMAKE_BINARY_DIR})
 target_include_directories(bgmg PUBLIC ${CMAKE_SOURCE_DIR})
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest/include)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest)
+target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR})
 
 include(GenerateExportHeader)
 generate_export_header(bgmg

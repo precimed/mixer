@@ -149,7 +149,7 @@ class DenseMatrix {
 
 class BgmgCalculator {
  public:
-  BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), r2_min_(0.0), max_causals_(100000) { status_.push_back(std::stringstream()); }
+  BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), r2_min_(0.0), num_components_(1), max_causals_(100000) { status_.push_back(std::stringstream()); }
   
   // num_snp = total size of the reference (e.i. the total number of genotyped variants)
   // num_tag = number of tag variants to include in the inference (must be a subset of the reference)
@@ -176,12 +176,16 @@ class BgmgCalculator {
   int64_t set_nvec(int trait, int length, float* values);
   int64_t set_weights(int length, float* values);
 
-  int64_t find_snp_sample();
+  int64_t find_snp_order();  // private - only for testing
+  int64_t find_tag_r2sum(int component_id, int num_causals);  // private - only for testing
 
   int64_t set_option(char* option, double value);
   const char* status();
 
+  int64_t retrieve_tag_r2_sum(int component_id, int num_causal, int length, float* buffer);
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
+  int64_t calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
+
   double calc_bivariate_cost(int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero);
  private:
 
@@ -206,10 +210,16 @@ class BgmgCalculator {
   std::vector<float> nvec1_;
   std::vector<float> weights_;
 
-  std::shared_ptr<DenseMatrix<int>> snp_sample_;  // permutation matrix; #rows = pimax*num_snp; #cols=k_max_
+  // vectors with one value for each component in the mixture
+  // snp_order_ gives the order of how SNPs are considered to be causal 
+  // tag_r2_sum_ gives cumulated r2 across causal SNPs, according to snp_order, where last_num_causals_ define the actual number of causal variants.
+  std::vector<std::shared_ptr<DenseMatrix<int>>> snp_order_;  // permutation matrix; #rows = pimax*num_snp; #cols=k_max_
+  std::vector<std::shared_ptr<DenseMatrix<float>>> tag_r2sum_;
+  std::vector<int>                               last_num_causals_;
 
   int k_max_;
   int max_causals_;
+  int num_components_;
   float r2_min_;
   void set_num_snp(int length);
   void set_num_tag(int length);

@@ -6,24 +6,24 @@ if ~libisloaded('bgmg'), loadlibrary('H:\GitHub\BGMG\src\build_win\bin\RelWithDe
 
 ref = load('H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins.mat');
 hits = sum(ref.pruneidxmat, 2); w_ld = size(ref.pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan; weights = 1./w_ld;
-defvec = ref.defvec & (w_ld > 0); % & (ref.chrnumvec == 1);
+defvec = ref.defvec & (w_ld > 0) & (ref.chrnumvec == 1);
 tag_indices = find(defvec);
 
 m2c = @(x)(x-1); % convert matlab to c indices
 check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-context=0;kmax = 1;
+context=0;kmax = 20;
 calllib('bgmg', 'bgmg_set_tag_indices', 0, length(ref.defvec), length(tag_indices), m2c(tag_indices));  check();
 calllib('bgmg', 'bgmg_set_option', 0,  'r2min', 0.01); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', 200000); check();
 
-for c=22:-1:1
+for c=1 % c=22:-1:1
     fprintf('chr %i...\n', c);
     c1 = load(['H:\work\hapgen_ldmat2_plink\', sprintf('bfile_merged_10K_ldmat_p01_SNPwind50k_chr%i.ld.mat', c)]);
     c1.index_A = c1.index_A + 1; 
     c1.index_B = c1.index_B + 1; % 0-based, comming from python
     calllib('bgmg', 'bgmg_set_ld_r2_coo', 0, length(c1.r2), m2c(c1.index_A), m2c(c1.index_B), c1.r2);  check();
-    clear('c1');
+    %clear('c1');
 end
 
 tic

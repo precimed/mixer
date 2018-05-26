@@ -23,11 +23,15 @@
 #include <random>
 #include <limits>
 #include <algorithm>
+#include <vector>
+#include <valarray>
 #include <cmath>
 
 #include "boost/throw_exception.hpp"
 
 #include "bgmg_log.h"
+
+#define OMP_CHUNK 1000
 
 void BgmgCalculator::check_num_snp(int length) {
   if (num_snp_ == -1) BOOST_THROW_EXCEPTION(::std::runtime_error("call set_tag_indices first"));
@@ -79,19 +83,15 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
   LOG << "set_option(" << option << "=" << value << "); ";
 
   if (!strcmp(option, "kmax")) {
-    k_max_ = static_cast<int>(value); return 0;
-    clear_state();
+    clear_state(); k_max_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "r2min")) {
-    r2_min_ = value; return 0;
-    clear_state();
+    clear_state(); r2_min_ = value; return 0;
   } else if (!strcmp(option, "max_causals")) {
     if (!last_num_causals_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("can't change max_causals after find_snp_order"));
-    max_causals_ = static_cast<int>(value); return 0;
-    clear_state();
+    clear_state(); max_causals_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "num_components")) {
     if (!last_num_causals_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("can't change num_components after find_snp_order"));
-    num_components_ = static_cast<int>(value); return 0;
-    clear_state();
+    clear_state(); num_components_ = static_cast<int>(value); return 0;
   }
 
   BOOST_THROW_EXCEPTION(::std::runtime_error("unknown option"));
@@ -329,23 +329,37 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
   const float pi_k = 1. / static_cast<float>(k_max_);
   static const float inv_sqrt_2pi = 0.3989422804014327f;
 
+// omp reduction on std::vector ( https://stackoverflow.com/questions/43168661/openmp-and-reduction-on-stdvector ) - did not work for microsoft compiler
+// #pragma omp declare reduction(vec_double_plus : std::vector<double> : \
+//                               std::transform(omp_out.begin(), omp_out.end(), omp_in.begin(), omp_out.begin(), std::plus<double>())) \
+//                     initializer(omp_priv = omp_orig)
+// Final solution is to do a the reduction with omp critical (see here http://pages.tacc.utexas.edu/~eijkhout/pcse/html/omp-reduction.html )
+
   // we accumulate crazy many small values - each of them is OK as float; the sum is also OK as float;  
   // but accumulation must be done with double precision.
-  std::vector<double> pdf_double(length, 0.0);
+  // std::vector<double> pdf_double(length, 0.0);
+  std::valarray<double> pdf_double(0.0, length);
 
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    for (int k_index = 0; k_index < k_max_; k_index++) {
-      float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
-      float sig2eff = tag_r2sum * nvec1_[tag_index] * sig2_beta + sig2_zero;
-      float s = sqrt(sig2eff);
+#pragma omp parallel
+  {
+    std::valarray<double> pdf_double_local(0.0, length);
+#pragma omp for schedule(static)
+    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+      if (weights_[tag_index] == 0) continue;
+      for (int k_index = 0; k_index < k_max_; k_index++) {
+        float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
+        float sig2eff = tag_r2sum * nvec1_[tag_index] * sig2_beta + sig2_zero;
+        float s = sqrt(sig2eff);
 
-      for (int z_index = 0; z_index < length; z_index++) {
-        float a = zvec[z_index] / s;
-        float pdf_tmp = pi_k * inv_sqrt_2pi / s * std::exp(-0.5 * a * a);
-        pdf_double[z_index] += static_cast<double>(pdf_tmp * weights_[tag_index]);
+        for (int z_index = 0; z_index < length; z_index++) {
+          float a = zvec[z_index] / s;
+          float pdf_tmp = pi_k * inv_sqrt_2pi / s * std::exp(-0.5 * a * a);
+          pdf_double_local[z_index] += static_cast<double>(pdf_tmp * weights_[tag_index]);
+        }
       }
     }
+#pragma omp critical
+    pdf_double += pdf_double_local;
   }
 
   for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);
@@ -371,6 +385,8 @@ double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float
   static const float inv_sqrt_2pi = 0.3989422804014327f;
 
   double log_pdf_total = 0.0;
+
+#pragma omp parallel for schedule(static) reduction(+: log_pdf_total)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
 

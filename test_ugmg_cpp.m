@@ -106,16 +106,8 @@ end
 %histogram(mean(tag_r2_sum))
 
 % !!!!!!!!!!! TBD prepare test data. !!!!!!!!!!
-% validate this with synetic QQ plots.
-% make this concurrent
-
-if 0
-    % tbd calculate QQ plot
-    sig2eff = (tag_r2_sum .* repmat(nvec(defvec), [1 kmax])) * dat.sigsq + 1.0;
-    zgrid = -15:0.1:15;
-    for i=1:length(zgrid)
-    a=normcdf(0.5, 0, sig2eff)
-end
+% [done] validate this with synetic QQ plots.
+% make this concurrent --- good idea
 
 koef_vec = logspace(-1, 1, 31);
 cost_pi = [];cost_sig2beta = []; cost_sig2zero = [];

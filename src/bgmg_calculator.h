@@ -28,6 +28,8 @@
 
 #include "boost/utility.hpp"
 
+#include "bgmg_log.h"
+
 // Singleton class to manage a collection of objects, identifiable with some integer ID.
 template<class Type>
 class TemplateManager : boost::noncopyable {
@@ -39,12 +41,14 @@ class TemplateManager : boost::noncopyable {
 
   std::shared_ptr<Type> Get(int id) {
     if (map_.find(id) == map_.end()) {
+      LOG << "Create new context (id=" << id << ")";
       map_[id] = std::make_shared<Type>();
     }
     return map_[id];
   }
 
   void Erase(int id) {
+    LOG << "Dispose context (id=" << id << ")";
     map_.erase(id);
   }
 
@@ -149,7 +153,7 @@ class DenseMatrix {
 
 class BgmgCalculator {
  public:
-  BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), r2_min_(0.0), num_components_(1), max_causals_(100000) { status_.push_back(std::stringstream()); }
+  BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), r2_min_(0.0), num_components_(1), max_causals_(100000) {}
   
   // num_snp = total size of the reference (e.i. the total number of genotyped variants)
   // num_tag = number of tag variants to include in the inference (must be a subset of the reference)
@@ -180,7 +184,23 @@ class BgmgCalculator {
   int64_t find_tag_r2sum(int component_id, int num_causals);  // private - only for testing
 
   int64_t set_option(char* option, double value);
-  const char* status();
+  
+  void clear_state() {
+    LOG << "clear_state";
+
+    // clear all info about LD structure
+    csr_ld_snp_index_.clear();
+    csr_ld_tag_index_.clear();
+    csr_ld_r2_.clear();
+    coo_ld_.clear();
+    hvec_.clear();
+
+    // clear ordering of SNPs
+    snp_order_.clear();
+    tag_r2sum_.clear();
+    last_num_causals_.clear();
+    snp_can_be_causal_.clear();
+  }
 
   int64_t retrieve_tag_r2_sum(int component_id, int num_causal, int length, float* buffer);
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
@@ -209,6 +229,7 @@ class BgmgCalculator {
   std::vector<float> zvec1_;
   std::vector<float> nvec1_;
   std::vector<float> weights_;
+  std::vector<float> hvec_;
 
   // vectors with one value for each component in the mixture
   // snp_order_ gives the order of how SNPs are considered to be causal 
@@ -216,15 +237,15 @@ class BgmgCalculator {
   std::vector<std::shared_ptr<DenseMatrix<int>>> snp_order_;  // permutation matrix; #rows = pimax*num_snp; #cols=k_max_
   std::vector<std::shared_ptr<DenseMatrix<float>>> tag_r2sum_;
   std::vector<int>                               last_num_causals_;
+  std::vector<char>                              snp_can_be_causal_;  // mask of SNPs that may be causal (e.i. included in snp_order array)
 
-  int k_max_;
+  // options, and what do they affect
+  int k_max_;           
   int max_causals_;
   int num_components_;
   float r2_min_;
-  void set_num_snp(int length);
-  void set_num_tag(int length);
-
-  std::vector<std::stringstream> status_;
+  void check_num_snp(int length);
+  void check_num_tag(int length);
 };
 
 typedef TemplateManager<BgmgCalculator> BgmgCalculatorManager;

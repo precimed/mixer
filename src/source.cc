@@ -132,5 +132,5 @@ int64_t bgmg_dispose(int context_id) {
 }
 
 const char* bgmg_status(int context_id) {
-  return BgmgCalculatorManager::singleton().Get(context_id)->status();
+  return "";
 }

@@ -1,0 +1,1 @@
+#include "bgmg_log.h"

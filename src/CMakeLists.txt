@@ -21,8 +21,8 @@ endif (NOT Boost_FOUND)
 
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_LIBS   ON)
-set(BGMG_BOOST_COMPONENTS program_options filesystem system)
-find_package(Boost COMPONENTS REQUIRED ${L2RTOOL_BOOST_COMPONENTS})
+set(BGMG_BOOST_COMPONENTS program_options filesystem system date_time)
+find_package(Boost COMPONENTS REQUIRED ${BGMG_BOOST_COMPONENTS})
 if (NOT Boost_FOUND)
   message(SEND_ERROR "Failed to find required boost libraries.")
   return()
@@ -57,6 +57,8 @@ set(SRC_LIST
 	bgmg_calculator.cc
 	bgmg.h
 	bgmg_calculator.h
+	bgmg_log.cc
+	bgmg_log.h
 )
 
 add_library(bgmg SHARED ${SRC_LIST})
@@ -66,11 +68,13 @@ target_link_libraries(bgmg ${Boost_LIBRARIES})
 set(SRC_TEST_LIST
 	test/bgmg_main_unittest.cc
 	bgmg_calculator.cc
+	bgmg_log.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )
 
 add_executable(bgmg-test ${SRC_TEST_LIST})
+target_link_libraries(bgmg-test ${Boost_LIBRARIES})
 
 target_include_directories(bgmg PUBLIC ${CMAKE_BINARY_DIR})
 target_include_directories(bgmg PUBLIC ${CMAKE_SOURCE_DIR})

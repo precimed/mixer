@@ -181,7 +181,7 @@ class BgmgCalculator {
   int64_t set_weights(int length, float* values);
 
   int64_t find_snp_order();  // private - only for testing
-  int64_t find_tag_r2sum(int component_id, int num_causals);  // private - only for testing
+  int64_t find_tag_r2sum(int component_id, float num_causals);  // private - only for testing
 
   int64_t set_option(char* option, double value);
   
@@ -202,7 +202,7 @@ class BgmgCalculator {
     snp_can_be_causal_.clear();
   }
 
-  int64_t retrieve_tag_r2_sum(int component_id, int num_causal, int length, float* buffer);
+  int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
   int64_t calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
 
@@ -236,7 +236,7 @@ class BgmgCalculator {
   // tag_r2_sum_ gives cumulated r2 across causal SNPs, according to snp_order, where last_num_causals_ define the actual number of causal variants.
   std::vector<std::shared_ptr<DenseMatrix<int>>> snp_order_;  // permutation matrix; #rows = pimax*num_snp; #cols=k_max_
   std::vector<std::shared_ptr<DenseMatrix<float>>> tag_r2sum_;
-  std::vector<int>                               last_num_causals_;
+  std::vector<float>                               last_num_causals_;
   std::vector<char>                              snp_can_be_causal_;  // mask of SNPs that may be causal (e.i. included in snp_order array)
 
   // options, and what do they affect

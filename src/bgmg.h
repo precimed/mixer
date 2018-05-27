@@ -34,7 +34,7 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int length, int* snp_index, int* tag_index, float* r2);
   DLL_PUBLIC int64_t bgmg_set_ld_r2_csr(int context_id);
 
-  DLL_PUBLIC int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, int num_causal, int length, float* buffer);
+  DLL_PUBLIC int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_causal, int length, float* buffer);
 
   DLL_PUBLIC int64_t bgmg_set_option(int context_id, char* option, double value);
   DLL_PUBLIC double bgmg_calc_univariate_cost(int context_id, double pi_vec, double sig2_zero, double sig2_beta);

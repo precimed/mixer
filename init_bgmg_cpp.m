@@ -1,22 +1,32 @@
+if libisloaded('bgmg'), unloadlibrary('bgmg'); end;
 if ~libisloaded('bgmg'), loadlibrary('H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll', 'H:\GitHub\BGMG\src\bgmg_matlab.h'); end;
 
 %loadlibrary('H:\GitHub\BGMG\src\build_win\bin\Debug\bgmg.dll', 'H:\GitHub\BGMG\src\bgmg_matlab.h');
 %libfunctions('bgmg')
 %unloadlibrary('bgmg');
 
+if ~exist('ref', 'var')
 ref = load('H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins.mat');
+end
+
 hits = sum(ref.pruneidxmat, 2); weights = hits / size(ref.pruneidxmat, 2);
+
+def2= load('H:\Dropbox\shared\BGMG\defvec_hapmap3.mat');
+
 defvec = ref.defvec & (weights > 0); % & (ref.chrnumvec == 1);
+defvec = defvec & def2.defvec;
 tag_indices = find(defvec);
+weights(defvec) = 1;
 
 m2c = @(x)(x-1); % convert matlab to c indices
 check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-context=0;kmax = 1;
+context=0;kmax = 100;
 calllib('bgmg', 'bgmg_set_tag_indices', 0, length(ref.defvec), length(tag_indices), m2c(tag_indices));  check();
 calllib('bgmg', 'bgmg_set_option', 0,  'r2min', 0.01); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', 200000); check();
 
+fprintf('Loading LD structure...\n');
 for c=22:-1:1
     fprintf('chr %i...\n', c);
     c1 = load(['H:\work\hapgen_ldmat2_plink\', sprintf('bfile_merged_10K_ldmat_p01_SNPwind50k_chr%i.ld.mat', c)]);
@@ -42,18 +52,21 @@ trait=1;
 %calllib('bgmg', 'bgmg_set_nvec', 0, trait, sum(defvec), nvec(defvec));  check();
 calllib('bgmg', 'bgmg_set_weights', 0, sum(defvec), weights(defvec));  check();
 
-return
+% weights(defvec)=1;calllib('bgmg', 'bgmg_set_weights', 0, sum(defvec), weights(defvec));  check();
 
-dat = load('H:\NORSTORE\oleksanf\11015833\simu_ugmg_120_traits\simu_h2=0.1_pi1u=0.0001_rep=3.trait1.mat');zvec = dat.zvec;
-nvec = ones(size(zvec)) * 100000;
+
+
+%dat = load('H:\NORSTORE\oleksanf\11015833\simu_ugmg_120_traits\simu_h2=0.1_pi1u=0.0001_rep=3.trait1.mat');zvec = dat.zvec;
+%nvec = ones(size(zvec)) * 100000;
 
 %def1= load('H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'); def1=def1.defvec; def1 = def1(1:num_snp);
 %def2= load('H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'); def2=def2.defvec; def2 = def2(1:num_snp);
 %defvec = def1 & def2 & isfinite(zvec) & (weights>=1); clear('def1', 'def2');
 %hvec = ref.hvec; %2 * ref.mafvec(1:num_snp) .* ref.mafvec(1:num_snp);
 
-% idea1 - smooth num_causals (float-point) to avoid jumps in cost functions
-% idea2 - ignore low z scores , e.i. fit tail only
+% idea1 - [DONE] smooth num_causals (float-point) to avoid jumps in cost functions - implemented
+% idea2 - [DONE] ignore low z scores , e.i. fit tail only - didn't help
+% idea3 - TBD: boost kmax (but keep little info about LD structure by permuting snp_order
 
 if 0
 figure(2)
@@ -70,9 +83,9 @@ clf;figure(1); hold on;
 h2vec_str = {'0.1', '0.4', '0.7'};
 pivec_str = {'1e-05', '0.0001', '0.001', '0.01'};
 
+for repi=1:10
 for h2_index = [2 3 1]
 for pi_index = [3 2 4 1]
-for repi=1:1
    subplot(3, 4, (h2_index-1)*4 + pi_index);
    title(sprintf('h2=%s, pi=%s', h2vec_str{h2_index}, pivec_str{pi_index}));
 %end;end;end;
@@ -86,7 +99,7 @@ zvec = dat.zvec; nvec = ones(size(zvec)) * 100000;
 zvec(~isfinite(zvec)) = 100;
 %sum(~isfinite(zvec(defvec)))
 
-zvec_test = zvec; zvec_test(abs(zvec_test) < 1) = nan;    % <-------------------- try idea with not fitting bad z scores
+zvec_test = zvec; %zvec_test(abs(zvec_test) < 0.5) = nan;    % <-------------------- try idea with not fitting bad z scores
 calllib('bgmg', 'bgmg_set_zvec', 0, trait, sum(defvec), zvec_test(defvec));  check();
 calllib('bgmg', 'bgmg_set_nvec', 0, trait, sum(defvec), nvec(defvec));  check();
 
@@ -135,6 +148,8 @@ drawnow
 end
 end
 end
+
+return
 
 koef_vec = logspace(-1, 1, 31);
 cost_pi = [];cost_sig2beta = []; cost_sig2zero = [];

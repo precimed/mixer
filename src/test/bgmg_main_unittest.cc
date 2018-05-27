@@ -80,6 +80,9 @@ TEST(UgmgTest, CalcLikelihood) {
   TestMother tm(num_snp, num_tag, N);
   BgmgCalculator calc;
   calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_option("max_causals", num_snp);
+  calc.set_option("kmax", kmax);
+  calc.set_option("num_components", 1);
 
   int trait = 1;
   calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
@@ -97,17 +100,16 @@ TEST(UgmgTest, CalcLikelihood) {
 
   calc.set_hvec(num_snp, &tm.hvec()->at(0));
 
-  calc.set_option("max_causals", num_snp);
-  calc.set_option("kmax", kmax);
-  calc.set_option("num_components", 1);
-
-  if (false) {
-    calc.find_snp_order();
+  if (true) {
+    //calc.find_snp_order();
 
     // Now, let's calculate log likelihood.
-    calc.find_tag_r2sum(0, 2);
-    calc.find_tag_r2sum(0, 1);
+    calc.find_tag_r2sum(0, 2.1);
+    calc.find_tag_r2sum(0, 1.1);
+    calc.find_tag_r2sum(0, 3.1);
     calc.find_tag_r2sum(0, 3);
+    calc.find_tag_r2sum(0, 4);
+    calc.find_tag_r2sum(0, 3.9);
   }
 
   calc.calc_univariate_cost(0.2, 1.2, 0.1);

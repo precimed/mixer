@@ -238,30 +238,62 @@ int64_t BgmgCalculator::find_snp_order() {
   return 0;
 }
 
-int64_t BgmgCalculator::find_tag_r2sum(int component_id, int num_causals) {
+int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   assert(component_id >= 0 && component_id < num_components_); 
   assert(num_causals >= 0 && num_causals < max_causals_);
 
+  const float num_causals_original = num_causals;
   if (last_num_causals_.empty()) find_snp_order();
 
-  int last_num_causals = last_num_causals_[component_id]; 
+  float last_num_causals = last_num_causals_[component_id]; 
   
   LOG << "find_tag_r2sum(component_id=" << component_id << ", num_causals=" << num_causals << ", last_num_causals=" << last_num_causals << ")";
 
-  if (num_causals == last_num_causals) return 0;
-  float sign;              // +1.0f if we should increase r2sum, -1.0f to decrease
-  int scan_from, scan_to;  // inclusive 0-based indices of causal variants
-  if (num_causals > last_num_causals) {
-    sign = 1.0f;
-    scan_from = last_num_causals;
-    scan_to = num_causals - 1;
-  } else {
-    sign = -1.0f;
-    scan_from = num_causals;
-    scan_to = last_num_causals - 1;
-  }
+  // changeset contains a list of indices with corresponding weight
+  // indices apply to snp_order_[component_id] array.
+  // weights are typicaly +1 (to increase by r2) or -1 (to decrease by r2).
+  // First and last weights is float-point number between 1 and -1,
+  // to handle cases when num_causals is float-point number (derived from pivec).
+  // This is important for fminsearch which get's confused if cost is a stepwise of pivec.
+  std::vector<std::pair<int, float>> changeset;
   
-  for (int scan_index = scan_from; scan_index <= scan_to; scan_index++) {
+  // Decreasing number of causals from B to A has an opposite effect to increasing from A to B.
+  // To handle decreasing case we just swap num_causals and last_num_causals, and set sign to -1.0f.
+  float sign = 1.0f;
+  if (num_causals < last_num_causals) {
+    float tmp = num_causals; num_causals = last_num_causals; last_num_causals = tmp;
+    sign = -1.0f;
+  }
+
+  // There are 3 cases
+  // 1. floor(num_causals) == floor(last_num_causals)
+  // 2. floor(num_causals) == floor(last_num_causals) + 1
+  // 3. floor(num_causals) >= floor(last_num_causals) + 2
+
+  float floor_num_causals = floor(num_causals);
+  float floor_last_num_causals = floor(last_num_causals);
+  if ((int)floor_num_causals == (int)floor_last_num_causals) {
+    changeset.push_back(std::make_pair((int)floor_last_num_causals, sign * (num_causals - last_num_causals)));
+  }
+  else if ((int)floor_num_causals >= ((int)floor_last_num_causals + 1)) {
+    // handle case 2 and case 3 - lower boundary
+    changeset.push_back(std::make_pair((int)floor_last_num_causals, sign * (floor_last_num_causals + 1.0f - last_num_causals)));
+
+    // happends for the case 3 - bulk change (empty loop in case 2)
+    for (int i = ((int)floor_last_num_causals + 1); i < (int)floor_num_causals; i++) {
+      changeset.push_back(std::make_pair(i, sign));
+    }
+
+    // handle case 2 and case 3 - upper boundary
+    changeset.push_back(std::make_pair((int)floor_num_causals, sign * (num_causals - floor_num_causals)));
+  }
+  else {
+    BOOST_THROW_EXCEPTION(::std::runtime_error("floor_num_causals < floor_last_num_causals"));
+  }
+
+  for (auto change: changeset) {
+    int scan_index = change.first;
+    float scan_weight = change.second;
     for (int k_index = 0; k_index < k_max_; k_index++) {
       int snp_index = (*snp_order_[component_id])(scan_index, k_index);
       int r2_index_from = csr_ld_snp_index_[snp_index];
@@ -269,12 +301,12 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, int num_causals) {
       for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
         int tag_index = csr_ld_tag_index_[r2_index];
         float r2 = csr_ld_r2_[r2_index];
-        (*tag_r2sum_[component_id])(tag_index, k_index) += (sign * r2);
+        (*tag_r2sum_[component_id])(tag_index, k_index) += (scan_weight * r2);
       }
     }
   }
 
-  last_num_causals_[component_id] = num_causals;
+  last_num_causals_[component_id] = num_causals_original;
   return 0;
 }
 
@@ -298,7 +330,7 @@ int64_t BgmgCalculator::set_hvec(int length, float* values) {
 }
 
 
-int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, int num_causal, int length, float* buffer) {
+int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer) {
   if (length != k_max_ * num_tag_) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
 
   LOG << "retrieve_tag_r2_sum(component_id=" << component_id << ", num_causal=" << num_causal << ")";
@@ -319,8 +351,8 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
   if (weights_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   assert(num_components_ == 1);
-  int num_causals = static_cast<int>(round(pi_vec * num_snp_));
-  if (num_causals >= max_causals_) BOOST_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
+  float num_causals = pi_vec * static_cast<float>(num_snp_);
+  if ((int)num_causals >= max_causals_) BOOST_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   const int component_id = 0;   // univariate is always component 0.
 
   LOG << "calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
@@ -374,8 +406,8 @@ double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float
   if (weights_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   assert(num_components_ == 1);
-  int num_causals = static_cast<int>(round(pi_vec * num_snp_));
-  if (num_causals >= max_causals_) return 1e100; // too large pi_vec
+  float num_causals = pi_vec * static_cast<float>(num_snp_);
+  if ((int)num_causals >= max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
 
   std::chrono::time_point<std::chrono::system_clock> start_(std::chrono::system_clock::now());

@@ -88,7 +88,7 @@ int64_t bgmg_set_ld_r2_csr(int context_id) {
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, int num_causal, int length, float* buffer) {
+int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_causal, int length, float* buffer) {
   try {
     set_last_error(std::string());
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_tag_r2_sum(component_id, num_causal, length, buffer);

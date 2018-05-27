@@ -5,25 +5,25 @@ if ~libisloaded('bgmg'), loadlibrary('H:\GitHub\BGMG\src\build_win\bin\RelWithDe
 %unloadlibrary('bgmg');
 
 ref = load('H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins.mat');
-hits = sum(ref.pruneidxmat, 2); w_ld = size(ref.pruneidxmat, 2) ./ hits; w_ld(hits==0) = nan; weights = 1./w_ld;
-defvec = ref.defvec & (w_ld > 0) & (ref.chrnumvec == 1);
+hits = sum(ref.pruneidxmat, 2); weights = hits / size(ref.pruneidxmat, 2);
+defvec = ref.defvec & (weights > 0); % & (ref.chrnumvec == 1);
 tag_indices = find(defvec);
 
 m2c = @(x)(x-1); % convert matlab to c indices
 check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-context=0;kmax = 20;
+context=0;kmax = 1;
 calllib('bgmg', 'bgmg_set_tag_indices', 0, length(ref.defvec), length(tag_indices), m2c(tag_indices));  check();
 calllib('bgmg', 'bgmg_set_option', 0,  'r2min', 0.01); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', 200000); check();
 
-for c=1 % c=22:-1:1
+for c=22:-1:1
     fprintf('chr %i...\n', c);
     c1 = load(['H:\work\hapgen_ldmat2_plink\', sprintf('bfile_merged_10K_ldmat_p01_SNPwind50k_chr%i.ld.mat', c)]);
     c1.index_A = c1.index_A + 1; 
     c1.index_B = c1.index_B + 1; % 0-based, comming from python
     calllib('bgmg', 'bgmg_set_ld_r2_coo', 0, length(c1.r2), m2c(c1.index_A), m2c(c1.index_B), c1.r2);  check();
-    %clear('c1');
+%    clear('c1');
 end
 
 tic
@@ -52,6 +52,8 @@ nvec = ones(size(zvec)) * 100000;
 %defvec = def1 & def2 & isfinite(zvec) & (weights>=1); clear('def1', 'def2');
 %hvec = ref.hvec; %2 * ref.mafvec(1:num_snp) .* ref.mafvec(1:num_snp);
 
+% idea1 - smooth num_causals (float-point) to avoid jumps in cost functions
+% idea2 - ignore low z scores , e.i. fit tail only
 
 if 0
 figure(2)
@@ -68,34 +70,48 @@ clf;figure(1); hold on;
 h2vec_str = {'0.1', '0.4', '0.7'};
 pivec_str = {'1e-05', '0.0001', '0.001', '0.01'};
 
-for h2_index = 1:length(h2vec_str)
-for pi_index = 1:length(pivec_str)
+for h2_index = [2 3 1]
+for pi_index = [3 2 4 1]
 for repi=1:1
    subplot(3, 4, (h2_index-1)*4 + pi_index);
    title(sprintf('h2=%s, pi=%s', h2vec_str{h2_index}, pivec_str{pi_index}));
 %end;end;end;
+
+hold on
 ax = gca;
 ax.ColorOrderIndex = 1;
 dat= load(['H:\NORSTORE\oleksanf\11015833\simu_ugmg_120_traits\', sprintf('simu_h2=%s_pi1u=%s_rep=%i.trait1.mat', h2vec_str{h2_index}, pivec_str{pi_index}, repi)]);
+dat.sig2zero = 1;
 zvec = dat.zvec; nvec = ones(size(zvec)) * 100000;
 zvec(~isfinite(zvec)) = 100;
 %sum(~isfinite(zvec(defvec)))
-calllib('bgmg', 'bgmg_set_zvec', 0, trait, sum(defvec), zvec(defvec));  check();
+
+zvec_test = zvec; zvec_test(abs(zvec_test) < 1) = nan;    % <-------------------- try idea with not fitting bad z scores
+calllib('bgmg', 'bgmg_set_zvec', 0, trait, sum(defvec), zvec_test(defvec));  check();
 calllib('bgmg', 'bgmg_set_nvec', 0, trait, sum(defvec), nvec(defvec));  check();
+
+fprintf('Fitting params...\n');
+model_params{1} = struct('pi_vec', dat.causal_pi, 'sig2_beta', dat.sigsq, 'sig2_zero', dat.sig2zero);
+model_params{2} = BGMG_util.UGMG_mapparams1(fminsearch(@BGMG_util.UGMG_CPP_fminsearch_cost, BGMG_util.UGMG_mapparams1(struct('pi_vec', dat.causal_pi, 'sig2_beta', dat.sigsq, 'sig2_zero', 1.05)), struct('Display', 'off')));
+
 % calculate model cdf
-zgrid = single(0:0.1:15); 
-if 1
-pBuffer = libpointer('singlePtr', zeros(length(zgrid), 1, 'single'));
-cost=calllib('bgmg', 'bgmg_calc_univariate_cost', 0, dat.causal_pi, 1.0, dat.sigsq);  check(); 
-calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, dat.causal_pi, 1.0, dat.sigsq, length(zgrid), zgrid, pBuffer);  check(); 
-pdf = pBuffer.Value'; clear pBuffer
-pdf = pdf / sum(weights(defvec));
-if (zgrid(1) == 0), zgrid = [-fliplr(zgrid(2:end)) zgrid];pdf = [fliplr(pdf(2:end)) pdf]; end
-model_cdf = cumsum(pdf)  * (zgrid(2) - zgrid(1)) ;
-X = model_cdf;X1 = ones(size(X, 1), 1); X0 = zeros(size(X, 1), 1);
-model_cdf = 0.5 * ([X0, X(:, 1:(end-1))] + [X(:, 1:(end-1)), X1]);
-model_logpvec = -log10(2*interp1(-zgrid(zgrid<=0), model_cdf(zgrid<=0), zgrid(zgrid>=0))); % hv_z is to fine, can't afford calculation on it - do interpolation instead; don't matter for QQ plot (no visual difference), but lamGCfromQQ doesn't work for z_grid (to coarse)
+zgrid = single(0:0.05:15); 
+
+model_logpvec={};
+for mi = 1:2
+    m=model_params{mi};
+    pBuffer = libpointer('singlePtr', zeros(length(zgrid), 1, 'single'));
+    %cost=calllib('bgmg', 'bgmg_calc_univariate_cost', 0, dat.causal_pi, dat.sig2zero, dat.sigsq);  check(); 
+    calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, m.pi_vec, m.sig2_zero, m.sig2_beta, length(zgrid), zgrid, pBuffer);  check(); 
+    pdf = pBuffer.Value'; clear pBuffer
+    pdf = pdf / sum(weights(defvec));
+    if (zgrid(1) == 0), zgrid = [-fliplr(zgrid(2:end)) zgrid];pdf = [fliplr(pdf(2:end)) pdf]; end
+    model_cdf = cumsum(pdf)  * (zgrid(2) - zgrid(1)) ;
+    X = model_cdf;X1 = ones(size(X, 1), 1); X0 = zeros(size(X, 1), 1);
+    model_cdf = 0.5 * ([X0, X(:, 1:(end-1))] + [X(:, 1:(end-1)), X1]);
+    model_logpvec{mi} = -log10(2*interp1(-zgrid(zgrid<=0), model_cdf(zgrid<=0), zgrid(zgrid>=0))); % hv_z is to fine, can't afford calculation on it - do interpolation instead; don't matter for QQ plot (no visual difference), but lamGCfromQQ doesn't work for z_grid (to coarse)
 end
+
 % calculate data cdf        
 zvec_idx = zvec(defvec); weights_idx = weights(defvec); 
 weights_idx=weights_idx/sum(weights_idx);
@@ -106,8 +122,9 @@ hv_logp = -log10(2*normcdf(-zgrid(zgrid >= 0)));
 data_logpvec = interp1(data_y(data_idx), data_x(data_idx), hv_logp);
 
 % plot QQ plots
-hData     = plot(data_logpvec, hv_logp, '-', 'LineWidth',1); hold on;
-hModel    = plot(model_logpvec,hv_logp, '-', 'LineWidth',1); hold on;
+hData        = plot(data_logpvec, hv_logp, '-', 'LineWidth',1); hold on;
+hModel_true  = plot(model_logpvec{1},hv_logp, '-', 'LineWidth',1); hold on;
+hModel_fit   = plot(model_logpvec{2},hv_logp, '-', 'LineWidth',1); hold on;
 
 qq_options=[];
 if ~isfield(qq_options, 'qqlimy'), qq_options.qqlimy = 20; end;
@@ -118,3 +135,20 @@ drawnow
 end
 end
 end
+
+koef_vec = logspace(-1, 1, 31);
+cost_pi = [];cost_sig2beta = []; cost_sig2zero = [];
+for koef = koef_vec
+    cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, dat.causal_pi * koef, dat.sig2zero, dat.sigsq);  check(); fprintf('%.3f\t', cost); cost_pi(end+1, 1) = cost;
+    cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, dat.causal_pi, dat.sig2zero * koef, dat.sigsq);  check(); fprintf('%.3f\t', cost); cost_sig2zero(end+1, 1) = cost;
+    cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, dat.causal_pi, dat.sig2zero, dat.sigsq * koef);  check(); fprintf('%.3f\n', cost); cost_sig2beta(end+1, 1) = cost;
+end
+cost_pi(cost_pi > 1e99) = nan;
+figure(2);hold on; subplot(1,3,1); plot(log10(koef_vec), cost_pi)
+figure(2);hold on; subplot(1,3,2); plot(log10(koef_vec), cost_sig2beta)
+figure(2);hold on; subplot(1,3,3); plot(log10(koef_vec), cost_sig2zero)
+
+
+dat.causal_pi = exp(f_opt(1));
+dat.sig2zero = f_opt(2);
+dat.sigsq = exp(f_opt(3));

@@ -20,6 +20,7 @@
 
 #include <assert.h>
 
+#include <chrono>
 #include <random>
 #include <limits>
 #include <algorithm>
@@ -44,11 +45,11 @@ void BgmgCalculator::check_num_tag(int length) {
 }
 
 int64_t BgmgCalculator::set_zvec(int trait, int length, float* values) {
-  LOG << "set_zvec(trait=" << trait << "); ";
   if (trait != 1) BOOST_THROW_EXCEPTION(::std::runtime_error("trait != 1"));
-  for (int i = 0; i < length; i++) {
-    if (!std::isfinite(values[i])) BOOST_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
-  }
+
+  int num_undef = 0;
+  for (int i = 0; i < length; i++) if (!std::isfinite(values[i])) num_undef++;
+  LOG << "set_zvec(trait=" << trait << "); num_undef=" << num_undef;
 
   check_num_tag(length);
   zvec1_.assign(values, values+length);
@@ -377,32 +378,36 @@ double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float
   if (num_causals >= max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
 
+  std::chrono::time_point<std::chrono::system_clock> start_(std::chrono::system_clock::now());
   LOG << "calc_univariate_cost(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
-
   find_tag_r2sum(component_id, num_causals);
 
-  const float pi_k = 1. / static_cast<float>(k_max_);
-  static const float inv_sqrt_2pi = 0.3989422804014327f;
+  const double pi_k = 1. / static_cast<float>(k_max_);
+  static const double inv_sqrt_2pi = 0.3989422804014327f;
 
   double log_pdf_total = 0.0;
 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
+    if (!std::isfinite(zvec1_[tag_index])) continue;
 
-    float pdf_tag = 0.0f;
+    double pdf_tag = 0.0f;
     for (int k_index = 0; k_index < k_max_; k_index++) {
-      float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
-      float sig2eff = tag_r2sum * nvec1_[tag_index] * sig2_beta + sig2_zero;
+      double tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
+      double sig2eff = tag_r2sum * nvec1_[tag_index] * sig2_beta + static_cast<double>(sig2_zero);
 
-      float s = sqrt(sig2eff);
-      float a = zvec1_[tag_index] / s;
-      float pdf = pi_k * inv_sqrt_2pi / s * std::exp(-0.5 * a * a);
+      double s = sqrt(sig2eff);
+      double a = zvec1_[tag_index] / s;
+      double pdf = pi_k * inv_sqrt_2pi / s * std::exp(-0.5 * a * a);
       pdf_tag += pdf;
     }
     log_pdf_total += -log(pdf_tag) * weights_[tag_index];
   }
 
+  auto delta = (std::chrono::system_clock::now() - start_);
+  auto delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta);
+  LOG << "calc_univariate_cost(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << delta_ms.count() << "ms";
   return log_pdf_total;
 }
 

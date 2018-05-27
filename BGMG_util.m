@@ -120,6 +120,46 @@ classdef BGMG_util
         end
     end
 
+    function cost = UGMG_CPP_fminsearch_cost(iv)
+        ov = BGMG_util.UGMG_mapparams1(iv);
+        cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
+        fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
+    end
+
+    function ov = UGMG_mapparams1(iv, options)
+        % mapparams for univariate mixture with a single causal component
+        if ~exist('options', 'var'), options=[]; end;
+        if ~isfield(options, 'pi_vec'), options.pi_vec = nan; end;
+        if ~isfield(options, 'sig2_zero'), options.sig2_zero = nan; end;
+        if ~isfield(options, 'sig2_beta'), options.sig2_beta = nan; end;
+
+        is_packing = isstruct(iv); cnti = 1;
+        if is_packing, ov = []; else ov = struct(); end;
+
+        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
+        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+        [ov, ~] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+    end
+
+    function [ov, cnti] = mapparams(iv, ov, cnti, options, transform, field)
+        idx_pack = isnan(options.(field));
+        transform_forward = 0;
+        transform_backward = 1;
+        if isstruct(iv)
+            % transform from struct to vector
+            if any(idx_pack(:))
+                ov = cat(2,ov,BGMG_util.rowvec(transform(iv.(field)(idx_pack),transform_forward)));
+            end
+        else
+            % transform from vector to struct
+            ov.(field) = options.(field);
+            if any(idx_pack(:))
+                ov.(field)(idx_pack) = transform(iv(cnti : (cnti + sum(idx_pack(:)) - 1)), transform_backward);
+                cnti=cnti+sum(idx_pack(:));
+            end
+        end
+    end
+
     function v = colvec(M)
         v = reshape(M,[numel(M) 1]);
     end

@@ -26,14 +26,13 @@ TEST(BgmgTest, LoadData) {
 class TestMother {
 public:
   TestMother(int num_snp, int num_tag, int n) : num_snp_(num_snp), num_tag_(num_tag), rd_(), g_(rd_()) {
-    std::normal_distribution<float> norm_dist(0.0, 1.5);
     std::uniform_real_distribution<> hvec_dist(0.0f, 0.5f); // 2*p(1-p).
 
     for (int i = 0; i < num_snp_; i++) tag_to_snp_.push_back(i);
     std::shuffle(tag_to_snp_.begin(), tag_to_snp_.end(), g_);
     tag_to_snp_.resize(num_tag_);
 
-    for (int i = 0; i < num_tag_; i++) z_vec_.push_back(norm_dist(g_));
+    regenerate_zvec();
     for (int i = 0; i < num_tag_; i++) n_vec_.push_back(n);
     for (int i = 0; i < num_tag_; i++) weights_.push_back(1.0f);
     for (int i = 0; i < num_snp_; i++) h_vec_.push_back(hvec_dist(g_));
@@ -44,6 +43,12 @@ public:
   std::vector<float>* nvec() { return &n_vec_; }
   std::vector<float>* hvec() { return &h_vec_; }
   std::vector<float>* weights() { return &weights_; }
+
+  void regenerate_zvec() {
+    z_vec_.clear();
+    std::normal_distribution<float> norm_dist(0.0, 1.5);
+    for (int i = 0; i < num_tag_; i++) z_vec_.push_back(norm_dist(g_));
+  }
 
   void make_r2(int num_r2, std::vector<int>* snp_index, std::vector<int>* tag_index, std::vector<float>* r2) {
     std::uniform_int_distribution<> dis(0, num_snp_ - 1);
@@ -112,7 +117,8 @@ TEST(UgmgTest, CalcLikelihood) {
     calc.find_tag_r2sum(0, 3.9);
   }
 
-  calc.calc_univariate_cost(0.2, 1.2, 0.1);
+  double cost = calc.calc_univariate_cost(0.2, 1.2, 0.1);
+  ASSERT_TRUE(std::isfinite(cost));
 
   std::vector<float> zvec_grid, zvec_pdf;
   for (float z = 0; z < 15; z += 0.1) {
@@ -121,6 +127,51 @@ TEST(UgmgTest, CalcLikelihood) {
   }
 
   calc.calc_univariate_pdf(0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf[0]);
+  calc.set_option("diag", 0.0);
+}
+
+TEST(BgmgTest, CalcLikelihood) {
+  // Tests calculation of log likelihood, assuming that all data is already set
+  int num_snp = 10;
+  int num_tag = 5;
+  int kmax = 20; // #permutations
+  int N = 100;  // gwas sample size, constant across all variants
+  TestMother tm(num_snp, num_tag, N);
+  BgmgCalculator calc;
+  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_option("max_causals", num_snp);
+  calc.set_option("kmax", kmax);
+  calc.set_option("num_components", 3);
+
+  int trait = 1;
+  calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
+  calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+
+  trait = 2; tm.regenerate_zvec();
+  calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
+  calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+
+  calc.set_weights(num_tag, &tm.weights()->at(0));
+
+  std::vector<int> snp_index, tag_index;
+  std::vector<float> r2;
+  tm.make_r2(20, &snp_index, &tag_index, &r2);
+
+  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_csr();  // finalize csr structure
+
+  calc.set_hvec(num_snp, &tm.hvec()->at(0));
+
+  float pi_vec[] = { 0.1, 0.2, 0.15 };
+  float sig2_beta[] = { 0.5, 0.3 };
+  float rho_beta = 0.8;
+  float sig2_zero[] = { 1.1, 1.2 };
+  float rho_zero = 0.1;
+
+  double cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
+  ASSERT_TRUE(std::isfinite(cost));
+
+  calc.set_option("diag", 0.0);
 }
 
 }  // namespace

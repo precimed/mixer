@@ -136,6 +136,34 @@ class DenseMatrix {
     return no_rows_ == rhs.no_rows_ && no_columns_ == rhs.no_columns_;
   }
 
+  std::string to_str() {
+    int rows_to_str = std::min(5, no_rows_ - 1);
+    int cols_to_str = std::min(5, no_columns_ - 1);
+    std::stringstream ss;
+    ss << "[";
+    for (int i = 0; i < rows_to_str; i++) {
+      bool last_row = (i == (rows_to_str - 1));
+      for (int j = 0; j < cols_to_str; j++) {
+        bool last_col = (j == (cols_to_str - 1));
+        ss << (*this)(i, j);
+        if (last_col) ss << ", ...";
+        else ss << ", ";
+      }
+      if (last_row) ss << "; ...";
+      else ss << "; ";
+    }
+    ss << "]";
+
+    size_t nnz = 0;
+    for (int i = 0; i < no_rows_; i++)
+      for (int j = 0; j < no_columns_; j++)
+        if ((*this)(i, j) != 0) nnz++;
+    ss << ", nnz=" << nnz;
+
+    return ss.str();
+  }
+
+
   T* get_data() {
     return data_;
   }
@@ -206,7 +234,8 @@ class BgmgCalculator {
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
   int64_t calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
 
-  double calc_bivariate_cost(int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero);
+  double calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+  void log_disgnostics();
  private:
 
   int num_snp_;
@@ -228,6 +257,8 @@ class BgmgCalculator {
   // all stored for for tag variants (only)
   std::vector<float> zvec1_;
   std::vector<float> nvec1_;
+  std::vector<float> zvec2_;
+  std::vector<float> nvec2_;
   std::vector<float> weights_;
   std::vector<float> hvec_;
 

@@ -13,21 +13,22 @@ hits = sum(ref.pruneidxmat, 2); weights = hits / size(ref.pruneidxmat, 2);
 
 def2= load('H:\Dropbox\shared\BGMG\defvec_hapmap3.mat');
 
-defvec = ref.defvec & (weights > 0); % & (ref.chrnumvec == 1);
+defvec = ref.defvec & (weights > 0) ; % & (ref.chrnumvec == 1);
 defvec = defvec & def2.defvec;
 tag_indices = find(defvec);
 weights(defvec) = 1;
 
 m2c = @(x)(x-1); % convert matlab to c indices
 check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-context=0;kmax = 100;
+context=0;kmax = 5000; num_components=3;
 calllib('bgmg', 'bgmg_set_tag_indices', 0, length(ref.defvec), length(tag_indices), m2c(tag_indices));  check();
 calllib('bgmg', 'bgmg_set_option', 0,  'r2min', 0.01); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
-calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', 200000); check();
+calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', 20000); check();   % <---------- decreased!!!!!!!!!!!!!
+calllib('bgmg', 'bgmg_set_option', 0,  'num_components', num_components); check();
 
 fprintf('Loading LD structure...\n');
-for c=22:-1:1
+for c= 22:-1:1
     fprintf('chr %i...\n', c);
     c1 = load(['H:\work\hapgen_ldmat2_plink\', sprintf('bfile_merged_10K_ldmat_p01_SNPwind50k_chr%i.ld.mat', c)]);
     c1.index_A = c1.index_A + 1; 
@@ -67,6 +68,7 @@ calllib('bgmg', 'bgmg_set_weights', 0, sum(defvec), weights(defvec));  check();
 % idea1 - [DONE] smooth num_causals (float-point) to avoid jumps in cost functions - implemented
 % idea2 - [DONE] ignore low z scores , e.i. fit tail only - didn't help
 % idea3 - TBD: boost kmax (but keep little info about LD structure by permuting snp_order
+% idea4 - make snp_order such that each SNP in the template became causal at least once.
 
 if 0
 figure(2)
@@ -83,6 +85,53 @@ clf;figure(1); hold on;
 h2vec_str = {'0.1', '0.4', '0.7'};
 pivec_str = {'1e-05', '0.0001', '0.001', '0.01'};
 
+if 0
+    % test bivariate stuff 
+    %trait_name = 'simu_h2=0.4_rg=0.0_pi1u=1e-03_pi2u=1e-03_pi12=1e-03_rep=1_tag1=completePolygenicOverlap_tag2=evenPolygenicity';fig=1;
+    %trait_name = 'simu_h2=0.4_rg=0.0_pi1u=1e-03_pi2u=1e-03_pi12=3e-04_rep=1_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity';fig=2;
+    trait_name ='simu_h2=0.4_rg=0.0_pi1u=1e-03_pi2u=1e-03_pi12=1e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity'; fig=3;
+    
+    dat_trait1 = load(['H:\NORSTORE\oleksanf\11015833\SIMU_BGMG2\', trait_name, '.trait1.mat']);
+    dat_trait2 = load(['H:\NORSTORE\oleksanf\11015833\SIMU_BGMG2\', trait_name, '.trait2.mat']);
+    dat_trait1.nvec = ones(size(dat_trait1.zvec)) * 100000;
+    dat_trait2.nvec = ones(size(dat_trait2.zvec)) * 100000;
+    calllib('bgmg', 'bgmg_set_zvec', 0, 1, sum(defvec), dat_trait1.zvec(defvec));  check();
+    calllib('bgmg', 'bgmg_set_nvec', 0, 1, sum(defvec), dat_trait1.nvec(defvec));  check();
+    calllib('bgmg', 'bgmg_set_zvec', 0, 2, sum(defvec), dat_trait2.zvec(defvec));  check();
+    calllib('bgmg', 'bgmg_set_nvec', 0, 2, sum(defvec), dat_trait2.nvec(defvec));  check();
+    
+    % bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+    pi_vec = [dat_trait1.causal_pi, dat_trait1.causal_pi, 0];
+    sig2_beta = [dat_trait1.sigsq, dat_trait2.sigsq];
+    sig2_zero = [1.0, 1.0];
+    rho_beta = 0; rho_zero = 0;
+    
+    if 1
+        figure(fig);
+    pi12_frac_vec = 0:0.1:1;
+    pi12_frac_cost = [];
+    for pi12_frac = pi12_frac_vec
+        pi_vec = [(1-pi12_frac), (1-pi12_frac), pi12_frac] * dat_trait1.causal_pi;
+        pi12_frac_cost(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
+    end
+    plot(pi12_frac_vec, pi12_frac_cost)
+    end
+
+    if 0
+        koef_vec = logspace(-1, 1, 11);
+        cost_pi_vec = [];
+        for koef = koef_vec
+            pi_vec = [1, 1, 0] .* koef .* dat_trait1.causal_pi;
+            cost_pi_vec(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
+        end
+        cost_pi_vec(cost_pi_vec > 1e99) = nan;
+        plot(koef_vec, cost_pi_vec);
+    end
+    
+    calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
+
+end
+
 for repi=1:10
 for h2_index = [2 3 1]
 for pi_index = [3 2 4 1]
@@ -94,6 +143,7 @@ hold on
 ax = gca;
 ax.ColorOrderIndex = 1;
 dat= load(['H:\NORSTORE\oleksanf\11015833\simu_ugmg_120_traits\', sprintf('simu_h2=%s_pi1u=%s_rep=%i.trait1.mat', h2vec_str{h2_index}, pivec_str{pi_index}, repi)]);
+
 dat.sig2zero = 1;
 zvec = dat.zvec; nvec = ones(size(zvec)) * 100000;
 zvec(~isfinite(zvec)) = 100;

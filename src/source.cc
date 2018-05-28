@@ -116,10 +116,10 @@ double bgmg_calc_univariate_pdf(int context_id, float pi_vec, float sig2_zero, f
   } CATCH_EXCEPTIONS;
 }
 
-double bgmg_calc_bivariate_cost(int context_id, int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero) {
+double bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
   try {
     set_last_error(std::string());
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_cost(num_components, pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_cost(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   } CATCH_EXCEPTIONS;
 }
 

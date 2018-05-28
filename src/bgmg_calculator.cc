@@ -27,6 +27,7 @@
 #include <vector>
 #include <valarray>
 #include <cmath>
+#include <sstream>
 
 #include "boost/throw_exception.hpp"
 
@@ -45,26 +46,35 @@ void BgmgCalculator::check_num_tag(int length) {
 }
 
 int64_t BgmgCalculator::set_zvec(int trait, int length, float* values) {
-  if (trait != 1) BOOST_THROW_EXCEPTION(::std::runtime_error("trait != 1"));
+  if ((trait != 1) && (trait != 2)) BOOST_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
 
   int num_undef = 0;
   for (int i = 0; i < length; i++) if (!std::isfinite(values[i])) num_undef++;
   LOG << "set_zvec(trait=" << trait << "); num_undef=" << num_undef;
 
   check_num_tag(length);
-  zvec1_.assign(values, values+length);
+  if (trait == 1) {
+    zvec1_.assign(values, values + length);
+  } else {
+    zvec2_.assign(values, values + length);
+  }
   return 0;
 }
 
 int64_t BgmgCalculator::set_nvec(int trait, int length, float* values) {
-  if (trait != 1) BOOST_THROW_EXCEPTION(::std::runtime_error("trait != 1"));
+  if ((trait != 1) && (trait != 2)) BOOST_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
   for (int i = 0; i < length; i++) {
     if (!std::isfinite(values[i])) BOOST_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
   LOG << "set_nvec(trait=" << trait << "); ";
   check_num_tag(length);
-  nvec1_.assign(values, values+length);
+  if (trait == 1) {
+    nvec1_.assign(values, values + length);
+  } else {
+    nvec2_.assign(values, values + length);
+  }
+
   return 0;
 }
 
@@ -83,7 +93,9 @@ int64_t BgmgCalculator::set_weights(int length, float* values) {
 int64_t BgmgCalculator::set_option(char* option, double value) {
   LOG << "set_option(" << option << "=" << value << "); ";
 
-  if (!strcmp(option, "kmax")) {
+  if (!strcmp(option, "diag")) {
+    log_disgnostics(); return 0;
+  } else if (!strcmp(option, "kmax")) {
     clear_state(); k_max_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "r2min")) {
     clear_state(); r2_min_ = value; return 0;
@@ -141,7 +153,7 @@ int64_t BgmgCalculator::set_ld_r2_coo(int length, int* snp_index, int* tag_index
     if (snp_can_be_causal_[snp_index[i]] && is_tag_[tag_index[i]]) coo_ld_.push_back(std::make_tuple(snp_index[i], snp_to_tag_[tag_index[i]], r2[i]));
     if (snp_can_be_causal_[tag_index[i]] && is_tag_[snp_index[i]]) coo_ld_.push_back(std::make_tuple(tag_index[i], snp_to_tag_[snp_index[i]], r2[i]));
   }
-  LOG << "set_ld_r2_coo: coo_ld_.size()=" << coo_ld_.size() << " (new: " << coo_ld_.size() - was << ")";
+  LOG << "set_ld_r2_coo: done; coo_ld_.size()=" << coo_ld_.size() << " (new: " << coo_ld_.size() - was << ")";
   return 0;
 }
 
@@ -154,6 +166,7 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
   for (int i = 0; i < tag_to_snp_.size(); i++)
     coo_ld_.push_back(std::make_tuple(tag_to_snp_[i], i, 1.0f));
   
+  // Use parallel sort? https://software.intel.com/en-us/articles/a-parallel-stable-sort-using-c11-for-tbb-cilk-plus-and-openmp
   std::sort(coo_ld_.begin(), coo_ld_.end());
 
   csr_ld_tag_index_.reserve(coo_ld_.size());
@@ -203,12 +216,11 @@ public:
 
 // TBD: Can be speed up by partial random shuffle 
 int64_t BgmgCalculator::find_snp_order() {
-  LOG << "find_snp_order(num_components_=" << num_components_ << ", k_max_=" << k_max_ << ", max_causals_=" << max_causals_ << ")";
+  if (max_causals_ <= 0 || max_causals_ > num_snp_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: max_causals_ <= 0 || max_causals_ > num_snp_"));
+  if (num_components_ <= 0 || num_components_ > 3) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: num_components_ must be between 1 and 3"));
+  if (last_num_causals_.size() > 0) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: called twice"));
 
-  assert(max_causals_ <= num_snp_);
-  assert(num_components_ > 0 && num_components_ <= 3); // not supported?
-  
-  if (last_num_causals_.size() > 0) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order called twice"));
+  LOG << "find_snp_order(num_components_=" << num_components_ << ", k_max_=" << k_max_ << ", max_causals_=" << max_causals_ << ")";
 
   snp_can_be_causal_.resize(num_snp_, 0);
 
@@ -224,7 +236,14 @@ int64_t BgmgCalculator::find_snp_order() {
     
     for (int k = 0; k < k_max_; k++) {
       for (int i = 0; i < num_snp_; i++) perm[i] = i;
-      std::shuffle(perm.begin(), perm.end(), random_engine);
+      
+      // perform partial Fisher Yates shuffle (must faster than full std::shuffle)
+      // swap_offset is a random integer, with max of n-1, n-2, n-3, ..., n-max_causals
+      for (int i = 0; i < max_causals_; i++) {
+        const int swap_offset = std::uniform_int_distribution<int>(0, num_snp_ - i - 1)(random_engine);
+        std::iter_swap(perm.begin() + i, perm.begin() + i + swap_offset);
+      }
+
       for (int i = 0; i < max_causals_; i++) {
         (*snp_order_[component_index])(i, k) = perm[i];
         snp_can_be_causal_[perm[i]] = 1;
@@ -239,8 +258,8 @@ int64_t BgmgCalculator::find_snp_order() {
 }
 
 int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
-  assert(component_id >= 0 && component_id < num_components_); 
-  assert(num_causals >= 0 && num_causals < max_causals_);
+  if (num_causals < 0 || num_causals >= max_causals_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: num_causals < 0 || num_causals >= max_causals_"));
+  if (component_id < 0 || component_id >= 3) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and 2"));
 
   const float num_causals_original = num_causals;
   if (last_num_causals_.empty()) find_snp_order();
@@ -331,17 +350,24 @@ int64_t BgmgCalculator::set_hvec(int length, float* values) {
 
 
 int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer) {
-  if (length != k_max_ * num_tag_) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (length != (k_max_ * num_tag_)) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (component_id < 0 || component_id >= num_components_ || tag_r2sum_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong component_id"));
 
   LOG << "retrieve_tag_r2_sum(component_id=" << component_id << ", num_causal=" << num_causal << ")";
 
-  find_tag_r2sum(component_id, num_causal);
+  // use negative to retrieve tag_r2_sum for last_num_causal (for debugging purpose)
+  if (num_causal >= 0) {
+    find_tag_r2sum(component_id, num_causal);
+  }
+
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     for (int k_index = 0; k_index < k_max_; k_index++) {
       float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
       buffer[tag_index * k_max_ + k_index] = tag_r2sum;
     }
   }
+
+  return 0;
 }
 
 int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
@@ -349,8 +375,8 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
   // output buffer contains pdf(z), aggregated across all SNPs with corresponding weights
   if (nvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
   if (weights_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+  if (num_components_ != 1) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_univariate_pdf: require num_components_ == 1"));
 
-  assert(num_components_ == 1);
   float num_causals = pi_vec * static_cast<float>(num_snp_);
   if ((int)num_causals >= max_causals_) BOOST_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   const int component_id = 0;   // univariate is always component 0.
@@ -404,8 +430,8 @@ double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float
   if (zvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
   if (nvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
   if (weights_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+  if (num_components_ != 1) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_univariate_pdf: require num_components_ == 1"));
 
-  assert(num_components_ == 1);
   float num_causals = pi_vec * static_cast<float>(num_snp_);
   if ((int)num_causals >= max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
@@ -443,9 +469,159 @@ double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float
   return log_pdf_total;
 }
 
-double BgmgCalculator::calc_bivariate_cost(int num_components, double* pi_vec, double* sig2_beta, double* rho_beta, double* sig2_zero, double rho_zero) {
-  LOG << "calc_bivariate_cost(!!!not implemented!!!)";
-  return 0.0;
+double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
+  if (zvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
+  if (nvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  if (zvec2_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("zvec2 is not set"));
+  if (nvec2_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("nvec2 is not set"));
+  if (weights_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+  if (num_components_ != 3) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: require num_components == 3. Remember to call set_option('num_components', 3)."));
+  if (pi_vec_len != 3) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: pi_vec_len != 3"));
+  if (sig2_beta_len != 2) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_beta_len != 2"));
+  if (sig2_zero_len != 2) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
+
+  std::stringstream ss;
+  ss << "calc_bivariate_cost("
+     << "pi_vec=[" << pi_vec[0] << ", " << pi_vec[1] << ", " << pi_vec[2] << "], "
+     << "sig2_beta=[" << sig2_beta[0] << ", " << sig2_beta[1] << "], "
+     << "rho_beta=" << rho_beta << ", "
+     << "sig2_zero=[" << sig2_zero[0] << ", " << sig2_zero[1] << "], "
+     << "rho_zero=" << rho_zero << ")";
+  LOG << ss.str();
+
+  std::chrono::time_point<std::chrono::system_clock> start_(std::chrono::system_clock::now());
+
+  float num_causals[3];
+  for (int component_id = 0; component_id < 3; component_id++) {
+    num_causals[component_id] = pi_vec[component_id] * static_cast<float>(num_snp_);
+    if ((int)num_causals[component_id] >= max_causals_) return 1e100; // too large pi_vec
+  }
+
+  for (int component_id = 0; component_id < 3; component_id++) {
+    find_tag_r2sum(component_id, num_causals[component_id]);
+  }
+
+  // Sigma0  = [a0 b0; b0 c0];
+  const double a0 = sig2_zero[0];
+  const double c0 = sig2_zero[1];
+  const double b0 = sqrt(a0 * c0) * rho_zero;
+
+  // pi_k is mixture weight
+  const double pi_k = 1. / static_cast<float>(k_max_);
+
+  // pi_const is the 3.1415... constant; log_pi is constant factor in bivariate gaussian density function
+  const double pi_const = 3.14159265358979323846;
+  const double log_pi = -1.0 * log(2 * pi_const);
+
+  double log_pdf_total = 0.0;
+
+#pragma omp parallel for schedule(static) reduction(+: log_pdf_total)
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (weights_[tag_index] == 0) continue;
+    if (!std::isfinite(zvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec2_[tag_index])) continue;
+
+    const double z1 = zvec1_[tag_index];
+    const double z2 = zvec2_[tag_index];
+    const double n1 = nvec1_[tag_index];
+    const double n2 = nvec2_[tag_index];
+
+    double pdf_tag = 0.0f;
+    for (int k_index = 0; k_index < k_max_; k_index++) {
+      const double tag_r2sum_c1 = (*tag_r2sum_[0])(tag_index, k_index);
+      const double tag_r2sum_c2 = (*tag_r2sum_[1])(tag_index, k_index);
+      const double tag_r2sum_c3 = (*tag_r2sum_[2])(tag_index, k_index);
+
+      // Sigma  = [A1+A3  B3;  B3  C2+C3] + Sigma0 = ...
+      //        = [a11    a12; a12   a22]
+      const double A1 = tag_r2sum_c1 * n1 * sig2_beta[0];
+      const double C2 = tag_r2sum_c2 * n2 * sig2_beta[1];
+      const double A3 = tag_r2sum_c3 * n1 * sig2_beta[0];
+      const double C3 = tag_r2sum_c3 * n2 * sig2_beta[1];
+      const double B3 = sqrt(A3*C3) * rho_beta;
+
+      const double a11 = A1 + A3 + a0;
+      const double a22 = C2 + C3 + c0;
+      const double a12 =      B3 + b0;
+
+      // Calculation of log - likelihood and pdf, specific to bivariate normal
+      // distribution with zero mean.It takes into account an explicit formula
+      // for inverse 2x2 matrix, S = [a b; c d], => S^-1 = [d - b; -c a] . / det(S)
+      double dt = a11 * a22 - a12 * a12;  // det(S)
+
+      const double log_exp = -0.5 * (a22*z1*z1 + a11*z2*z2 - 2.0*a12*z1*z2) / dt;
+      const double log_dt = -0.5 * log(dt);
+      
+      double pdf = pi_k * exp(log_pi + log_dt + log_exp);
+      pdf_tag += pdf;
+    }
+
+    log_pdf_total += -log(pdf_tag) * weights_[tag_index];
+  }
+
+  auto delta = (std::chrono::system_clock::now() - start_);
+  auto delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta);
+  LOG << ss.str() << ", cost=" << log_pdf_total << ", elapsed time " << delta_ms.count() << "ms";
+  return log_pdf_total;
 }
 
-// TBD: validate if input contains undefined values (or other out of range values)
+template<typename T>
+std::string std_vector_to_str(const std::vector<T>& vec) {
+  std::stringstream ss;
+  int max_el = std::min<int>(5, vec.size() - 1);
+  ss << "[";
+  for (int i = 0; i < max_el; i++) {
+    bool last = (i == (max_el - 1));
+    ss << vec[i];
+    if (last) ss << ", ...";
+    else ss << ", ";
+  }
+  ss << "]";
+
+  size_t nnz = 0;
+  for (size_t i = 0; i < vec.size(); i++) if (vec[i] != 0) nnz++;
+  ss << ", nnz=" << nnz;
+  return ss.str();
+}
+
+void BgmgCalculator::log_disgnostics() {
+  size_t mem_bytes = 0, mem_bytes_total = 0;
+  LOG << ">diag: num_snp_=" << num_snp_;
+  LOG << ">diag: num_tag_=" << num_tag_;
+  LOG << ">diag: csr_ld_snp_index_.size()=" << csr_ld_snp_index_.size();
+  mem_bytes = csr_ld_tag_index_.size() * sizeof(int); mem_bytes_total += mem_bytes;
+  LOG << ">diag: csr_ld_tag_index_.size()=" << csr_ld_tag_index_.size() << " (mem usage = " << mem_bytes << " bytes)";
+  mem_bytes = csr_ld_r2_.size() * sizeof(float); mem_bytes_total += mem_bytes;
+  LOG << ">diag: csr_ld_r2_.size()=" << csr_ld_r2_.size() << " (mem usage = " << mem_bytes << " bytes)";
+  mem_bytes = coo_ld_.size() * (sizeof(float) + sizeof(int) + sizeof(int)); mem_bytes_total += mem_bytes;
+  LOG << ">diag: coo_ld_.size()=" << coo_ld_.size() << " (mem usage = " << mem_bytes << " bytes)";
+  LOG << ">diag: zvec1_.size()=" << zvec1_.size();
+  LOG << ">diag: zvec1_=" << std_vector_to_str(zvec1_);
+  LOG << ">diag: nvec1_.size()=" << nvec1_.size();
+  LOG << ">diag: nvec1_=" << std_vector_to_str(nvec1_);
+  LOG << ">diag: zvec2_.size()=" << zvec2_.size();
+  LOG << ">diag: zvec2_=" << std_vector_to_str(zvec2_);
+  LOG << ">diag: nvec2_.size()=" << nvec2_.size();
+  LOG << ">diag: nvec2_=" << std_vector_to_str(nvec2_);
+  LOG << ">diag: weights_.size()=" << weights_.size();
+  LOG << ">diag: weights_=" << std_vector_to_str(weights_);
+  LOG << ">diag: hvec_.size()=" << hvec_.size();
+  LOG << ">diag: hvec_=" << std_vector_to_str(hvec_);
+  for (int i = 0; i < snp_order_.size(); i++) {
+    mem_bytes = snp_order_[i]->size() * sizeof(int); mem_bytes_total += mem_bytes;
+    LOG << ">diag: snp_order_[" << i << "].shape=[" << snp_order_[i]->no_rows() << ", " << snp_order_[i]->no_columns() << "]" << " (mem usage = " << mem_bytes << " bytes)";
+    LOG << ">diag: snp_order_[" << i << "]=" << snp_order_[i]->to_str();
+  }
+  for (int i = 0; i < tag_r2sum_.size(); i++) {
+    mem_bytes = tag_r2sum_[i]->size() * sizeof(float); mem_bytes_total += mem_bytes;
+    LOG << ">diag: tag_r2sum_[" << i << "].shape=[" << tag_r2sum_[i]->no_rows() << ", " << tag_r2sum_[i]->no_columns() << "]" << " (mem usage = " << mem_bytes << " bytes)";
+    LOG << ">diag: tag_r2sum_[" << i << "]=" << tag_r2sum_[i]->to_str();
+  }
+  for (int i = 0; i < last_num_causals_.size(); i++) 
+    LOG << ">diag: last_num_causals_[" << i << "]=" << last_num_causals_[i];
+  LOG << ">diag: options.k_max_" << k_max_;
+  LOG << ">diag: options.max_causals_" << max_causals_;
+  LOG << ">diag: options.num_components_" << num_components_;
+  LOG << ">diag: options.r2_min_" << r2_min_;
+  LOG << ">diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
+}

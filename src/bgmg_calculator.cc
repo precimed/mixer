@@ -50,7 +50,7 @@ int64_t BgmgCalculator::set_zvec(int trait, int length, float* values) {
 
   int num_undef = 0;
   for (int i = 0; i < length; i++) if (!std::isfinite(values[i])) num_undef++;
-  LOG << "set_zvec(trait=" << trait << "); num_undef=" << num_undef;
+  LOG << " set_zvec(trait=" << trait << "); num_undef=" << num_undef;
 
   check_num_tag(length);
   if (trait == 1) {
@@ -67,7 +67,7 @@ int64_t BgmgCalculator::set_nvec(int trait, int length, float* values) {
     if (!std::isfinite(values[i])) BOOST_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
-  LOG << "set_nvec(trait=" << trait << "); ";
+  LOG << " set_nvec(trait=" << trait << "); ";
   check_num_tag(length);
   if (trait == 1) {
     nvec1_.assign(values, values + length);
@@ -84,14 +84,14 @@ int64_t BgmgCalculator::set_weights(int length, float* values) {
     if (!std::isfinite(values[i])) BOOST_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
-  LOG << "set_weights; ";
+  LOG << " set_weights; ";
   check_num_tag(length);
   weights_.assign(values, values+length);
   return 0;
 }
 
 int64_t BgmgCalculator::set_option(char* option, double value) {
-  LOG << "set_option(" << option << "=" << value << "); ";
+  LOG << " set_option(" << option << "=" << value << "); ";
 
   if (!strcmp(option, "diag")) {
     log_disgnostics(); return 0;
@@ -117,7 +117,7 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
 int64_t BgmgCalculator::set_tag_indices(int num_snp, int num_tag, int* tag_indices) {
   if (num_snp_ != -1 || num_tag_ != -1) BOOST_THROW_EXCEPTION(::std::runtime_error("can not call set_tag_indices twice"));
 
-  LOG << "set_tag_indices(num_snp=" << num_snp << ", num_tag=" << num_tag << "); ";
+  LOG << " set_tag_indices(num_snp=" << num_snp << ", num_tag=" << num_tag << "); ";
   num_snp_ = num_snp;
   num_tag_ = num_tag;
 
@@ -132,16 +132,39 @@ int64_t BgmgCalculator::set_tag_indices(int num_snp, int num_tag, int* tag_indic
   return 0;
 }
 
+// A timer that fire an event each X milliseconds.
+class SimpleTimer {
+public:
+  SimpleTimer(int period_ms) : start_(std::chrono::system_clock::now()), period_ms_(period_ms) {}
+
+  int elapsed_ms() {
+    auto delta = (std::chrono::system_clock::now() - start_);
+    auto delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta);
+    return delta_ms.count();
+  }
+
+  bool fire() {
+    if (elapsed_ms() < period_ms_) return false;
+    start_ = std::chrono::system_clock::now();
+    return true;
+  }
+private:
+  std::chrono::time_point<std::chrono::system_clock> start_;
+  int period_ms_;
+};
+
 
 int64_t BgmgCalculator::set_ld_r2_coo(int length, int* snp_index, int* tag_index, float* r2) {
   if (!csr_ld_r2_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
-  LOG << "set_ld_r2_coo(length=" << length << "); ";
+  LOG << ">set_ld_r2_coo(length=" << length << "); ";
 
   if (last_num_causals_.empty()) find_snp_order();
 
   for (int i = 0; i < length; i++) {
     if (!std::isfinite(r2[i])) BOOST_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
+
+  SimpleTimer timer(-1);
 
   int was = coo_ld_.size();
   for (int i = 0; i < length; i++) {
@@ -153,7 +176,7 @@ int64_t BgmgCalculator::set_ld_r2_coo(int length, int* snp_index, int* tag_index
     if (snp_can_be_causal_[snp_index[i]] && is_tag_[tag_index[i]]) coo_ld_.push_back(std::make_tuple(snp_index[i], snp_to_tag_[tag_index[i]], r2[i]));
     if (snp_can_be_causal_[tag_index[i]] && is_tag_[snp_index[i]]) coo_ld_.push_back(std::make_tuple(tag_index[i], snp_to_tag_[snp_index[i]], r2[i]));
   }
-  LOG << "set_ld_r2_coo: done; coo_ld_.size()=" << coo_ld_.size() << " (new: " << coo_ld_.size() - was << ")";
+  LOG << "<set_ld_r2_coo: done; coo_ld_.size()=" << coo_ld_.size() << " (new: " << coo_ld_.size() - was << "), elapsed time " << timer.elapsed_ms() << " ms";
   return 0;
 }
 
@@ -161,8 +184,11 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
   if (coo_ld_.empty()) 
     BOOST_THROW_EXCEPTION(::std::runtime_error("coo_ld_ is empty"));
 
-  LOG << "set_ld_r2_csr (coo_ld_.size()==" << coo_ld_.size() << "); ";
+  LOG << ">set_ld_r2_csr (coo_ld_.size()==" << coo_ld_.size() << "); ";
 
+  SimpleTimer timer(-1);
+
+  LOG << " set_ld_r2_csr adds " << tag_to_snp_.size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
   for (int i = 0; i < tag_to_snp_.size(); i++)
     coo_ld_.push_back(std::make_tuple(tag_to_snp_[i], i, 1.0f));
   
@@ -188,6 +214,7 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
     if (csr_ld_snp_index_[i] > csr_ld_snp_index_[i + 1])
       csr_ld_snp_index_[i] = csr_ld_snp_index_[i + 1];
 
+  LOG << "<set_ld_r2_csr (coo_ld_.size()==" << coo_ld_.size() << "); elapsed time " << timer.elapsed_ms() << " ms"; 
   coo_ld_.clear();
   return 0;
 }
@@ -220,13 +247,16 @@ int64_t BgmgCalculator::find_snp_order() {
   if (num_components_ <= 0 || num_components_ > 3) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: num_components_ must be between 1 and 3"));
   if (last_num_causals_.size() > 0) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: called twice"));
 
-  LOG << "find_snp_order(num_components_=" << num_components_ << ", k_max_=" << k_max_ << ", max_causals_=" << max_causals_ << ")";
+  LOG << ">find_snp_order(num_components_=" << num_components_ << ", k_max_=" << k_max_ << ", max_causals_=" << max_causals_ << ")";
+
+  SimpleTimer timer(-1);
 
   snp_can_be_causal_.resize(num_snp_, 0);
 
   xorshf96 random_engine;
   std::vector<int> perm(num_snp_, 0);
 
+  SimpleTimer log_timer(10000); // log some message each 10 seconds
   for (int component_index = 0; component_index < num_components_; component_index++) {
     snp_order_.push_back(std::make_shared<DenseMatrix<int>>(max_causals_, k_max_));
     tag_r2sum_.push_back(std::make_shared<DenseMatrix<float>>(num_tag_, k_max_));
@@ -235,6 +265,9 @@ int64_t BgmgCalculator::find_snp_order() {
     last_num_causals_.push_back(0);
     
     for (int k = 0; k < k_max_; k++) {
+      if (log_timer.fire())
+        LOG << " find_snp_order still working, component_id=" << component_index << ", k=" << k;
+
       for (int i = 0; i < num_snp_; i++) perm[i] = i;
       
       // perform partial Fisher Yates shuffle (must faster than full std::shuffle)
@@ -253,7 +286,7 @@ int64_t BgmgCalculator::find_snp_order() {
 
   int num_can_be_causal = 0;
   for (int i = 0; i < num_snp_; i++) num_can_be_causal += snp_can_be_causal_[i];
-  LOG << "num_can_be_causal = " << num_can_be_causal;
+  LOG << "<find_snp_order: num_can_be_causal = " << num_can_be_causal << ", elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
@@ -266,7 +299,9 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
 
   float last_num_causals = last_num_causals_[component_id]; 
   
-  LOG << "find_tag_r2sum(component_id=" << component_id << ", num_causals=" << num_causals << ", last_num_causals=" << last_num_causals << ")";
+  LOG << ">find_tag_r2sum(component_id=" << component_id << ", num_causals=" << num_causals << ", last_num_causals=" << last_num_causals << ")";
+
+  SimpleTimer timer(-1);
 
   // changeset contains a list of indices with corresponding weight
   // indices apply to snp_order_[component_id] array.
@@ -310,10 +345,14 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
     BOOST_THROW_EXCEPTION(::std::runtime_error("floor_num_causals < floor_last_num_causals"));
   }
 
-  for (auto change: changeset) {
-    int scan_index = change.first;
-    float scan_weight = change.second;
-    for (int k_index = 0; k_index < k_max_; k_index++) {
+  // it is OK to parallelize the following loop on k_index, because:
+  // - all structures here are readonly, except tag_r2sum_ that we are accumulating
+  // - two threads will never touch the same memory location (that's why we choose k_index as an outer loop)
+#pragma omp parallel for schedule(static)
+  for (int k_index = 0; k_index < k_max_; k_index++) {
+    for (auto change : changeset) {
+      int scan_index = change.first;
+      float scan_weight = change.second;
       int snp_index = (*snp_order_[component_id])(scan_index, k_index);
       int r2_index_from = csr_ld_snp_index_[snp_index];
       int r2_index_to = csr_ld_snp_index_[snp_index + 1];
@@ -324,6 +363,8 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
       }
     }
   }
+
+  LOG << "<find_tag_r2sum(component_id=" << component_id << ", num_causals=" << num_causals_original << ", last_num_causals=" << last_num_causals << "), elapsed time " << timer.elapsed_ms() << "ms";
 
   last_num_causals_[component_id] = num_causals_original;
   return 0;
@@ -336,7 +377,7 @@ int64_t BgmgCalculator::set_hvec(int length, float* values) {
 
   if (!hvec_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("can not set hvec twice"));
 
-  LOG << "set_hvec(" << length << "); ";
+  LOG << " set_hvec(" << length << "); ";
   check_num_snp(length);
   hvec_.assign(values, values + length);
 
@@ -353,7 +394,7 @@ int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, float num_causal, 
   if (length != (k_max_ * num_tag_)) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
   if (component_id < 0 || component_id >= num_components_ || tag_r2sum_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong component_id"));
 
-  LOG << "retrieve_tag_r2_sum(component_id=" << component_id << ", num_causal=" << num_causal << ")";
+  LOG << " retrieve_tag_r2_sum(component_id=" << component_id << ", num_causal=" << num_causal << ")";
 
   // use negative to retrieve tag_r2_sum for last_num_causal (for debugging purpose)
   if (num_causal >= 0) {
@@ -381,9 +422,11 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
   if ((int)num_causals >= max_causals_) BOOST_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   const int component_id = 0;   // univariate is always component 0.
 
-  LOG << "calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
+  LOG << ">calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
 
   find_tag_r2sum(component_id, num_causals);
+
+  SimpleTimer timer(-1);
 
   const float pi_k = 1. / static_cast<float>(k_max_);
   static const float inv_sqrt_2pi = 0.3989422804014327f;
@@ -422,7 +465,7 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
   }
 
   for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);
-
+  LOG << "<calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
@@ -435,10 +478,11 @@ double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float
   float num_causals = pi_vec * static_cast<float>(num_snp_);
   if ((int)num_causals >= max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
-
-  std::chrono::time_point<std::chrono::system_clock> start_(std::chrono::system_clock::now());
-  LOG << "calc_univariate_cost(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
+    
+  LOG << ">calc_univariate_cost(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
   find_tag_r2sum(component_id, num_causals);
+
+  SimpleTimer timer(-1);
 
   const double pi_k = 1. / static_cast<float>(k_max_);
   static const double inv_sqrt_2pi = 0.3989422804014327f;
@@ -463,9 +507,7 @@ double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float
     log_pdf_total += -log(pdf_tag) * weights_[tag_index];
   }
 
-  auto delta = (std::chrono::system_clock::now() - start_);
-  auto delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta);
-  LOG << "calc_univariate_cost(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << delta_ms.count() << "ms";
+  LOG << "<calc_univariate_cost(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 
@@ -487,9 +529,7 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
      << "rho_beta=" << rho_beta << ", "
      << "sig2_zero=[" << sig2_zero[0] << ", " << sig2_zero[1] << "], "
      << "rho_zero=" << rho_zero << ")";
-  LOG << ss.str();
-
-  std::chrono::time_point<std::chrono::system_clock> start_(std::chrono::system_clock::now());
+  LOG << ">" << ss.str();
 
   float num_causals[3];
   for (int component_id = 0; component_id < 3; component_id++) {
@@ -500,6 +540,8 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
   for (int component_id = 0; component_id < 3; component_id++) {
     find_tag_r2sum(component_id, num_causals[component_id]);
   }
+
+  SimpleTimer timer(-1);
 
   // Sigma0  = [a0 b0; b0 c0];
   const double a0 = sig2_zero[0];
@@ -559,9 +601,7 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
     log_pdf_total += -log(pdf_tag) * weights_[tag_index];
   }
 
-  auto delta = (std::chrono::system_clock::now() - start_);
-  auto delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta);
-  LOG << ss.str() << ", cost=" << log_pdf_total << ", elapsed time " << delta_ms.count() << "ms";
+  LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 
@@ -586,42 +626,42 @@ std::string std_vector_to_str(const std::vector<T>& vec) {
 
 void BgmgCalculator::log_disgnostics() {
   size_t mem_bytes = 0, mem_bytes_total = 0;
-  LOG << ">diag: num_snp_=" << num_snp_;
-  LOG << ">diag: num_tag_=" << num_tag_;
-  LOG << ">diag: csr_ld_snp_index_.size()=" << csr_ld_snp_index_.size();
+  LOG << " diag: num_snp_=" << num_snp_;
+  LOG << " diag: num_tag_=" << num_tag_;
+  LOG << " diag: csr_ld_snp_index_.size()=" << csr_ld_snp_index_.size();
   mem_bytes = csr_ld_tag_index_.size() * sizeof(int); mem_bytes_total += mem_bytes;
-  LOG << ">diag: csr_ld_tag_index_.size()=" << csr_ld_tag_index_.size() << " (mem usage = " << mem_bytes << " bytes)";
+  LOG << " diag: csr_ld_tag_index_.size()=" << csr_ld_tag_index_.size() << " (mem usage = " << mem_bytes << " bytes)";
   mem_bytes = csr_ld_r2_.size() * sizeof(float); mem_bytes_total += mem_bytes;
-  LOG << ">diag: csr_ld_r2_.size()=" << csr_ld_r2_.size() << " (mem usage = " << mem_bytes << " bytes)";
+  LOG << " diag: csr_ld_r2_.size()=" << csr_ld_r2_.size() << " (mem usage = " << mem_bytes << " bytes)";
   mem_bytes = coo_ld_.size() * (sizeof(float) + sizeof(int) + sizeof(int)); mem_bytes_total += mem_bytes;
-  LOG << ">diag: coo_ld_.size()=" << coo_ld_.size() << " (mem usage = " << mem_bytes << " bytes)";
-  LOG << ">diag: zvec1_.size()=" << zvec1_.size();
-  LOG << ">diag: zvec1_=" << std_vector_to_str(zvec1_);
-  LOG << ">diag: nvec1_.size()=" << nvec1_.size();
-  LOG << ">diag: nvec1_=" << std_vector_to_str(nvec1_);
-  LOG << ">diag: zvec2_.size()=" << zvec2_.size();
-  LOG << ">diag: zvec2_=" << std_vector_to_str(zvec2_);
-  LOG << ">diag: nvec2_.size()=" << nvec2_.size();
-  LOG << ">diag: nvec2_=" << std_vector_to_str(nvec2_);
-  LOG << ">diag: weights_.size()=" << weights_.size();
-  LOG << ">diag: weights_=" << std_vector_to_str(weights_);
-  LOG << ">diag: hvec_.size()=" << hvec_.size();
-  LOG << ">diag: hvec_=" << std_vector_to_str(hvec_);
+  LOG << " diag: coo_ld_.size()=" << coo_ld_.size() << " (mem usage = " << mem_bytes << " bytes)";
+  LOG << " diag: zvec1_.size()=" << zvec1_.size();
+  LOG << " diag: zvec1_=" << std_vector_to_str(zvec1_);
+  LOG << " diag: nvec1_.size()=" << nvec1_.size();
+  LOG << " diag: nvec1_=" << std_vector_to_str(nvec1_);
+  LOG << " diag: zvec2_.size()=" << zvec2_.size();
+  LOG << " diag: zvec2_=" << std_vector_to_str(zvec2_);
+  LOG << " diag: nvec2_.size()=" << nvec2_.size();
+  LOG << " diag: nvec2_=" << std_vector_to_str(nvec2_);
+  LOG << " diag: weights_.size()=" << weights_.size();
+  LOG << " diag: weights_=" << std_vector_to_str(weights_);
+  LOG << " diag: hvec_.size()=" << hvec_.size();
+  LOG << " diag: hvec_=" << std_vector_to_str(hvec_);
   for (int i = 0; i < snp_order_.size(); i++) {
     mem_bytes = snp_order_[i]->size() * sizeof(int); mem_bytes_total += mem_bytes;
-    LOG << ">diag: snp_order_[" << i << "].shape=[" << snp_order_[i]->no_rows() << ", " << snp_order_[i]->no_columns() << "]" << " (mem usage = " << mem_bytes << " bytes)";
-    LOG << ">diag: snp_order_[" << i << "]=" << snp_order_[i]->to_str();
+    LOG << " diag: snp_order_[" << i << "].shape=[" << snp_order_[i]->no_rows() << ", " << snp_order_[i]->no_columns() << "]" << " (mem usage = " << mem_bytes << " bytes)";
+    LOG << " diag: snp_order_[" << i << "]=" << snp_order_[i]->to_str();
   }
   for (int i = 0; i < tag_r2sum_.size(); i++) {
     mem_bytes = tag_r2sum_[i]->size() * sizeof(float); mem_bytes_total += mem_bytes;
-    LOG << ">diag: tag_r2sum_[" << i << "].shape=[" << tag_r2sum_[i]->no_rows() << ", " << tag_r2sum_[i]->no_columns() << "]" << " (mem usage = " << mem_bytes << " bytes)";
-    LOG << ">diag: tag_r2sum_[" << i << "]=" << tag_r2sum_[i]->to_str();
+    LOG << " diag: tag_r2sum_[" << i << "].shape=[" << tag_r2sum_[i]->no_rows() << ", " << tag_r2sum_[i]->no_columns() << "]" << " (mem usage = " << mem_bytes << " bytes)";
+    LOG << " diag: tag_r2sum_[" << i << "]=" << tag_r2sum_[i]->to_str();
   }
   for (int i = 0; i < last_num_causals_.size(); i++) 
-    LOG << ">diag: last_num_causals_[" << i << "]=" << last_num_causals_[i];
-  LOG << ">diag: options.k_max_" << k_max_;
-  LOG << ">diag: options.max_causals_" << max_causals_;
-  LOG << ">diag: options.num_components_" << num_components_;
-  LOG << ">diag: options.r2_min_" << r2_min_;
-  LOG << ">diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
+    LOG << " diag: last_num_causals_[" << i << "]=" << last_num_causals_[i];
+  LOG << " diag: options.k_max_=" << k_max_;
+  LOG << " diag: options.max_causals_=" << max_causals_;
+  LOG << " diag: options.num_components_=" << num_components_;
+  LOG << " diag: options.r2_min_=" << r2_min_;
+  LOG << " diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
 }

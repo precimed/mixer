@@ -87,9 +87,9 @@ pivec_str = {'1e-05', '0.0001', '0.001', '0.01'};
 
 if 0
     % test bivariate stuff 
-    %trait_name = 'simu_h2=0.4_rg=0.0_pi1u=1e-03_pi2u=1e-03_pi12=1e-03_rep=1_tag1=completePolygenicOverlap_tag2=evenPolygenicity';fig=1;
+    trait_name = 'simu_h2=0.4_rg=0.0_pi1u=1e-03_pi2u=1e-03_pi12=1e-03_rep=1_tag1=completePolygenicOverlap_tag2=evenPolygenicity';fig=1;
     %trait_name = 'simu_h2=0.4_rg=0.0_pi1u=1e-03_pi2u=1e-03_pi12=3e-04_rep=1_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity';fig=2;
-    trait_name ='simu_h2=0.4_rg=0.0_pi1u=1e-03_pi2u=1e-03_pi12=1e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity'; fig=3;
+    %trait_name ='simu_h2=0.4_rg=0.0_pi1u=1e-03_pi2u=1e-03_pi12=1e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity'; fig=3;
     
     dat_trait1 = load(['H:\NORSTORE\oleksanf\11015833\SIMU_BGMG2\', trait_name, '.trait1.mat']);
     dat_trait2 = load(['H:\NORSTORE\oleksanf\11015833\SIMU_BGMG2\', trait_name, '.trait2.mat']);
@@ -107,15 +107,17 @@ if 0
     rho_beta = 0; rho_zero = 0;
     
     if 1
-        figure(fig);
+        figure(fig); hold on;
     pi12_frac_vec = 0:0.1:1;
     pi12_frac_cost = [];
     for pi12_frac = pi12_frac_vec
         pi_vec = [(1-pi12_frac), (1-pi12_frac), pi12_frac] * dat_trait1.causal_pi;
         pi12_frac_cost(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
     end
-    plot(pi12_frac_vec, pi12_frac_cost)
+    plot(pi12_frac_vec, pi12_frac_cost, '.');
     end
+    
+    % pi12_frac_vec(1, end+1)=0.3
 
     if 0
         koef_vec = logspace(-1, 1, 11);

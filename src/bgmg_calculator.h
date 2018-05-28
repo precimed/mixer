@@ -41,14 +41,14 @@ class TemplateManager : boost::noncopyable {
 
   std::shared_ptr<Type> Get(int id) {
     if (map_.find(id) == map_.end()) {
-      LOG << "Create new context (id=" << id << ")";
+      LOG << " Create new context (id=" << id << ")";
       map_[id] = std::make_shared<Type>();
     }
     return map_[id];
   }
 
   void Erase(int id) {
-    LOG << "Dispose context (id=" << id << ")";
+    LOG << " Dispose context (id=" << id << ")";
     map_.erase(id);
   }
 
@@ -60,7 +60,7 @@ class TemplateManager : boost::noncopyable {
 template<typename T>
 class DenseMatrix {
  public:
-  explicit DenseMatrix(int no_rows = 0, int no_columns = 0, bool store_by_rows = true)
+  explicit DenseMatrix(size_t no_rows = 0, size_t no_columns = 0, bool store_by_rows = true)
     : no_rows_(no_rows),
     no_columns_(no_columns),
     store_by_rows_(store_by_rows),
@@ -77,7 +77,7 @@ class DenseMatrix {
     if (no_columns_ >0 && no_rows_ > 0) {
       data_ = new T[no_rows_ * no_columns_];
 
-      for (int i = 0; i < no_rows_ * no_columns_; ++i) {
+      for (size_t i = 0; i < no_rows_ * no_columns_; ++i) {
         data_[i] = src_matrix.get_data()[i];
       }
     } else {
@@ -93,14 +93,14 @@ class DenseMatrix {
     memset(data_, 0, sizeof(T)* no_rows_ * no_columns_);
   }
 
-  T& operator() (int index_row, int index_col) {
+  T& operator() (size_t index_row, size_t index_col) {
     if (store_by_rows_) {
       return data_[index_row * no_columns_ + index_col];
     }
     return data_[index_col * no_rows_ + index_row];
   }
 
-  const T& operator() (int index_row, int index_col) const {
+  const T& operator() (size_t index_row, size_t index_col) const {
     assert(index_row < no_rows_);
     assert(index_col < no_columns_);
     if (store_by_rows_) {
@@ -119,7 +119,7 @@ class DenseMatrix {
     if (no_columns_ >0 && no_rows_ > 0) {
       data_ = new  T[no_rows_ * no_columns_];
 
-      for (int i = 0; i < no_rows_ * no_columns_; ++i) {
+      for (size_t i = 0; i < no_rows_ * no_columns_; ++i) {
         data_[i] = src_matrix.get_data()[i];
       }
     } else {
@@ -129,16 +129,16 @@ class DenseMatrix {
     return *this;
   }
 
-  int no_rows() const { return no_rows_; }
-  int no_columns() const { return no_columns_; }
-  int size() const { return no_rows_ * no_columns_; }
+  size_t no_rows() const { return no_rows_; }
+  size_t no_columns() const { return no_columns_; }
+  size_t size() const { return no_rows_ * no_columns_; }
   bool is_equal_size(const DenseMatrix<T>& rhs) const {
     return no_rows_ == rhs.no_rows_ && no_columns_ == rhs.no_columns_;
   }
 
   std::string to_str() {
-    int rows_to_str = std::min(5, no_rows_ - 1);
-    int cols_to_str = std::min(5, no_columns_ - 1);
+    int rows_to_str = std::min<int>(5, no_rows_ - 1);
+    int cols_to_str = std::min<int>(5, no_columns_ - 1);
     std::stringstream ss;
     ss << "[";
     for (int i = 0; i < rows_to_str; i++) {
@@ -173,8 +173,8 @@ class DenseMatrix {
   }
 
  private:
-  int no_rows_;
-  int no_columns_;
+  size_t no_rows_;
+  size_t no_columns_;
   bool store_by_rows_;
   T* data_;
 };
@@ -214,7 +214,7 @@ class BgmgCalculator {
   int64_t set_option(char* option, double value);
   
   void clear_state() {
-    LOG << "clear_state";
+    LOG << " clear_state";
 
     // clear all info about LD structure
     csr_ld_snp_index_.clear();

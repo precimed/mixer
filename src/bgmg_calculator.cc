@@ -241,7 +241,6 @@ public:
   }
 };
 
-// TBD: Can be speed up by partial random shuffle 
 int64_t BgmgCalculator::find_snp_order() {
   if (max_causals_ <= 0 || max_causals_ > num_snp_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: max_causals_ <= 0 || max_causals_ > num_snp_"));
   if (num_components_ <= 0 || num_components_ > 3) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: num_components_ must be between 1 and 3"));
@@ -292,7 +291,7 @@ int64_t BgmgCalculator::find_snp_order() {
 
 int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   if (num_causals < 0 || num_causals >= max_causals_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: num_causals < 0 || num_causals >= max_causals_"));
-  if (component_id < 0 || component_id >= 3) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and 2"));
+  if (component_id < 0 || component_id >= num_components_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and num_components_"));
 
   const float num_causals_original = num_causals;
   if (last_num_causals_.empty()) find_snp_order();
@@ -300,6 +299,12 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   float last_num_causals = last_num_causals_[component_id]; 
   
   LOG << ">find_tag_r2sum(component_id=" << component_id << ", num_causals=" << num_causals << ", last_num_causals=" << last_num_causals << ")";
+
+  // if num_causal is more than twice lower than last_num_causals we should re-calculate tag_r2sum from scratch.
+  if (num_causals < (last_num_causals / 2)) {
+    clear_tag_r2sum(component_id);
+    last_num_causals = 0.0f;
+  }
 
   SimpleTimer timer(-1);
 

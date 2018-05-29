@@ -230,6 +230,14 @@ class BgmgCalculator {
     snp_can_be_causal_.clear();
   }
 
+  void clear_tag_r2sum(int component_id) {
+    if (component_id < 0 || component_id >= num_components_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and num_components_"));
+    if (last_num_causals_.empty()) return;
+    LOG << " clear_tag_r2sum(component_id=" << component_id << ")";
+    last_num_causals_[component_id] = 0;
+    tag_r2sum_[component_id]->InitializeZeros();
+ }
+
   int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
   int64_t calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);

@@ -16,14 +16,24 @@ public:
   }
 private:
   LoggerImpl(std::string path) : log_file_() {
-    init(path);
+    try {
+      init(path);
+    } catch (...) {
+      // ignore errors (maybe two instances are trying to write to the same bgmg.log file?)
+    }
+
+    if (!log_file_.is_open()) {
+      std::cerr << "unable to initialize logging to " << path;
+    }
   }
 
 public:
   void init(std::string path) {
     log_file_ = std::ofstream(path, std::ios::app);
-    boost::posix_time::time_facet* facet = new boost::posix_time::time_facet("%Y%m%d %H:%M:%S.%f");
-    log_file_.imbue(std::locale(log_file_.getloc(), facet));
+    if (log_file_.is_open()) {
+      boost::posix_time::time_facet* facet = new boost::posix_time::time_facet("%Y%m%d %H:%M:%S.%f");
+      log_file_.imbue(std::locale(log_file_.getloc(), facet));
+    }
     // boost::posix_time::time_facet *facet = new boost::posix_time::time_facet("%d-%b-%Y %H:%M:%S");
     // std::cout.imbue(std::locale(std::cout.getloc(), facet));
     // log_file_.imbue(std::locale(log_file_.getloc(), facet));
@@ -33,8 +43,10 @@ public:
   template <typename T>
   LoggerImpl& operator<< (const T& rhs) {
     // std::cout << rhs;
-    log_file_ << rhs;
-    log_file_.flush();
+    if (log_file_.is_open()) {
+      log_file_ << rhs;
+      log_file_.flush();
+    }
     return *this;
   }
 

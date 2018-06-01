@@ -128,6 +128,10 @@ TEST(UgmgTest, CalcLikelihood) {
 
   calc.calc_univariate_pdf(0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf[0]);
   calc.set_option("diag", 0.0);
+
+  calc.set_option("fast_cost", 1);
+  cost = calc.calc_univariate_cost(0.2, 1.2, 0.1);
+  ASSERT_TRUE(std::isfinite(cost));
 }
 
 TEST(BgmgTest, CalcLikelihood) {
@@ -172,6 +176,10 @@ TEST(BgmgTest, CalcLikelihood) {
   ASSERT_TRUE(std::isfinite(cost));
 
   calc.set_option("diag", 0.0);
+
+  calc.set_option("fast_cost", 1);
+  cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
+  ASSERT_TRUE(std::isfinite(cost));
 }
 
 }  // namespace

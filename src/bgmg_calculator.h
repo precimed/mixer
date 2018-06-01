@@ -181,7 +181,7 @@ class DenseMatrix {
 
 class BgmgCalculator {
  public:
-  BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), r2_min_(0.0), num_components_(1), max_causals_(100000) {}
+  BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), r2_min_(0.0), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false) {}
   
   // num_snp = total size of the reference (e.i. the total number of genotyped variants)
   // num_tag = number of tag variants to include in the inference (must be a subset of the reference)
@@ -213,30 +213,9 @@ class BgmgCalculator {
 
   int64_t set_option(char* option, double value);
   
-  void clear_state() {
-    LOG << " clear_state";
-
-    // clear all info about LD structure
-    csr_ld_snp_index_.clear();
-    csr_ld_tag_index_.clear();
-    csr_ld_r2_.clear();
-    coo_ld_.clear();
-    hvec_.clear();
-
-    // clear ordering of SNPs
-    snp_order_.clear();
-    tag_r2sum_.clear();
-    last_num_causals_.clear();
-    snp_can_be_causal_.clear();
-  }
-
-  void clear_tag_r2sum(int component_id) {
-    if (component_id < 0 || component_id >= num_components_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and num_components_"));
-    if (last_num_causals_.empty()) return;
-    LOG << " clear_tag_r2sum(component_id=" << component_id << ")";
-    last_num_causals_[component_id] = 0;
-    tag_r2sum_[component_id]->InitializeZeros();
- }
+  void clear_state();
+  void clear_tag_r2sum(int component_id);
+  void calc_sum_r2_and_sum_r4();
 
   int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
@@ -262,6 +241,11 @@ class BgmgCalculator {
   std::vector<float> csr_ld_r2_;
   std::vector<std::tuple<int, int, float>> coo_ld_; // snp, tag, r2
 
+  // for each tag snp, sum of r2 and r4 coefficients
+  // (after set_hvec, sum of r2*hvec and r4*hvec^2).
+  std::vector<float> ld_tag_sum_r2_;
+  std::vector<float> ld_tag_sum_r4_;
+
   // all stored for for tag variants (only)
   std::vector<float> zvec1_;
   std::vector<float> nvec1_;
@@ -283,8 +267,11 @@ class BgmgCalculator {
   int max_causals_;
   int num_components_;
   float r2_min_;
+  bool use_fast_cost_calc_;
   void check_num_snp(int length);
   void check_num_tag(int length);
+  double calc_univariate_cost_fast(float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
 };
 
 typedef TemplateManager<BgmgCalculator> BgmgCalculatorManager;

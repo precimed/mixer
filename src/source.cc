@@ -24,6 +24,8 @@
 
 #include <bgmg.h>
 #include "bgmg_calculator.h"
+#include "bgmg_log.h"
+
 
 static std::string last_error_;
 static const char* last_error() { return last_error_.c_str(); }
@@ -147,4 +149,8 @@ int64_t bgmg_dispose(int context_id) {
 
 const char* bgmg_status(int context_id) {
   return "";
+}
+
+DLL_PUBLIC void bgmg_init_log(const char* file) {
+  LoggerImpl::singleton().init(file);
 }

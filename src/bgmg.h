@@ -45,5 +45,7 @@ extern "C" {
   DLL_PUBLIC double bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   DLL_PUBLIC int64_t bgmg_dispose(int context_id);
   DLL_PUBLIC const char* bgmg_status(int context_id);
+  
+  DLL_PUBLIC void bgmg_init_log(const char* file);
 }
 

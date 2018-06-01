@@ -21,6 +21,7 @@ trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_p
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
 DO_FIT=true;QQ_PLOT_TRUE=true;QQ_PLOT_FIT=true;
 
+bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\Debug\bgmg.dll';
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'}
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat' };
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'}
@@ -36,11 +37,14 @@ end
 
 addpath('DERIVESTsuite');
 
+if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
+
 % full path to bgmg shared library
 if ~exist('bgmg_shared_library', 'var'), error('bgmg_shared_library is required'); end;
 if ~exist('bgmg_shared_library_header', 'var'), [a,b,c]=fileparts(bgmg_shared_library); bgmg_shared_library_header = [fullfile(a, b), '.h']; clear('a', 'b','c'); end;
 if libisloaded('bgmg'), unloadlibrary('bgmg'); end;
 if ~libisloaded('bgmg'), fprintf('Loading bgmg library: %s, %s... ', bgmg_shared_library, bgmg_shared_library_header); loadlibrary(bgmg_shared_library, bgmg_shared_library_header, 'alias', 'bgmg');  fprintf('OK.\n'); end;
+calllib('bgmg', 'bgmg_init_log', [out_file, '.bgmglib.log']);
 
 % reference file containing mafvec, chrnumvec and posvec for all SNPs to consider in this analysis. 
 if ~exist('reference_file', 'var'), error('reference_file is required'); end;
@@ -71,7 +75,6 @@ if ~exist('trait1_file', 'var'), error('trait1_file is required'); end;
 if ~exist('trait2_file', 'var'), trait2_file = ''; end;
 if ~exist('trait1_nvec', 'var'), trait1_nvec = nan; end;
 if ~exist('trait2_nvec', 'var'), trait2_nvec = nan; end;
-if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
 
 fprintf('Loading %s...', trait1_file); trait1_data = load(trait1_file); fprintf('OK.\n'); num_components = 1;
 if (length(trait1_data.zvec) ~= length(ref.chrnumvec)), error('trait1_file is incompatible with the reference'); end;

@@ -15,7 +15,13 @@ public:
     return instance;
   }
 private:
-  LoggerImpl(std::string path) : log_file_(path, std::ios::app) {
+  LoggerImpl(std::string path) : log_file_() {
+    init(path);
+  }
+
+public:
+  void init(std::string path) {
+    log_file_ = std::ofstream(path, std::ios::app);
     boost::posix_time::time_facet* facet = new boost::posix_time::time_facet("%Y%m%d %H:%M:%S.%f");
     log_file_.imbue(std::locale(log_file_.getloc(), facet));
     // boost::posix_time::time_facet *facet = new boost::posix_time::time_facet("%d-%b-%Y %H:%M:%S");
@@ -23,7 +29,7 @@ private:
     // log_file_.imbue(std::locale(log_file_.getloc(), facet));
     // std::cout << std::setprecision(9);
   }
-public:
+
   template <typename T>
   LoggerImpl& operator<< (const T& rhs) {
     // std::cout << rhs;

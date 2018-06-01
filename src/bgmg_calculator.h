@@ -207,6 +207,8 @@ class BgmgCalculator {
   int64_t set_zvec(int trait, int length, float* values);
   int64_t set_nvec(int trait, int length, float* values);
   int64_t set_weights(int length, float* values);
+  int64_t set_weights_randprune(int n, float r2);   // alternative to set_weights; calculates weights based on random pruning from LD matrix
+  int64_t retrieve_weights(int length, float* buffer);
 
   int64_t find_snp_order();  // private - only for testing
   int64_t find_tag_r2sum(int component_id, float num_causals);  // private - only for testing

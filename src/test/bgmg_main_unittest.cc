@@ -164,6 +164,7 @@ TEST(BgmgTest, CalcLikelihood) {
   calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
 
+  calc.set_weights_randprune(20, 0.25);
   calc.set_hvec(num_snp, &tm.hvec()->at(0));
 
   float pi_vec[] = { 0.1, 0.2, 0.15 };

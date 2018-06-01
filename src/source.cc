@@ -95,6 +95,13 @@ int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_cau
   } CATCH_EXCEPTIONS;
 }
 
+int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_weights(length, buffer);
+  } CATCH_EXCEPTIONS;
+}
+
 int64_t bgmg_set_option(int context_id, char* option, double value) {
   try {
     set_last_error(std::string());
@@ -120,6 +127,13 @@ double bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, i
   try {
     set_last_error(std::string());
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_cost(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_set_weights_randprune(int context_id, int n, float r2) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_weights_randprune(n, r2);
   } CATCH_EXCEPTIONS;
 }
 

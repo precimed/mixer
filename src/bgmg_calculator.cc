@@ -28,6 +28,7 @@
 #include <valarray>
 #include <cmath>
 #include <sstream>
+#include <set>
 
 #include "boost/throw_exception.hpp"
 
@@ -876,4 +877,80 @@ void BgmgCalculator::calc_sum_r2_and_sum_r4() {
   }
 
   LOG << "<calc_sum_r2_and_sum_r4(), elapsed time " << timer.elapsed_ms() << "ms";
+}
+
+int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
+  LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << ")";
+  if (r2_threshold < r2_min_) BOOST_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: r2 < r2_min_"));
+  if (n <= 0) BOOST_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: n <= 0"));
+  if (!hvec_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune must be called before set_hvec"));
+  SimpleTimer timer(-1);
+
+  std::valarray<int> passed_random_pruning(0, num_tag_);  // count how many times an index  has passed random pruning
+
+#pragma omp parallel
+  {
+    std::valarray<int> passed_random_pruning_local(0, num_tag_);  // count how many times an index  has passed random pruning
+
+#pragma omp for schedule(static)
+    for (int prune_i = 0; prune_i < n; prune_i++) {
+      std::mt19937_64 random_engine;
+      random_engine.seed(prune_i);
+
+      std::vector<int> candidate_tag_indices(num_tag_, 0);
+      std::vector<char> processed_tag_indices(num_tag_, 0);
+      for (int i = 0; i < num_tag_; i++) candidate_tag_indices[i] = i;
+      std::set<int> non_processed_tag_indices(candidate_tag_indices.begin(), candidate_tag_indices.end());
+
+      while (candidate_tag_indices.size() > 0) {
+        // Here is the logic:
+        // 1. select a random element X from the candidate_tag_indices
+        // 2. if X is present in processed_tag_indices (collision case):
+        //    - re-generate candidate_tag_indices from the set of non_processed_tag_indices
+        //    - continue while loop.
+        // 3. add X to passed_random_pruning
+        // 4. query LD matrix for everything in LD with X (we asume that X will be part of that list). Then, for each Y in LD with X:
+        //    - add Y to processed_tag_indices
+        //    - remove Y from non_processed_tag_indices
+
+        const int random_candidate_index = std::uniform_int_distribution<int>(0, candidate_tag_indices.size() - 1)(random_engine);
+        const int random_tag_index = candidate_tag_indices[random_candidate_index];
+        if (processed_tag_indices[random_tag_index]) {
+          candidate_tag_indices.assign(non_processed_tag_indices.begin(), non_processed_tag_indices.end());
+          continue;
+        }
+
+        passed_random_pruning_local[random_tag_index] += 1;
+        int causal_index = tag_to_snp_[random_tag_index];
+        const int r2_index_from = csr_ld_snp_index_[causal_index];
+        const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
+        for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
+          const int tag_index = csr_ld_tag_index_[r2_index];
+          const float r2_value = csr_ld_r2_[r2_index];
+          if (r2_value < r2_threshold) continue;
+          if (processed_tag_indices[tag_index]) continue;
+          processed_tag_indices[tag_index] = 1;         //  mark as processed, and
+          non_processed_tag_indices.erase(tag_index);   // remove from the set
+        }
+      }
+    }
+
+#pragma omp critical
+    passed_random_pruning += passed_random_pruning_local;
+  }
+
+  weights_.clear(); weights_.resize(num_tag_, 0.0f);
+  for (int i = 0; i < num_tag_; i++)
+    weights_[i] = static_cast<float>(passed_random_pruning[i]) / static_cast<float>(n);
+
+  LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << "), elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}
+
+int64_t BgmgCalculator::retrieve_weights(int length, float* buffer) {
+  if (length != num_tag_) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (weights_.size() != num_tag_) BOOST_THROW_EXCEPTION(::std::runtime_error("weights_.size() != num_tag_"));
+  LOG << " retrieve_weights()";
+  for (int i = 0; i < num_tag_; i++) buffer[i] = weights_[i];
+  return 0;
 }

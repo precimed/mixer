@@ -29,6 +29,8 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values);
   DLL_PUBLIC int64_t bgmg_set_hvec(int context_id, int length, float* values);
   DLL_PUBLIC int64_t bgmg_set_weights(int context_id, int length, float* values);
+  DLL_PUBLIC int64_t bgmg_set_weights_randprune(int context_id, int n, float r2);
+  DLL_PUBLIC int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer);
 
   DLL_PUBLIC int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_indices);
   DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int length, int* snp_index, int* tag_index, float* r2);

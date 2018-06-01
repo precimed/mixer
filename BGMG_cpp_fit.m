@@ -1,0 +1,439 @@
+function results = BGMG_fit(zmat, Hvec, Nmat, w_ld, ref_ld, options)
+    % zmat      - matrix SNP x 2, z scores
+    % Hvec      - vector SNP x 1, heterozigosity per SNP
+    % Nmat      - number of subjects genotyped per SNP
+    % w_ld      - LD score (total LD) per SNP, calculated across SNPs included in the template for the analysis
+    % options   - options; see the below for a full list of configurable options
+
+    % List of all configurable options
+    if ~exist('options', 'var'), options = struct(); end;
+    if ~isfield(options, 'MaxFunEvals'), options.MaxFunEvals = NaN; end;
+    if ~isfield(options, 'verbose'), options.verbose = false; end;  % enable or disable verbose logging
+    if ~isfield(options, 'ci_alpha'), options.ci_alpha = 0.05; end;
+    if ~isfield(options, 'ci_sample'), options.ci_sample = 10000; end;
+    if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
+    if ~isfield(options, 'use_univariate_pi'), options.use_univariate_pi = false; end;
+    if ~isfield(options, 'use_poisson'), options.use_poisson = true; end;
+    if ~isfield(options, 'use_poisson_bgmg'), options.use_poisson_bgmg = false; end;
+    if ~isfield(options, 'relax_sig2_beta'), options.relax_sig2_beta = false; end;
+    if ~isfield(options, 'relax_rho_zero'), options.relax_rho_zero = false; end;
+    if ~isfield(options, 'relax_all'), options.relax_all = false; end;
+    if ~isfield(options, 'fit_infinitesimal'), options.fit_infinitesimal = false; end;  % infinitesimal model (implemented only for univariate analysis)
+    if ~isfield(options, 'fit_two_causal_components'), options.fit_two_causal_components = false; end;  % fit two causal components (implemented only for univariate analysis, without ci estimation)
+    if ~isfield(options, 'bivariate_penalty_factor'), options.bivariate_penalty_factor = 10; end;
+    if ~isfield(options, 'scad_penalty'), options.scad_penalty = nan; end;
+
+    poisson_options = {};
+    options.use_poisson_original = options.use_poisson;
+    options.use_poisson = false;  % initial fit without poisson approximation, final with including poisson approximation
+
+    if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
+
+    fminsearch_options = struct('Display', 'on');
+    if ~isnan(options.MaxFunEvals), fminsearch_options.MaxFunEvals=options.MaxFunEvals; end;
+
+    ntraits = size(zmat, 2);
+    if ntraits > 2, error('Support only 1 or 2 traits'); end;
+
+    % Fit univariate model for each trait
+    % (user may skip this by providing options.params1 and
+    % options.params2 with univariate parameters for each trait)
+    for itrait=1:ntraits
+        zvec = zmat(:, itrait);
+        Nvec = Nmat(:, itrait);
+
+        if isfield(options, sprintf('params%i', itrait)),
+            results.univariate{itrait}.params = options.(sprintf('params%i', itrait));
+            if options.use_poisson_original
+                poisson_options{itrait} = options; poisson_options{itrait}.use_poisson=true;
+                [~, detected_options] = BGMG_univariate_cost(results.univariate{itrait}.params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options{itrait});
+                poisson_options{itrait}.speedup_info = detected_options.speedup_info;
+            end
+        else
+            fit = @(x0, mapparams, fit_options)mapparams(fminsearch(@(x)BGMG_univariate_cost(mapparams(x), zvec, Hvec, Nvec, w_ld, ref_ld, fit_options), mapparams(x0), fminsearch_options));
+
+            fprintf('Trait%i  : fit infinitesimal model to find initial sig2_zero\n', itrait);
+            params_inft0 = struct('sig2_zero', var(zvec(~isnan(zvec))), 'sig2_beta', 1 ./ mean(Nvec(~isnan(Nvec))));
+            params_inft  = fit(params_inft0, @(x)UGMG_mapparams1(x, struct('pi_vec', 1.0)), options);
+
+            if options.fit_infinitesimal
+                results.univariate{itrait}.params = params_inft;
+            else
+                fprintf('Trait%i  : fit pi_vec and sig2_beta, constrained on sig2_zero and h2\n', itrait);
+                params_mix0  = fit(struct('pi_vec', 0.01), @(x)UGMG_mapparams1_h2(x, params_inft.sig2_beta, params_inft.sig2_zero), options);
+
+                fprintf('Trait%i  : final unconstrained optimization\n', itrait);
+                non_poisson_params = fit(params_mix0, @(x)UGMG_mapparams1(x), options);
+
+                if options.use_poisson_original
+                    fprintf('Trait%i  : optimization with poisson cost function\n', itrait);
+                    poisson_options{itrait} = options; poisson_options{itrait}.use_poisson=true;
+                    [~, detected_options] = BGMG_univariate_cost(non_poisson_params, zvec, Hvec, Nvec, w_ld, ref_ld, poisson_options{itrait});
+                    poisson_options{itrait}.speedup_info = detected_options.speedup_info;
+                    results.univariate{itrait}.params = fit(non_poisson_params, @(x)UGMG_mapparams1(x), poisson_options{itrait});
+                    ci_options = poisson_options{itrait};
+                else
+                    results.univariate{itrait}.params = non_poisson_params;
+                    ci_options = options;
+                end
+            end
+
+            if options.fit_two_causal_components
+                fprintf('Trait%i  : final second causal component\n', itrait);
+                params_mix2 = results.univariate{itrait}.params;
+
+                % initial approximation: split heritability in two equal components of small effects and large effects
+                % h2 = p * s = 0.5p * s + 0.25p * 2s (where p = pi_vec, s = sig2_beta)
+                params_mix2.pi_vec = [params_mix2.pi_vec*0.5 params_mix2.pi_vec*0.25];
+                params_mix2.sig2_beta = [params_mix2.sig2_beta params_mix2.sig2_beta * 2];
+
+                results.univariate{itrait}.params = fit(params_mix2, @(x)UGMG_mapparams2(x), options);
+            end
+
+            if ~isnan(options.ci_alpha)
+                fprintf('Trait%i  : uncertainty estimation\n', itrait);
+                ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_univariate_cost(UGMG_mapparams1(x), zvec, Hvec, Nvec, w_ld, ref_ld, ci_options), UGMG_mapparams1(results.univariate{itrait}.params)); warning(ws);
+                results.univariate{itrait}.ci_hess = hess;
+                results.univariate{itrait}.ci_hess_err = err;
+                ci_params = [];
+                try
+                    hess(diag(any(abs(inv(hess)) > 1e10))) = +Inf;
+                    ci_sample = mvnrnd(UGMG_mapparams1(results.univariate{itrait}.params), inv(hess), options.ci_sample);
+                    ci_params = cell(options.ci_sample, 1);
+                    for i=1:options.ci_sample, ci_params{i} = UGMG_mapparams1(ci_sample(i, :)); end;
+                catch err
+                    fprintf('Error, %s\n', err.message);
+                end
+
+                results.univariate{itrait}.ci_params = ci_params;
+                [ci_univariate_funcs, ~] = BGMG_util.find_extract_funcs(options);
+                results.univariate{itrait}.ci = extract_ci_funcs(ci_params, ci_univariate_funcs, results.univariate{itrait}.params, options.ci_alpha);
+            end
+        end
+    end
+
+    % Fit bivariate model
+    if ntraits == 2
+        p1 = results.univariate{1}.params;
+        p2 = results.univariate{2}.params;
+        
+        fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_bivariate_cost(mapparams(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), mapparams(x0), fminsearch_options));
+        fitWithPenalty = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_bivariate_cost_with_penalty(mapparams(x), zmat, Hvec, Nmat, w_ld, ref_ld, options, poisson_options), mapparams(x0), fminsearch_options));
+
+        corrmat = corr(zmat(all(~isnan(zmat), 2), :));
+        
+        fprintf('Trait 1,2: fit infinitesimal model to find initial rho_zero and rho_beta\n');
+        params_inft0 = struct('rho_zero', corrmat(1,2), 'rho_beta', corrmat(1,2));
+        options_inft = struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], ...
+                              'sig2_beta', [p1.pi_vec * p1.sig2_beta; p2.pi_vec * p2.sig2_beta], ...
+                              'pi_vec', 1);
+        params_inft  = fit(params_inft0, @(x)BGMG_mapparams1_rho(x, options_inft));
+        
+        % Step2. Final unconstrained optimization (jointly on all parameters)
+        if options.relax_rho_zero, rho_zero_constraint = nan; else rho_zero_constraint = params_inft.rho_zero; end;
+        func_map_params = @(x)BGMG_mapparams3(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'sig2_beta', [p1.sig2_beta; p2.sig2_beta], 'rho_zero', rho_zero_constraint));
+        if options.relax_sig2_beta, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', rho_zero_constraint)); end;
+        if options.relax_sig2_beta &&  options.use_univariate_pi, func_map_params = @(x)BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(x, struct('pi1u', p1.pi_vec, 'pi2u', p2.pi_vec, 'sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'rho_zero', rho_zero_constraint)); end;
+        if ~options.relax_sig2_beta && options.use_univariate_pi, error('--use_univariate_pi works only together with --relax_sig2_beta'); end;
+        if options.relax_all, func_map_params=@(x)BGMG_mapparams3(x); end;
+        fprintf('Trait 1,2: final unconstrained optimization (%s)\n', func2str(func_map_params));
+
+        params_final0 = params_inft;
+        params_final0.sig2_beta = [p1.sig2_beta 0 p1.sig2_beta; 0 p2.sig2_beta p2.sig2_beta];
+        init_pi12 = min(p1.pi_vec, p2.pi_vec)/exp(1);
+        params_final0.pi_vec = [p1.pi_vec-init_pi12 p2.pi_vec-init_pi12 init_pi12];
+        params_final0.rho_beta = [0 0 params_inft.rho_beta];
+
+        results.bivariate.params = fitWithPenalty(params_final0, func_map_params);
+
+        % Step3. Uncertainty estimation. 
+        if ~isnan(options.ci_alpha)
+            fprintf('Trait 1,2: uncertainty estimation\n');
+            ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_bivariate_cost(BGMG_mapparams3(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), BGMG_mapparams3(results.bivariate.params)); warning(ws);
+            results.bivariate.ci_hess = hess;
+            results.bivariate.ci_hess_err = err;
+
+            ci_params = [];
+            try
+                % Some elements in hessian might be misscalculated
+                % due to various reasons:
+                % - derivest library may return some hessian elements as NaN,
+                %   for example due to very small values in the the pivec
+                % - derivest library may return too high error bars
+                % Below we detect which variables in hessian appear to be
+                % miscalculated, save the list in nanidx, and ignore
+                % such hessian elements in the code below.
+                hess(diag(any(abs(inv(hess)) > 1e10))) = +Inf;
+
+                ci_sample = mvnrnd(BGMG_mapparams3(results.bivariate.params), inv(hess), options.ci_sample);
+
+                ci_params = cell(options.ci_sample, 1);
+                for i=1:options.ci_sample, ci_params{i} = BGMG_mapparams3(ci_sample(i, :)); end;
+            catch err
+                fprintf('Error, %s\n', err.message);
+            end
+
+            results.bivariate.ci_params = ci_params;
+            [~, ci_bivariate_funcs] = BGMG_util.find_extract_funcs(options);
+            results.bivariate.ci = extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);
+        end
+    end
+
+    if options.verbose
+       fprintf('Done, results are:\n');
+       for itrait=1:ntraits, disp(struct_to_display(results.univariate{itrait}.params)); end;
+       if ntraits==2, disp(struct_to_display(results.bivariate.params)); end;
+    end
+end
+
+function ci = extract_ci_funcs(ci_params, ci_funcs, params, ci_alpha)
+    ci_func_names = fieldnames(ci_funcs);
+    for i=1:length(ci_func_names)
+        ci_func_name = ci_func_names{i};
+        ci_func      = ci_funcs.(ci_func_name);
+
+        pe = ci_func(params);  % pe = point estimate
+
+        if ~isempty(ci_params)
+            dist = nan(length(ci_params), numel(pe));
+            for j=1:length(ci_params), dist(j, :) = BGMG_util.rowvec(ci_func(ci_params{j})); end
+        else
+            dist = nan(2, numel(pe));
+        end
+
+        ci_result.point_estimate = pe;
+        ci_result.mean = reshape(mean(dist), size(pe));
+        ci_result.median = reshape(median(dist), size(pe));
+        ci_result.lower = reshape(quantile(dist,     ci_alpha/2), size(pe));
+        ci_result.upper = reshape(quantile(dist, 1 - ci_alpha/2), size(pe));
+        ci_result.se = reshape(std(dist), size(pe));
+        ci_result.pval = reshape(2*normcdf(-abs(ci_result.mean ./ ci_result.se)), size(pe));
+
+        ci.(ci_func_name) = ci_result;
+    end
+end
+
+function [ov, cnti] = mapparams(iv, ov, cnti, options, transform, field)
+    idx_pack = isnan(options.(field));
+    transform_forward = 0;
+    transform_backward = 1;
+    if isstruct(iv)
+        % transform from struct to vector
+        if any(idx_pack(:))
+            ov = cat(2,ov,BGMG_util.rowvec(transform(iv.(field)(idx_pack),transform_forward)));
+        end
+    else
+        % transform from vector to struct
+        ov.(field) = options.(field);
+        if any(idx_pack(:))
+            ov.(field)(idx_pack) = transform(iv(cnti : (cnti + sum(idx_pack(:)) - 1)), transform_backward);
+            cnti=cnti+sum(idx_pack(:));
+        end
+    end
+end
+
+function ov = UGMG_mapparams1(iv, options)
+    % mapparams for univariate mixture with a single causal component
+    if ~exist('options', 'var'), options=[]; end;
+    if ~isfield(options, 'pi_vec'), options.pi_vec = nan; end;
+    if ~isfield(options, 'sig2_zero'), options.sig2_zero = nan; end;
+    if ~isfield(options, 'sig2_beta'), options.sig2_beta = nan; end;
+
+    is_packing = isstruct(iv); cnti = 1;
+    if is_packing, ov = []; else ov = struct(); end;
+
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+end
+
+function ov = UGMG_mapparams2(iv, options)
+    % mapparams for univariate mixture with two causal components
+    if ~exist('options', 'var'), options=[]; end;
+    if ~isfield(options, 'pi_vec'), options.pi_vec = [nan nan]; end;
+    if ~isfield(options, 'sig2_zero'), options.sig2_zero = nan; end;
+    if ~isfield(options, 'sig2_beta'), options.sig2_beta = [nan nan]; end;
+
+    is_packing = isstruct(iv); cnti = 1;
+    if is_packing, ov = []; else ov = struct(); end;
+    
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+end
+
+function ov = UGMG_mapparams1_h2(iv, h2, sig2_zero)
+    % Optimization with constrained product h2=pi_vec*sig2_beta and fixed sig2_zero
+    
+    if isstruct(iv),
+        ov = BGMG_util.logit_amd(iv.pi_vec,0);
+    else
+        ov = struct();
+        ov.pi_vec=BGMG_util.logit_amd(iv,1);
+        ov.sig2_zero = sig2_zero;
+        ov.sig2_beta = h2 / ov.pi_vec;
+    end
+end
+
+function ov = BGMG_mapparams1_rho(iv, options)
+    % mapparams for bivaraite mixture with a one causal pleiotropic component
+    % all params except rho_zero and rho_beta must be fixed by options
+    if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
+    if ~isfield(options, 'rho_beta'), options.rho_beta = nan; end;
+
+    is_packing = isstruct(iv); cnti = 1;
+    if is_packing, ov = []; else ov = options; end;
+    
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
+end
+
+function ov = BGMG_mapparams3(iv, options)
+    % mapparams for saturated bivaraite mixture with a three causal component
+    % (trait1-specific, trait2-specific, and pleiotropic components)
+    % pleiotropic component re-use the same sig2_beta as trait-specific
+    % components.
+
+    if ~exist('options', 'var'), options=[]; end;
+    if ~isfield(options, 'pi_vec'), options.pi_vec = [nan nan nan]; end;
+    if ~isfield(options, 'sig2_zero'), options.sig2_zero = [nan; nan]; end;
+    if ~isfield(options, 'sig2_beta'), options.sig2_beta = [nan; nan]; end;
+    if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
+    if ~isfield(options, 'rho_beta'), options.rho_beta = [0 0 nan]; end;
+
+    is_packing = isstruct(iv); cnti = 1;
+    if is_packing, ov = []; else ov = struct(); end;
+    
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
+    
+    % Tricks to map sig2_beta from two-vector into 2x3 matrix with two zero
+    % elements and equal variances in trait-specific and pleiotropic components.
+    if is_packing
+        iv.sig2_beta = iv.sig2_beta(:,3);
+        [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+    else
+        [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+        s1 = ov.sig2_beta(1); s2 = ov.sig2_beta(2);
+        ov.sig2_beta = [s1 0 s1; 0 s2 s2];
+    end
+end
+
+function ov = BGMG_mapparams3_relax_sig2_beta(iv, options)
+    % mapparams for saturated bivaraite mixture with a three causal component
+    % (trait1-specific, trait2-specific, and pleiotropic components)
+    % pleiotropic component use individual sig2_beta compared to trait-specific components
+
+    if ~exist('options', 'var'), options=[]; end;
+    if ~isfield(options, 'pi_vec'), options.pi_vec = [nan nan nan]; end;
+    if ~isfield(options, 'sig2_zero'), options.sig2_zero = [nan; nan]; end;
+    if ~isfield(options, 'sig2_beta'), options.sig2_beta = [nan 0 nan; 0 nan nan]; end;
+    if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
+    if ~isfield(options, 'rho_beta'), options.rho_beta = [0 0 nan]; end;
+
+    is_packing = isstruct(iv); cnti = 1;
+    if is_packing, ov = []; else ov = struct(); end;
+
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
+    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+end
+
+function ov = BGMG_mapparams3_relax_sig2_beta_use_univariate_pi(iv, options)
+    % same as BGMG_mapparams3_relax_sig2_beta, but adds constraint on univariate
+    % polygenicities of each trait
+    if ~exist('options', 'var'), options=[]; end;
+    if ~isfield(options, 'sig2_zero'), options.sig2_zero = [nan; nan]; end;
+    if ~isfield(options, 'sig2_beta'), options.sig2_beta = [nan 0 nan; 0 nan nan]; end;
+    if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
+    if ~isfield(options, 'rho_beta'), options.rho_beta = [0 0 nan]; end;
+    options.pi_vec = nan;
+
+    is_packing = isstruct(iv); cnti = 1;
+    if is_packing, ov = []; else ov = struct(); end;
+
+    if is_packing,
+        iv.pi_vec = iv.pi_vec(3) / min(options.pi1u, options.pi2u);
+    end;
+
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
+    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
+
+    if ~is_packing
+        pi12 = ov.pi_vec * min(options.pi1u, options.pi2u);
+        ov.pi_vec = [options.pi1u - pi12, options.pi2u - pi12, pi12];
+    end
+end
+
+function so = struct_to_display(si)
+    so = struct();
+    si_fields = fieldnames(si);
+    for field_index=1:length(si_fields)
+        field = si_fields{field_index};
+        if size(si.(field), 1) > 1
+            so.(field) = mat2str(si.(field), 3);
+        else
+            so.(field) = si.(field);
+        end
+    end
+end
+
+function cost = BGMG_bivariate_cost_with_penalty(params, zmat, Hvec, Nmat, w_ld, ref_ld, options, poisson_options)
+    bgmg_options = options;
+    bgmg_options.use_poisson = options.use_poisson_bgmg;
+    bgmg_options.poisson_sigma_grid_nodes = nan;
+    cost = BGMG_bivariate_cost(params, zmat, Hvec, Nmat, w_ld, ref_ld, bgmg_options);
+    fprintf('BGMG_cost = %.3f ', cost);
+    if isfinite(options.bivariate_penalty_factor)
+        params1.pi_vec = sum(params.pi_vec([1 3]));
+        params1.sig2_beta = params.sig2_beta(1, 3);
+        params1.sig2_zero = params.sig2_zero(1);
+
+        params2.pi_vec = sum(params.pi_vec([2 3]));
+        params2.sig2_beta = params.sig2_beta(2, 3);
+        params2.sig2_zero = params.sig2_zero(2);
+
+        if options.use_poisson_original, options.use_poisson = true; options.speedup_info = poisson_options{1}.speedup_info; end;
+        cost1 = BGMG_univariate_cost(params1, zmat(:, 1), Hvec, Nmat(:, 1), w_ld, ref_ld, options);
+
+        if options.use_poisson_original, options.use_poisson = true; options.speedup_info = poisson_options{2}.speedup_info; end;
+        cost2 = BGMG_univariate_cost(params2, zmat(:, 2), Hvec, Nmat(:, 2), w_ld, ref_ld, options);
+
+        cost = cost + options.bivariate_penalty_factor * (cost1 + cost2);
+        fprintf(', UGMG_penalty_cost=%.3f*(%.3f + %.3f) ', options.bivariate_penalty_factor, cost1, cost2);
+    end
+    
+    if isfinite(options.scad_penalty)
+        % https://arxiv.org/pdf/1301.3558.pdf - Model Selection for Gaussian Mixture Models
+        % http://orfe.princeton.edu/~jqfan/papers/01/penlike.pdf - Variable Selection via Nonconcave Penalized Likelihood and its Oracle Properties
+        % http://www.kumc.edu/Documents/biostatistics/fridley/SCAD_Documentation.pdf - Use of Smoothly Clipped Absolute Deviation (SCAD) Penalty on Sparse Canonical Correlation Analysis
+        scad_lambda = 5e-5;
+        scad_a = 100; %3.7;
+        Df = 9;
+        scad_eps = 1e-12;
+        n = nansum(1./w_ld);
+        
+        scad_pi = zeros(3, length(params.pi_vec));
+        scad_pi(1, :) = scad_lambda * params.pi_vec;
+        scad_pi(2, :) = -(params.pi_vec .^ 2 - 2 * scad_a * scad_lambda * params.pi_vec + scad_lambda .^ 2) / ( 2 * scad_a - 2 );
+        scad_pi(3, :) = ((scad_a + 1) .* scad_lambda^2) / 2;
+        scad_index = 1 + (params.pi_vec > scad_lambda) + (params.pi_vec > (scad_a * scad_lambda));
+
+        scad_cost = 0;
+        num_mix = length(params.pi_vec);
+        for mixi = 1:num_mix
+            scad_cost = scad_cost + n * Df * scad_lambda * options.scad_penalty * ...
+                log(scad_eps + scad_pi(scad_index(mixi), mixi)) - log(scad_eps);
+        end
+        fprintf(', SCAD_penalty_cost=%.3f*%.3f ', options.scad_penalty, scad_cost ./ options.scad_penalty);
+        cost = cost + scad_cost;
+    end
+    fprintf('; total: %.3f\n', cost);
+end

@@ -157,6 +157,7 @@ if ~isempty(trait2_file),
     calllib('bgmg', 'bgmg_set_nvec', 0, 2, sum(defvec), trait2_data.nvec(defvec));
 end
 
+calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
 % Preparation is done, BGMG library is fully setup. Now we can use it to
 % calculate model QQ plots and univariate or bivariate cost function.
 
@@ -194,6 +195,8 @@ if DO_FIT
     result.options = options;
 end
 
+calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
+
 % Produce QQ plots with true params (only works for synthetic data, of course)
 if QQ_PLOT_TRUE
     for trait_index = 1:(1 + ~isempty(trait2_file))
@@ -229,6 +232,8 @@ if QQ_PLOT_FIT
         print(figures.tot, sprintf('%s.trait%i.qq.fit.pdf', out_file, trait_index), '-dpdf')
     end
 end
+
+calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
 
 if ~exist('result', 'var')
     error('No options selected; please enable DO_FIT or QQ_PLOT_TRUE');

@@ -253,35 +253,58 @@ int64_t BgmgCalculator::find_snp_order() {
 
   SimpleTimer timer(-1);
 
-  snp_can_be_causal_.resize(num_snp_, 0);
-
-  xorshf96 random_engine;
-  std::vector<int> perm(num_snp_, 0);
+  // Right now all SNPs must be included in snp_can_be_causal_.
+  // Remember that the only purpose of snp_can_be_causal_ is to limit the information that store about the LD matrix.
+  // At some point we use LD structure only to calculate tag_r2, so we only store r2 for SNPs that are selected as causal by find_snp_order.
+  // Later we've started to use LD structure to 
+  //  - perform random pruning (=> LD must be stored for all tag variants)
+  //    "for (int i = 0; i < num_tag_; i++) snp_can_be_causal_[tag_to_snp_[i]] = 1;"
+  //  - calculate sum_r2, sum_r4 (=> LD must be stored for all variants, OR we need to change the logic and load hvec so that sum_r2 and sum_r4 are calculated on the fly in set_ld_r2_coo.
+  // For now we simply set snp_can_be_causal_ to 1 and store LD structure for all variants.
+  snp_can_be_causal_.resize(num_snp_, 1);
+  const bool snp_can_be_causal_is_constant_1 = true;
 
   SimpleTimer log_timer(10000); // log some message each 10 seconds
   for (int component_index = 0; component_index < num_components_; component_index++) {
+    if (log_timer.fire())
+      LOG << " find_snp_order still working, component_id=" << component_index;
+
     snp_order_.push_back(std::make_shared<DenseMatrix<int>>(max_causals_, k_max_));
     tag_r2sum_.push_back(std::make_shared<DenseMatrix<float>>(num_tag_, k_max_));
     
     tag_r2sum_[component_index]->InitializeZeros();
     last_num_causals_.push_back(0);
     
-    for (int k = 0; k < k_max_; k++) {
-      if (log_timer.fire())
-        LOG << " find_snp_order still working, component_id=" << component_index << ", k=" << k;
+#pragma omp parallel
+    {
+      std::vector<int> perm(num_snp_, 0);
 
-      for (int i = 0; i < num_snp_; i++) perm[i] = i;
-      
-      // perform partial Fisher Yates shuffle (must faster than full std::shuffle)
-      // swap_offset is a random integer, with max of n-1, n-2, n-3, ..., n-max_causals
-      for (int i = 0; i < max_causals_; i++) {
-        const int swap_offset = std::uniform_int_distribution<int>(0, num_snp_ - i - 1)(random_engine);
-        std::iter_swap(perm.begin() + i, perm.begin() + i + swap_offset);
+#pragma omp for schedule(static)
+      for (int k = 0; k < k_max_; k++) {
+        for (int i = 0; i < num_snp_; i++) perm[i] = i;
+
+        std::mt19937_64 random_engine;
+        random_engine.seed(component_index * k_max_ + k);  // ensure each k in each component starts with its own seed.
+
+        // perform partial Fisher Yates shuffle (must faster than full std::shuffle)
+        // swap_offset is a random integer, with max of n-1, n-2, n-3, ..., n-max_causals
+        for (int i = 0; i < max_causals_; i++) {
+          const int swap_offset = std::uniform_int_distribution<int>(0, num_snp_ - i - 1)(random_engine);
+          std::iter_swap(perm.begin() + i, perm.begin() + i + swap_offset);
+        }
+
+        for (int i = 0; i < max_causals_; i++) {
+          (*snp_order_[component_index])(i, k) = perm[i];
+        }
       }
+    }
 
-      for (int i = 0; i < max_causals_; i++) {
-        (*snp_order_[component_index])(i, k) = perm[i];
-        snp_can_be_causal_[perm[i]] = 1;
+    // Fill in snp_can_be_causal_
+    if (!snp_can_be_causal_is_constant_1) {
+      for (int k = 0; k < k_max_; k++) {
+        for (int i = 0; i < max_causals_; i++) {
+          snp_can_be_causal_[(*snp_order_[component_index])(i, k)] = 1;
+        }
       }
     }
   }
@@ -450,6 +473,9 @@ inline double gaussian2_pdf_double(const double z1, const double z2, const doubl
   const double log_dt = -0.5 * log(dt);
 
   const double pdf = exp(log_pi + log_dt + log_exp);
+  if (!std::isfinite(pdf)) {
+    LOG << " warning: !std::isfinite(pdf) a11=" << a11 << ", a12=" << a12 << ", a22=" << a22;
+  }
   return pdf;
 }
 
@@ -808,7 +834,7 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
     const float f1[8] = { 0,0,1,1,0,0,1,1 };
     const float f2[8] = { 0,1,0,1,0,1,0,1 };
 
-    float tag_pdf = 0.0f;
+    double tag_pdf = 0.0f;
     for (int i = 0; i < 8; i++) {
       const float pi1 = (f0[i] ? tag_pi1[0] : tag_pi0[0]);
       const float pi2 = (f1[i] ? tag_pi1[1] : tag_pi0[1]);
@@ -818,6 +844,9 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
       const float a12i = s0_a12 + f0[i] * a12[0] + f1[i] * a12[1] + f2[i] * a12[2];
       tag_pdf += (pi1*pi2*pi3) * gaussian2_pdf_double(z1, z2, a11i, a12i, a22i);
     }
+
+    if (tag_pdf <= 0)
+      tag_pdf = 1e-100;
 
     log_pdf_total += static_cast<double>(-log(tag_pdf) * weights_[tag_index]);
   }
@@ -864,7 +893,7 @@ void BgmgCalculator::calc_sum_r2_and_sum_r4() {
   ld_tag_sum_r2_.clear(); ld_tag_sum_r2_.resize(num_tag_, 0);
   ld_tag_sum_r4_.clear(); ld_tag_sum_r4_.resize(num_tag_, 0);
   for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-    if (log_timer.fire()) LOG << " find_snp_order still working, snp_index=" << causal_index;
+    if (log_timer.fire()) LOG << " calc_sum_r2_and_sum_r4 still working, snp_index=" << causal_index;
 
     const int r2_index_from = csr_ld_snp_index_[causal_index];
     const int r2_index_to = csr_ld_snp_index_[causal_index+1];

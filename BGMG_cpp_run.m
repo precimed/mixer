@@ -141,8 +141,20 @@ for chr_index=1:length(chr_labels)
     tmp.index_A = tmp.index_A + 1; 
     tmp.index_B = tmp.index_B + 1; % 0-based, comming from python
     fprintf('Importing %s to bgmg library...', plink_ld_mat_chr); 
-    calllib('bgmg', 'bgmg_set_ld_r2_coo', 0, length(tmp.r2), m2c(tmp.index_A), m2c(tmp.index_B), tmp.r2); fprintf('OK.\n'); check(); 
-    clear('tmp', 'plink_ld_mat_chr');
+    
+    % chunk all LD r2 elements into pieces, each no more than 1e6.
+    chunks_up = length(tmp.r2); chunks_step = 10000000;
+    chunks = 1:chunks_step:chunks_up; 
+    if (length(chunks) >= 3), chunks_start = chunks(1:end-1); chunks_end = [chunks(2:(end-1))-1 chunks_up];
+    else chunks_start = 1; chunks_end=chunks_up; end;
+    if (sum(chunks_end - chunks_start + 1) ~= chunks_up), error('error in chunking logig'); end;
+    
+    for chunk_index = 1:length(chunks_start)
+        a = chunks_start(chunk_index); b = chunks_end(chunk_index);
+        calllib('bgmg', 'bgmg_set_ld_r2_coo', 0, b-a+1, m2c(tmp.index_A(a:b)), m2c(tmp.index_B(a:b)), tmp.r2(a:b)); fprintf('OK.\n'); check(); 
+    end
+    
+    clear('tmp', 'plink_ld_mat_chr', 'a', 'b', 'chunk_index', 'chunk_start', 'chunk_end', 'chunks_step', 'chunk_up');
 end; clear('chr_index');
 
 calllib('bgmg', 'bgmg_set_ld_r2_csr', 0);  check();

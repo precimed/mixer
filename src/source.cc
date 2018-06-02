@@ -19,8 +19,6 @@
 #define VERSION "v0.9.0"
 
 #include <stdexcept>
-#include "boost/exception/diagnostic_information.hpp"
-#include "boost/exception/get_error_info.hpp"
 
 #include <bgmg.h>
 #include "bgmg_calculator.h"
@@ -37,7 +35,7 @@ catch (const std::runtime_error& e) {                                          \
   set_last_error("runtime_error:  " + std::string(e.what()));                  \
   return -1;                                                                   \
 } catch (...) {                                                                \
-  set_last_error(boost::current_exception_diagnostic_information());           \
+  set_last_error("unknown critical error");                                    \
   return -1;                                                                   \
 }
 

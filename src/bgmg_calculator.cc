@@ -30,24 +30,24 @@
 #include <sstream>
 #include <set>
 
-#include "boost/throw_exception.hpp"
-
 #include "bgmg_log.h"
 
 #define OMP_CHUNK 1000
 
+#define BGMG_THROW_EXCEPTION(x) throw x
+
 void BgmgCalculator::check_num_snp(int length) {
-  if (num_snp_ == -1) BOOST_THROW_EXCEPTION(::std::runtime_error("call set_tag_indices first"));
-  if (num_snp_ != length) BOOST_THROW_EXCEPTION(::std::runtime_error("length != num_snps_"));
+  if (num_snp_ == -1) BGMG_THROW_EXCEPTION(::std::runtime_error("call set_tag_indices first"));
+  if (num_snp_ != length) BGMG_THROW_EXCEPTION(::std::runtime_error("length != num_snps_"));
 }
 
 void BgmgCalculator::check_num_tag(int length) {
-  if (num_tag_ == -1) BOOST_THROW_EXCEPTION(::std::runtime_error("call set_tag_indices first"));
-  if (num_tag_ != length) BOOST_THROW_EXCEPTION(::std::runtime_error("length != num_snps_"));
+  if (num_tag_ == -1) BGMG_THROW_EXCEPTION(::std::runtime_error("call set_tag_indices first"));
+  if (num_tag_ != length) BGMG_THROW_EXCEPTION(::std::runtime_error("length != num_snps_"));
 }
 
 int64_t BgmgCalculator::set_zvec(int trait, int length, float* values) {
-  if ((trait != 1) && (trait != 2)) BOOST_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
+  if ((trait != 1) && (trait != 2)) BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
 
   int num_undef = 0;
   for (int i = 0; i < length; i++) if (!std::isfinite(values[i])) num_undef++;
@@ -63,9 +63,9 @@ int64_t BgmgCalculator::set_zvec(int trait, int length, float* values) {
 }
 
 int64_t BgmgCalculator::set_nvec(int trait, int length, float* values) {
-  if ((trait != 1) && (trait != 2)) BOOST_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
+  if ((trait != 1) && (trait != 2)) BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
   for (int i = 0; i < length; i++) {
-    if (!std::isfinite(values[i])) BOOST_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
+    if (!std::isfinite(values[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
   LOG << " set_nvec(trait=" << trait << "); ";
@@ -82,7 +82,7 @@ int64_t BgmgCalculator::set_nvec(int trait, int length, float* values) {
 
 int64_t BgmgCalculator::set_weights(int length, float* values) {
   for (int i = 0; i < length; i++) {
-    if (!std::isfinite(values[i])) BOOST_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
+    if (!std::isfinite(values[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
   LOG << " set_weights; ";
@@ -101,24 +101,24 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
   } else if (!strcmp(option, "r2min")) {
     clear_state(); r2_min_ = value; return 0;
   } else if (!strcmp(option, "max_causals")) {
-    if (!last_num_causals_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("can't change max_causals after find_snp_order"));
+    if (!last_num_causals_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't change max_causals after find_snp_order"));
     clear_state(); max_causals_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "num_components")) {
-    if (!last_num_causals_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("can't change num_components after find_snp_order"));
+    if (!last_num_causals_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't change num_components after find_snp_order"));
     clear_state(); num_components_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "fast_cost")) {
     use_fast_cost_calc_ = (value != 0); return 0;
   }
 
-  BOOST_THROW_EXCEPTION(::std::runtime_error("unknown option"));
+  BGMG_THROW_EXCEPTION(::std::runtime_error("unknown option"));
   return 0;
 }
 
-#define CHECK_SNP_INDEX(i) if (i < 0 || i >= num_snp_) BOOST_THROW_EXCEPTION(::std::runtime_error("CHECK_SNP_INDEX failed"));
-#define CHECK_TAG_INDEX(i) if (i < 0 || i >= num_tag_) BOOST_THROW_EXCEPTION(::std::runtime_error("CHECK_TAG_INDEX failed"));
+#define CHECK_SNP_INDEX(i) if (i < 0 || i >= num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("CHECK_SNP_INDEX failed"));
+#define CHECK_TAG_INDEX(i) if (i < 0 || i >= num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("CHECK_TAG_INDEX failed"));
 
 int64_t BgmgCalculator::set_tag_indices(int num_snp, int num_tag, int* tag_indices) {
-  if (num_snp_ != -1 || num_tag_ != -1) BOOST_THROW_EXCEPTION(::std::runtime_error("can not call set_tag_indices twice"));
+  if (num_snp_ != -1 || num_tag_ != -1) BGMG_THROW_EXCEPTION(::std::runtime_error("can not call set_tag_indices twice"));
 
   LOG << " set_tag_indices(num_snp=" << num_snp << ", num_tag=" << num_tag << "); ";
   num_snp_ = num_snp;
@@ -158,13 +158,13 @@ private:
 
 
 int64_t BgmgCalculator::set_ld_r2_coo(int length, int* snp_index, int* tag_index, float* r2) {
-  if (!csr_ld_r2_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
+  if (!csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
 
   if (last_num_causals_.empty()) find_snp_order();
 
   for (int i = 0; i < length; i++) {
-    if (!std::isfinite(r2[i])) BOOST_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
+    if (!std::isfinite(r2[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
   SimpleTimer timer(-1);
@@ -185,7 +185,7 @@ int64_t BgmgCalculator::set_ld_r2_coo(int length, int* snp_index, int* tag_index
 
 int64_t BgmgCalculator::set_ld_r2_csr() {
   if (coo_ld_.empty()) 
-    BOOST_THROW_EXCEPTION(::std::runtime_error("coo_ld_ is empty"));
+    BGMG_THROW_EXCEPTION(::std::runtime_error("coo_ld_ is empty"));
 
   LOG << ">set_ld_r2_csr (coo_ld_.size()==" << coo_ld_.size() << "); ";
 
@@ -245,9 +245,9 @@ public:
 };
 
 int64_t BgmgCalculator::find_snp_order() {
-  if (max_causals_ <= 0 || max_causals_ > num_snp_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: max_causals_ <= 0 || max_causals_ > num_snp_"));
-  if (num_components_ <= 0 || num_components_ > 3) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: num_components_ must be between 1 and 3"));
-  if (last_num_causals_.size() > 0) BOOST_THROW_EXCEPTION(::std::runtime_error("find_snp_order: called twice"));
+  if (max_causals_ <= 0 || max_causals_ > num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("find_snp_order: max_causals_ <= 0 || max_causals_ > num_snp_"));
+  if (num_components_ <= 0 || num_components_ > 3) BGMG_THROW_EXCEPTION(::std::runtime_error("find_snp_order: num_components_ must be between 1 and 3"));
+  if (last_num_causals_.size() > 0) BGMG_THROW_EXCEPTION(::std::runtime_error("find_snp_order: called twice"));
 
   LOG << ">find_snp_order(num_components_=" << num_components_ << ", k_max_=" << k_max_ << ", max_causals_=" << max_causals_ << ")";
 
@@ -316,8 +316,8 @@ int64_t BgmgCalculator::find_snp_order() {
 }
 
 int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
-  if (num_causals < 0 || num_causals >= max_causals_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: num_causals < 0 || num_causals >= max_causals_"));
-  if (component_id < 0 || component_id >= num_components_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and num_components_"));
+  if (num_causals < 0 || num_causals >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: num_causals < 0 || num_causals >= max_causals_"));
+  if (component_id < 0 || component_id >= num_components_) BGMG_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and num_components_"));
 
   const float num_causals_original = num_causals;
   if (last_num_causals_.empty()) find_snp_order();
@@ -373,7 +373,7 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
     changeset.push_back(std::make_pair((int)floor_num_causals, sign * (num_causals - floor_num_causals)));
   }
   else {
-    BOOST_THROW_EXCEPTION(::std::runtime_error("floor_num_causals < floor_last_num_causals"));
+    BGMG_THROW_EXCEPTION(::std::runtime_error("floor_num_causals < floor_last_num_causals"));
   }
 
   // it is OK to parallelize the following loop on k_index, because:
@@ -403,10 +403,10 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
 
 int64_t BgmgCalculator::set_hvec(int length, float* values) {
   for (int i = 0; i < length; i++) {
-    if (!std::isfinite(values[i])) BOOST_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
+    if (!std::isfinite(values[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
-  if (!hvec_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("can not set hvec twice"));
+  if (!hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can not set hvec twice"));
 
   LOG << ">set_hvec(" << length << "); ";
   check_num_snp(length);
@@ -424,8 +424,8 @@ int64_t BgmgCalculator::set_hvec(int length, float* values) {
 
 
 int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer) {
-  if (length != (k_max_ * num_tag_)) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
-  if (component_id < 0 || component_id >= num_components_ || tag_r2sum_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong component_id"));
+  if (length != (k_max_ * num_tag_)) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (component_id < 0 || component_id >= num_components_ || tag_r2sum_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong component_id"));
 
   LOG << " retrieve_tag_r2_sum(component_id=" << component_id << ", num_causal=" << num_causal << ")";
 
@@ -482,11 +482,11 @@ inline double gaussian2_pdf_double(const double z1, const double z2, const doubl
 int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
   // input buffer "zvec" contains z scores (presumably an equally spaced grid)
   // output buffer contains pdf(z), aggregated across all SNPs with corresponding weights
-  if (nvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
-  if (weights_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   float num_causals = pi_vec * static_cast<float>(num_snp_);
-  if ((int)num_causals >= max_causals_) BOOST_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
+  if ((int)num_causals >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   const int component_id = 0;   // univariate is always component 0.
 
   LOG << ">calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
@@ -535,9 +535,9 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
 }
 
 double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta) {
-  if (zvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
-  if (nvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
-  if (weights_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+  if (zvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
+  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   if (use_fast_cost_calc_) return calc_univariate_cost_fast(pi_vec, sig2_zero, sig2_beta);
 
@@ -586,15 +586,15 @@ std::string calc_bivariate_cost_params_to_str(int pi_vec_len, float* pi_vec, int
 }
 
 double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
-  if (zvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
-  if (nvec1_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
-  if (zvec2_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("zvec2 is not set"));
-  if (nvec2_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("nvec2 is not set"));
-  if (weights_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
-  if (num_components_ != 3) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: require num_components == 3. Remember to call set_option('num_components', 3)."));
-  if (sig2_beta_len != 2) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_beta_len != 2"));
-  if (sig2_zero_len != 2) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
-  if (pi_vec_len != 3) BOOST_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: pi_vec_len != 3"));
+  if (zvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
+  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  if (zvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec2 is not set"));
+  if (nvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec2 is not set"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+  if (num_components_ != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: require num_components == 3. Remember to call set_option('num_components', 3)."));
+  if (sig2_beta_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_beta_len != 2"));
+  if (sig2_zero_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
+  if (pi_vec_len != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: pi_vec_len != 3"));
 
   if (use_fast_cost_calc_) return calc_bivariate_cost_fast(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
 
@@ -878,7 +878,7 @@ void BgmgCalculator::clear_state() {
 }
 
 void BgmgCalculator::clear_tag_r2sum(int component_id) {
-  if (component_id < 0 || component_id >= num_components_) BOOST_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and num_components_"));
+  if (component_id < 0 || component_id >= num_components_) BGMG_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and num_components_"));
   if (last_num_causals_.empty()) return;
   LOG << " clear_tag_r2sum(component_id=" << component_id << ")";
   last_num_causals_[component_id] = 0;
@@ -910,9 +910,9 @@ void BgmgCalculator::calc_sum_r2_and_sum_r4() {
 
 int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
   LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << ")";
-  if (r2_threshold < r2_min_) BOOST_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: r2 < r2_min_"));
-  if (n <= 0) BOOST_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: n <= 0"));
-  if (!hvec_.empty()) BOOST_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune must be called before set_hvec"));
+  if (r2_threshold < r2_min_) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: r2 < r2_min_"));
+  if (n <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: n <= 0"));
+  if (!hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune must be called before set_hvec"));
   SimpleTimer timer(-1);
 
   std::valarray<int> passed_random_pruning(0, num_tag_);  // count how many times an index  has passed random pruning
@@ -977,8 +977,8 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
 }
 
 int64_t BgmgCalculator::retrieve_weights(int length, float* buffer) {
-  if (length != num_tag_) BOOST_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
-  if (weights_.size() != num_tag_) BOOST_THROW_EXCEPTION(::std::runtime_error("weights_.size() != num_tag_"));
+  if (length != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (weights_.size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("weights_.size() != num_tag_"));
   LOG << " retrieve_weights()";
   for (int i = 0; i < num_tag_; i++) buffer[i] = weights_[i];
   return 0;

@@ -107,7 +107,7 @@ if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
 
 if POWER_PLOT_FIT, error('not yet implemented in c++ version'); end;
 
-if (length(chr_labels) == 1) && (chr_labels(1) == 1) && (find(ref.chrnumvec == 1, 1, 'last' ) < find(ref.chrnumvec ~= 1, 1 ))
+if (length(chr_labels) == 1) && (chr_labels(1) == 1) && ( all(ref.chrnumvec == 1) || (find(ref.chrnumvec == 1, 1, 'last' ) < find(ref.chrnumvec ~= 1, 1 )))
     chrlabel = chr_labels(1);
     fprintf('Reduce reference to a signle chromosome (chr%i).\n', chrlabel);
     trait1_data.zvec = trait1_data.zvec(ref.chrnumvec == chrlabel);

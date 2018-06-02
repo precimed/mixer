@@ -29,7 +29,10 @@ module load boost/1.55.0
 Most important is to use boost/1.55.0, which cames with gcc/4.9.0. This will be compatible with matlab/R2017a which uses boost/1.56. 
 Useful tricks to investigate versions:
 
+```
 ldd /cluster/software/VERSIONS/matlab/R2017a/bin/glnxa64/MATLAB
 export "LD_LIBRARY_PATH=/cluster/software/VERSIONS/matlab/R2017a/sys/os/glnxa64:$LD_LIBRARY_PATH"
 ldd libbgmg.so
+```
+
 Errors like ``cluster/software/VERSIONS/matlab/R2017a/sys/os/glnxa64/libstdc++.so.6: version `GLIBCXX_3.4.21' not found`` indicate that you've built libbgmg.so with too new version of gcc.

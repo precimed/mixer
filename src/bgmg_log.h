@@ -15,6 +15,7 @@ public:
     return instance;
   }
 private:
+  LoggerImpl() : log_file_() {}
   LoggerImpl(std::string path) : log_file_() {
     try {
       init(path);
@@ -29,7 +30,12 @@ private:
 
 public:
   void init(std::string path) {
-    log_file_ = std::ofstream(path, std::ios::app);
+    if (log_file_.is_open()) {
+      log_file_.close();
+    }
+
+    log_file_.open(path, std::ios::app);
+
     if (log_file_.is_open()) {
       boost::posix_time::time_facet* facet = new boost::posix_time::time_facet("%Y%m%d %H:%M:%S.%f");
       log_file_.imbue(std::locale(log_file_.getloc(), facet));

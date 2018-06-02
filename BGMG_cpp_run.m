@@ -207,16 +207,21 @@ if DO_FIT
     result.options = options;
 end
 
+% Save the result in .mat file
+% (this overrides previously saved file)
+save([out_file '.preliminary.mat'], 'result');
+fprintf('Results saved to %s.mat\n', out_file);
+
 calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
 
 % Produce QQ plots with true params (only works for synthetic data, of course)
 if QQ_PLOT_TRUE
     for trait_index = 1:(1 + ~isempty(trait2_file))
         if trait_index==1
-            qq_params = struct('sig2_zero', 1, 'pi_vec', trait1_data.causal_pi, 'sig2_beta', trait1_data.sigsq);
+            qq_params = struct('sig2_zero', 1, 'pi_vec', sum(trait1_data.causal_pi), 'sig2_beta', trait1_data.sigsq);
             qq_data = trait1_data;
         else
-            qq_params = struct('sig2_zero', 1, 'pi_vec', trait2_data.causal_pi, 'sig2_beta', trait2_data.sigsq);
+            qq_params = struct('sig2_zero', 1, 'pi_vec', sum(trait2_data.causal_pi), 'sig2_beta', trait2_data.sigsq);
             qq_data = trait2_data;
         end
         [figures, plot_data] = BGMG_cpp_qq_plot(qq_params, qq_data.zvec(defvec), options);

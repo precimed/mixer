@@ -2,11 +2,13 @@
 
 #include "boost/utility.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include <boost/atomic.hpp>
 
 #include <fstream>
 #include <vector>
 
 #define LOG Logger::singleton()
+#define MAX_LOG_LINES 10000000
 
 class LoggerImpl : boost::noncopyable {
 public:
@@ -14,6 +16,12 @@ public:
     static LoggerImpl instance("bgmg.log");
     return instance;
   }
+
+  static LoggerImpl& singleton_void() {
+    static LoggerImpl instance;
+    return instance;
+  }
+
 private:
   LoggerImpl() : log_file_() {}
   LoggerImpl(std::string path) : log_file_() {
@@ -77,11 +85,23 @@ public:
   template <typename T>
   LoggerImpl& operator<< (const T& rhs) {
     auto now = boost::posix_time::microsec_clock::local_time();
+
+    int log_count = log_count_++;
+    if (log_count == MAX_LOG_LINES) {
+      LoggerImpl::singleton() << "\n" << now << "\t" << "Too many lines written to the log; log throtling enabled.\n";
+    }
+
+    if (log_count >= MAX_LOG_LINES) {
+      return LoggerImpl::singleton_void();
+    }
+
     return (LoggerImpl::singleton() << "\n" << now << "\t" << rhs);
   }
 
 private:
-  Logger() {
+  boost::atomic<int> log_count_;
+
+  Logger(): log_count_() {
     (*this) << "============= new session =============";
 
   }

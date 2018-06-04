@@ -21,7 +21,7 @@ endif (NOT Boost_FOUND)
 
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_LIBS   ON)
-set(BGMG_BOOST_COMPONENTS program_options filesystem system date_time)
+set(BGMG_BOOST_COMPONENTS program_options filesystem system date_time atomic)
 find_package(Boost COMPONENTS REQUIRED ${BGMG_BOOST_COMPONENTS})
 if (NOT Boost_FOUND)
   message(SEND_ERROR "Failed to find required boost libraries.")

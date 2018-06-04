@@ -473,9 +473,6 @@ inline double gaussian2_pdf_double(const double z1, const double z2, const doubl
   const double log_dt = -0.5 * log(dt);
 
   const double pdf = exp(log_pi + log_dt + log_exp);
-  if (!std::isfinite(pdf)) {
-    LOG << " warning: !std::isfinite(pdf) a11=" << a11 << ", a12=" << a12 << ", a22=" << a22;
-  }
   return pdf;
 }
 

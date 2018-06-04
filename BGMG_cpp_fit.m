@@ -195,6 +195,7 @@ function cost = BGMG_fminsearch_cost(ov)
     end
 
     BGMG_show_params(ov, cost);
+    if ~isfinite(cost), cost=1e99; end;
 end
 
 function BGMG_show_params(params, cost)

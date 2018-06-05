@@ -13,6 +13,7 @@ function results = BGMG_cpp_fit(zmat, Nmat, options)
     if ~isfield(options, 'ci_sample'), options.ci_sample = 10000; end;
     if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
     if ~isfield(options, 'fit_infinitesimal'), options.fit_infinitesimal = false; end;  % infinitesimal model (implemented only for univariate analysis)
+    if ~isfield(options, 'fit_full_model'), options.fit_full_model = true; end;  % whether to fit full model
     
     if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
 
@@ -51,9 +52,13 @@ function results = BGMG_cpp_fit(zmat, Nmat, options)
                 fprintf('Trait%i  : final unconstrained optimization (fast cost function)\n', itrait);
                 fast_params = fit(params_mix0, @(x)UGMG_mapparams1(x));
 
-                fprintf('Trait%i  : final unconstrained optimization (full cost function)\n', itrait);
                 calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', 0); check();
-                results.univariate{itrait}.params = fit(fast_params, @(x)UGMG_mapparams1(x));
+                if options.fit_full_model
+                    fprintf('Trait%i  : final unconstrained optimization (full cost function)\n', itrait);
+                    results.univariate{itrait}.params = fit(fast_params, @(x)UGMG_mapparams1(x));
+                else
+                    results.univariate{itrait}.params = fast_params;
+                end
             end
 
             if ~isnan(options.ci_alpha)  % not implemented
@@ -107,9 +112,13 @@ function results = BGMG_cpp_fit(zmat, Nmat, options)
 
         params_fast = fit(params_final0, func_map_params);
 
-        fprintf('Trait 1,2: final unconstrained optimization (full cost function)\n');
         calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', 0); check();
-        results.bivariate.params = fit(params_fast, func_map_params);
+        if options.fit_full_model
+            fprintf('Trait 1,2: final unconstrained optimization (full cost function)\n');
+            results.bivariate.params = fit(params_fast, func_map_params);
+        else
+            results.bivariate.params = params_fast;
+        end
 
         % Step3. Uncertainty estimation. 
         if ~isnan(options.ci_alpha)  % not implemented

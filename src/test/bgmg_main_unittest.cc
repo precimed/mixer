@@ -181,6 +181,17 @@ TEST(BgmgTest, CalcLikelihood) {
   calc.set_option("fast_cost", 1);
   cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
   ASSERT_TRUE(std::isfinite(cost));
+
+  std::vector<float> zvec1_grid, zvec2_grid, zvec_pdf;
+  for (float z1 = -10; z1 < 10; z1 += 0.2) {
+    for (float z2 = -10; z2 < 10; z2 += 0.2) {
+      zvec1_grid.push_back(z1);
+      zvec2_grid.push_back(z2);
+      zvec_pdf.push_back(0.0f);
+    }
+  }
+
+  calc.calc_bivariate_pdf(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero, zvec_pdf.size(), &zvec1_grid[0], &zvec2_grid[0], &zvec_pdf[0]);
 }
 
 }  // namespace

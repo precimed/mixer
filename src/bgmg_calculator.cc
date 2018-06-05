@@ -660,6 +660,85 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
   return log_pdf_total;
 }
 
+int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf) {
+  // input buffer "zvec1" and "zvec2" contains z scores (presumably an equally spaced grid)
+  // output buffer contains pdf(z), aggregated across all SNPs with corresponding weights
+  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  if (nvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec2 is not set"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+  if (num_components_ != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_pdf: require num_components == 3. Remember to call set_option('num_components', 3)."));
+  if (sig2_beta_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_beta_len != 2"));
+  if (sig2_zero_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
+  if (pi_vec_len != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: pi_vec_len != 3"));
+
+  std::string ss = calc_bivariate_cost_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  LOG << ">calc_bivariate_pdf(" << ss << ")";
+
+  float num_causals[3];
+  for (int component_id = 0; component_id < 3; component_id++) {
+    num_causals[component_id] = pi_vec[component_id] * static_cast<float>(num_snp_);
+    if ((int)num_causals[component_id] >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
+  }
+
+  for (int component_id = 0; component_id < 3; component_id++) {
+    find_tag_r2sum(component_id, num_causals[component_id]);
+  }
+
+  SimpleTimer timer(-1);
+
+  // Sigma0  = [a0 b0; b0 c0];
+  const double a0 = sig2_zero[0];
+  const double c0 = sig2_zero[1];
+  const double b0 = sqrt(a0 * c0) * rho_zero;
+
+  // pi_k is mixture weight
+  const double pi_k = 1. / static_cast<float>(k_max_);
+
+  std::valarray<double> pdf_double(0.0, length);
+
+#pragma omp parallel
+  {
+    std::valarray<double> pdf_double_local(0.0, length);
+#pragma omp for schedule(static)
+    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+      if (weights_[tag_index] == 0) continue;
+
+      const double n1 = nvec1_[tag_index];
+      const double n2 = nvec2_[tag_index];
+
+      for (int k_index = 0; k_index < k_max_; k_index++) {
+        const double tag_r2sum_c1 = (*tag_r2sum_[0])(tag_index, k_index);
+        const double tag_r2sum_c2 = (*tag_r2sum_[1])(tag_index, k_index);
+        const double tag_r2sum_c3 = (*tag_r2sum_[2])(tag_index, k_index);
+
+        // Sigma  = [A1+A3  B3;  B3  C2+C3] + Sigma0 = ...
+        //        = [a11    a12; a12   a22]
+        const double A1 = tag_r2sum_c1 * n1 * sig2_beta[0];
+        const double C2 = tag_r2sum_c2 * n2 * sig2_beta[1];
+        const double A3 = tag_r2sum_c3 * n1 * sig2_beta[0];
+        const double C3 = tag_r2sum_c3 * n2 * sig2_beta[1];
+        const double B3 = sqrt(A3*C3) * rho_beta;
+
+        const double a11 = A1 + A3 + a0;
+        const double a22 = C2 + C3 + c0;
+        const double a12 = B3 + b0;
+        
+        for (int z_index = 0; z_index < length; z_index++) {
+          float pdf_tmp = pi_k * gaussian2_pdf_double(zvec1[z_index], zvec2[z_index], a11, a12, a22);
+          pdf_double_local[z_index] += static_cast<double>(pdf_tmp * weights_[tag_index]);
+        }
+      }
+    }
+
+#pragma omp critical
+    pdf_double += pdf_double_local;
+  }
+
+  for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);
+  LOG << "<calc_bivariate_pdf(" << ss << "), elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}
+
 template<typename T>
 std::string std_vector_to_str(const std::vector<T>& vec) {
   std::stringstream ss;

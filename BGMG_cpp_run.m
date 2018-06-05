@@ -18,8 +18,11 @@ plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
 trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
 trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
+%trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
+%trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT=true;QQ_PLOT_TRUE=true;QQ_PLOT_FIT=true;
+DO_FIT=true;FIT_FULL_MODEL=false;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=false;QQ_PLOT_FIT=false;
+out_file = 'BGMG_random_overlap_chr1to22';
 
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\Debug\bgmg.dll';
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'}
@@ -29,7 +32,7 @@ trait1_file = 'H:\Dropbox\shared\BGMG\p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc\simu_
 trait1_file = 'H:\GitHub\BGMG\GIANT_HEIGHT_2014_lift.mat';
 trait1_file = 'H:\GitHub\BGMG\PGC_SCZ_2014.mat';
 reference_file = 'H:\Dropbox\shared\BGMG\1kG_phase3_EUR_11015883_reference_p01_SNPwind50k_per_allele_4bins.mat'
-DO_FIT = false; QQ_PLOT_TRUE = true;
+DO_FIT = false; QQ_PLOT_TRUE = false;
 init_file = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.bgmg.mat';
 trait1_file  = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat';
 trait2_file  = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat';
@@ -99,8 +102,10 @@ if ~exist('r2min', 'var'), r2min = 0.01; end;
 if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.02; end;
 
 if ~exist('DO_FIT', 'var'), DO_FIT = true; end;                % perform fitting
+if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                % perform fitting
 if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots with true parameters
 if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
+if ~exist('STRATIFIED_QQ_PLOT_FIT', 'var'), STRATIFIED_QQ_PLOT_FIT = false; end;
 if ~exist('POWER_PLOT_FIT', 'var'), POWER_PLOT_FIT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
@@ -178,6 +183,7 @@ options.total_het = sum(2*ref.mafvec.*(1-ref.mafvec));
 options.verbose = true;
 options.ci_alpha = CI_ALPHA;
 options.title = TITLE;
+options.fit_full_model = FIT_FULL_MODEL;
 
 % Save true parameters (if available)
 if isfield(trait1_data, 'causal_pi'), options.causal_pi_T1 = trait1_data.causal_pi; end;
@@ -197,7 +203,7 @@ if DO_FIT
         result = BGMG_cpp_fit(zmat, nmat, options);
     else
         zvec = [trait1_data.zvec];
-        nvec = [trait1_data.nvec];
+        n vec = [trait1_data.nvec];
         result = BGMG_cpp_fit(zvec, nvec, options);
     end
 
@@ -205,12 +211,12 @@ if DO_FIT
     result.trait2_file = trait2_file;
     result.reference_file = reference_file;
     result.options = options;
+    
+    % Save the result in .mat file
+    % (this overrides previously saved file)
+    save([out_file '.preliminary.mat'], 'result');
+    fprintf('Results saved to %s.mat\n', out_file);
 end
-
-% Save the result in .mat file
-% (this overrides previously saved file)
-save([out_file '.preliminary.mat'], 'result');
-fprintf('Results saved to %s.mat\n', out_file);
 
 calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
 
@@ -250,6 +256,14 @@ if QQ_PLOT_FIT
     end
 end
 
+if STRATIFIED_QQ_PLOT_FIT && DO_FIT
+    %ov=[]; ov.pi_vec = [0, 0, trait1_data.causal_pi];     ov.sig2_beta = [trait1_data.sigsq, trait2_data.sigsq];     ov.sig2_zero = [1, 1];    ov.rho_zero = 0; ov.rho_beta = 0;
+    zmat = [trait1_data.zvec, trait2_data.zvec]; 
+    [figures, plot_data] = BGMG_cpp_stratified_qq_plot(result.bivariate.params, zmat(defvec, :), options);
+    result.bivariate.stratified_qq_plot_fit_data = plot_data;
+    print(figures.tot, sprintf('%s.stratqq.fit.pdf', out_file), '-dpdf')
+end
+    
 calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
 
 if ~exist('result', 'var')
@@ -263,10 +277,14 @@ fprintf('Results saved to %s.mat\n', out_file);
 
 if 0
     % Helper code to save all results to a text file
-    dirs=dir('H:\work\simu_2018_03_12.bgmg.mat.tar\*.bgmg.mat');
-    fileID = fopen(['bgmg_results.csv'], 'w');
+    dirs=dir('H:\work\simu_BGMG_chr1_pqexp0_2018_06_05\*.bgmg.mat');
+    fileID = fopen(['H:\work\simu_BGMG_chr1_pqexp0_2018_06_05_results.csv'], 'w');
     for i=1:length(dirs)
-        x = load(fullfile('H:\work\simu_2018_03_12.bgmg.mat.tar', dirs(i).name));
+        try
+        x = load(fullfile('H:\work\simu_BGMG_chr1_pqexp0_2018_06_05', dirs(i).name));
+        catch
+            continue
+        end
         [header, data] = BGMG_util.result2str_point_estimates(x.result, x.result.options);
         if i==1,
             fprintf(fileID, 'trait1_file\ttrait2_file\treference_file\t%s\n', header);

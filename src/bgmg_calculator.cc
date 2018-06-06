@@ -101,15 +101,17 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
   } else if (!strcmp(option, "r2min")) {
     clear_state(); r2_min_ = value; return 0;
   } else if (!strcmp(option, "max_causals")) {
-    if (!last_num_causals_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't change max_causals after find_snp_order"));
+    if (!snp_order_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't change max_causals after find_snp_order"));
     clear_state(); max_causals_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "num_components")) {
-    if (!last_num_causals_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't change num_components after find_snp_order"));
+    if (!snp_order_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't change num_components after find_snp_order"));
     clear_state(); num_components_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "fast_cost")) {
     use_fast_cost_calc_ = (value != 0); return 0;
   } else if (!strcmp(option, "cache_tag_r2sum")) {
-    cache_tag_r2sum_ = (value != 0); return 0;
+    cache_tag_r2sum_ = (value != 0);
+    for (int component_id = 0; component_id < num_components_; component_id++) clear_tag_r2sum(component_id);
+    return 0;
   }
 
   BGMG_THROW_EXCEPTION(::std::runtime_error("unknown option"));
@@ -163,7 +165,7 @@ int64_t BgmgCalculator::set_ld_r2_coo(int length, int* snp_index, int* tag_index
   if (!csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
 
-  if (last_num_causals_.empty()) find_snp_order();
+  if (snp_order_.empty()) find_snp_order();
 
   for (int i = 0; i < length; i++) {
     if (!std::isfinite(r2[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
@@ -249,7 +251,7 @@ public:
 int64_t BgmgCalculator::find_snp_order() {
   if (max_causals_ <= 0 || max_causals_ > num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("find_snp_order: max_causals_ <= 0 || max_causals_ > num_snp_"));
   if (num_components_ <= 0 || num_components_ > 3) BGMG_THROW_EXCEPTION(::std::runtime_error("find_snp_order: num_components_ must be between 1 and 3"));
-  if (last_num_causals_.size() > 0) BGMG_THROW_EXCEPTION(::std::runtime_error("find_snp_order: called twice"));
+  if (snp_order_.size() > 0) BGMG_THROW_EXCEPTION(::std::runtime_error("find_snp_order: called twice"));
 
   LOG << ">find_snp_order(num_components_=" << num_components_ << ", k_max_=" << k_max_ << ", max_causals_=" << max_causals_ << ")";
 
@@ -273,11 +275,7 @@ int64_t BgmgCalculator::find_snp_order() {
 
     snp_order_.push_back(std::make_shared<DenseMatrix<int>>(max_causals_, k_max_));
 
-    if (cache_tag_r2sum_) {
-      tag_r2sum_.push_back(std::make_shared<DenseMatrix<float>>(num_tag_, k_max_));
-      tag_r2sum_[component_index]->InitializeZeros();
-    }
-    last_num_causals_.push_back(0);
+    if (cache_tag_r2sum_) clear_tag_r2sum(component_index);
     
 #pragma omp parallel
     {
@@ -325,7 +323,7 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   if (component_id < 0 || component_id >= num_components_) BGMG_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum: component_id must be between 0 and num_components_"));
 
   const float num_causals_original = num_causals;
-  if (last_num_causals_.empty()) find_snp_order();
+  if (snp_order_.empty()) find_snp_order();
 
   float last_num_causals = last_num_causals_[component_id]; 
   
@@ -430,23 +428,37 @@ int64_t BgmgCalculator::set_hvec(int length, float* values) {
 
 int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer) {
   if (length != (k_max_ * num_tag_)) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
-  if (!cache_tag_r2sum_) BGMG_THROW_EXCEPTION(::std::runtime_error("retrieve_tag_r2sum can be used only with cache_tag_r2sum==true"));
+  if (num_causal < 0 && !cache_tag_r2sum_) BGMG_THROW_EXCEPTION(::std::runtime_error("retrieve_tag_r2sum with num_causal<0 is meant for cache_tag_r2sum==true"));
   if (component_id < 0 || component_id >= num_components_ || tag_r2sum_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong component_id"));
 
   LOG << " retrieve_tag_r2_sum(component_id=" << component_id << ", num_causal=" << num_causal << ")";
 
-  // use negative to retrieve tag_r2_sum for last_num_causal (for debugging purpose)
-  if (num_causal >= 0) {
-    find_tag_r2sum(component_id, num_causal);
-  }
+  if (cache_tag_r2sum_) {
+    // use negative to retrieve tag_r2_sum for last_num_causal (for debugging purpose)
+    if (num_causal >= 0) {
+      find_tag_r2sum(component_id, num_causal);
+    }
 
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    for (int k_index = 0; k_index < k_max_; k_index++) {
-      float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
-      buffer[tag_index * k_max_ + k_index] = tag_r2sum;
+    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+      for (int k_index = 0; k_index < k_max_; k_index++) {
+        float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
+        buffer[tag_index * k_max_ + k_index] = tag_r2sum;
+      }
+    }
+  } else {
+#pragma omp parallel
+    {
+      std::vector<float> tag_r2sum(num_tag_, 0.0f);
+
+#pragma omp for schedule(static)
+      for (int k_index = 0; k_index < k_max_; k_index++) {
+        find_tag_r2sum_no_cache(0, num_causal, k_index, &tag_r2sum);
+        for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+          buffer[tag_index * k_max_ + k_index] = tag_r2sum[tag_index];
+        }
+      }
     }
   }
-
   return 0;
 }
 
@@ -487,7 +499,6 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
   // output buffer contains pdf(z), aggregated across all SNPs with corresponding weights
   if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
-  if (!cache_tag_r2sum_) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_univariate_pdf can be used only with cache_tag_r2sum==true"));
 
   float num_causals = pi_vec * static_cast<float>(num_snp_);
   if ((int)num_causals >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
@@ -495,7 +506,9 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
 
   LOG << ">calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
 
-  find_tag_r2sum(component_id, num_causals);
+  if (cache_tag_r2sum_) {
+    find_tag_r2sum(component_id, num_causals);
+  }
 
   SimpleTimer timer(-1);
 
@@ -515,12 +528,24 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
 #pragma omp parallel
   {
     std::valarray<double> pdf_double_local(0.0, length);
+    std::vector<float> tag_r2sum(num_tag_, 0.0f);
+
 #pragma omp for schedule(static)
-    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-      if (weights_[tag_index] == 0) continue;
-      for (int k_index = 0; k_index < k_max_; k_index++) {
-        float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
-        float sig2eff = tag_r2sum * nvec1_[tag_index] * sig2_beta + sig2_zero;
+    for (int k_index = 0; k_index < k_max_; k_index++) {
+
+      if (cache_tag_r2sum_) {
+        for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+          tag_r2sum[tag_index] = (*tag_r2sum_[0])(tag_index, k_index);
+        }
+      } else {
+        find_tag_r2sum_no_cache(0, num_causals, k_index, &tag_r2sum);
+      }
+
+      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+        if (weights_[tag_index] == 0) continue;
+
+        float tag_r2sum_value = tag_r2sum[tag_index];
+        float sig2eff = tag_r2sum_value * nvec1_[tag_index] * sig2_beta + sig2_zero;
         float s = sqrt(sig2eff);
 
         for (int z_index = 0; z_index < length; z_index++) {
@@ -810,7 +835,6 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
   if (sig2_beta_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_beta_len != 2"));
   if (sig2_zero_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
   if (pi_vec_len != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: pi_vec_len != 3"));
-  if (!cache_tag_r2sum_) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_pdf can be used only with cache_tag_r2sum==true"));
 
   std::string ss = calc_bivariate_cost_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   LOG << ">calc_bivariate_pdf(" << ss << ")";
@@ -821,8 +845,10 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
     if ((int)num_causals[component_id] >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   }
 
-  for (int component_id = 0; component_id < 3; component_id++) {
-    find_tag_r2sum(component_id, num_causals[component_id]);
+  if (cache_tag_r2sum_) {
+    for (int component_id = 0; component_id < 3; component_id++) {
+      find_tag_r2sum(component_id, num_causals[component_id]);
+    }
   }
 
   SimpleTimer timer(-1);
@@ -840,17 +866,33 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
 #pragma omp parallel
   {
     std::valarray<double> pdf_double_local(0.0, length);
+    std::vector<float> tag_r2sum0(num_tag_, 0.0f);
+    std::vector<float> tag_r2sum1(num_tag_, 0.0f);
+    std::vector<float> tag_r2sum2(num_tag_, 0.0f);
+
 #pragma omp for schedule(static)
-    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-      if (weights_[tag_index] == 0) continue;
+    for (int k_index = 0; k_index < k_max_; k_index++) {
+      if (cache_tag_r2sum_) {
+        for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+          tag_r2sum0[tag_index] = (*tag_r2sum_[0])(tag_index, k_index);
+          tag_r2sum1[tag_index] = (*tag_r2sum_[1])(tag_index, k_index);
+          tag_r2sum2[tag_index] = (*tag_r2sum_[2])(tag_index, k_index);
+        }
+      } else {
+        find_tag_r2sum_no_cache(0, num_causals[0], k_index, &tag_r2sum0);
+        find_tag_r2sum_no_cache(1, num_causals[1], k_index, &tag_r2sum1);
+        find_tag_r2sum_no_cache(2, num_causals[2], k_index, &tag_r2sum2);
+      }
 
-      const double n1 = nvec1_[tag_index];
-      const double n2 = nvec2_[tag_index];
+      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+        if (weights_[tag_index] == 0) continue;
 
-      for (int k_index = 0; k_index < k_max_; k_index++) {
-        const double tag_r2sum_c1 = (*tag_r2sum_[0])(tag_index, k_index);
-        const double tag_r2sum_c2 = (*tag_r2sum_[1])(tag_index, k_index);
-        const double tag_r2sum_c3 = (*tag_r2sum_[2])(tag_index, k_index);
+        const double n1 = nvec1_[tag_index];
+        const double n2 = nvec2_[tag_index];
+
+        const double tag_r2sum_c1 = tag_r2sum0[tag_index];
+        const double tag_r2sum_c2 = tag_r2sum1[tag_index];
+        const double tag_r2sum_c3 = tag_r2sum2[tag_index];
 
         // Sigma  = [A1+A3  B3;  B3  C2+C3] + Sigma0 = ...
         //        = [a11    a12; a12   a22]
@@ -1096,11 +1138,24 @@ void BgmgCalculator::clear_state() {
 
 void BgmgCalculator::clear_tag_r2sum(int component_id) {
   if (component_id < 0 || component_id >= num_components_) BGMG_THROW_EXCEPTION(::std::runtime_error("clear_tag_r2sum: component_id must be between 0 and num_components_"));
-  if (last_num_causals_.empty()) return;
   LOG << " clear_tag_r2sum(component_id=" << component_id << ")";
-  last_num_causals_[component_id] = 0;
   if (cache_tag_r2sum_) {
-    tag_r2sum_[component_id]->InitializeZeros();
+    if (tag_r2sum_.empty()) {
+      // Initialize
+      for (int i = 0; i < num_components_; i++) {
+        last_num_causals_.push_back(0.0f);
+        tag_r2sum_.push_back(std::make_shared<DenseMatrix<float>>(num_tag_, k_max_));
+        tag_r2sum_[i]->InitializeZeros();
+      }
+    } else {
+      // Clear just the requested component
+      tag_r2sum_[component_id]->InitializeZeros();
+      last_num_causals_[component_id] = 0;
+    }
+  } else {
+    // Cache disabled, clear tag_r2sum to free up memory
+    last_num_causals_.clear();
+    tag_r2sum_.clear();
   }
 }
 

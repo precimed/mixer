@@ -123,14 +123,21 @@ TEST(UgmgTest, CalcLikelihood) {
   ASSERT_TRUE(std::isfinite(cost));
   ASSERT_FLOAT_EQ(cost, cost_nocache);
 
-  std::vector<float> zvec_grid, zvec_pdf;
+  std::vector<float> zvec_grid, zvec_pdf, zvec_pdf_nocache;
   for (float z = 0; z < 15; z += 0.1) {
     zvec_grid.push_back(z);
     zvec_pdf.push_back(0.0f);
+    zvec_pdf_nocache.push_back(0.0f);
   }
 
   calc.calc_univariate_pdf(0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf[0]);
   calc.set_option("diag", 0.0);
+
+  calc.set_option("cache_tag_r2sum", 0);
+  calc.calc_univariate_pdf(0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf_nocache[0]);
+
+  for (int i = 0; i < zvec_pdf_nocache.size(); i++)
+    ASSERT_FLOAT_EQ(zvec_pdf[i], zvec_pdf_nocache[i]);
 
   calc.set_option("fast_cost", 1);
   cost = calc.calc_univariate_cost(0.2, 1.2, 0.1);
@@ -188,16 +195,23 @@ TEST(BgmgTest, CalcLikelihood) {
   cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
   ASSERT_TRUE(std::isfinite(cost));
 
-  std::vector<float> zvec1_grid, zvec2_grid, zvec_pdf;
+  std::vector<float> zvec1_grid, zvec2_grid, zvec_pdf, zvec_pdf_nocache;
   for (float z1 = -10; z1 < 10; z1 += 0.2) {
     for (float z2 = -10; z2 < 10; z2 += 0.2) {
       zvec1_grid.push_back(z1);
       zvec2_grid.push_back(z2);
       zvec_pdf.push_back(0.0f);
+      zvec_pdf_nocache.push_back(0.0f);
     }
   }
 
   calc.calc_bivariate_pdf(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero, zvec_pdf.size(), &zvec1_grid[0], &zvec2_grid[0], &zvec_pdf[0]);
+
+  calc.set_option("cache_tag_r2sum", 0);
+  calc.calc_bivariate_pdf(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero, zvec_pdf.size(), &zvec1_grid[0], &zvec2_grid[0], &zvec_pdf_nocache[0]);
+
+  for (int i = 0; i < zvec_pdf_nocache.size(); i++)
+    ASSERT_FLOAT_EQ(zvec_pdf[i], zvec_pdf_nocache[i]);
 }
 
 }  // namespace

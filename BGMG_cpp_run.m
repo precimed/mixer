@@ -30,15 +30,15 @@ trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_p
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=8e-04_rep=10_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT=true;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=false;QQ_PLOT_TRUE=false;LOGLIKE_PLOT_FIT=false;QQ_PLOT_FIT=false;cache_tag_r2sum=true;
-out_file = 'tmptesting';
+DO_FIT=true;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_FIT=false;QQ_PLOT_FIT=true;cache_tag_r2sum=false;
+out_file = 'tmptesting2';
 %out_file = 'BGMG_random_overlap_chr1_pi1u=3e-03';
 %out_file = 'BGMG_full_overlap_chr1_pi1u=3e-03';
 
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\Debug\bgmg.dll';
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'}
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat' };
-defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'}
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG  _phase3_EUR.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'}
 trait1_file = 'H:\Dropbox\shared\BGMG\p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc\simu_h2=0.40_pi1u=1e-3_rep=1.ugmg.mat'
 trait1_file = 'H:\GitHub\BGMG\GIANT_HEIGHT_2014_lift.mat';
 trait1_file = 'H:\GitHub\BGMG\PGC_SCZ_2014.mat';
@@ -240,7 +240,7 @@ end
 calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
 
 % Produce QQ plots with true params (only works for synthetic data, of course)
-if QQ_PLOT_TRUE && cache_tag_r2sum
+if QQ_PLOT_TRUE
     for trait_index = 1:(1 + ~isempty(trait2_file))
         if trait_index==1
             qq_params = struct('sig2_zero', 1, 'pi_vec', sum(trait1_data.causal_pi), 'sig2_beta', trait1_data.sigsq);
@@ -258,7 +258,7 @@ if QQ_PLOT_TRUE && cache_tag_r2sum
 end
 
 % Produce QQ plots with fitted params
-if QQ_PLOT_FIT && cache_tag_r2sum
+if QQ_PLOT_FIT
     for trait_index = 1:length(result.univariate)
         if trait_index==1
             qq_params = result.univariate{trait_index}.params;
@@ -275,7 +275,7 @@ if QQ_PLOT_FIT && cache_tag_r2sum
     end
 end
 
-if STRATIFIED_QQ_PLOT_FIT && DO_FIT && cache_tag_r2sum
+if STRATIFIED_QQ_PLOT_FIT && DO_FIT
     %ov=[]; ov.pi_vec = [0, 0, trait1_data.causal_pi];     ov.sig2_beta = [trait1_data.sigsq, trait2_data.sigsq];     ov.sig2_zero = [1, 1];    ov.rho_zero = 0; ov.rho_beta = 0;
     zmat = [trait1_data.zvec, trait2_data.zvec]; 
     [figures, plot_data] = BGMG_cpp_stratified_qq_plot(result.bivariate.params, zmat(defvec, :), options);

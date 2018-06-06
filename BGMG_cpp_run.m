@@ -64,7 +64,6 @@ calllib('bgmg', 'bgmg_init_log', [out_file, '.bgmglib.log']);
 if ~exist('reference_file', 'var'), error('reference_file is required'); end;
 %fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'chrnumvec', 'posvec'); fprintf('OK.\n');
 fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file); fprintf('OK.\n');
-sum_r2 = sum(ref.sum_r2, 2);
 clear('defvec'); defvec_tmp = true(length(ref.mafvec), 1);
     
 % defvec_file determine the set of tag SNPs. It must have a binary variable "defvec" of the same length as defined by reference file ( 1 = tag snp, 0 = exclude from the analysis ). 
@@ -79,8 +78,6 @@ for i=1:length(defvec_files)
 end; clear('i');
 if isfinite(MAF_THRESH), defvec_tmp = defvec_tmp & (mafvec >= MAF_THRESH); fprintf('Exclude %i variants due to mafvec (%i variants remain)\n', sum(mafvec < MAF_THRESH), sum(defvec_tmp)); end
 if EXCLUDE_MHC, defvec_mhc = ~((ref.chrnumvec == 6) & (ref.posvec > 25e6) & (ref.posvec < 35e6)); defvec_tmp = defvec_tmp & defvec_mhc; fprintf('Exclude %i variants in MHC region (%i variants remain)\n', sum(~defvec_mhc), sum(defvec_tmp)); end
-
-defvec_tmp = defvec_tmp & (sum_r2 < median(sum_r2));fprintf('Exclude %i variants due to high LD (%i variants remain)\n', sum(sum_r2 >= median(sum_r2)), sum(defvec_tmp));
 
 % plink_ld_mat is a file containing information about the LD structure. One
 % file per chromosome. Each file should have index_A, index_B, r2

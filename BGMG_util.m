@@ -317,5 +317,20 @@ classdef BGMG_util
             fprintf(fileID, '\n');
         end
     end
+    
+    function s = vec2str(vec, digits)
+        if ~exist('digits', 'var'), digits = 6; end;
+        format = ['%.', int2str(digits), 'f'];
+        if length(vec) == 1
+            s=sprintf(format, vec);
+        else
+            s=['[', sprintf(format, vec(1))];
+            for i=2:length(vec)
+                s=[s, ', ', sprintf(format, vec(i))];
+            end
+            s = [s ']'];
+        end
+    end
   end
 end
+

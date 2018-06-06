@@ -18,8 +18,8 @@ plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
 trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
 trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
-%trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
-%trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
+trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
+trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
 
 
 %trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
@@ -30,8 +30,8 @@ trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_p
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=8e-04_rep=10_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT=true;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_FIT=false;QQ_PLOT_FIT=true;cache_tag_r2sum=false;
-out_file = 'tmptesting2';
+DO_FIT=false;FIT_FULL_MODEL=false;STRATIFIED_QQ_PLOT_FIT=false;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=true;QQ_PLOT_FIT=false;cache_tag_r2sum=false;
+out_file = 'tmptesting3';
 %out_file = 'BGMG_random_overlap_chr1_pi1u=3e-03';
 %out_file = 'BGMG_full_overlap_chr1_pi1u=3e-03';
 
@@ -123,6 +123,7 @@ if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots w
 if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
 if ~exist('STRATIFIED_QQ_PLOT_FIT', 'var'), STRATIFIED_QQ_PLOT_FIT = false; end;
 if ~exist('LOGLIKE_PLOT_FIT', 'var'), LOGLIKE_PLOT_FIT = false; end;
+if ~exist('LOGLIKE_PLOT_TRUE', 'var'), LOGLIKE_PLOT_TRUE = false; end;
 if ~exist('POWER_PLOT_FIT', 'var'), POWER_PLOT_FIT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
@@ -222,7 +223,7 @@ if DO_FIT
         result = BGMG_cpp_fit(zmat, nmat, options);
     else
         zvec = [trait1_data.zvec];
-        n vec = [trait1_data.nvec];
+        nvec = [trait1_data.nvec];
         result = BGMG_cpp_fit(zvec, nvec, options);
     end
 
@@ -275,7 +276,7 @@ if QQ_PLOT_FIT
     end
 end
 
-if STRATIFIED_QQ_PLOT_FIT && DO_FIT
+if STRATIFIED_QQ_PLOT_FIT && DO_FIT ~isempty(trait2_file)
     %ov=[]; ov.pi_vec = [0, 0, trait1_data.causal_pi];     ov.sig2_beta = [trait1_data.sigsq, trait2_data.sigsq];     ov.sig2_zero = [1, 1];    ov.rho_zero = 0; ov.rho_beta = 0;
     zmat = [trait1_data.zvec, trait2_data.zvec]; 
     [figures, plot_data] = BGMG_cpp_stratified_qq_plot(result.bivariate.params, zmat(defvec, :), options);
@@ -283,25 +284,42 @@ if STRATIFIED_QQ_PLOT_FIT && DO_FIT
     print(figures.tot, sprintf('%s.stratqq.fit.pdf', out_file), '-dpdf')
 end
 
-if LOGLIKE_PLOT_FIT && DO_FIT
+if LOGLIKE_PLOT_FIT && DO_FIT && ~isempty(trait2_file)
     f = figure; hold on;
-    [~, plots_data] = BGMG_cpp_loglike_plot(result.bivariate.params);
-    print(f, sprintf('%s.loglike.fit.pdf', out_file), '-dpdf')
+    [figures, plots_data] = BGMG_cpp_loglike_plot(result.bivariate.params);
+    result.bivariate.loglike_plot_fit_data = plots_data;
+    print(figures.tot, sprintf('%s.loglike.fit.pdf', out_file), '-dpdf')
     %subplot(3,3,7); legend('random overlap', 'full overlap');
 end
 
-LOGLIKE_PLOT_TRUE = false;
-if LOGLIKE_PLOT_TRUE
-    %f = figure; hold on;
+if LOGLIKE_PLOT_TRUE && ~isempty(trait2_file)
+    if ~DO_FIT
+        fprintf('Fit model with fit_full_model=false to find sig2zero and rho_zero params\n');
+        options.fit_full_model = false;
+        result_sig0_rho0 = BGMG_cpp_fit([trait1_data.zvec, trait2_data.zvec], [trait1_data.nvec, trait2_data.nvec], options);
+        options.fit_full_model = FIT_FULL_MODEL;
+    else
+        result_sig0_rho0 = result;
+    end
+
     true_params = [];
-    %true_params.pi_vec = [0 0 trait1_data.causal_pi];
-    true_params.pi_vec = [trait1_data.causal_pi trait2_data.causal_pi 0];
+    pi1u = trait1_data.causal_pi;
+    pi2u = trait2_data.causal_pi;
+    if ~isempty(strfind(trait1_file, 'random')) % <-------- TBD; this needs to be fixed, we need to save true pi_vec somewhere.
+        pi12 = sum(pi1u)*sum(pi2u);
+    else
+        pi12 = sum(pi1u(pi1u>0 & pi2u>0));
+    end
+    pi1u=sum(pi1u); pi2u=sum(pi2u);
+    true_params.pi_vec = [pi1u - pi12, pi2u - pi12, pi12];
     true_params.sig2_beta = [trait1_data.sigsq,0,trait1_data.sigsq; 0, trait1_data.sigsq, trait2_data.sigsq];
-    true_params.sig2_zero = [1.0 1.0];
-    true_params.rho_beta = [0.0 0.0 0.0];
-    true_params.rho_zero = [0.0];
-    [~, plots_data] = BGMG_cpp_loglike_plot(true_params);
-    print(f, sprintf('%s.loglike.true.pdf', out_file), '-dpdf')
+    true_params.rho_beta = [0.0 0.0 0.0];  % <-------- TBD; this needs to be fixed, we need to save true rho_beta somewhere.
+    true_params.sig2_zero = result_sig0_rho0.bivariate.params.sig2_zero;
+    true_params.rho_zero = result_sig0_rho0.bivariate.params.rho_zero;
+    
+    [figures, plots_data] = BGMG_cpp_loglike_plot(true_params);
+    result.bivariate.loglike_plot_fit_data = plots_data;
+    print(figures.tot, sprintf('%s.loglike.true.pdf', out_file), '-dpdf')
     %subplot(3,3,7); legend('random overlap', 'full overlap');
 end
 

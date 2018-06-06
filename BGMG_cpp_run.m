@@ -14,15 +14,26 @@
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1:22;
+plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1; %:22;
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
 trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
 trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
 %trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
+
+
+%trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
+%trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
+%trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=3e-03_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
+%trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=3e-03_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
+%trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=8e-04_rep=10_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
+%trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=8e-04_rep=10_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
+
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT=true;FIT_FULL_MODEL=false;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=false;QQ_PLOT_FIT=false;
-out_file = 'BGMG_random_overlap_chr1to22';
+DO_FIT=true;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=false;QQ_PLOT_TRUE=false;LOGLIKE_PLOT_FIT=false;QQ_PLOT_FIT=false;cache_tag_r2sum=true;
+out_file = 'tmptesting';
+%out_file = 'BGMG_random_overlap_chr1_pi1u=3e-03';
+%out_file = 'BGMG_full_overlap_chr1_pi1u=3e-03';
 
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\Debug\bgmg.dll';
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'}
@@ -51,9 +62,11 @@ calllib('bgmg', 'bgmg_init_log', [out_file, '.bgmglib.log']);
 
 % reference file containing mafvec, chrnumvec and posvec for all SNPs to consider in this analysis. 
 if ~exist('reference_file', 'var'), error('reference_file is required'); end;
-fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'chrnumvec', 'posvec'); fprintf('OK.\n');
+%fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'chrnumvec', 'posvec'); fprintf('OK.\n');
+fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file); fprintf('OK.\n');
+sum_r2 = sum(ref.sum_r2, 2);
 clear('defvec'); defvec_tmp = true(length(ref.mafvec), 1);
-
+    
 % defvec_file determine the set of tag SNPs. It must have a binary variable "defvec" of the same length as defined by reference file ( 1 = tag snp, 0 = exclude from the analysis ). 
 % When multiple defvec_files are defined we take an overlap (e.i. consider only tag SNPs defined across all defvec files).
 if ~exist('defvec_files', 'var'), defvec_files = {}; end;
@@ -66,6 +79,8 @@ for i=1:length(defvec_files)
 end; clear('i');
 if isfinite(MAF_THRESH), defvec_tmp = defvec_tmp & (mafvec >= MAF_THRESH); fprintf('Exclude %i variants due to mafvec (%i variants remain)\n', sum(mafvec < MAF_THRESH), sum(defvec_tmp)); end
 if EXCLUDE_MHC, defvec_mhc = ~((ref.chrnumvec == 6) & (ref.posvec > 25e6) & (ref.posvec < 35e6)); defvec_tmp = defvec_tmp & defvec_mhc; fprintf('Exclude %i variants in MHC region (%i variants remain)\n', sum(~defvec_mhc), sum(defvec_tmp)); end
+
+defvec_tmp = defvec_tmp & (sum_r2 < median(sum_r2));fprintf('Exclude %i variants due to high LD (%i variants remain)\n', sum(sum_r2 >= median(sum_r2)), sum(defvec_tmp));
 
 % plink_ld_mat is a file containing information about the LD structure. One
 % file per chromosome. Each file should have index_A, index_B, r2
@@ -100,15 +115,18 @@ if ~exist('randprune_r2', 'var'), randprune_r2 = 0.8; end;
 if ~exist('kmax', 'var'), kmax = 1000; end;
 if ~exist('r2min', 'var'), r2min = 0.01; end;
 if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.02; end;
+if ~exist('cache_tag_r2sum', 'var'), cache_tag_r2sum = 1; end;
 
 if ~exist('DO_FIT', 'var'), DO_FIT = true; end;                % perform fitting
 if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                % perform fitting
 if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots with true parameters
 if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
 if ~exist('STRATIFIED_QQ_PLOT_FIT', 'var'), STRATIFIED_QQ_PLOT_FIT = false; end;
+if ~exist('LOGLIKE_PLOT_FIT', 'var'), LOGLIKE_PLOT_FIT = false; end;
 if ~exist('POWER_PLOT_FIT', 'var'), POWER_PLOT_FIT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
+
 
 if POWER_PLOT_FIT, error('not yet implemented in c++ version'); end;
 
@@ -139,6 +157,7 @@ calllib('bgmg', 'bgmg_set_option', 0,  'r2min', r2min); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', floor(max_causal_fraction * length(defvec))); check();  
 calllib('bgmg', 'bgmg_set_option', 0,  'num_components', num_components); check();
+calllib('bgmg', 'bgmg_set_option', 0,  'cache_tag_r2sum', cache_tag_r2sum); check();
 
 for chr_index=1:length(chr_labels)
     plink_ld_mat_chr = strrep(plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
@@ -221,7 +240,7 @@ end
 calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
 
 % Produce QQ plots with true params (only works for synthetic data, of course)
-if QQ_PLOT_TRUE
+if QQ_PLOT_TRUE && cache_tag_r2sum
     for trait_index = 1:(1 + ~isempty(trait2_file))
         if trait_index==1
             qq_params = struct('sig2_zero', 1, 'pi_vec', sum(trait1_data.causal_pi), 'sig2_beta', trait1_data.sigsq);
@@ -239,7 +258,7 @@ if QQ_PLOT_TRUE
 end
 
 % Produce QQ plots with fitted params
-if QQ_PLOT_FIT
+if QQ_PLOT_FIT && cache_tag_r2sum
     for trait_index = 1:length(result.univariate)
         if trait_index==1
             qq_params = result.univariate{trait_index}.params;
@@ -256,14 +275,36 @@ if QQ_PLOT_FIT
     end
 end
 
-if STRATIFIED_QQ_PLOT_FIT && DO_FIT
+if STRATIFIED_QQ_PLOT_FIT && DO_FIT && cache_tag_r2sum
     %ov=[]; ov.pi_vec = [0, 0, trait1_data.causal_pi];     ov.sig2_beta = [trait1_data.sigsq, trait2_data.sigsq];     ov.sig2_zero = [1, 1];    ov.rho_zero = 0; ov.rho_beta = 0;
     zmat = [trait1_data.zvec, trait2_data.zvec]; 
     [figures, plot_data] = BGMG_cpp_stratified_qq_plot(result.bivariate.params, zmat(defvec, :), options);
     result.bivariate.stratified_qq_plot_fit_data = plot_data;
     print(figures.tot, sprintf('%s.stratqq.fit.pdf', out_file), '-dpdf')
 end
-    
+
+if LOGLIKE_PLOT_FIT && DO_FIT
+    f = figure; hold on;
+    [~, plots_data] = BGMG_cpp_loglike_plot(result.bivariate.params);
+    print(f, sprintf('%s.loglike.fit.pdf', out_file), '-dpdf')
+    %subplot(3,3,7); legend('random overlap', 'full overlap');
+end
+
+LOGLIKE_PLOT_TRUE = false;
+if LOGLIKE_PLOT_TRUE
+    %f = figure; hold on;
+    true_params = [];
+    %true_params.pi_vec = [0 0 trait1_data.causal_pi];
+    true_params.pi_vec = [trait1_data.causal_pi trait2_data.causal_pi 0];
+    true_params.sig2_beta = [trait1_data.sigsq,0,trait1_data.sigsq; 0, trait1_data.sigsq, trait2_data.sigsq];
+    true_params.sig2_zero = [1.0 1.0];
+    true_params.rho_beta = [0.0 0.0 0.0];
+    true_params.rho_zero = [0.0];
+    [~, plots_data] = BGMG_cpp_loglike_plot(true_params);
+    print(f, sprintf('%s.loglike.true.pdf', out_file), '-dpdf')
+    %subplot(3,3,7); legend('random overlap', 'full overlap');
+end
+
 calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
 
 if ~exist('result', 'var')

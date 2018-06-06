@@ -181,7 +181,7 @@ class DenseMatrix {
 
 class BgmgCalculator {
  public:
-  BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), r2_min_(0.0), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false) {}
+  BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), r2_min_(0.0), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false) {}
   
   // num_snp = total size of the reference (e.i. the total number of genotyped variants)
   // num_tag = number of tag variants to include in the inference (must be a subset of the reference)
@@ -212,6 +212,7 @@ class BgmgCalculator {
 
   int64_t find_snp_order();  // private - only for testing
   int64_t find_tag_r2sum(int component_id, float num_causals);  // private - only for testing
+  void find_tag_r2sum_no_cache(int component_id, float num_causal, int k_index, std::vector<float>* buffer); // private - only for testing
 
   int64_t set_option(char* option, double value);
   
@@ -221,9 +222,11 @@ class BgmgCalculator {
 
   int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_univariate_cost_nocache(float pi_vec, float sig2_zero, float sig2_beta);
   int64_t calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
 
   double calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+  double calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   int64_t calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
   void log_disgnostics();
  private:
@@ -271,6 +274,7 @@ class BgmgCalculator {
   int num_components_;
   float r2_min_;
   bool use_fast_cost_calc_;
+  bool cache_tag_r2sum_;
   void check_num_snp(int length);
   void check_num_tag(int length);
   double calc_univariate_cost_fast(float pi_vec, float sig2_zero, float sig2_beta);

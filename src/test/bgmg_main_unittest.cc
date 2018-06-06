@@ -88,6 +88,7 @@ TEST(UgmgTest, CalcLikelihood) {
   calc.set_option("max_causals", num_snp);
   calc.set_option("kmax", kmax);
   calc.set_option("num_components", 1);
+  calc.set_option("cache_tag_r2sum", 1);
 
   int trait = 1;
   calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
@@ -118,7 +119,9 @@ TEST(UgmgTest, CalcLikelihood) {
   }
 
   double cost = calc.calc_univariate_cost(0.2, 1.2, 0.1);
+  double cost_nocache = calc.calc_univariate_cost_nocache(0.2, 1.2, 0.1);
   ASSERT_TRUE(std::isfinite(cost));
+  ASSERT_FLOAT_EQ(cost, cost_nocache);
 
   std::vector<float> zvec_grid, zvec_pdf;
   for (float z = 0; z < 15; z += 0.1) {
@@ -146,6 +149,7 @@ TEST(BgmgTest, CalcLikelihood) {
   calc.set_option("max_causals", num_snp);
   calc.set_option("kmax", kmax);
   calc.set_option("num_components", 3);
+  calc.set_option("cache_tag_r2sum", 1);
 
   int trait = 1;
   calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
@@ -174,7 +178,9 @@ TEST(BgmgTest, CalcLikelihood) {
   float rho_zero = 0.1;
 
   double cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
+  double cost_nocache = calc.calc_bivariate_cost_nocache(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
   ASSERT_TRUE(std::isfinite(cost));
+  ASSERT_FLOAT_EQ(cost, cost_nocache);
 
   calc.set_option("diag", 0.0);
 

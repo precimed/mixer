@@ -221,6 +221,9 @@ class BgmgCalculator {
   void calc_sum_r2_and_sum_r4();
 
   int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
+  int64_t retrieve_ld_tag_r2_sum(int length, float* buffer);
+  int64_t retrieve_ld_tag_r4_sum(int length, float* buffer);
+
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
   double calc_univariate_cost_nocache(float pi_vec, float sig2_zero, float sig2_beta);
   int64_t calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);

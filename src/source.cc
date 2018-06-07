@@ -32,9 +32,11 @@ const char* bgmg_get_last_error() { return last_error(); }
 
 #define CATCH_EXCEPTIONS                                                       \
 catch (const std::runtime_error& e) {                                          \
+  LOG << " runtime_error:  " << std::string(e.what());                         \
   set_last_error("runtime_error:  " + std::string(e.what()));                  \
   return -1;                                                                   \
 } catch (...) {                                                                \
+  LOG << " unknown critical error";                                            \
   set_last_error("unknown critical error");                                    \
   return -1;                                                                   \
 }
@@ -92,6 +94,19 @@ int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_cau
   try {
     set_last_error(std::string());
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_tag_r2_sum(component_id, num_causal, length, buffer);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_retrieve_ld_tag_r2_sum(int context_id, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_ld_tag_r2_sum(length, buffer);
+  } CATCH_EXCEPTIONS;
+}
+int64_t bgmg_retrieve_ld_tag_r4_sum(int context_id, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_ld_tag_r4_sum(length, buffer);
   } CATCH_EXCEPTIONS;
 }
 

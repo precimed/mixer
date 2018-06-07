@@ -6,10 +6,28 @@
 
 #include "bgmg_calculator.h"
 
+/*
+#include <fstream>
+#include <iostream>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/copy.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
+*/
+
 namespace {
 
 TEST(BgmgMainTest, ShouldSucceed) {
 }
+
+/*
+TEST(BgmgGzipTest, TestGzip) {
+  std::ifstream file("hello.z", std::ios_base::in | std::ios_base::binary);
+  boost::iostreams::filtering_streambuf<boost::iostreams::input> in;
+  in.push(boost::iostreams::zlib_decompressor());
+  in.push(file);
+  boost::iostreams::copy(in, std::cout);
+}
+*/
 
 TEST(BgmgTest, LoadData) {
   // Input data:

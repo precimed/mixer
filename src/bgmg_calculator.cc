@@ -425,6 +425,27 @@ int64_t BgmgCalculator::set_hvec(int length, float* values) {
   return 0;
 }
 
+int64_t BgmgCalculator::retrieve_ld_tag_r2_sum(int length, float* buffer) {
+  if (length != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (ld_tag_sum_r2_.empty()) calc_sum_r2_and_sum_r4();
+  if (ld_tag_sum_r2_.size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("ld_tag_sum_r2_.size() != num_tag_"));
+  LOG << " retrieve_ld_tag_r2_sum()";
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    buffer[tag_index] = ld_tag_sum_r2_[tag_index];
+  }
+  return 0;
+}
+
+int64_t BgmgCalculator::retrieve_ld_tag_r4_sum(int length, float* buffer) {
+  if (length != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (ld_tag_sum_r4_.empty()) calc_sum_r2_and_sum_r4();
+  if (ld_tag_sum_r4_.size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("ld_tag_sum_r4_.size() != num_tag_"));
+  LOG << " retrieve_ld_tag_r4_sum()";
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    buffer[tag_index] = ld_tag_sum_r4_[tag_index];
+  }
+  return 0;
+}
 
 int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer) {
   if (length != (k_max_ * num_tag_)) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));

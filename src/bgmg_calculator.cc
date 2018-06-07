@@ -415,10 +415,12 @@ int64_t BgmgCalculator::set_hvec(int length, float* values) {
   check_num_snp(length);
   hvec_.assign(values, values + length);
 
-  for (int i = 0; i < csr_ld_r2_.size(); i++) {
-    int tag = csr_ld_tag_index_[i];
-    int snp = tag_to_snp_[tag];
-    csr_ld_r2_[i] *= values[snp];
+  for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
+    const int r2_index_from = csr_ld_snp_index_[causal_index];
+    const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
+    for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
+      csr_ld_r2_[r2_index] *= values[causal_index];
+    }
   }
 
   LOG << "<set_hvec(" << length << "); ";

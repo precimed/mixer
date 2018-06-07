@@ -286,6 +286,7 @@ end
 
 if LOGLIKE_PLOT_FIT && DO_FIT && ~isempty(trait2_file)
     f = figure; hold on;
+    calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', ~FIT_FULL_MODEL); check();
     [figures, plots_data] = BGMG_cpp_loglike_plot(result.bivariate.params);
     result.bivariate.loglike_plot_fit_data = plots_data;
     print(figures.tot, sprintf('%s.loglike.fit.pdf', out_file), '-dpdf')
@@ -317,6 +318,7 @@ if LOGLIKE_PLOT_TRUE && ~isempty(trait2_file)
     true_params.sig2_zero = result_sig0_rho0.bivariate.params.sig2_zero;
     true_params.rho_zero = result_sig0_rho0.bivariate.params.rho_zero;
     
+    calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', ~FIT_FULL_MODEL); check();
     [figures, plots_data] = BGMG_cpp_loglike_plot(true_params);
     result.bivariate.loglike_plot_fit_data = plots_data;
     print(figures.tot, sprintf('%s.loglike.true.pdf', out_file), '-dpdf')

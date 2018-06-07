@@ -1,0 +1,26 @@
+***********************************************************************
+* sumstats.py: utilities for GWAS summary statistics
+* Version 1.0.0
+* (C) 2016-2018 Oleksandr Frei and Alexey A. Shadrin
+* Norwegian Centre for Mental Disorders Research / University of Oslo
+* GNU General Public License v3
+***********************************************************************
+Call: 
+./sumstats.py ldsum \
+	--ld test.ld.gz \
+	--bim test.bim \
+	--force  \
+	--per-allele  \
+	--frq test.frq \
+	--out test_ldsum_per_allele
+Beginning analysis at Thu Jun  7 14:11:42 2018 by ubuntu, host DESKTOP-696SVB3
+Reading test.bim...
+Done, 2011 markers found
+Reading test.frq...
+Done, 2011 markers found
+Reading test.ld.gz in chunks of 10000000 lines at a time...
+Writting test_ldsum_per_allele.l2.ldscore.gz...
+Writting test_ldsum_per_allele.l4.ldscore.gz...
+Done.
+Analysis finished at Thu Jun  7 14:11:44 2018
+Total time elapsed: 1.88s

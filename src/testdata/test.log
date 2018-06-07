@@ -1,0 +1,24 @@
+PLINK v1.90p 64-bit (13 Oct 2017)
+Options in effect:
+  --bfile test
+  --freq
+  --out test
+
+Hostname: DESKTOP-696SVB3
+Working directory: /mnt/h/GitHub/BGMG/src/testdata
+Start time: Thu Jun  7 12:46:17 2018
+
+Random number seed: 1528368377
+130997 MB RAM detected; reserving 65498 MB for main workspace.
+2011 variants loaded from .bim file.
+1000 people (0 males, 0 females, 1000 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to test.nosex .
+1000 phenotype values loaded from .fam.
+Warning: Ignoring phenotypes of missing-sex samples.  If you don't want those
+phenotypes to be ignored, use the --allow-no-sex flag.
+Using 1 thread (no multithreaded calculations invoked).
+Before main variant filters, 1000 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+--freq: Allele frequencies (founders only) written to test.frq .
+
+End time: Thu Jun  7 12:46:17 2018

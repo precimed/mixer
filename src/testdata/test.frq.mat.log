@@ -1,0 +1,21 @@
+***********************************************************************
+* sumstats.py: utilities for GWAS summary statistics
+* Version 1.0.0
+* (C) 2016-2018 Oleksandr Frei and Alexey A. Shadrin
+* Norwegian Centre for Mental Disorders Research / University of Oslo
+* GNU General Public License v3
+***********************************************************************
+Call: 
+./sumstats.py frq-to-mat \
+	--frq test.frq \
+	--ref test.ref \
+	--out test.frq.mat
+Beginning analysis at Thu Jun  7 12:53:21 2018 by ubuntu, host DESKTOP-696SVB3
+Reading reference file test.ref...
+Reference dict contains 2011 snps.
+Input file contains 44242 snps
+After drop duplicates, file contains 2011 snps
+2011 non-null values after merging with ref file
+Result written to test.frq.mat
+Analysis finished at Thu Jun  7 12:53:21 2018
+Total time elapsed: 0.33s

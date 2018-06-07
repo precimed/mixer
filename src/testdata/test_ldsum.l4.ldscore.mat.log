@@ -1,0 +1,21 @@
+***********************************************************************
+* sumstats.py: utilities for GWAS summary statistics
+* Version 1.0.0
+* (C) 2016-2018 Oleksandr Frei and Alexey A. Shadrin
+* Norwegian Centre for Mental Disorders Research / University of Oslo
+* GNU General Public License v3
+***********************************************************************
+Call: 
+./sumstats.py ldsc-to-mat \
+	--ldscore test_ldsum.l4.ldscore.gz \
+	--chr-labels ['1'] \
+	--ref test.ref \
+	--out test_ldsum.l4.ldscore.mat
+Beginning analysis at Thu Jun  7 14:12:07 2018 by ubuntu, host DESKTOP-696SVB3
+Reading reference file test.ref...
+Reference dict contains 2011 snps.
+Shape of ldscore file: (2011, 2)
+Shape of ldscore file after merge: (2011, 1)
+Result written to test_ldsum.l4.ldscore.mat
+Analysis finished at Thu Jun  7 14:12:07 2018
+Total time elapsed: 0.11s

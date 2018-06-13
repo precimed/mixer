@@ -42,6 +42,12 @@ else (COMPILER_SUPPORTS_CXX11)
   message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif (COMPILER_SUPPORTS_CXX11)
 
+if (MSVC)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Ox /Ob2 /fp:fast /EHsc")
+else (MSVC)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fomit-frame-pointer -fno-operator-names -march=core2 -mssse3 -mfpmath=sse -ffast-math -fexcess-precision=fast")
+endif (MSVC)
+
 #SET(BUILD_GMOCK OFF CACHE BOOL "Builds the googlemock subproject")
 #SET(BUILD_GTEST ON CACHE BOOL "Builds the googletest subproject")
 #add_subdirectory( googletest )

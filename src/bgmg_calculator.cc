@@ -31,6 +31,7 @@
 #include <set>
 
 #include "bgmg_log.h"
+#include "fmath.hpp"
 
 #define OMP_CHUNK 1000
 
@@ -490,7 +491,7 @@ int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, float num_causal, 
 inline float gaussian_pdf_float(const float z, const float s) {
   static const float inv_sqrt_2pi = 0.3989422804014327f;
   const float a = z / s;
-  const float pdf = inv_sqrt_2pi / s * std::exp(-0.5 * a * a);
+  const float pdf = inv_sqrt_2pi / s * fmath::exp(-0.5 * a * a);
   return pdf;
 }
 
@@ -511,9 +512,9 @@ inline float gaussian2_pdf_float(const float z1, const float z2, const float a11
   float dt = a11 * a22 - a12 * a12;  // det(S)
 
   const float log_exp = -0.5 * (a22*z1*z1 + a11*z2*z2 - 2.0*a12*z1*z2) / dt;
-  const float log_dt = -0.5 * log(dt);
+  const float log_dt = -0.5 * fmath::log(dt);
 
-  const float pdf = exp(log_pi + log_dt + log_exp);
+  const float pdf = fmath::exp(log_pi + log_dt + log_exp);
   return pdf;
 }
 
@@ -527,9 +528,9 @@ inline double gaussian2_pdf_double(const double z1, const double z2, const doubl
   double dt = a11 * a22 - a12 * a12;  // det(S)
 
   const double log_exp = -0.5 * (a22*z1*z1 + a11*z2*z2 - 2.0*a12*z1*z2) / dt;
-  const double log_dt = -0.5 * log(dt);
+  const double log_dt = -0.5 * std::log(dt);
 
-  const double pdf = exp(log_pi + log_dt + log_exp);
+  const double pdf = std::exp(log_pi + log_dt + log_exp);
   return pdf;
 }
 
@@ -637,7 +638,7 @@ double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float
       float pdf = pi_k * gaussian_pdf_float(zvec1_[tag_index], s);
       pdf_tag += pdf;
     }
-    log_pdf_total += static_cast<double>(-log(pdf_tag) * weights_[tag_index]);
+    log_pdf_total += static_cast<double>(-std::log(pdf_tag) * weights_[tag_index]);
   }
 
   LOG << "<calc_univariate_cost(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
@@ -685,7 +686,7 @@ double BgmgCalculator::calc_univariate_cost_nocache(float pi_vec, float sig2_zer
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec1_[tag_index])) continue;
-    log_pdf_total += -log(pdf_double[tag_index]) * weights_[tag_index];
+    log_pdf_total += -std::log(pdf_double[tag_index]) * weights_[tag_index];
   }
 
   LOG << "<calc_univariate_cost_nocache(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
@@ -774,7 +775,7 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
       pdf_tag += pdf;
     }
 
-    log_pdf_total += static_cast<double>(-log(pdf_tag) * weights_[tag_index]);
+    log_pdf_total += static_cast<double>(-std::log(pdf_tag) * weights_[tag_index]);
   }
 
   LOG << "<calc_bivariate_cost(" << ss << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
@@ -857,7 +858,7 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec1_[tag_index])) continue;
     if (!std::isfinite(zvec2_[tag_index])) continue;
-    log_pdf_total += -log(pdf_double[tag_index]) * weights_[tag_index];
+    log_pdf_total += -std::log(pdf_double[tag_index]) * weights_[tag_index];
   }
 
   LOG << "<calc_bivariate_cost_nocache(" << ss << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
@@ -1062,7 +1063,7 @@ double BgmgCalculator::calc_univariate_cost_fast(float pi_vec, float sig2_zero, 
     const float tag_pdf0 = gaussian_pdf_float(tag_z, sqrt(sig2_zero));
     const float tag_pdf1 = gaussian_pdf_float(tag_z, sqrt(sig2_zero + tag_n *tag_sig2beta));
     const float tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
-    log_pdf_total += static_cast<double>(-log(tag_pdf) * weights_[tag_index]);
+    log_pdf_total += static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
   }
 
   if (num_zero_tag_r2 > 0)
@@ -1146,7 +1147,7 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
     if (tag_pdf <= 0)
       tag_pdf = 1e-100;
 
-    log_pdf_total += static_cast<double>(-log(tag_pdf) * weights_[tag_index]);
+    log_pdf_total += static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
   }
 
   if (num_zero_tag_r2 > 0)

@@ -60,6 +60,7 @@ set(SRC_LIST
 	bgmg_calculator.h
 	bgmg_log.cc
 	bgmg_log.h
+	fmath.hpp
 )
 
 add_library(bgmg SHARED ${SRC_LIST})

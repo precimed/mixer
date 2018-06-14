@@ -1,4 +1,5 @@
 #include "gtest/gtest.h"
+#include "omp.h"
 
 #include <iostream>
 #include <random>
@@ -234,48 +235,77 @@ TEST(BgmgTest, CalcLikelihood) {
     ASSERT_FLOAT_EQ(zvec_pdf[i], zvec_pdf_nocache[i]);
 }
 
-// bgmg-test.exe --gtest_filter=Test.RandomSeed
-TEST(Test, RandomSeed) {
+// bgmg-test.exe --gtest_filter=Test.RandomSeedAndThreading
+TEST(Test, RandomSeedAndThreading) {
   int num_snp = 100;
   int num_tag = 50;
   int kmax = 200; // #permutations
   int N = 100;  // gwas sample size, constant across all variants
   int num_r2 = 20;
   TestMother tm(num_snp, num_tag, N);
+  TestMother tm2(num_snp, num_tag, N);
   std::vector<int> snp_index, tag_index;
   std::vector<float> r2;
   tm.make_r2(num_r2, &snp_index, &tag_index, &r2);
 
-  std::vector<std::shared_ptr<BgmgCalculator>> calcs;
-  double costs[3];
-  for (int i = 0; i < 3; i++) {
-    calcs.push_back(std::make_shared<BgmgCalculator>());
-    BgmgCalculator& calc = *calcs[i];
-    calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
-    calc.set_option("max_causals", num_snp);
-    calc.set_option("kmax", kmax);
-    calc.set_option("num_components", 1);
-    calc.set_option("cache_tag_r2sum", 1);
-    calc.set_option("threads", 1);
-    if (i == 2) calc.set_seed(calcs[0]->seed());
+  int64_t seed_list[3] = { 123123123, 456456456, 123123123 };
 
-    int trait = 1;
-    calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
-    calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+  double ugmg_costs[3];
+  double bgmg_costs[3];
+  for (int num_threads = 1; num_threads <= 16; num_threads *= 2) {
+    for (int i = 0; i < 3; i++) {
+      BgmgCalculator calc;
+      calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+      calc.set_option("max_causals", num_snp);
+      calc.set_option("kmax", kmax);
+      calc.set_option("num_components", 3);
+      calc.set_option("cache_tag_r2sum", 1);
+      calc.set_option("threads", num_threads);
+      calc.set_seed(seed_list[i]);
 
-    calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
-    calc.set_ld_r2_csr();  // finalize csr structure
-
-    calc.set_weights_randprune(20, 0.25);
-    calc.set_hvec(num_snp, &tm.hvec()->at(0));
-
-    float pi_vec = 0.1f;
-    float sig2_beta = 0.5f;
-    float sig2_zero = 1.1f;
-    costs[i] = calc.calc_univariate_cost(pi_vec, sig2_zero, sig2_beta);
-  }
-  ASSERT_FLOAT_EQ(costs[0], costs[2]);
-  ASSERT_TRUE(abs(costs[0] - costs[1]) > 1e-4);
+      int num_threads_real;
+#pragma omp parallel
+{
+      num_threads_real = omp_get_num_threads();
 }
+      ASSERT_EQ(num_threads_real, num_threads);
+
+      int trait = 1;
+      calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
+      calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+      trait = 2;
+      calc.set_zvec(trait, num_tag, &tm2.zvec()->at(0));
+      calc.set_nvec(trait, num_tag, &tm2.nvec()->at(0));
+
+      calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+      calc.set_ld_r2_csr();  // finalize csr structure
+
+      calc.set_weights_randprune(20, 0.25);
+      calc.set_hvec(num_snp, &tm.hvec()->at(0));
+
+      float pi_vec[] = { 0.1, 0.2, 0.15 };
+      float sig2_beta[] = { 0.5, 0.3 };
+      float rho_beta = 0.8;
+      float sig2_zero[] = { 1.1, 1.2 };
+      float rho_zero = 0.1;
+      double ugmg_cost = calc.calc_univariate_cost(pi_vec[0], sig2_zero[0], sig2_beta[0]);
+      if (num_threads == 1) ugmg_costs[i] = ugmg_cost;
+      else ASSERT_FLOAT_EQ(ugmg_costs[i], ugmg_cost);
+      ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost(pi_vec[0], sig2_zero[0], sig2_beta[0]));  // check calc twice => the same cost
+      ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost_nocache(pi_vec[0], sig2_zero[0], sig2_beta[0]));
+
+      double bgmg_cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
+      if (num_threads == 1) bgmg_costs[i] = bgmg_cost;
+      else ASSERT_FLOAT_EQ(bgmg_costs[i], bgmg_cost);
+      ASSERT_FLOAT_EQ(bgmg_costs[i], calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero));  // check calc twice => the same cost
+      ASSERT_FLOAT_EQ(bgmg_costs[i], calc.calc_bivariate_cost_nocache(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero));
+    }
+    ASSERT_FLOAT_EQ(ugmg_costs[0], ugmg_costs[2]);
+    ASSERT_TRUE(abs(ugmg_costs[0] - ugmg_costs[1]) > 1e-4);
+    ASSERT_FLOAT_EQ(bgmg_costs[0], bgmg_costs[2]);
+    ASSERT_TRUE(abs(bgmg_costs[0] - bgmg_costs[1]) > 1e-4);
+  }
+}
+
 
 }  // namespace

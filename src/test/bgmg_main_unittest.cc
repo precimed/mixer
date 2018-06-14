@@ -82,6 +82,7 @@ public:
     }
   }
 
+  std::mt19937& random_engine() { return g_; }
 private:
   int num_snp_;
   int num_tag_;
@@ -92,7 +93,6 @@ private:
   std::vector<float> weights_;
   std::random_device rd_;
   std::mt19937 g_;
-
 };
 
 TEST(UgmgTest, CalcLikelihood) {
@@ -307,5 +307,49 @@ TEST(Test, RandomSeedAndThreading) {
   }
 }
 
+// bgmg-test.exe --gtest_filter=Test.tag_r2_caching
+TEST(Test, tag_r2_caching) {
+  int num_snp = 100;
+  int num_tag = 50;
+  int kmax = 200; // #permutations
+  int N = 100;  // gwas sample size, constant across all variants
+  int num_r2 = 20;
+  TestMother tm(num_snp, num_tag, N);
+  std::vector<int> snp_index, tag_index;
+  std::vector<float> r2;
+  tm.make_r2(num_r2, &snp_index, &tag_index, &r2);
+  
+  BgmgCalculator calc;
+  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_option("max_causals", num_snp);
+  calc.set_option("kmax", kmax);
+  calc.set_option("num_components", 1);
+  calc.set_option("cache_tag_r2sum", 1);
+  calc.set_seed(123123123);
+  int trait = 1;
+  calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
+  calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+
+  int sequence_length = 10;
+  std::vector<float> num_causal_sequence;
+  std::uniform_real_distribution<float> rng(51.0, 99.5);
+  for (int i = 0; i < sequence_length; i++) num_causal_sequence.push_back(rng(tm.random_engine()));
+  
+  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_csr();  // finalize csr structure
+
+  calc.set_weights_randprune(20, 0.25);
+  calc.set_hvec(num_snp, &tm.hvec()->at(0));
+
+  std::vector<double> costs(sequence_length, 0.0);
+  for (int j = 0; j < 100; j++) {  // repeat the sequence 100 times and validate that we got the same cost.
+    for (int i = 0; i < sequence_length; i++) {
+      float pi = static_cast<float>(num_causal_sequence[i]) / static_cast<float>(num_snp);
+      double cost = calc.calc_univariate_cost(pi, 0.2, 0.15);
+      if (j == 0) costs[i] = cost;
+      ASSERT_FLOAT_EQ(cost, costs[i]);
+    }
+  }
+}
 
 }  // namespace

@@ -498,6 +498,7 @@ inline T gaussian_pdf(const T z, const T s) {
   return pdf;
 }
 
+/*
 // partial specification for float, to use fmath::exp instead of std::exp
 template<>
 inline float gaussian_pdf<float>(const float z, const float s) {
@@ -506,7 +507,7 @@ inline float gaussian_pdf<float>(const float z, const float s) {
   const float pdf = inv_sqrt_2pi / s * fmath::exp(static_cast<float>(-0.5) * a * a);
   return pdf;
 }
-
+*/
 
 template<typename T>
 inline T gaussian2_pdf(const T z1, const T z2, const T a11, const T a12, const T a22) {
@@ -524,6 +525,7 @@ inline T gaussian2_pdf(const T z1, const T z2, const T a11, const T a12, const T
   return pdf;
 }
 
+/*
 template<>
 inline float gaussian2_pdf(const float z1, const float z2, const float a11, const float a12, const float a22) {
   static const float log_pi = static_cast<float>(-1.0 * log(2.0 * 3.14159265358979323846));
@@ -539,6 +541,7 @@ inline float gaussian2_pdf(const float z1, const float z2, const float a11, cons
   const float pdf = fmath::exp(log_pi + log_dt + log_exp);
   return pdf;
 }
+*/
 
 int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
   // input buffer "zvec" contains z scores (presumably an equally spaced grid)

@@ -181,7 +181,7 @@ class DenseMatrix {
 
 class BgmgCalculator {
  public:
-  BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), r2_min_(0.0), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false) {}
+  BgmgCalculator();
   
   // num_snp = total size of the reference (e.i. the total number of genotyped variants)
   // num_tag = number of tag variants to include in the inference (must be a subset of the reference)
@@ -232,8 +232,11 @@ class BgmgCalculator {
   double calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   int64_t calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
   void log_disgnostics();
- private:
+ 
+  int64_t seed() { return seed_; }
+  void set_seed(int64_t seed) { seed_ = seed; }
 
+ private:
   int num_snp_;
   int num_tag_;
   std::vector<int> tag_to_snp_; // 0..num_snp_-1, size=num_tag_
@@ -275,6 +278,7 @@ class BgmgCalculator {
   int k_max_;           
   int max_causals_;
   int num_components_;
+  int64_t seed_;
   float r2_min_;
   bool use_fast_cost_calc_;
   bool cache_tag_r2sum_;

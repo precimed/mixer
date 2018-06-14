@@ -103,6 +103,7 @@ TEST(UgmgTest, CalcLikelihood) {
   TestMother tm(num_snp, num_tag, N);
   BgmgCalculator calc;
   calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_option("seed", 0);
   calc.set_option("max_causals", num_snp);
   calc.set_option("kmax", kmax);
   calc.set_option("num_components", 1);
@@ -171,6 +172,7 @@ TEST(BgmgTest, CalcLikelihood) {
   TestMother tm(num_snp, num_tag, N);
   BgmgCalculator calc;
   calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_option("seed", 0);
   calc.set_option("max_causals", num_snp);
   calc.set_option("kmax", kmax);
   calc.set_option("num_components", 3);
@@ -230,6 +232,50 @@ TEST(BgmgTest, CalcLikelihood) {
 
   for (int i = 0; i < zvec_pdf_nocache.size(); i++)
     ASSERT_FLOAT_EQ(zvec_pdf[i], zvec_pdf_nocache[i]);
+}
+
+// bgmg-test.exe --gtest_filter=Test.RandomSeed
+TEST(Test, RandomSeed) {
+  int num_snp = 100;
+  int num_tag = 50;
+  int kmax = 200; // #permutations
+  int N = 100;  // gwas sample size, constant across all variants
+  int num_r2 = 20;
+  TestMother tm(num_snp, num_tag, N);
+  std::vector<int> snp_index, tag_index;
+  std::vector<float> r2;
+  tm.make_r2(num_r2, &snp_index, &tag_index, &r2);
+
+  std::vector<std::shared_ptr<BgmgCalculator>> calcs;
+  double costs[3];
+  for (int i = 0; i < 3; i++) {
+    calcs.push_back(std::make_shared<BgmgCalculator>());
+    BgmgCalculator& calc = *calcs[i];
+    calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+    calc.set_option("max_causals", num_snp);
+    calc.set_option("kmax", kmax);
+    calc.set_option("num_components", 1);
+    calc.set_option("cache_tag_r2sum", 1);
+    calc.set_option("threads", 1);
+    if (i == 2) calc.set_seed(calcs[0]->seed());
+
+    int trait = 1;
+    calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
+    calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+
+    calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+    calc.set_ld_r2_csr();  // finalize csr structure
+
+    calc.set_weights_randprune(20, 0.25);
+    calc.set_hvec(num_snp, &tm.hvec()->at(0));
+
+    float pi_vec = 0.1f;
+    float sig2_beta = 0.5f;
+    float sig2_zero = 1.1f;
+    costs[i] = calc.calc_univariate_cost(pi_vec, sig2_zero, sig2_beta);
+  }
+  ASSERT_FLOAT_EQ(costs[0], costs[2]);
+  ASSERT_TRUE(abs(costs[0] - costs[1]) > 1e-4);
 }
 
 }  // namespace

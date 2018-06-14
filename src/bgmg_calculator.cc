@@ -20,6 +20,12 @@
 
 #include <assert.h>
 
+#ifdef _OPENMP
+#include <omp.h>
+#else
+#define omp_set_num_threads(i)
+#endif
+
 #include <chrono>
 #include <random>
 #include <limits>
@@ -30,12 +36,20 @@
 #include <sstream>
 #include <set>
 
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/date_time/posix_time/posix_time_io.hpp>
+
 #include "bgmg_log.h"
 #include "fmath.hpp"
 
 #define OMP_CHUNK 1000
 
 #define BGMG_THROW_EXCEPTION(x) throw x
+
+BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), r2_min_(0.0), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false) {
+  boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
+  seed_ = (boost::posix_time::microsec_clock::local_time() - time_epoch).ticks();
+}
 
 void BgmgCalculator::check_num_snp(int length) {
   if (num_snp_ == -1) BGMG_THROW_EXCEPTION(::std::runtime_error("call set_tag_indices first"));
@@ -107,8 +121,12 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
   } else if (!strcmp(option, "num_components")) {
     if (!snp_order_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't change num_components after find_snp_order"));
     clear_state(); num_components_ = static_cast<int>(value); return 0;
+  } else if (!strcmp(option, "seed")) {
+    seed_ = static_cast<int64_t>(value); return 0;
   } else if (!strcmp(option, "fast_cost")) {
     use_fast_cost_calc_ = (value != 0); return 0;
+  } else if (!strcmp(option, "threads")) {
+    omp_set_num_threads(static_cast<int>(value)); return 0;
   } else if (!strcmp(option, "cache_tag_r2sum")) {
     cache_tag_r2sum_ = (value != 0);
     for (int component_id = 0; component_id < num_components_; component_id++) clear_tag_r2sum(component_id);
@@ -227,6 +245,9 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
   return 0;
 }
 
+/*
+// Nice trick, but not so important for performance.
+// We use std::mt19937_64.
 class xorshf96  //period 2^96-1
 {
 public:
@@ -248,6 +269,7 @@ public:
     return z;
   }
 };
+*/
 
 int64_t BgmgCalculator::find_snp_order() {
   if (max_causals_ <= 0 || max_causals_ > num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("find_snp_order: max_causals_ <= 0 || max_causals_ > num_snp_"));
@@ -287,7 +309,7 @@ int64_t BgmgCalculator::find_snp_order() {
         for (int i = 0; i < num_snp_; i++) perm[i] = i;
 
         std::mt19937_64 random_engine;
-        random_engine.seed(component_index * k_max_ + k);  // ensure each k in each component starts with its own seed.
+        random_engine.seed(seed_ + component_index * k_max_ + k);  // ensure each k in each component starts with its own seed.
 
         // perform partial Fisher Yates shuffle (must faster than full std::shuffle)
         // swap_offset is a random integer, with max of n-1, n-2, n-3, ..., n-max_causals
@@ -1021,6 +1043,7 @@ void BgmgCalculator::log_disgnostics() {
   LOG << " diag: options.r2_min_=" << r2_min_;
   LOG << " diag: options.use_fast_cost_calc_=" << (use_fast_cost_calc_ ? "yes" : "no");
   LOG << " diag: options.cache_tag_r2sum_=" << (cache_tag_r2sum_ ? "yes" : "no");
+  LOG << " diag: options.seed_=" << (seed_);
   LOG << " diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
 }
 
@@ -1223,6 +1246,7 @@ void BgmgCalculator::calc_sum_r2_and_sum_r4() {
 }
 
 int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
+  if (csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_weights_randprune before set_ld_r2_csr"));
   LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << ")";
   if (r2_threshold < r2_min_) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: r2 < r2_min_"));
   if (n <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: n <= 0"));
@@ -1238,7 +1262,7 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
 #pragma omp for schedule(static)
     for (int prune_i = 0; prune_i < n; prune_i++) {
       std::mt19937_64 random_engine;
-      random_engine.seed(prune_i);
+      random_engine.seed(seed_ + prune_i);
 
       std::vector<int> candidate_tag_indices(num_tag_, 0);
       std::vector<char> processed_tag_indices(num_tag_, 0);

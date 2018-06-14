@@ -22,6 +22,7 @@
 
 #include <unordered_map>
 #include <memory>
+#include <chrono>
 
 #include <iostream>
 #include <sstream>
@@ -55,6 +56,27 @@ class TemplateManager : boost::noncopyable {
  private:
   TemplateManager() { }  // Singleton (make constructor private)
   std::unordered_map<int, std::shared_ptr<Type>> map_;
+};
+
+// A timer that fire an event each X milliseconds.
+class SimpleTimer {
+public:
+  SimpleTimer(int period_ms) : start_(std::chrono::system_clock::now()), period_ms_(period_ms) {}
+
+  int elapsed_ms() {
+    auto delta = (std::chrono::system_clock::now() - start_);
+    auto delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta);
+    return delta_ms.count();
+  }
+
+  bool fire() {
+    if (elapsed_ms() < period_ms_) return false;
+    start_ = std::chrono::system_clock::now();
+    return true;
+  }
+private:
+  std::chrono::time_point<std::chrono::system_clock> start_;
+  int period_ms_;
 };
 
 template<typename T>
@@ -225,7 +247,9 @@ class BgmgCalculator {
   int64_t retrieve_ld_tag_r4_sum(int length, float* buffer);
 
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
-  double calc_univariate_cost_nocache(float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_univariate_cost_nocache(float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)
+  double calc_univariate_cost_nocache_float(float pi_vec, float sig2_zero, float sig2_beta);  // for testing single vs double precision
+  double calc_univariate_cost_nocache_double(float pi_vec, float sig2_zero, float sig2_beta); // for testing single vs double precision
   int64_t calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
 
   double calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
@@ -286,6 +310,9 @@ class BgmgCalculator {
   void check_num_tag(int length);
   double calc_univariate_cost_fast(float pi_vec, float sig2_zero, float sig2_beta);
   double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+
+  template<typename T>
+  friend double calc_univariate_cost_nocache_template(float pi_vec, float sig2_zero, float sig2_beta, BgmgCalculator& rhs);
 };
 
 typedef TemplateManager<BgmgCalculator> BgmgCalculatorManager;

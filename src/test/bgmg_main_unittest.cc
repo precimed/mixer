@@ -70,15 +70,18 @@ public:
   }
 
   void make_r2(int num_r2, std::vector<int>* snp_index, std::vector<int>* tag_index, std::vector<float>* r2) {
-    std::uniform_int_distribution<> dis(0, num_snp_ - 1);
     std::uniform_real_distribution<> dis2(0.0f, 1.0f);
+    std::vector<float> rand_list;
+    for (int i = 0; i < 1000; i++) rand_list.push_back(dis2(g_));
+    
+    std::uniform_int_distribution<> dis(0, num_snp_ - 1);
     while (tag_index->size() < num_r2) {
       int tag = dis(g_);
       int snp = dis(g_);
       if (tag <= snp) continue;
       tag_index->push_back(tag);
       snp_index->push_back(snp);
-      r2->push_back(dis2(g_));
+      r2->push_back(rand_list[r2->size() % rand_list.size()]);
     }
   }
 
@@ -380,6 +383,61 @@ TEST(Test, tag_r2_caching) {
       double cost = calc.calc_univariate_cost(pi, 0.2, 0.15);
       if (j == 0) costs[i] = cost;
       ASSERT_FLOAT_EQ(cost, costs[i]);
+    }
+  }
+}
+
+
+// --gtest_filter=Test.performance
+TEST(Test, performance) {
+  // ideally test with scale = 100. To speedup, use 10 or 1.
+  for (int scale = 1; scale <= 100; scale *= 10) {
+    SimpleTimer timer_prep(-1);
+    std::cout << "scale      : " << scale << "\n";
+    int num_snp = 100000 * scale;
+    int num_tag = 10000 * scale;
+    int kmax = 10 * scale; // #permutations
+    int N = 100000;  // gwas sample size, constant across all variants
+    int num_r2 = 10000000 * scale;
+    TestMother tm(num_snp, num_tag, N);
+    std::vector<int> snp_index, tag_index;
+    std::vector<float> r2;
+    tm.make_r2(num_r2, &snp_index, &tag_index, &r2);
+
+    BgmgCalculator calc;
+    calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+    calc.set_option("max_causals", 0.02 * static_cast<float>(num_snp));
+    calc.set_option("kmax", kmax);
+    calc.set_option("num_components", 1);
+    calc.set_option("cache_tag_r2sum", 1);
+    calc.set_option("threads", 32);
+    calc.set_seed(123123123);
+    int trait = 1;
+    calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
+    calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+
+    calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+    calc.set_ld_r2_csr();  // finalize csr structure
+
+    calc.set_weights_randprune(20, 0.25);
+    calc.set_hvec(num_snp, &tm.hvec()->at(0));
+
+    std::cout << "preparation: " << timer_prep.elapsed_ms() << " ms\n";
+    float pivec[5] = { 0.0001, 0.0003, 0.001, 0.003, 0.01 };
+    for (int repeat = 0; repeat < 5; repeat++) {
+      SimpleTimer timer(-1);
+      double cost_float = calc.calc_univariate_cost_nocache_float(pivec[repeat], 0.2, 0.15);
+      int time_with_float = timer.elapsed_ms();
+      std::cout << "float  cost: " << cost_float << ", time: " << time_with_float << " ms\n";
+      ASSERT_TRUE(std::isfinite(cost_float));
+
+      SimpleTimer timer2(-1);
+      double cost_double = calc.calc_univariate_cost_nocache_double(pivec[repeat], 0.2, 0.15);
+      int time_with_double = timer2.elapsed_ms();
+      std::cout << "double cost: " << cost_double << ", time: " << time_with_double << " ms\n";
+      ASSERT_TRUE(std::isfinite(cost_double));
+
+      std::cout << "cost diff  : " << cost_double - cost_float << "\n";
     }
   }
 }

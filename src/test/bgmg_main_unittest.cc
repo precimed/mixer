@@ -44,7 +44,7 @@ TEST(BgmgTest, LoadData) {
 
 class TestMother {
 public:
-  TestMother(int num_snp, int num_tag, int n) : num_snp_(num_snp), num_tag_(num_tag), rd_(), g_(rd_()) {
+  TestMother(int num_snp, int num_tag, int n) : num_snp_(num_snp), num_tag_(num_tag), rd_(), g_(12341234) {
     std::uniform_real_distribution<> hvec_dist(0.0f, 0.5f); // 2*p(1-p).
 
     for (int i = 0; i < num_snp_; i++) tag_to_snp_.push_back(i);
@@ -265,9 +265,9 @@ TEST(Test, RandomSeedAndThreading) {
 
       int num_threads_real;
 #pragma omp parallel
-{
-      num_threads_real = omp_get_num_threads();
-}
+      {
+        num_threads_real = omp_get_num_threads();
+      }
       ASSERT_EQ(num_threads_real, num_threads);
 
       int trait = 1;
@@ -299,7 +299,39 @@ TEST(Test, RandomSeedAndThreading) {
       else ASSERT_FLOAT_EQ(bgmg_costs[i], bgmg_cost);
       ASSERT_FLOAT_EQ(bgmg_costs[i], calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero));  // check calc twice => the same cost
       ASSERT_FLOAT_EQ(bgmg_costs[i], calc.calc_bivariate_cost_nocache(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero));
+
+      if ((num_threads == 1) && (i==0)) {
+        // test that pdf calculation has the same logic as log likelihood calculation
+        std::vector<float> weights(num_tag, 0.0);
+        calc.retrieve_weights(num_tag, &weights[0]);
+
+        for (int test_caching = 0; test_caching < 2; test_caching++) {
+          calc.set_option("cache_tag_r2sum", test_caching == 0);
+          std::vector<float> ugmg_pdf(num_tag, 0.0);
+          std::vector<float> bgmg_pdf(num_tag, 0.0);
+
+          for (int tag_pdf_index = 0; tag_pdf_index < num_tag; tag_pdf_index++) {
+            std::vector<float> weights2(num_tag, 0.0);
+            weights2[tag_pdf_index] = 1.0;
+            calc.set_weights(num_tag, &weights2[0]);
+            calc.calc_univariate_pdf(pi_vec[0], sig2_zero[0], sig2_beta[0], 1, &tm.zvec()->at(tag_pdf_index), &ugmg_pdf[tag_pdf_index]);
+            calc.calc_bivariate_pdf(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero, 1, &tm.zvec()->at(tag_pdf_index), &tm2.zvec()->at(tag_pdf_index), &bgmg_pdf[tag_pdf_index]);
+          }
+          calc.set_weights(num_tag, &weights[0]); // restore weights back to the original statse
+
+          double ugmg_cost_from_pdf = 0.0, bgmg_cost_from_pdf = 0.0;
+          for (int tag_index = 0; tag_index < num_tag; tag_index++) {
+            if (weights[tag_index] == 0) continue;
+            ugmg_cost_from_pdf += -std::log(static_cast<double>(ugmg_pdf[tag_index])) * weights[tag_index];
+            bgmg_cost_from_pdf += -std::log(static_cast<double>(bgmg_pdf[tag_index])) * weights[tag_index];
+          }
+
+          ASSERT_FLOAT_EQ(ugmg_cost, ugmg_cost_from_pdf);
+          ASSERT_FLOAT_EQ(bgmg_cost, bgmg_cost_from_pdf);
+        }
+      }
     }
+
     ASSERT_FLOAT_EQ(ugmg_costs[0], ugmg_costs[2]);
     ASSERT_TRUE(abs(ugmg_costs[0] - ugmg_costs[1]) > 1e-4);
     ASSERT_FLOAT_EQ(bgmg_costs[0], bgmg_costs[2]);

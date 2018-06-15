@@ -335,17 +335,20 @@ fprintf('Results saved to %s.mat\n', out_file);
 
 if 0
     % Helper code to save all results to a text file
-    dirs=dir('H:\work\simu_BGMG_chr1_pqexp0_2018_06_05\*.bgmg.mat');
-    fileID = fopen(['H:\work\simu_BGMG_chr1_pqexp0_2018_06_05_results.csv'], 'w');
+    dirs=dir('H:\work\SIMU_BGMG2_loglike_2018_06_09\*.bgmg.mat');
+    fileID = fopen(['H:\work\SIMU_BGMG2_loglike_2018_06_09.v2.csv'], 'w');
+    has_header = false
     for i=1:length(dirs)
         try
-        x = load(fullfile('H:\work\simu_BGMG_chr1_pqexp0_2018_06_05', dirs(i).name));
+        x = load(fullfile('H:\work\SIMU_BGMG2_loglike_2018_06_09', dirs(i).name));
+        x.result.options;
         catch
             continue
         end
         [header, data] = BGMG_util.result2str_point_estimates(x.result, x.result.options);
-        if i==1,
+        if ~has_header
             fprintf(fileID, 'trait1_file\ttrait2_file\treference_file\t%s\n', header);
+            has_header=1
         end
         fprintf(fileID, '%s\t%s\t%s\t%s\n', x.result.trait1_file, x.result.trait2_file, x.result.reference_file, data);
     end
@@ -362,8 +365,61 @@ if 0
     ref_hapgen_100k = load('H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins.mat');
     sum_r2 = sum(ref_hapgen_100k.sum_r2_biased(defvec, :), 2);
     sum_r4 = sum(ref_hapgen_100k.sum_r4_biased(defvec, :), 2);
-    histogram(sum_r4 ./ sum_r2)
     clear pBuffer
+end
+
+if 0
+    
+pi1u = '1e-02';
+files=    dir(['H:\work\SIMU_BGMG2_loglike_2018_06_09\*pi1u=', pi1u, '*rep=2*.bgmg.mat'])
+for i=1:length(files), files(i).dir = 'H:\work\SIMU_BGMG2_loglike_2018_06_09\'; end
+
+files2=    dir(['H:\work\SIMU_BGMG2_loglike_2018_06_09_kmax1000\to_plot\*pi1u=',pi1u,'*'])
+for i=1:length(files2), files2(i).dir = 'H:\work\SIMU_BGMG2_loglike_2018_06_09_kmax1000\to_plot\'; end
+
+files = [files; files2];
+
+f = figure;
+legends = {};
+for i=1:length(files)
+    fprintf('%s\n', files(i).name)
+    try
+        x=  load([files(i).dir, files(i).name]);
+        %if ~isempty(findstr(files(i).name, 'simu_h2=0.4_rg=0.0_pi1u=1e-04_pi2u=1e-04_pi12=3e-05_rep=1_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.cpp.bgmg.mat')) continue; end;
+        %x.result.bivariate.params;
+        x.result.bivariate.loglike_plot_fit_data
+    catch
+        continue
+    end
+    
+    if isfield(x.result.bivariate, 'params')
+        params=x.result.bivariate.params;
+        if any(params.sig2_zero>1.2), warning('non-converged'); continue; end;
+    end
+    plots_data = x.result.bivariate.loglike_plot_fit_data;
+    
+        
+    fn = files(i).name;
+    type = find([~isempty(findstr(fn, 'random')) ~isempty(findstr(fn, 'partial')) ~isempty(findstr(fn, 'complete'))]);
+    if ~isempty(findstr(fn, 'kmax1000')) plot_symbol='-', else plot_symbol='.-'; end;
+    
+    
+    fnames = fieldnames(plots_data);
+    for fni=1:length(fnames)
+        subplot(3,3,fni);hold on; 
+         ax = gca;ax.ColorOrderIndex = type;
+   
+        plot_name=fnames{fni};
+        y = plots_data.(plot_name).y; y(y>1e99)=nan;
+        plot(plots_data.(plot_name).x, y-min(y), [plot_symbol]);
+        plot_name(plot_name=='_')=' ';title(plot_name);
+    end
+    leg = files(i).name; leg(leg=='_')=' '; legends{end+1, 1} = leg;
+    subplot(3,3,8:9);  ax = gca;ax.ColorOrderIndex = type; hold on; plot(0,0,plot_symbol);
+end
+    subplot(3,3,8:9); legend(legends);
+    set(f,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+    print(f, sprintf('loglike_pi1u=%s_joint',pi1u), '-dpdf')
 end
 
 % TBD: re-test confidence intervals estimation

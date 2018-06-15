@@ -245,6 +245,12 @@ class BgmgCalculator {
   int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
   int64_t retrieve_ld_tag_r2_sum(int length, float* buffer);
   int64_t retrieve_ld_tag_r4_sum(int length, float* buffer);
+  
+  // Calculate and retrieve weighted_causal_r2, wcr2[i], i runs from 0 to num_snp
+  // wcr2[i] = sum_j w_j r^2_ij, where the sum runs across all tag variants, and 
+  // w_j is random-pruning-based weight of j-th tag variant.
+  // This function may help us to make a better selection of informative tag variants.
+  int64_t retrieve_weighted_causal_r2(int length, float* buffer);
 
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
   double calc_univariate_cost_nocache(float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)

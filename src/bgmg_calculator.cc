@@ -1343,3 +1343,27 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
     }
   }
 }
+
+int64_t BgmgCalculator::retrieve_weighted_causal_r2(int length, float* buffer) {
+  if (length != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("length != num_snp_: wrong buffer size"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+  if (csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call retrieve_weighted_causal_r2 before set_ld_r2_csr"));
+  if (!hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call retrieve_weighted_causal_r2 after set_hvec"));
+
+  LOG << ">retrieve_weighted_causal_r2()";
+  SimpleTimer timer(-1);
+
+  for (int i = 0; i < num_snp_; i++) buffer[i] = 0.0f;
+  for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
+    const int r2_index_from = csr_ld_snp_index_[causal_index];
+    const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
+    for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
+      const int tag_index = csr_ld_tag_index_[r2_index];
+      const float r2 = csr_ld_r2_[r2_index];
+      buffer[causal_index] += r2 * weights_[tag_index];
+    }
+  }
+
+  LOG << "<retrieve_weighted_causal_r2(), elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}

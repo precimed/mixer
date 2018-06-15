@@ -109,6 +109,12 @@ int64_t bgmg_retrieve_ld_tag_r4_sum(int context_id, int length, float* buffer) {
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_ld_tag_r4_sum(length, buffer);
   } CATCH_EXCEPTIONS;
 }
+int64_t bgmg_retrieve_weighted_causal_r2(int context_id, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_weighted_causal_r2(length, buffer);
+  } CATCH_EXCEPTIONS;
+}
 
 int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer) {
   try {

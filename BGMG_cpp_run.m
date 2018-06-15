@@ -15,7 +15,11 @@ if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
 plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1:22;
-defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
+randprune_r2_plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p10_SNPwind50k_chr@.ld.mat';
+%defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
+defvec_files = {'H:\Dropbox\shared\BGMG\defvecs\defvec_11m_infinium-omniexpress-24-v1-3-a1.mat', ...
+                'H:\Dropbox\shared\BGMG\defvecs\defvec_highld_regions.mat', ... 
+                'H:\Dropbox\shared\BGMG\defvecs\centromere_plus_3cm_locations.mat' };
 trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
 trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
 trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
@@ -31,14 +35,15 @@ trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_p
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
 DO_FIT=false;FIT_FULL_MODEL=false;STRATIFIED_QQ_PLOT_FIT=false;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=true;QQ_PLOT_FIT=false;cache_tag_r2sum=false;
-out_file = 'tmptesting3';
+MAF_THRESH=0.01;
+out_file = 'tmptesting4';
 %out_file = 'BGMG_random_overlap_chr1_pi1u=3e-03';
 %out_file = 'BGMG_full_overlap_chr1_pi1u=3e-03';
 
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\Debug\bgmg.dll';
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'}
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat' };
-defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG  _phase3_EUR.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'}
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'}
 trait1_file = 'H:\Dropbox\shared\BGMG\p_HG80p3m_HG80p3m_n_1kGPIII14p9m_1pc\simu_h2=0.40_pi1u=1e-3_rep=1.ugmg.mat'
 trait1_file = 'H:\GitHub\BGMG\GIANT_HEIGHT_2014_lift.mat';
 trait1_file = 'H:\GitHub\BGMG\PGC_SCZ_2014.mat';
@@ -76,7 +81,7 @@ for i=1:length(defvec_files)
     fprintf('Loading %s... ', defvec_files{i}); cur_defvec = load(defvec_files{i}); defvec_tmp = defvec_tmp & cur_defvec.defvec; fprintf('OK.\n');
     fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
 end; clear('i');
-if isfinite(MAF_THRESH), defvec_tmp = defvec_tmp & (mafvec >= MAF_THRESH); fprintf('Exclude %i variants due to mafvec (%i variants remain)\n', sum(mafvec < MAF_THRESH), sum(defvec_tmp)); end
+if isfinite(MAF_THRESH), defvec_tmp = defvec_tmp & (ref.mafvec >= MAF_THRESH); fprintf('Exclude %i variants due to mafvec (%i variants remain)\n', sum(ref.mafvec < MAF_THRESH), sum(defvec_tmp)); end
 if EXCLUDE_MHC, defvec_mhc = ~((ref.chrnumvec == 6) & (ref.posvec > 25e6) & (ref.posvec < 35e6)); defvec_tmp = defvec_tmp & defvec_mhc; fprintf('Exclude %i variants in MHC region (%i variants remain)\n', sum(~defvec_mhc), sum(defvec_tmp)); end
 
 % plink_ld_mat is a file containing information about the LD structure. One
@@ -108,7 +113,11 @@ if ~isempty(trait2_file),
 end
 
 if ~exist('randprune_n', 'var'), randprune_n = 100; end;
-if ~exist('randprune_r2', 'var'), randprune_r2 = 0.8; end;
+if ~exist('randprune_r2', 'var'), randprune_r2 = 0.6; end;
+if ~exist('randprune_r2_weight_threshold', 'var'), randprune_r2_weight_threshold = nan; end; % SNPs with weight below this threshold are excluded from tag snps
+if ~exist('randprune_r2_defvec_threshold', 'var'), randprune_r2_defvec_threshold = 0.6; end; % 1 iterations at this threshold to reduce set of SNPs (as in defvec)
+if ~exist('randprune_r2_plink_ld_mat', 'var'), randprune_r2_plink_ld_mat = ''; end;
+
 if ~exist('kmax', 'var'), kmax = 1000; end;
 if ~exist('r2min', 'var'), r2min = 0.01; end;
 if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.02; end;
@@ -143,19 +152,79 @@ if (length(chr_labels) == 1) && (chr_labels(1) == 1) && ( all(ref.chrnumvec == 1
     ref.chrnumvec = ref.chrnumvec(ref.chrnumvec == chrlabel);  % must be the last statement as we replace ref.chrnumvec
     clear('chrlabel');
 end
+  
+m2c = @(x)(x-1); % convert matlab to c indices
+check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
+check_for_context = @(context)fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', context));
+
+if isfinite(randprune_r2_defvec_threshold)
+    % Use hard threshold to exlude sinonimous SNPs from fit. Just one
+    % iteration of random pruning with very high r2 threshold. Non-selected
+    % SNPs are excluded.
+    if ~exist('randprune_r2_plink_ld_mat', 'var') error('randprune_r2_plink_ld_mat is required'); end;
+    fprintf('Excluding variants based on random pruning at %.3f threshold...\n', randprune_r2_defvec_threshold);
+    context = 1; tag_indices_tmp = find(defvec_tmp);
+    calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
+
+    for chr_index=1:length(chr_labels)
+        plink_ld_mat_chr = strrep(randprune_r2_plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
+        tmp = load(plink_ld_mat_chr); tmp.index_A = tmp.index_A + 1; tmp.index_B = tmp.index_B + 1; % 0-based, comming from python
+        calllib('bgmg', 'bgmg_set_ld_r2_coo', context, length(tmp.r2), m2c(tmp.index_A), m2c(tmp.index_B), tmp.r2); fprintf('OK.\n'); check(); 
+    end
+    calllib('bgmg', 'bgmg_set_ld_r2_csr', context);  check_for_context(context);
+    calllib('bgmg', 'bgmg_set_weights_randprune', context, 1, randprune_r2_defvec_threshold);  check_for_context(context);
     
+    pBuffer = libpointer('singlePtr', zeros(sum(defvec_tmp), 1, 'single'));
+    calllib('bgmg', 'bgmg_retrieve_weights', context, sum(defvec_tmp), pBuffer);  check_for_context(context); weights_bgmg = pBuffer.Value;
+    clear pBuffer
+    calllib('bgmg', 'bgmg_dispose', context);  check_for_context(context);
+
+    defvec_tmp(tag_indices_tmp(weights_bgmg==0)) = false;
+    fprintf('Exclude %i variants after random pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), randprune_r2_defvec_threshold, sum(defvec_tmp));
+end
+
+if isfinite(randprune_r2_weight_threshold)
+    % Use soft threshold on random pruning weight to exlude low-weight
+    % SNPs. Perform usual pruning. Then sort SNPs according to their weight, and
+    % exclude those that contribute to the bottom 10% (randprune_r2_weight_threshold)
+    if ~exist('randprune_r2_plink_ld_mat', 'var') error('randprune_r2_plink_ld_mat is required'); end;
+    fprintf('Excluding variants with too low weight, based on random pruning at %.3f threshold...\n', randprune_r2);
+    context = 1; tag_indices_tmp = find(defvec_tmp);
+    calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
+
+    for chr_index=1:length(chr_labels)
+        plink_ld_mat_chr = strrep(randprune_r2_plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
+        tmp = load(plink_ld_mat_chr); tmp.index_A = tmp.index_A + 1; tmp.index_B = tmp.index_B + 1; % 0-based, comming from python
+        calllib('bgmg', 'bgmg_set_ld_r2_coo', context, length(tmp.r2), m2c(tmp.index_A), m2c(tmp.index_B), tmp.r2); fprintf('OK.\n'); check(); 
+    end
+    calllib('bgmg', 'bgmg_set_ld_r2_csr', context);  check_for_context(context);
+    calllib('bgmg', 'bgmg_set_weights_randprune', context, randprune_n, randprune_r2);  check_for_context(context);
+    
+    pBuffer = libpointer('singlePtr', zeros(sum(defvec_tmp), 1, 'single'));
+    calllib('bgmg', 'bgmg_retrieve_weights', context, sum(defvec_tmp), pBuffer);  check_for_context(context); weights_bgmg = pBuffer.Value;
+    clear pBuffer
+    calllib('bgmg', 'bgmg_dispose', context);  check_for_context(context);
+    weights_bgmg_sorted = sort(weights_bgmg);
+    weights_bgmg_cumsum = cumsum(weights_bgmg_sorted/sum(weights_bgmg_sorted));
+    weights_bgmg_thresh = weights_bgmg_sorted(find(weights_bgmg_cumsum > randprune_r2_weight_threshold, 1, 'first'));
+    
+    defvec_tmp(tag_indices_tmp(weights_bgmg < weights_bgmg_thresh)) = false;
+    fprintf('Exclude %i variants (%i variants remain)\n', sum(weights_bgmg < weights_bgmg_thresh), sum(defvec_tmp));
+end
+
 % finalize defvec, from here it must not change.
 defvec = defvec_tmp; clear('defvec_tmp', 'cur_defvec');
 tag_indices = find(defvec);
 
-m2c = @(x)(x-1); % convert matlab to c indices
-check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
+fprintf('%i tag SNPs will go into fit, etc\n', length(tag_indices));
+
 calllib('bgmg', 'bgmg_set_tag_indices', 0, length(defvec), length(tag_indices), m2c(tag_indices));  check();
 calllib('bgmg', 'bgmg_set_option', 0,  'r2min', r2min); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', floor(max_causal_fraction * length(defvec))); check();  
 calllib('bgmg', 'bgmg_set_option', 0,  'num_components', num_components); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'cache_tag_r2sum', cache_tag_r2sum); check();
+
 
 for chr_index=1:length(chr_labels)
     plink_ld_mat_chr = strrep(plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
@@ -423,3 +492,39 @@ end
 end
 
 % TBD: re-test confidence intervals estimation
+
+
+if 0
+    % find centromere location
+    % 1:121535434- 124535434
+        sum((ref.chrnumvec==1) & (ref.posvec> 121535434) & (ref.posvec < 124535434))
+        sum((ref.chrnumvec==2) & (ref.posvec> 92326171) & (ref.posvec < 95326171))
+
+    
+    figure(1);clf;hold on;
+    for chri=1:22
+        p = ref.posvec((ref.chrnumvec==chri));  % defvec == hm3 as defined by LDSR
+        diff = p(2:end) - p(1:end-1);
+        if sum(diff>5e5)==0
+            continue;
+        end
+        subplot(6,4,chri); plot(diff); title(sprintf('chr%i', chri));
+        for i=find(diff>1e6)'
+            fprintf('chr=%i %i - %i (%.1f MB)\n', chri, p(i), p(i+1), single(diff(i))/1e6 )
+        end
+    end
+end
+
+
+if 0
+plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1:22;
+for chr_index=length(chr_labels):-1:1
+    plink_ld_mat_chr = strrep(plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
+    fprintf('Loading %s...', plink_ld_mat_chr); tmp = load(plink_ld_mat_chr); fprintf('OK.\n');
+    tmp.index_A = tmp.index_A(tmp.r2 >= 0.1);
+    tmp.index_B = tmp.index_B(tmp.r2 >= 0.1);
+    tmp.r2      = tmp.r2     (tmp.r2 >= 0.1);
+    plink_ld_mat_chr_90 = strrep('H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p10_SNPwind50k_chr@.ld.mat', '@', sprintf('%i',chr_labels(chr_index)));
+    save(plink_ld_mat_chr_90, '-struct', 'tmp', '-v7');
+end
+end

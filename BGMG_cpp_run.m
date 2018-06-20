@@ -15,15 +15,17 @@ if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
 plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1;
+randprune_r2_plink_ld_mat = ''; randprune_r2_defvec_threshold = nan;
 randprune_r2_plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p10_SNPwind50k_chr@.ld.mat';
 %defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
+defvec_files = {};
 defvec_files = {'H:\Dropbox\shared\BGMG\defvecs\defvec_11m_infinium-omniexpress-24-v1-3-a1.mat', ...
                 'H:\Dropbox\shared\BGMG\defvecs\defvec_highld_regions.mat', ... 
                 'H:\Dropbox\shared\BGMG\defvecs\centromere_plus_3cm_locations.mat' };
 trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
 trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
 trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
-trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
+trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
 
 
 %trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
@@ -34,9 +36,10 @@ trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_p
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=8e-04_rep=10_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT=true;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=true;QQ_PLOT_FIT=true;cache_tag_r2sum=true;
+DO_FIT=false;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=true;QQ_PLOT_FIT=true;cache_tag_r2sum=true;
 MAF_THRESH=0.01;
-out_file = 'tmptesting5';
+out_file = 'tmptesting5_ext';
+init_result_from_out_file = 'tmptesting5';
 %out_file = 'BGMG_random_overlap_chr1_pi1u=3e-03';
 %out_file = 'BGMG_full_overlap_chr1_pi1u=3e-03';
 
@@ -49,7 +52,6 @@ trait1_file = 'H:\GitHub\BGMG\GIANT_HEIGHT_2014_lift.mat';
 trait1_file = 'H:\GitHub\BGMG\PGC_SCZ_2014.mat';
 reference_file = 'H:\Dropbox\shared\BGMG\1kG_phase3_EUR_11015883_reference_p01_SNPwind50k_per_allele_4bins.mat'
 DO_FIT = false; QQ_PLOT_TRUE = false;
-init_file = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.bgmg.mat';
 trait1_file  = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat';
 trait2_file  = 'H:\work\SIMU_BGMG_random_pi12\test\simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat';
 end
@@ -57,6 +59,11 @@ end
 addpath('DERIVESTsuite');
 
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
+
+% BGMG_cpp_run can take previous results file, and enhance it with
+% additional features. Typical example would be to take a file produced
+% after DO_FIT, and use it to produce QQ plots, etc.
+if ~exist('init_result_from_out_file', 'var'), init_result_from_out_file = ''; end;
 
 % full path to bgmg shared library
 if ~exist('bgmg_shared_library', 'var'), error('bgmg_shared_library is required'); end;
@@ -113,9 +120,9 @@ if ~isempty(trait2_file),
 end
 
 if ~exist('randprune_n', 'var'), randprune_n = 100; end;
-if ~exist('randprune_r2', 'var'), randprune_r2 = 0.6; end;
+if ~exist('randprune_r2', 'var'), randprune_r2 = 0.8; end;
 if ~exist('randprune_r2_weight_threshold', 'var'), randprune_r2_weight_threshold = nan; end; % SNPs with weight below this threshold are excluded from tag snps
-if ~exist('randprune_r2_defvec_threshold', 'var'), randprune_r2_defvec_threshold = 0.6; end; % 1 iterations at this threshold to reduce set of SNPs (as in defvec)
+if ~exist('randprune_r2_defvec_threshold', 'var'), randprune_r2_defvec_threshold = nan; end; % 1 iterations at this threshold to reduce set of SNPs (as in defvec)
 if ~exist('randprune_r2_plink_ld_mat', 'var'), randprune_r2_plink_ld_mat = ''; end;
 
 if ~exist('kmax', 'var'), kmax = 1000; end;
@@ -128,15 +135,24 @@ if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                %
 if ~exist('FIT_WITH_CONSTRAINS', 'var'), FIT_WITH_CONSTRAINS = true; end;      % fit bivariate model with univariate constrains
 if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots with true parameters
 if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
+if ~exist('QQ_PLOT_DOWNSCALE', 'var'), QQ_PLOT_DOWNSCALE = 1; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('STRATIFIED_QQ_PLOT_FIT', 'var'), STRATIFIED_QQ_PLOT_FIT = false; end;
+if ~exist('STRATIFIED_QQ_PLOT_DOWNSCALE', 'var'), STRATIFIED_QQ_PLOT_DOWNSCALE = 10; end;     % downscale #snps in stratified QQ plots (model prediction only)
 if ~exist('LOGLIKE_PLOT_FIT', 'var'), LOGLIKE_PLOT_FIT = false; end;
 if ~exist('LOGLIKE_PLOT_TRUE', 'var'), LOGLIKE_PLOT_TRUE = false; end;
 if ~exist('POWER_PLOT_FIT', 'var'), POWER_PLOT_FIT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
 
-
 if POWER_PLOT_FIT, error('not yet implemented in c++ version'); end;
+
+result = [];
+if ~isempty(init_result_from_out_file)
+    if DO_FIT, error('init_result_from_out_file is incompatible with DO_FIT'); end;
+    fprintf('Loading init file from %s...\n', init_result_from_out_file);
+    tmp = load(init_result_from_out_file); result = tmp.result;
+    clear('tmp');
+end
 
 if (length(chr_labels) == 1) && (chr_labels(1) == 1) && ( all(ref.chrnumvec == 1) || (find(ref.chrnumvec == 1, 1, 'last' ) < find(ref.chrnumvec ~= 1, 1 )))
     chrlabel = chr_labels(1);
@@ -217,7 +233,7 @@ end
 defvec = defvec_tmp; clear('defvec_tmp', 'cur_defvec');
 tag_indices = find(defvec);
 
-fprintf('%i tag SNPs will go into fit, etc\n', length(tag_indices));
+fprintf('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_indices));
 
 calllib('bgmg', 'bgmg_set_tag_indices', 0, length(defvec), length(tag_indices), m2c(tag_indices));  check();
 calllib('bgmg', 'bgmg_set_option', 0,  'r2min', r2min); check();
@@ -288,11 +304,16 @@ if DO_FIT
     if ~isempty(trait2_file),
         zmat = [trait1_data.zvec, trait2_data.zvec];
         nmat = [trait1_data.nvec, trait2_data.nvec];
-        result = BGMG_cpp_fit(zmat, nmat, options);
+        result2 = BGMG_cpp_fit(zmat, nmat, options);
     else
         zvec = [trait1_data.zvec];
         nvec = [trait1_data.nvec];
-        result = BGMG_cpp_fit(zvec, nvec, options);
+        result2 = BGMG_cpp_fit(zvec, nvec, options);
+    end
+    
+    fnames = fieldnames(result2);
+    for findex = 1:length(fnames)
+        result.(fnames{findex}) = result2.(fnames{findex});
     end
 
     result.trait1_file = trait1_file;
@@ -318,6 +339,7 @@ if QQ_PLOT_TRUE
             qq_params = struct('sig2_zero', 1, 'pi_vec', sum(trait2_data.causal_pi), 'sig2_beta', trait2_data.sigsq);
             qq_data = trait2_data;
         end
+        options.downscale = QQ_PLOT_DOWNSCALE;
         [figures, plot_data] = BGMG_cpp_qq_plot(qq_params, qq_data.zvec(defvec), options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
@@ -336,6 +358,7 @@ if QQ_PLOT_FIT
             qq_params = result.univariate{trait_index}.params;
             qq_data = trait2_data;
         end
+        options.downscale = QQ_PLOT_DOWNSCALE;
         [figures, plot_data] = BGMG_cpp_qq_plot(qq_params, qq_data.zvec(defvec), options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
@@ -347,6 +370,7 @@ end
 if STRATIFIED_QQ_PLOT_FIT && DO_FIT ~isempty(trait2_file)
     %ov=[]; ov.pi_vec = [0, 0, trait1_data.causal_pi];     ov.sig2_beta = [trait1_data.sigsq, trait2_data.sigsq];     ov.sig2_zero = [1, 1];    ov.rho_zero = 0; ov.rho_beta = 0;
     zmat = [trait1_data.zvec, trait2_data.zvec]; 
+    options.downscale = STRATIFIED_QQ_PLOT_DOWNSCALE;
     [figures, plot_data] = BGMG_cpp_stratified_qq_plot(result.bivariate.params, zmat(defvec, :), options);
     result.bivariate.stratified_qq_plot_fit_data = plot_data;
     print(figures.tot, sprintf('%s.stratqq.fit.pdf', out_file), '-dpdf')

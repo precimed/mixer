@@ -2,33 +2,38 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, zmat, option
     % QQ plot for data and model
 
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
+    if ~isfield(options, 'downscale'), options.downscale = 10; end;
     plot_data = {}; figures.tot = figure; hold on;
 
-    % Check that weights and zvec are all defined
-    if any(~isfinite(zmat(:))), error('all values must be defined'); end;
-    
     % Retrieve weights from c++ library
     check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
     pBuffer = libpointer('singlePtr', zeros(size(zmat, 1), 1, 'single'));
     calllib('bgmg', 'bgmg_retrieve_weights', 0, size(zmat, 1), pBuffer);  check(); 
     weights_bgmg = pBuffer.Value;
     clear pBuffer
-    
+
+    % Check that weights and zvec are all defined
+    if any(~isfinite(zmat(:))), error('all values must be defined'); end;
+    if any(~isfinite(weights_bgmg)), error('all values must be defined'); end;
+
     % To speedup calculations we set temporary weights where many elements
     % are zeroed. The remaining elements are set to 1 (e.i. there is no
     % weighting). For data QQ plots all elements are set to 1.
     % At the end of this function we restore weights_bgmg.
-
-    model_weights = zeros(size(weights_bgmg));  model_weights(1:10:end) = 1; model_weights = model_weights ./ sum(model_weights);
+    downscale_indices = false(size(weights_bgmg)); downscale_indices(1:options.downscale:end)=true;
+    model_weights = zeros(size(weights_bgmg));  model_weights(downscale_indices) = 1; model_weights = model_weights ./ sum(model_weights);
     calllib('bgmg', 'bgmg_set_weights', 0, length(model_weights), model_weights);  check();
-    data_weights = ones(size(model_weights));
+    data_weights = weights_bgmg / sum(weights_bgmg);
 
     % Calculate bivariate pdf on a regular 2D grid (z1, z2)
     zgrid = single(-15:0.25:15);
     [zgrid1, zgrid2] = meshgrid(zgrid, zgrid);
+    zgrid1 = zgrid1(zgrid >= 0, :); zgrid2 = zgrid2(zgrid >= 0, :);  % taking symmetry into account to speedup by a factor of 2
     pBuffer = libpointer('singlePtr', zeros(numel(zgrid1), 1, 'single'));
     calllib('bgmg', 'bgmg_calc_bivariate_pdf', 0, length(params.pi_vec), params.pi_vec, length(params.sig2_beta(:, end)), params.sig2_beta(:, end), params.rho_beta(end), length(params.sig2_zero), params.sig2_zero, params.rho_zero, numel(zgrid1), zgrid1(:), zgrid2(:), pBuffer);  check(); 
     pdf = reshape(pBuffer.Value', size(zgrid1)); clear pBuffer
+    clear('zgrid1', 'zgrid2');
+    pdf = [fliplr(flipud(pdf(2:end, :))); pdf];
     pdf = pdf / sum(model_weights);
     
     % Restore original weights
@@ -58,15 +63,17 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, zmat, option
         model_logpvec = -log10(2*interp1(-zgrid(zgrid<=0), model_cdf(zgrid<=0), hv_z')); 
 
         ax = gca;ax.ColorOrderIndex = zthresh_index;
-        hData  = plot(data_logpvec, hv_logp, '-.', 'LineWidth',1); hold on;
+        hData  = plot(data_logpvec, hv_logp, '-', 'LineWidth',1); hold on;
         ax = gca;ax.ColorOrderIndex = zthresh_index;
-        hModel = plot(model_logpvec,hv_logp, '-', 'LineWidth',1); hold on;
+        hModel = plot(model_logpvec,hv_logp, '-.', 'LineWidth',1); hold on;
         
         plot_data{zthresh_index}.hv_logp = hv_logp;
         plot_data{zthresh_index}.data_logpvec = data_logpvec;
         plot_data{zthresh_index}.model_logpvec = model_logpvec;
         plot_data{zthresh_index}.params = params;
         plot_data{zthresh_index}.zthresh = zthresh;
+        plot_data{zthresh_index}.pdf = pdf;
+        plot_data{zthresh_index}.pdf_zgrid = zgrid;
     end  
     
     qq_options=[];

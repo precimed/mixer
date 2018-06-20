@@ -69,6 +69,8 @@ target_link_libraries(bgmg ${Boost_LIBRARIES})
 
 set(SRC_TEST_LIST
 	test/bgmg_main_unittest.cc
+	test/semt_test.cc
+	semt/semt/VectorExpr.cpp
 	bgmg_calculator.cc
 	bgmg_log.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
@@ -83,6 +85,7 @@ target_include_directories(bgmg PUBLIC ${CMAKE_SOURCE_DIR})
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest/include)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR})
+target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/semt)
 
 include(GenerateExportHeader)
 generate_export_header(bgmg

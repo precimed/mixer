@@ -367,7 +367,7 @@ if QQ_PLOT_FIT
     end
 end
 
-if STRATIFIED_QQ_PLOT_FIT && DO_FIT ~isempty(trait2_file)
+if STRATIFIED_QQ_PLOT_FIT && (DO_FIT || ~isempty(init_result_from_out_file)) && ~isempty(trait2_file)
     %ov=[]; ov.pi_vec = [0, 0, trait1_data.causal_pi];     ov.sig2_beta = [trait1_data.sigsq, trait2_data.sigsq];     ov.sig2_zero = [1, 1];    ov.rho_zero = 0; ov.rho_beta = 0;
     zmat = [trait1_data.zvec, trait2_data.zvec]; 
     options.downscale = STRATIFIED_QQ_PLOT_DOWNSCALE;
@@ -376,7 +376,7 @@ if STRATIFIED_QQ_PLOT_FIT && DO_FIT ~isempty(trait2_file)
     print(figures.tot, sprintf('%s.stratqq.fit.pdf', out_file), '-dpdf')
 end
 
-if LOGLIKE_PLOT_FIT && DO_FIT && ~isempty(trait2_file)
+if LOGLIKE_PLOT_FIT && (DO_FIT || ~isempty(init_result_from_out_file)) && ~isempty(trait2_file)
     f = figure; hold on;
     calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', ~FIT_FULL_MODEL); check();
     [figures, plots_data] = BGMG_cpp_loglike_plot(result.bivariate.params);
@@ -386,7 +386,7 @@ if LOGLIKE_PLOT_FIT && DO_FIT && ~isempty(trait2_file)
 end
 
 if LOGLIKE_PLOT_TRUE && ~isempty(trait2_file)
-    if ~DO_FIT
+    if ~DO_FIT && isempty(init_result_from_out_file)
         fprintf('Fit model with fit_full_model=false to find sig2zero and rho_zero params\n');
         options.fit_full_model = false;
         result_sig0_rho0 = BGMG_cpp_fit([trait1_data.zvec, trait2_data.zvec], [trait1_data.nvec, trait2_data.nvec], options);

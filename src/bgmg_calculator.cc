@@ -98,11 +98,13 @@ int64_t BgmgCalculator::set_nvec(int trait, int length, float* values) {
 
 
 int64_t BgmgCalculator::set_weights(int length, float* values) {
+  int nnz = 0;
   for (int i = 0; i < length; i++) {
     if (!std::isfinite(values[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
+    if (weights_[i] != 0) nnz++;
   }
 
-  LOG << " set_weights; ";
+  LOG << " set_weights(length=" << length << "), nnz=" << nnz << "; ";
   check_num_tag(length);
   weights_.assign(values, values+length);
   return 0;

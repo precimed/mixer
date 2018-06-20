@@ -14,7 +14,7 @@
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1:22;
+plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1;
 randprune_r2_plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p10_SNPwind50k_chr@.ld.mat';
 %defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
 defvec_files = {'H:\Dropbox\shared\BGMG\defvecs\defvec_11m_infinium-omniexpress-24-v1-3-a1.mat', ...
@@ -34,9 +34,9 @@ trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_p
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=8e-04_rep=10_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT=false;FIT_FULL_MODEL=false;STRATIFIED_QQ_PLOT_FIT=false;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=true;QQ_PLOT_FIT=false;cache_tag_r2sum=false;
+DO_FIT=true;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=true;QQ_PLOT_FIT=true;cache_tag_r2sum=true;
 MAF_THRESH=0.01;
-out_file = 'tmptesting4';
+out_file = 'tmptesting5';
 %out_file = 'BGMG_random_overlap_chr1_pi1u=3e-03';
 %out_file = 'BGMG_full_overlap_chr1_pi1u=3e-03';
 
@@ -124,7 +124,8 @@ if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.02; end;
 if ~exist('cache_tag_r2sum', 'var'), cache_tag_r2sum = 1; end;
 
 if ~exist('DO_FIT', 'var'), DO_FIT = true; end;                % perform fitting
-if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                % perform fitting
+if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                % use full model (when false, use gaussian approximation)
+if ~exist('FIT_WITH_CONSTRAINS', 'var'), FIT_WITH_CONSTRAINS = true; end;      % fit bivariate model with univariate constrains
 if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots with true parameters
 if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
 if ~exist('STRATIFIED_QQ_PLOT_FIT', 'var'), STRATIFIED_QQ_PLOT_FIT = false; end;
@@ -270,6 +271,7 @@ options.verbose = true;
 options.ci_alpha = CI_ALPHA;
 options.title = TITLE;
 options.fit_full_model = FIT_FULL_MODEL;
+options.fit_with_constrains = FIT_WITH_CONSTRAINS;
 
 % Save true parameters (if available)
 if isfield(trait1_data, 'causal_pi'), options.causal_pi_T1 = trait1_data.causal_pi; end;
@@ -404,25 +406,27 @@ fprintf('Results saved to %s.mat\n', out_file);
 
 if 0
     % Helper code to save all results to a text file
-    dirs=dir('H:\work\SIMU_BGMG2_loglike_2018_06_09\*.bgmg.mat');
-    fileID = fopen(['H:\work\SIMU_BGMG2_loglike_2018_06_09.v2.csv'], 'w');
-    has_header = false
+    dirs=dir('H:\work\SIMU_BGMG2_2018_06_17\*.bgmg.mat');
+    fileID = fopen(['H:\work\SIMU_BGMG2_2018_06_18.csv'], 'w');
+    has_header = false;
     for i=1:length(dirs)
         try
-        x = load(fullfile('H:\work\SIMU_BGMG2_loglike_2018_06_09', dirs(i).name));
-        x.result.options;
+        x = load(fullfile('H:\work\SIMU_BGMG2_2018_06_17', dirs(i).name));
+        if ~isfield(x.result, 'options'), x.result.options = []; end;
+        if ~isfield(x.result.bivariate, 'params'), continue; end;
         catch
+            fprintf('error: %s\n', dirs(i).name);
             continue
         end
         [header, data] = BGMG_util.result2str_point_estimates(x.result, x.result.options);
         if ~has_header
-            fprintf(fileID, 'trait1_file\ttrait2_file\treference_file\t%s\n', header);
-            has_header=1
+            fprintf(fileID, 'trait1_file\ttrait2_file\tbgmg_mat_file\treference_file\t%s\n', header);
+            has_header=1;
         end
-        fprintf(fileID, '%s\t%s\t%s\t%s\n', x.result.trait1_file, x.result.trait2_file, x.result.reference_file, data);
+        fprintf(fileID, '%s\t%s\t%s\t%s\t%s\n', x.result.trait1_file, x.result.trait2_file, dirs(i).name, x.result.reference_file, data);
     end
 
-    fclose(fileID);
+    if fileID ~= 2, fclose(fileID); end;
 end
 
 if 0

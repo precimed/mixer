@@ -209,6 +209,8 @@ classdef BGMG_util
     end
 
     function [univariate_ci_funcs, bivariate_ci_funcs, all_funcs] = find_extract_funcs(options)
+        if ~exist('options', 'var'), options  = []; end
+        if ~isfield(options, 'total_het'), options.total_het = nan; end;
         univariate_ci_funcs.sig2_zero         = @(params)(params.sig2_zero);
         univariate_ci_funcs.sig2_zero_minus1  = @(params)(params.sig2_zero - 1);
         univariate_ci_funcs.sig2_beta         = @(params)(params.sig2_beta);

@@ -14,6 +14,7 @@ function results = BGMG_cpp_fit(zmat, Nmat, options)
     if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
     if ~isfield(options, 'fit_infinitesimal'), options.fit_infinitesimal = false; end;  % infinitesimal model (implemented only for univariate analysis)
     if ~isfield(options, 'fit_full_model'), options.fit_full_model = true; end;  % whether to fit full model
+    if ~isfield(options, 'fit_with_constrains'), options.fit_with_constrains = true; end;  % whether to keep constrains from univariate model
     
     if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
 
@@ -63,7 +64,9 @@ function results = BGMG_cpp_fit(zmat, Nmat, options)
 
             if ~isnan(options.ci_alpha)  % not implemented
                 fprintf('Trait%i  : uncertainty estimation\n', itrait);
-                ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_univariate_cost(UGMG_mapparams1(x), zvec, Hvec, Nvec, w_ld, ref_ld, ci_options), UGMG_mapparams1(results.univariate{itrait}.params)); warning(ws);
+                %ws=warning; warning('off', 'all'); 
+                [hess, err] = hessian(@(x)UGMG_fminsearch_cost(UGMG_mapparams1(x)), UGMG_mapparams1(results.univariate{itrait}.params)); 
+                %warning(ws);
                 results.univariate{itrait}.ci_hess = hess;
                 results.univariate{itrait}.ci_hess_err = err;
                 ci_params = [];
@@ -102,6 +105,8 @@ function results = BGMG_cpp_fit(zmat, Nmat, options)
         
         % Step2. Final unconstrained optimization (jointly on all parameters), using fast cost function
         func_map_params = @(x)BGMG_mapparams3(x, struct('sig2_zero', [p1.sig2_zero; p2.sig2_zero], 'sig2_beta', [p1.sig2_beta; p2.sig2_beta], 'rho_zero', params_inft.rho_zero));
+        if ~options.fit_with_constrains,  func_map_params = @(x)BGMG_mapparams3(x); end
+        
         fprintf('Trait 1,2: final unconstrained optimization (fast cost function)\n');
 
         params_final0 = params_inft;
@@ -121,9 +126,11 @@ function results = BGMG_cpp_fit(zmat, Nmat, options)
         end
 
         % Step3. Uncertainty estimation. 
-        if ~isnan(options.ci_alpha)  % not implemented
+        if ~isnan(options.ci_alpha)
             fprintf('Trait 1,2: uncertainty estimation\n');
-            ws=warning; warning('off', 'all'); [hess, err] = hessian(@(x)BGMG_bivariate_cost(BGMG_mapparams3(x), zmat, Hvec, Nmat, w_ld, ref_ld, options), BGMG_mapparams3(results.bivariate.params)); warning(ws);
+            %ws=warning; warning('off', 'all');
+            [hess, err] = hessian(@(x)BGMG_fminsearch_cost(BGMG_mapparams3(x)), BGMG_mapparams3(results.bivariate.params));
+            %warning(ws);
             results.bivariate.ci_hess = hess;
             results.bivariate.ci_hess_err = err;
 

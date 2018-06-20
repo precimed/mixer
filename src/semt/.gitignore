@@ -1,0 +1,13 @@
+/Release/
+/Debug/
+/doc/
+/gcov/
+/gprof/
+*~
+*.[oa]
+*.out
+*.gc*
+*.html
+*.tmp
+*.swp
+gcov-results

@@ -98,7 +98,7 @@ private:
   std::mt19937 g_;
 };
 
-TEST(UgmgTest, CalcLikelihood) {
+void UgmgTest_CalcLikelihood(float r2min) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 5;
@@ -112,6 +112,7 @@ TEST(UgmgTest, CalcLikelihood) {
   calc.set_option("kmax", kmax);
   calc.set_option("num_components", 1);
   calc.set_option("cache_tag_r2sum", 1);
+  calc.set_option("r2min", r2min);
 
   int trait = 1;
   calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
@@ -164,7 +165,21 @@ TEST(UgmgTest, CalcLikelihood) {
   ASSERT_TRUE(std::isfinite(cost));
 }
 
-TEST(BgmgTest, CalcLikelihood) {
+// --gtest_filter=UgmgTest.CalcLikelihood
+TEST(UgmgTest, CalcLikelihood) {
+  const float r2min = 0.0;
+  UgmgTest_CalcLikelihood(r2min);
+
+}
+
+// --gtest_filter=UgmgTest.CalcLikelihood_with_r2min
+TEST(UgmgTest, CalcLikelihood_with_r2min) {
+  const float r2min = 0.2;
+  UgmgTest_CalcLikelihood(r2min);
+
+}
+
+void BgmgTest_CalcLikelihood(float r2min) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 5;
@@ -178,6 +193,7 @@ TEST(BgmgTest, CalcLikelihood) {
   calc.set_option("kmax", kmax);
   calc.set_option("num_components", 3);
   calc.set_option("cache_tag_r2sum", 1);
+  calc.set_option("r2min", r2min);
 
   int trait = 1;
   calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
@@ -233,6 +249,19 @@ TEST(BgmgTest, CalcLikelihood) {
   for (int i = 0; i < zvec_pdf_nocache.size(); i++)
     ASSERT_FLOAT_EQ(zvec_pdf[i], zvec_pdf_nocache[i]);
 }
+
+// bgmg-test.exe --gtest_filter=BgmgTest.CalcLikelihood
+TEST(BgmgTest, CalcLikelihood) {
+  const float r2min = 0.0;
+  BgmgTest_CalcLikelihood(r2min);
+}
+
+// bgmg-test.exe --gtest_filter=BgmgTest.CalcLikelihood_with_r2min
+TEST(BgmgTest, CalcLikelihood_with_r2min) {
+  const float r2min = 0.20;
+  BgmgTest_CalcLikelihood(r2min);
+}
+
 
 // bgmg-test.exe --gtest_filter=Test.RandomSeedAndThreading
 TEST(Test, RandomSeedAndThreading) {
@@ -337,8 +366,7 @@ TEST(Test, RandomSeedAndThreading) {
   }
 }
 
-// bgmg-test.exe --gtest_filter=Test.tag_r2_caching
-TEST(Test, tag_r2_caching) {
+void test_tag_r2_caching() {
   int num_snp = 100;
   int num_tag = 50;
   int kmax = 200; // #permutations
@@ -381,6 +409,10 @@ TEST(Test, tag_r2_caching) {
   }
 }
 
+// bgmg-test.exe --gtest_filter=Test.tag_r2_caching
+TEST(Test, tag_r2_caching) {
+  test_tag_r2_caching();
+}
 
 // --gtest_filter=Test.performance
 TEST(Test, performance) {

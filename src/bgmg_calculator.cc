@@ -349,6 +349,7 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   if (snp_order_.empty()) find_snp_order();
 
   float last_num_causals = last_num_causals_[component_id]; 
+  const float last_num_causals_original = last_num_causals;
   
   LOG << ">find_tag_r2sum(component_id=" << component_id << ", num_causals=" << num_causals << ", last_num_causals=" << last_num_causals << ")";
 
@@ -402,6 +403,10 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
     BGMG_THROW_EXCEPTION(::std::runtime_error("floor_num_causals < floor_last_num_causals"));
   }
 
+  // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
+  const std::vector<float>& tag_sum_r2_below_r2min = ld_tag_sum_->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  const float pival_delta = (num_causals_original - last_num_causals_original) / static_cast<float>(num_snp_);
+
   // it is OK to parallelize the following loop on k_index, because:
   // - all structures here are readonly, except tag_r2sum_ that we are accumulating
   // - two threads will never touch the same memory location (that's why we choose k_index as an outer loop)
@@ -419,6 +424,9 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
         float hval = hvec_[snp_index];
         (*tag_r2sum_[component_id])(tag_index, k_index) += (scan_weight * r2 * hval);
       }
+    }
+    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+      (*tag_r2sum_[component_id])(tag_index, k_index) += (pival_delta * tag_sum_r2_below_r2min[tag_index]);
     }
   }
 
@@ -1322,6 +1330,13 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
       float hval = hvec_[snp_index];
       buffer->at(tag_index) += (scan_weight * r2 * hval);
     }
+  }
+
+  // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
+  const std::vector<float>& tag_sum_r2_below_r2min = ld_tag_sum_->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  const float pival = num_causal / static_cast<float>(num_snp_);
+  for (int i = 0; i < num_tag_; i++) {
+    buffer->at(i) += (pival * tag_sum_r2_below_r2min[i]);
   }
 }
 

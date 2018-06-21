@@ -36,3 +36,8 @@ ldd libbgmg.so
 ```
 
 Errors like ``cluster/software/VERSIONS/matlab/R2017a/sys/os/glnxa64/libstdc++.so.6: version `GLIBCXX_3.4.21' not found`` indicate that you've built libbgmg.so with too new version of gcc.
+
+At MMIL servers one has to install and compile [boost libraries](https://www.boost.org/doc/libs/1_53_0/more/getting_started/unix-variants.html). Then point CMake to boost location:
+``
+cmake .. -DBOOST_ROOT=/home/oleksandr/boost_1_53_0
+``

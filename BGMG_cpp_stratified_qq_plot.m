@@ -21,7 +21,7 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, zmat, option
     % weighting). For data QQ plots all elements are set to 1.
     % At the end of this function we restore weights_bgmg.
     downscale_indices = false(size(weights_bgmg)); downscale_indices(1:options.downscale:end)=true;
-    model_weights = zeros(size(weights_bgmg));  model_weights(downscale_indices) = 1; model_weights = model_weights ./ sum(model_weights);
+    model_weights = zeros(size(weights_bgmg));  model_weights(downscale_indices) = weights_bgmg(downscale_indices); model_weights = model_weights ./ sum(model_weights);
     calllib('bgmg', 'bgmg_set_weights', 0, length(model_weights), model_weights);  check();
     data_weights = weights_bgmg / sum(weights_bgmg);
 

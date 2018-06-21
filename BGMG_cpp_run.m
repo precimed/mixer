@@ -36,7 +36,7 @@ trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_p
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=8e-04_rep=10_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT=false;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=true;QQ_PLOT_FIT=true;cache_tag_r2sum=true;
+DO_FIT=true;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=true;QQ_PLOT_FIT=true;cache_tag_r2sum=true;
 MAF_THRESH=0.01;
 out_file = 'tmptesting5_ext';
 init_result_from_out_file = 'tmptesting5';
@@ -77,6 +77,7 @@ if ~exist('reference_file', 'var'), error('reference_file is required'); end;
 %fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'chrnumvec', 'posvec'); fprintf('OK.\n');
 fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file); fprintf('OK.\n');
 clear('defvec'); defvec_tmp = true(length(ref.mafvec), 1);
+hvec = ref.mafvec .* (1-ref.mafvec) * 2; 
     
 % defvec_file determine the set of tag SNPs. It must have a binary variable "defvec" of the same length as defined by reference file ( 1 = tag snp, 0 = exclude from the analysis ). 
 % When multiple defvec_files are defined we take an overlap (e.i. consider only tag SNPs defined across all defvec files).
@@ -182,6 +183,7 @@ if isfinite(randprune_r2_defvec_threshold)
     fprintf('Excluding variants based on random pruning at %.3f threshold...\n', randprune_r2_defvec_threshold);
     context = 1; tag_indices_tmp = find(defvec_tmp);
     calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
+    calllib('bgmg', 'bgmg_set_hvec', 0, length(hvec), hvec);  check(); clear('hvec');
 
     for chr_index=1:length(chr_labels)
         plink_ld_mat_chr = strrep(randprune_r2_plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
@@ -208,6 +210,7 @@ if isfinite(randprune_r2_weight_threshold)
     fprintf('Excluding variants with too low weight, based on random pruning at %.3f threshold...\n', randprune_r2);
     context = 1; tag_indices_tmp = find(defvec_tmp);
     calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
+    calllib('bgmg', 'bgmg_set_hvec', 0, length(hvec), hvec);  check(); clear('hvec');
 
     for chr_index=1:length(chr_labels)
         plink_ld_mat_chr = strrep(randprune_r2_plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
@@ -241,8 +244,6 @@ calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', floor(max_causal_fraction * length(defvec))); check();  
 calllib('bgmg', 'bgmg_set_option', 0,  'num_components', num_components); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'cache_tag_r2sum', cache_tag_r2sum); check();
-
-hvec = ref.mafvec .* (1-ref.mafvec) * 2; 
 calllib('bgmg', 'bgmg_set_hvec', 0, length(hvec), hvec);  check(); clear('hvec');
 
 for chr_index=1:length(chr_labels)
@@ -431,12 +432,13 @@ fprintf('Results saved to %s.mat\n', out_file);
 
 if 0
     % Helper code to save all results to a text file
-    dirs=dir('H:\work\SIMU_BGMG2_2018_06_17\*.bgmg.mat');
-    fileID = fopen(['H:\work\SIMU_BGMG2_2018_06_18.csv'], 'w');
+    % SIMU_BGMG2_2018_06_17
+    dirs=dir('H:\work\SIMU_BGMG_9pifrac_2018_06_21\*.bgmg.mat');
+    fileID = fopen(['H:\work\SIMU_BGMG_9pifrac_2018_06_21.csv'], 'w');
     has_header = false;
     for i=1:length(dirs)
         try
-        x = load(fullfile('H:\work\SIMU_BGMG2_2018_06_17', dirs(i).name));
+        x = load(fullfile('H:\work\SIMU_BGMG_9pifrac_2018_06_21', dirs(i).name));
         if ~isfield(x.result, 'options'), x.result.options = []; end;
         if ~isfield(x.result.bivariate, 'params'), continue; end;
         catch

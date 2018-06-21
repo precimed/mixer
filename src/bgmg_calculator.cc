@@ -101,7 +101,7 @@ int64_t BgmgCalculator::set_weights(int length, float* values) {
   int nnz = 0;
   for (int i = 0; i < length; i++) {
     if (!std::isfinite(values[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
-    if (weights_[i] != 0) nnz++;
+    if (values[i] != 0) nnz++;
   }
 
   LOG << " set_weights(length=" << length << "), nnz=" << nnz << "; ";
@@ -555,7 +555,7 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
   if ((int)num_causals >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   const int component_id = 0;   // univariate is always component 0.
 
-  LOG << ">calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
+  LOG << ">calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(zvec)=" << length << ")";
 
   if (cache_tag_r2sum_) {
     find_tag_r2sum(component_id, num_causals);
@@ -715,13 +715,14 @@ double BgmgCalculator::calc_univariate_cost_nocache_double(float pi_vec, float s
   return calc_univariate_cost_nocache_template<double>(pi_vec, sig2_zero, sig2_beta, *this);
 }
 
-std::string calc_bivariate_cost_params_to_str(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
+std::string calc_bivariate_params_to_str(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length) {
   std::stringstream ss;
   ss << "pi_vec=[" << pi_vec[0] << ", " << pi_vec[1] << ", " << pi_vec[2] << "], "
      << "sig2_beta=[" << sig2_beta[0] << ", " << sig2_beta[1] << "], "
      << "rho_beta=" << rho_beta << ", "
      << "sig2_zero=[" << sig2_zero[0] << ", " << sig2_zero[1] << "], "
      << "rho_zero=" << rho_zero;
+  if (length >= 0) ss << ", length(zvec)=" << length;
   return ss.str();
 }
 
@@ -739,7 +740,7 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
   if (use_fast_cost_calc_) return calc_bivariate_cost_fast(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   if (!cache_tag_r2sum_) return calc_bivariate_cost_nocache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
 
-  std::string ss = calc_bivariate_cost_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
   LOG << ">calc_bivariate_cost(" << ss << ")";
 
   float num_causals[3];
@@ -805,7 +806,7 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
 }
 
 double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
-  std::string ss = calc_bivariate_cost_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
   LOG << ">calc_bivariate_cost_nocache(" << ss << ")";
 
   float num_causals[3];
@@ -898,7 +899,7 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
   if (sig2_zero_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
   if (pi_vec_len != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: pi_vec_len != 3"));
 
-  std::string ss = calc_bivariate_cost_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, length);
   LOG << ">calc_bivariate_pdf(" << ss << ")";
 
   float num_causals[3];
@@ -1096,7 +1097,7 @@ double BgmgCalculator::calc_univariate_cost_fast(float pi_vec, float sig2_zero, 
 }
 
 double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
-  std::string ss = calc_bivariate_cost_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
   LOG << ">calc_bivariate_cost_fast(" << ss << ")";
 
   if (ld_tag_sum_r2_.empty()) calc_sum_r2_and_sum_r4();

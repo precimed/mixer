@@ -242,6 +242,8 @@ calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', floor(max_causal_fraction 
 calllib('bgmg', 'bgmg_set_option', 0,  'num_components', num_components); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'cache_tag_r2sum', cache_tag_r2sum); check();
 
+hvec = ref.mafvec .* (1-ref.mafvec) * 2; 
+calllib('bgmg', 'bgmg_set_hvec', 0, length(hvec), hvec);  check(); clear('hvec');
 
 for chr_index=1:length(chr_labels)
     plink_ld_mat_chr = strrep(plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
@@ -267,7 +269,6 @@ end; clear('chr_index');
 
 calllib('bgmg', 'bgmg_set_ld_r2_csr', 0);  check();
 calllib('bgmg', 'bgmg_set_weights_randprune', 0, randprune_n, randprune_r2);  check();
-hvec = ref.mafvec .* (1-ref.mafvec) * 2; calllib('bgmg', 'bgmg_set_hvec', 0, length(hvec), hvec);  check(); clear('hvec');
 
 calllib('bgmg', 'bgmg_set_zvec', 0, 1, sum(defvec), trait1_data.zvec(defvec));
 calllib('bgmg', 'bgmg_set_nvec', 0, 1, sum(defvec), trait1_data.nvec(defvec));

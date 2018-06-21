@@ -122,12 +122,9 @@ TEST(UgmgTest, CalcLikelihood) {
   std::vector<float> r2;
   tm.make_r2(20, &snp_index, &tag_index, &r2);
   
+  calc.set_hvec(num_snp, &tm.hvec()->at(0));
   calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
-                  
-  // TBD: validate CSR structure (set_ld_r2_csr is quite tricky)
-
-  calc.set_hvec(num_snp, &tm.hvec()->at(0));
 
   if (true) {
     //calc.find_snp_order();
@@ -196,11 +193,10 @@ TEST(BgmgTest, CalcLikelihood) {
   std::vector<float> r2;
   tm.make_r2(20, &snp_index, &tag_index, &r2);
 
+  calc.set_hvec(num_snp, &tm.hvec()->at(0));
   calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
-
   calc.set_weights_randprune(20, 0.25);
-  calc.set_hvec(num_snp, &tm.hvec()->at(0));
 
   float pi_vec[] = { 0.1, 0.2, 0.15 };
   float sig2_beta[] = { 0.5, 0.3 };
@@ -280,11 +276,10 @@ TEST(Test, RandomSeedAndThreading) {
       calc.set_zvec(trait, num_tag, &tm2.zvec()->at(0));
       calc.set_nvec(trait, num_tag, &tm2.nvec()->at(0));
 
+      calc.set_hvec(num_snp, &tm.hvec()->at(0));
       calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
       calc.set_ld_r2_csr();  // finalize csr structure
-
       calc.set_weights_randprune(20, 0.25);
-      calc.set_hvec(num_snp, &tm.hvec()->at(0));
 
       float pi_vec[] = { 0.1, 0.2, 0.15 };
       float sig2_beta[] = { 0.5, 0.3 };
@@ -370,11 +365,10 @@ TEST(Test, tag_r2_caching) {
   std::uniform_real_distribution<float> rng(51.0, 99.5);
   for (int i = 0; i < sequence_length; i++) num_causal_sequence.push_back(rng(tm.random_engine()));
   
+  calc.set_hvec(num_snp, &tm.hvec()->at(0));
   calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
-
   calc.set_weights_randprune(20, 0.25);
-  calc.set_hvec(num_snp, &tm.hvec()->at(0));
 
   std::vector<double> costs(sequence_length, 0.0);
   for (int j = 0; j < 100; j++) {  // repeat the sequence 100 times and validate that we got the same cost.
@@ -417,11 +411,10 @@ TEST(Test, performance) {
     calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
     calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
 
+    calc.set_hvec(num_snp, &tm.hvec()->at(0));
     calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
     calc.set_ld_r2_csr();  // finalize csr structure
-
     calc.set_weights_randprune(20, 0.25);
-    calc.set_hvec(num_snp, &tm.hvec()->at(0));
 
     std::cout << "preparation: " << timer_prep.elapsed_ms() << " ms\n";
     float pivec[5] = { 0.0001, 0.0003, 0.001, 0.003, 0.01 };

@@ -201,6 +201,43 @@ class DenseMatrix {
   T* data_;
 };
 
+// pre-calculated sum of LD r2 and r4 for each tag snp
+// This takes hvec into account, e.i. we store sum of r2*hvec and r4*hvec^2.
+// The information is in several "components" (for example low and high r2).
+class LdTagSum {
+public:
+  LdTagSum(int num_ld_components, int num_tag_snp) : total_ld_component(num_ld_components) {
+    ld_tag_sum_r2_.resize(num_ld_components + 1);
+    ld_tag_sum_r4_.resize(num_ld_components + 1);
+    for (int ic = 0; ic < (num_ld_components + 1); ic++) {
+      ld_tag_sum_r2_[ic].resize(num_tag_snp, 0.0f);
+      ld_tag_sum_r4_[ic].resize(num_tag_snp, 0.0f);
+    }
+  }
+
+  void store(int ld_component, int tag_index, float r2_times_hval) {
+    ld_tag_sum_r2_[ld_component][tag_index] += r2_times_hval;
+    ld_tag_sum_r4_[ld_component][tag_index] += (r2_times_hval * r2_times_hval);
+
+    ld_tag_sum_r2_[total_ld_component][tag_index] += r2_times_hval;
+    ld_tag_sum_r4_[total_ld_component][tag_index] += (r2_times_hval * r2_times_hval);
+  }
+
+  const std::vector<float>& ld_tag_sum_r2() { return ld_tag_sum_r2_[total_ld_component]; }
+  const std::vector<float>& ld_tag_sum_r4() { return ld_tag_sum_r4_[total_ld_component]; }
+  const std::vector<float>& ld_tag_sum_r2(int ld_component) { return ld_tag_sum_r2_[ld_component]; }
+  const std::vector<float>& ld_tag_sum_r4(int ld_component) { return ld_tag_sum_r4_[ld_component]; }
+
+  void clear() {
+    for (int i = 0; i < ld_tag_sum_r2_.size(); i++) std::fill(ld_tag_sum_r2_[i].begin(), ld_tag_sum_r2_[i].end(), 0.0f);
+    for (int i = 0; i < ld_tag_sum_r4_.size(); i++) std::fill(ld_tag_sum_r4_[i].begin(), ld_tag_sum_r4_[i].end(), 0.0f);
+  }
+private:
+  std::vector<std::vector<float>> ld_tag_sum_r2_;
+  std::vector<std::vector<float>> ld_tag_sum_r4_;
+  const int total_ld_component;
+};
+
 class BgmgCalculator {
  public:
   BgmgCalculator();
@@ -240,7 +277,6 @@ class BgmgCalculator {
   
   void clear_state();
   void clear_tag_r2sum(int component_id);
-  void calc_sum_r2_and_sum_r4();
 
   int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
   int64_t retrieve_ld_tag_r2_sum(int length, float* buffer);
@@ -283,11 +319,6 @@ class BgmgCalculator {
   std::vector<float> csr_ld_r2_;
   std::vector<std::tuple<int, int, float>> coo_ld_; // snp, tag, r2
 
-  // for each tag snp, sum of r2 and r4 coefficients
-  // (after set_hvec, sum of r2*hvec and r4*hvec^2).
-  std::vector<float> ld_tag_sum_r2_;
-  std::vector<float> ld_tag_sum_r4_;
-
   // all stored for for tag variants (only)
   std::vector<float> zvec1_;
   std::vector<float> nvec1_;
@@ -295,6 +326,8 @@ class BgmgCalculator {
   std::vector<float> nvec2_;
   std::vector<float> weights_;
   std::vector<float> hvec_;
+
+  std::shared_ptr<LdTagSum> ld_tag_sum_;
 
   // vectors with one value for each component in the mixture
   // snp_order_ gives the order of how SNPs are considered to be causal 

@@ -48,6 +48,10 @@
 
 #define FLOAT_TYPE float
 
+#define LD_TAG_COMPONENT_COUNT 2
+#define LD_TAG_COMPONENT_BELOW_R2MIN 0
+#define LD_TAG_COMPONENT_ABOVE_R2MIN 1
+
 BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), r2_min_(0.0), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
   seed_ = (boost::posix_time::microsec_clock::local_time() - time_epoch).ticks();
@@ -159,12 +163,19 @@ int64_t BgmgCalculator::set_tag_indices(int num_snp, int num_tag, int* tag_indic
     is_tag_[tag_to_snp_[i]] = 1;
     snp_to_tag_[tag_to_snp_[i]] = i;
   }
+
+  ld_tag_sum_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, num_tag_);
   return 0;
 }
 
 int64_t BgmgCalculator::set_ld_r2_coo(int length, int* snp_index, int* tag_index, float* r2) {
   if (!csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
+  if (hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_hvec"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
+
+  for (int i = 0; i < length; i++)
+    if (snp_index[i] == tag_index[i])
+      BGMG_THROW_EXCEPTION(::std::runtime_error("snp_index[i] == tag_index[i] --- unexpected for ld files created via plink"));
 
   if (snp_order_.empty()) find_snp_order();
 
@@ -177,6 +188,11 @@ int64_t BgmgCalculator::set_ld_r2_coo(int length, int* snp_index, int* tag_index
   int was = coo_ld_.size();
   for (int i = 0; i < length; i++) {
     CHECK_SNP_INDEX(snp_index[i]); CHECK_SNP_INDEX(tag_index[i]);
+
+    int ld_component = (r2[i] < r2_min_) ? LD_TAG_COMPONENT_BELOW_R2MIN : LD_TAG_COMPONENT_ABOVE_R2MIN;
+    if (is_tag_[tag_index[i]]) ld_tag_sum_->store(ld_component, snp_to_tag_[tag_index[i]], r2[i] * hvec_[snp_index[i]]);
+    if (is_tag_[snp_index[i]]) ld_tag_sum_->store(ld_component, snp_to_tag_[snp_index[i]], r2[i] * hvec_[tag_index[i]]);
+
     if (r2[i] < r2_min_) continue;
     // tricky part here is that we take into account snp_can_be_causal_
     // there is no reason to keep LD information about certain causal SNP if we never selecting it as causal
@@ -197,8 +213,10 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
   SimpleTimer timer(-1);
 
   LOG << " set_ld_r2_csr adds " << tag_to_snp_.size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
-  for (int i = 0; i < tag_to_snp_.size(); i++)
+  for (int i = 0; i < tag_to_snp_.size(); i++) {
     coo_ld_.push_back(std::make_tuple(tag_to_snp_[i], i, 1.0f));
+    ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec_[tag_to_snp_[i]]);
+  }
   
   // Use parallel sort? https://software.intel.com/en-us/articles/a-parallel-stable-sort-using-c11-for-tbb-cilk-plus-and-openmp
   std::sort(coo_ld_.begin(), coo_ld_.end());
@@ -425,23 +443,19 @@ int64_t BgmgCalculator::set_hvec(int length, float* values) {
 }
 
 int64_t BgmgCalculator::retrieve_ld_tag_r2_sum(int length, float* buffer) {
-  if (length != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
-  if (ld_tag_sum_r2_.empty()) calc_sum_r2_and_sum_r4();
-  if (ld_tag_sum_r2_.size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("ld_tag_sum_r2_.size() != num_tag_"));
+  check_num_tag(length);
   LOG << " retrieve_ld_tag_r2_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    buffer[tag_index] = ld_tag_sum_r2_[tag_index];
+    buffer[tag_index] = ld_tag_sum_->ld_tag_sum_r2()[tag_index];
   }
   return 0;
 }
 
 int64_t BgmgCalculator::retrieve_ld_tag_r4_sum(int length, float* buffer) {
-  if (length != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
-  if (ld_tag_sum_r4_.empty()) calc_sum_r2_and_sum_r4();
-  if (ld_tag_sum_r4_.size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("ld_tag_sum_r4_.size() != num_tag_"));
+  check_num_tag(length);
   LOG << " retrieve_ld_tag_r4_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    buffer[tag_index] = ld_tag_sum_r4_[tag_index];
+    buffer[tag_index] = ld_tag_sum_->ld_tag_sum_r4()[tag_index];
   }
   return 0;
 }
@@ -1047,8 +1061,6 @@ double BgmgCalculator::calc_univariate_cost_fast(float pi_vec, float sig2_zero, 
   std::stringstream ss;
   ss << "calc_univariate_cost_fast(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
   LOG << ">" << ss.str();
-  
-  if (ld_tag_sum_r2_.empty()) calc_sum_r2_and_sum_r4();
 
   double log_pdf_total = 0.0;
   SimpleTimer timer(-1);
@@ -1059,9 +1071,9 @@ double BgmgCalculator::calc_univariate_cost_fast(float pi_vec, float sig2_zero, 
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec1_[tag_index])) continue;
-
-    const float tag_r2 = ld_tag_sum_r2_[tag_index];
-    const float tag_r4 = ld_tag_sum_r4_[tag_index];
+    
+    const float tag_r2 = ld_tag_sum_->ld_tag_sum_r2()[tag_index];
+    const float tag_r4 = ld_tag_sum_->ld_tag_sum_r4()[tag_index];
 
     if (tag_r2 == 0 || tag_r4 == 0) {
       num_zero_tag_r2++; continue;
@@ -1092,8 +1104,6 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
   std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
   LOG << ">calc_bivariate_cost_fast(" << ss << ")";
 
-  if (ld_tag_sum_r2_.empty()) calc_sum_r2_and_sum_r4();
-
   double log_pdf_total = 0.0;
   SimpleTimer timer(-1);
 
@@ -1114,8 +1124,8 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
     const float z2 = zvec2_[tag_index];
     const float n2 = nvec2_[tag_index];
 
-    const float tag_r2 = ld_tag_sum_r2_[tag_index];
-    const float tag_r4 = ld_tag_sum_r4_[tag_index];
+    const float tag_r2 = ld_tag_sum_->ld_tag_sum_r2()[tag_index];
+    const float tag_r4 = ld_tag_sum_->ld_tag_sum_r4()[tag_index];
 
     if (tag_r2 == 0 || tag_r4 == 0) {
       num_zero_tag_r2++; continue;
@@ -1182,8 +1192,7 @@ void BgmgCalculator::clear_state() {
   csr_ld_r2_.clear();
   coo_ld_.clear();
   hvec_.clear();
-  ld_tag_sum_r2_.clear();
-  ld_tag_sum_r4_.clear();
+  ld_tag_sum_->clear();
 
   // clear ordering of SNPs
   snp_order_.clear();
@@ -1213,31 +1222,6 @@ void BgmgCalculator::clear_tag_r2sum(int component_id) {
     last_num_causals_.clear();
     tag_r2sum_.clear();
   }
-}
-
-void BgmgCalculator::calc_sum_r2_and_sum_r4() {
-  LOG << ">calc_sum_r2_and_sum_r4()";
-  SimpleTimer timer(-1);
-  SimpleTimer log_timer(10000);
-
-  ld_tag_sum_r2_.clear(); ld_tag_sum_r2_.resize(num_tag_, 0);
-  ld_tag_sum_r4_.clear(); ld_tag_sum_r4_.resize(num_tag_, 0);
-  for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-    if (log_timer.fire()) LOG << " calc_sum_r2_and_sum_r4 still working, snp_index=" << causal_index;
-
-    const int r2_index_from = csr_ld_snp_index_[causal_index];
-    const int r2_index_to = csr_ld_snp_index_[causal_index+1];
-    for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
-      const int tag_index = csr_ld_tag_index_[r2_index];
-      const float r2 = csr_ld_r2_[r2_index];
-      const float hval = hvec_[causal_index];
-      const float r2_times_hval = r2 * hval;
-      ld_tag_sum_r2_[tag_index] += r2_times_hval;
-      ld_tag_sum_r4_[tag_index] += (r2_times_hval * r2_times_hval);
-    }
-  }
-
-  LOG << "<calc_sum_r2_and_sum_r4(), elapsed time " << timer.elapsed_ms() << "ms";
 }
 
 int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {

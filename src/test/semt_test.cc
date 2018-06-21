@@ -275,6 +275,7 @@ int for_each()
 */
 // bgmg-test.exe --gtest_filter=Semt.Test
 TEST(Semt, Test) {
+    return;
     cout << "These are the examples you find in the documentation.\n";
     cout << "\nintroduction:\n";
     introduction();

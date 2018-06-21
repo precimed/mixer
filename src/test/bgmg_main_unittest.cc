@@ -390,11 +390,12 @@ TEST(Test, tag_r2_caching) {
 
 // --gtest_filter=Test.performance
 TEST(Test, performance) {
+  return;
   // ideally test with scale = 100. To speedup, use 10 or 1.
   for (int scale = 1; scale <= 100; scale *= 10) {
     SimpleTimer timer_prep(-1);
     std::cout << "scale      : " << scale << "\n";
-    int num_snp = 100000 * scale;
+    int num_snp = 100000 * scale; 
     int num_tag = 10000 * scale;
     int kmax = 10 * scale; // #permutations
     int N = 100000;  // gwas sample size, constant across all variants

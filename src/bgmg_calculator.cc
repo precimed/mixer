@@ -392,13 +392,14 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
     for (auto change : changeset) {
       int scan_index = change.first;
       float scan_weight = change.second;
-      int snp_index = (*snp_order_[component_id])(scan_index, k_index);
+      int snp_index = (*snp_order_[component_id])(scan_index, k_index);  // index of a causal snp
       int r2_index_from = csr_ld_snp_index_[snp_index];
       int r2_index_to = csr_ld_snp_index_[snp_index + 1];
       for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
         int tag_index = csr_ld_tag_index_[r2_index];
         float r2 = csr_ld_r2_[r2_index];
-        (*tag_r2sum_[component_id])(tag_index, k_index) += (scan_weight * r2);
+        float hval = hvec_[snp_index];
+        (*tag_r2sum_[component_id])(tag_index, k_index) += (scan_weight * r2 * hval);
       }
     }
   }
@@ -419,15 +420,6 @@ int64_t BgmgCalculator::set_hvec(int length, float* values) {
   LOG << ">set_hvec(" << length << "); ";
   check_num_snp(length);
   hvec_.assign(values, values + length);
-
-  for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-    const int r2_index_from = csr_ld_snp_index_[causal_index];
-    const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
-    for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
-      csr_ld_r2_[r2_index] *= values[causal_index];
-    }
-  }
-
   LOG << "<set_hvec(" << length << "); ";
   return 0;
 }
@@ -1238,8 +1230,10 @@ void BgmgCalculator::calc_sum_r2_and_sum_r4() {
     for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
       const int tag_index = csr_ld_tag_index_[r2_index];
       const float r2 = csr_ld_r2_[r2_index];
-      ld_tag_sum_r2_[tag_index] += r2;
-      ld_tag_sum_r4_[tag_index] += (r2 * r2);
+      const float hval = hvec_[causal_index];
+      const float r2_times_hval = r2 * hval;
+      ld_tag_sum_r2_[tag_index] += r2_times_hval;
+      ld_tag_sum_r4_[tag_index] += (r2_times_hval * r2_times_hval);
     }
   }
 
@@ -1251,7 +1245,6 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
   LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << ")";
   if (r2_threshold < r2_min_) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: r2 < r2_min_"));
   if (n <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: n <= 0"));
-  if (!hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune must be called before set_hvec"));
   SimpleTimer timer(-1);
 
   std::valarray<int> passed_random_pruning(0, num_tag_);  // count how many times an index  has passed random pruning
@@ -1294,7 +1287,7 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
         const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
         for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
           const int tag_index = csr_ld_tag_index_[r2_index];
-          const float r2_value = csr_ld_r2_[r2_index];
+          const float r2_value = csr_ld_r2_[r2_index];  // here we are interested in r2 (hvec is irrelevant)
           if (r2_value < r2_threshold) continue;
           if (processed_tag_indices[tag_index]) continue;
           processed_tag_indices[tag_index] = 1;         //  mark as processed, and
@@ -1342,7 +1335,8 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
     for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
       int tag_index = csr_ld_tag_index_[r2_index];
       float r2 = csr_ld_r2_[r2_index];
-      buffer->at(tag_index) += (scan_weight * r2);
+      float hval = hvec_[snp_index];
+      buffer->at(tag_index) += (scan_weight * r2 * hval);
     }
   }
 }
@@ -1351,7 +1345,6 @@ int64_t BgmgCalculator::retrieve_weighted_causal_r2(int length, float* buffer) {
   if (length != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("length != num_snp_: wrong buffer size"));
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
   if (csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call retrieve_weighted_causal_r2 before set_ld_r2_csr"));
-  if (!hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call retrieve_weighted_causal_r2 after set_hvec"));
 
   LOG << ">retrieve_weighted_causal_r2()";
   SimpleTimer timer(-1);
@@ -1362,7 +1355,7 @@ int64_t BgmgCalculator::retrieve_weighted_causal_r2(int length, float* buffer) {
     const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
     for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
       const int tag_index = csr_ld_tag_index_[r2_index];
-      const float r2 = csr_ld_r2_[r2_index];
+      const float r2 = csr_ld_r2_[r2_index];  // here we are interested in r2 (hvec is irrelevant)
       buffer[causal_index] += r2 * weights_[tag_index];
     }
   }

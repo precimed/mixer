@@ -2,7 +2,6 @@
 
 #include "boost/utility.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
-#include <boost/atomic.hpp>
 
 #include <fstream>
 #include <vector>
@@ -99,7 +98,7 @@ public:
   }
 
 private:
-  boost::atomic<int> log_count_;
+  int log_count_;  // ideally this should be boost::atomic<int>, but it's not a big deal if we loose some counts due to threading issues
 
   Logger(): log_count_() {
     (*this) << "============= new session =============";

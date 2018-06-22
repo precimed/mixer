@@ -243,7 +243,7 @@ tag_indices = find(defvec);
 
 fprintf('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_indices));
 
-calllib('bgmg', 'bgmg_dispose', 0);  check_for_context(context);
+calllib('bgmg', 'bgmg_dispose', 0);  check_for_context(0);
 calllib('bgmg', 'bgmg_set_tag_indices', 0, length(defvec), length(tag_indices), m2c(tag_indices));  check();
 calllib('bgmg', 'bgmg_set_option', 0,  'r2min', r2min); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();

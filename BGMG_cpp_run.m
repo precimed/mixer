@@ -77,7 +77,6 @@ if ~exist('reference_file', 'var'), error('reference_file is required'); end;
 %fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'chrnumvec', 'posvec'); fprintf('OK.\n');
 fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file); fprintf('OK.\n');
 clear('defvec'); defvec_tmp = true(length(ref.mafvec), 1);
-hvec = ref.mafvec .* (1-ref.mafvec) * 2; 
     
 % defvec_file determine the set of tag SNPs. It must have a binary variable "defvec" of the same length as defined by reference file ( 1 = tag snp, 0 = exclude from the analysis ). 
 % When multiple defvec_files are defined we take an overlap (e.i. consider only tag SNPs defined across all defvec files).
@@ -183,7 +182,7 @@ if isfinite(randprune_r2_defvec_threshold)
     fprintf('Excluding variants based on random pruning at %.3f threshold...\n', randprune_r2_defvec_threshold);
     context = 1; tag_indices_tmp = find(defvec_tmp);
     calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
-    calllib('bgmg', 'bgmg_set_hvec', context, length(hvec), hvec);  check(); clear('hvec');
+    calllib('bgmg', 'bgmg_set_hvec', context, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
 
     for chr_index=1:length(chr_labels)
         plink_ld_mat_chr = strrep(randprune_r2_plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
@@ -210,7 +209,7 @@ if isfinite(randprune_r2_weight_threshold)
     fprintf('Excluding variants with too low weight, based on random pruning at %.3f threshold...\n', randprune_r2);
     context = 1; tag_indices_tmp = find(defvec_tmp);
     calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
-    calllib('bgmg', 'bgmg_set_hvec', context, length(hvec), hvec);  check(); clear('hvec');
+    calllib('bgmg', 'bgmg_set_hvec', context, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
 
     for chr_index=1:length(chr_labels)
         plink_ld_mat_chr = strrep(randprune_r2_plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
@@ -244,7 +243,7 @@ calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', floor(max_causal_fraction * length(defvec))); check();  
 calllib('bgmg', 'bgmg_set_option', 0,  'num_components', num_components); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'cache_tag_r2sum', cache_tag_r2sum); check();
-calllib('bgmg', 'bgmg_set_hvec', 0, length(hvec), hvec);  check(); clear('hvec');
+calllib('bgmg', 'bgmg_set_hvec', 0, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
 
 for chr_index=1:length(chr_labels)
     plink_ld_mat_chr = strrep(plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));

@@ -11,6 +11,9 @@
 % For information about various parameters look into BGMG_fit.m.
 %
 % Some typical parameters (for my own machine)
+
+% variables=who; for i=1:length(variables), eval(variables{i}); end
+
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
@@ -143,6 +146,7 @@ if ~exist('LOGLIKE_PLOT_TRUE', 'var'), LOGLIKE_PLOT_TRUE = false; end;
 if ~exist('POWER_PLOT_FIT', 'var'), POWER_PLOT_FIT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
+if ~exist('THREADS', 'var'), THREADS = nan; end;
 
 if POWER_PLOT_FIT, error('not yet implemented in c++ version'); end;
 
@@ -243,6 +247,7 @@ calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', floor(max_causal_fraction * length(defvec))); check();  
 calllib('bgmg', 'bgmg_set_option', 0,  'num_components', num_components); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'cache_tag_r2sum', cache_tag_r2sum); check();
+if isfinite(THREADS), calllib('bgmg', 'bgmg_set_option', 0,  'threads', THREADS); check(); end;
 calllib('bgmg', 'bgmg_set_hvec', 0, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
 
 for chr_index=1:length(chr_labels)

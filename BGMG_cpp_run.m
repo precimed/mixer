@@ -185,6 +185,7 @@ if isfinite(randprune_r2_defvec_threshold)
     if ~exist('randprune_r2_plink_ld_mat', 'var') error('randprune_r2_plink_ld_mat is required'); end;
     fprintf('Excluding variants based on random pruning at %.3f threshold...\n', randprune_r2_defvec_threshold);
     context = 1; tag_indices_tmp = find(defvec_tmp);
+    calllib('bgmg', 'bgmg_dispose', context);  check_for_context(context);
     calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
     calllib('bgmg', 'bgmg_set_hvec', context, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
 
@@ -212,6 +213,7 @@ if isfinite(randprune_r2_weight_threshold)
     if ~exist('randprune_r2_plink_ld_mat', 'var') error('randprune_r2_plink_ld_mat is required'); end;
     fprintf('Excluding variants with too low weight, based on random pruning at %.3f threshold...\n', randprune_r2);
     context = 1; tag_indices_tmp = find(defvec_tmp);
+    calllib('bgmg', 'bgmg_dispose', context);  check_for_context(context);
     calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
     calllib('bgmg', 'bgmg_set_hvec', context, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
 
@@ -241,6 +243,7 @@ tag_indices = find(defvec);
 
 fprintf('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_indices));
 
+calllib('bgmg', 'bgmg_dispose', 0);  check_for_context(context);
 calllib('bgmg', 'bgmg_set_tag_indices', 0, length(defvec), length(tag_indices), m2c(tag_indices));  check();
 calllib('bgmg', 'bgmg_set_option', 0,  'r2min', r2min); check();
 calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();

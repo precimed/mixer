@@ -1,8 +1,6 @@
 function results = BGMG_cpp_fit(zmat, Nmat, options)
     % zmat      - matrix SNP x 2, z scores
-    % Hvec      - vector SNP x 1, heterozigosity per SNP
     % Nmat      - number of subjects genotyped per SNP
-    % w_ld      - LD score (total LD) per SNP, calculated across SNPs included in the template for the analysis
     % options   - options; see the below for a full list of configurable options
 
     % List of all configurable options
@@ -81,7 +79,7 @@ function results = BGMG_cpp_fit(zmat, Nmat, options)
 
                 results.univariate{itrait}.ci_params = ci_params;
                 [ci_univariate_funcs, ~] = BGMG_util.find_extract_funcs(options);
-                results.univariate{itrait}.ci = extract_ci_funcs(ci_params, ci_univariate_funcs, results.univariate{itrait}.params, options.ci_alpha);
+                results.univariate{itrait}.ci = BGMG_util.extract_ci_funcs(ci_params, ci_univariate_funcs, results.univariate{itrait}.params, options.ci_alpha);
             end
         end
     end
@@ -156,41 +154,14 @@ function results = BGMG_cpp_fit(zmat, Nmat, options)
 
             results.bivariate.ci_params = ci_params;
             [~, ci_bivariate_funcs] = BGMG_util.find_extract_funcs(options);
-            results.bivariate.ci = extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);
+            results.bivariate.ci = BGMG_util.extract_ci_funcs(ci_params, ci_bivariate_funcs, results.bivariate.params, options.ci_alpha);
         end
     end
 
     if options.verbose
        fprintf('Done, results are:\n');
-       for itrait=1:ntraits, disp(struct_to_display(results.univariate{itrait}.params)); end;
-       if ntraits==2, disp(struct_to_display(results.bivariate.params)); end;
-    end
-end
-
-function ci = extract_ci_funcs(ci_params, ci_funcs, params, ci_alpha)
-    ci_func_names = fieldnames(ci_funcs);
-    for i=1:length(ci_func_names)
-        ci_func_name = ci_func_names{i};
-        ci_func      = ci_funcs.(ci_func_name);
-
-        pe = ci_func(params);  % pe = point estimate
-
-        if ~isempty(ci_params)
-            dist = nan(length(ci_params), numel(pe));
-            for j=1:length(ci_params), dist(j, :) = BGMG_util.rowvec(ci_func(ci_params{j})); end
-        else
-            dist = nan(2, numel(pe));
-        end
-
-        ci_result.point_estimate = pe;
-        ci_result.mean = reshape(mean(dist), size(pe));
-        ci_result.median = reshape(median(dist), size(pe));
-        ci_result.lower = reshape(quantile(dist,     ci_alpha/2), size(pe));
-        ci_result.upper = reshape(quantile(dist, 1 - ci_alpha/2), size(pe));
-        ci_result.se = reshape(std(dist), size(pe));
-        ci_result.pval = reshape(2*normcdf(-abs(ci_result.mean ./ ci_result.se)), size(pe));
-
-        ci.(ci_func_name) = ci_result;
+       for itrait=1:ntraits, disp(BGMG_util.struct_to_display(results.univariate{itrait}.params)); end;
+       if ntraits==2, disp(BGMG_util.struct_to_display(results.bivariate.params)); end;
     end
 end
 
@@ -210,20 +181,15 @@ function cost = BGMG_fminsearch_cost(ov)
         error('not implemented');
     end
 
-    BGMG_show_params(ov, cost);
-    if ~isfinite(cost), cost=1e99; end;
-end
-
-function BGMG_show_params(params, cost)
     filt = @(x)unique(x(x~=0));
     fprintf('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], sig2_beta2=[%s], rho_zero=%.3f, sig2_zero=[%s], cost=%.3e\n', ...
-        sprintf('%.3e ', params.pi_vec), ...
-        sprintf('%.3f ', filt(params.rho_beta)), ...
-        sprintf('%.2e ', filt(params.sig2_beta(1, :))), ...
-        sprintf('%.2e ', filt(params.sig2_beta(2, :))), ...
-        params.rho_zero, ...
-        sprintf('%.3f ', params.sig2_zero), cost);
-
+        sprintf('%.3e ', ov.pi_vec), ...
+        sprintf('%.3f ', filt(ov.rho_beta)), ...
+        sprintf('%.2e ', filt(ov.sig2_beta(1, :))), ...
+        sprintf('%.2e ', filt(ov.sig2_beta(2, :))), ...
+        ov.rho_zero, ...
+        sprintf('%.3f ', ov.sig2_zero), cost);
+    if ~isfinite(cost), cost=1e99; end;
 end
 
 function [ov, cnti] = mapparams(iv, ov, cnti, options, transform, field)
@@ -255,21 +221,6 @@ function ov = UGMG_mapparams1(iv, options)
     is_packing = isstruct(iv); cnti = 1;
     if is_packing, ov = []; else ov = struct(); end;
 
-    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
-    [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
-    [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
-end
-
-function ov = UGMG_mapparams2(iv, options)
-    % mapparams for univariate mixture with two causal components
-    if ~exist('options', 'var'), options=[]; end;
-    if ~isfield(options, 'pi_vec'), options.pi_vec = [nan nan]; end;
-    if ~isfield(options, 'sig2_zero'), options.sig2_zero = nan; end;
-    if ~isfield(options, 'sig2_beta'), options.sig2_beta = [nan nan]; end;
-
-    is_packing = isstruct(iv); cnti = 1;
-    if is_packing, ov = []; else ov = struct(); end;
-    
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
     [ov, cnti] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
     [ov, ~] = mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
@@ -334,15 +285,3 @@ function ov = BGMG_mapparams3(iv, options)
     end
 end
 
-function so = struct_to_display(si)
-    so = struct();
-    si_fields = fieldnames(si);
-    for field_index=1:length(si_fields)
-        field = si_fields{field_index};
-        if size(si.(field), 1) > 1
-            so.(field) = mat2str(si.(field), 3);
-        else
-            so.(field) = si.(field);
-        end
-    end
-end

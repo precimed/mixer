@@ -257,6 +257,33 @@ classdef BGMG_util
         end
     end
     
+    function ci = extract_ci_funcs(ci_params, ci_funcs, params, ci_alpha)
+        ci_func_names = fieldnames(ci_funcs);
+        for i=1:length(ci_func_names)
+            ci_func_name = ci_func_names{i};
+            ci_func      = ci_funcs.(ci_func_name);
+
+            pe = ci_func(params);  % pe = point estimate
+
+            if ~isempty(ci_params)
+                dist = nan(length(ci_params), numel(pe));
+                for j=1:length(ci_params), dist(j, :) = BGMG_util.rowvec(ci_func(ci_params{j})); end
+            else
+                dist = nan(2, numel(pe));
+            end
+
+            ci_result.point_estimate = pe;
+            ci_result.mean = reshape(mean(dist), size(pe));
+            ci_result.median = reshape(median(dist), size(pe));
+            ci_result.lower = reshape(quantile(dist,     ci_alpha/2), size(pe));
+            ci_result.upper = reshape(quantile(dist, 1 - ci_alpha/2), size(pe));
+            ci_result.se = reshape(std(dist), size(pe));
+            ci_result.pval = reshape(2*normcdf(-abs(ci_result.mean ./ ci_result.se)), size(pe));
+
+            ci.(ci_func_name) = ci_result;
+        end
+    end
+
     % extract point estimates
     function [header, data] = result2str_point_estimates(result, options)
         [~, ~, funcs] = BGMG_util.find_extract_funcs(options);
@@ -331,6 +358,19 @@ classdef BGMG_util
                 s=[s, ', ', sprintf(format, vec(i))];
             end
             s = [s ']'];
+        end
+    end
+
+    function so = struct_to_display(si)
+        so = struct();
+        si_fields = fieldnames(si);
+        for field_index=1:length(si_fields)
+            field = si_fields{field_index};
+            if size(si.(field), 1) > 1
+                so.(field) = mat2str(si.(field), 3);
+            else
+                so.(field) = si.(field);
+            end
         end
     end
   end

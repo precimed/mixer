@@ -68,6 +68,10 @@ if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
 % after DO_FIT, and use it to produce QQ plots, etc.
 if ~exist('init_result_from_out_file', 'var'), init_result_from_out_file = ''; end;
 
+% Allows to fir BGMG with already fitted univaraite estimates
+if ~exist('init_trait1_from_out_file', 'var'), init_trait1_from_out_file = ''; end;
+if ~exist('init_trait2_from_out_file', 'var'), init_trait2_from_out_file = ''; end;
+
 % full path to bgmg shared library
 if ~exist('bgmg_shared_library', 'var'), error('bgmg_shared_library is required'); end;
 if ~exist('bgmg_shared_library_header', 'var'), [a,b,c]=fileparts(bgmg_shared_library); bgmg_shared_library_header = [fullfile(a, b), '.h']; clear('a', 'b','c'); end;
@@ -151,12 +155,27 @@ if ~exist('THREADS', 'var'), THREADS = nan; end;
 if POWER_PLOT_FIT, error('not yet implemented in c++ version'); end;
 
 result = [];
+if ~isempty(init_trait1_from_out_file) || ~isempty(init_trait2_from_out_file)
+    if isempty(trait2_file), error('init_traitN_from_out_file is specific for BGMG fit'); end;
+    if isempty(init_trait1_from_out_file) || isempty(init_trait2_from_out_file), error('init_traitN_from_out_file should be specified for both traits (N=1 and N=2)'); end;
+    if ~isempty(init_result_from_out_file), error('init_result_from_out_file is incompatible with init_traitN_from_out_file'); end;
+
+    fprintf('Loading existing params for trait1 from %s...\n', init_trait1_from_out_file);
+    tmp = load(init_trait1_from_out_file); result.univariate{1} = tmp.univariate{1};
+    if length(tmp.univariate) ~= 1 || isfield(tmp, 'bivariate'), error('init_trait1_from_out_file does not appear to be a result of univariate analysis'); end;
+    fprintf('Loading existing params for trait2 from %s...\n', init_trait2_from_out_file);
+    tmp = load(init_trait2_from_out_file); result.univariate{2} = tmp.univariate{1};
+    if length(tmp.univariate) ~= 1 || isfield(tmp, 'bivariate'), error('init_trait2_from_out_file does not appear to be a result of univariate analysis'); end;
+    clear('tmp');
+end
+
 if ~isempty(init_result_from_out_file)
     if DO_FIT, error('init_result_from_out_file is incompatible with DO_FIT'); end;
     fprintf('Loading init file from %s...\n', init_result_from_out_file);
     tmp = load(init_result_from_out_file); result = tmp.result;
     clear('tmp');
 end
+
 
 if (length(chr_labels) == 1) && (chr_labels(1) == 1) && ( all(ref.chrnumvec == 1) || (find(ref.chrnumvec == 1, 1, 'last' ) < find(ref.chrnumvec ~= 1, 1 )))
     chrlabel = chr_labels(1);
@@ -308,21 +327,24 @@ end
 
 disp(options)
 
+% [params, ci, ci_hess, ci_hess_err, ci_params] = BGMG_cpp_fit_univariate(zvec, Nvec, options)
+
+
 % Fit bivariate or univariate model to the data
 if DO_FIT
-    if ~isempty(trait2_file),
-        zmat = [trait1_data.zvec, trait2_data.zvec];
-        nmat = [trait1_data.nvec, trait2_data.nvec];
-        result2 = BGMG_cpp_fit(zmat, nmat, options);
+    if isempty(trait2_file),
+        result.univariate{1} = BGMG_cpp_fit_univariate(trait1_data.zvec, trait1_data.nvec, options);
     else
-        zvec = [trait1_data.zvec];
-        nvec = [trait1_data.nvec];
-        result2 = BGMG_cpp_fit(zvec, nvec, options);
-    end
-    
-    fnames = fieldnames(result2);
-    for findex = 1:length(fnames)
-        result.(fnames{findex}) = result2.(fnames{findex});
+        if ~isfield(result, 'univariate')
+            result.univariate{1} = BGMG_cpp_fit_univariate(trait1_data.zvec, trait1_data.nvec, options);
+            result.univariate{2} = BGMG_cpp_fit_univariate(trait2_data.zvec, trait2_data.nvec, options);
+        end
+        result.bivariate = BGMG_cpp_fit_bivariate(...
+            [trait1_data.zvec, trait2_data.zvec], ...
+            [trait1_data.nvec, trait2_data.nvec], ...
+            result.univariate{1}.params, ...
+            result.univariate{2}.params, ...
+            options);
     end
 
     result.trait1_file = trait1_file;

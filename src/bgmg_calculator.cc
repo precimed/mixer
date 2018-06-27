@@ -633,9 +633,16 @@ double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float
   if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
-  if (use_fast_cost_calc_) return calc_univariate_cost_fast(pi_vec, sig2_zero, sig2_beta);
-  if (!cache_tag_r2sum_) return calc_univariate_cost_nocache(pi_vec, sig2_zero, sig2_beta);
+  double cost;
+  if (use_fast_cost_calc_) cost = calc_univariate_cost_fast(pi_vec, sig2_zero, sig2_beta);
+  else if (!cache_tag_r2sum_) cost = calc_univariate_cost_nocache(pi_vec, sig2_zero, sig2_beta);
+  else cost = calc_univariate_cost_cache(pi_vec, sig2_zero, sig2_beta);
 
+  if (!use_fast_cost_calc_) loglike_cache_.add_entry(pi_vec, sig2_zero, sig2_beta, cost);
+  return cost;
+}
+
+double BgmgCalculator::calc_univariate_cost_cache(float pi_vec, float sig2_zero, float sig2_beta) {
   float num_causals = pi_vec * static_cast<float>(num_snp_);
   if ((int)num_causals >= max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
@@ -751,8 +758,16 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
   if (sig2_zero_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
   if (pi_vec_len != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: pi_vec_len != 3"));
 
-  if (use_fast_cost_calc_) return calc_bivariate_cost_fast(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
-  if (!cache_tag_r2sum_) return calc_bivariate_cost_nocache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  double cost;
+  if (use_fast_cost_calc_) cost = calc_bivariate_cost_fast(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  else if (!cache_tag_r2sum_) cost = calc_bivariate_cost_nocache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  else cost = calc_bivariate_cost_cache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+
+  if (!use_fast_cost_calc_) loglike_cache_.add_entry(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
+  return cost;
+}
+
+double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
 
   std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
   LOG << ">calc_bivariate_cost(" << ss << ")";
@@ -1360,5 +1375,60 @@ int64_t BgmgCalculator::retrieve_weighted_causal_r2(int length, float* buffer) {
   }
 
   LOG << "<retrieve_weighted_causal_r2(), elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}
+
+LoglikeCacheElem::LoglikeCacheElem(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float  rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, double cost) {
+  pi_vec1_ = pi_vec[0];
+  pi_vec2_ = pi_vec[1];
+  pi_vec3_ = pi_vec[2];
+  sig2_beta1_ = sig2_beta[0];
+  sig2_beta2_ = sig2_beta[1];
+  sig2_zero1_ = sig2_zero[0];
+  sig2_zero2_ = sig2_zero[1];
+  rho_zero_ = rho_zero;
+  rho_beta_ = rho_beta;
+  cost_ = cost;
+}
+
+void LoglikeCacheElem::get(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost) {
+  pi_vec[0] = pi_vec1_;
+  pi_vec[1] = pi_vec2_;
+  pi_vec[2] = pi_vec3_;
+  sig2_beta[0] = sig2_beta1_;
+  sig2_beta[1] = sig2_beta2_;
+  sig2_zero[0] = sig2_zero1_;
+  sig2_zero[1] = sig2_zero2_;
+  *rho_zero = rho_zero_;
+  *rho_beta = rho_beta_;
+  *cost = cost_;
+}
+
+void    LoglikeCache::add_entry(float pi_vec, float sig2_zero, float sig2_beta, double cost) {
+  float tmp_pi_vec[3] = { pi_vec, NAN, NAN };
+  float tmp_sig2_zero[2] = { sig2_zero, NAN };
+  float tmp_sig2_beta[2] = { sig2_beta, NAN };
+  add_entry(3, tmp_pi_vec, 2, tmp_sig2_beta, NAN, 2, tmp_sig2_zero, NAN, cost);
+}
+int64_t LoglikeCache::get_entry(int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost) {
+  float tmp_pi_vec[3];
+  float tmp_sig2_zero[2];
+  float tmp_sig2_beta[2];
+  float tmp_rho_beta;
+  float tmp_rho_zero;
+  double tmp_cost;
+  int64_t retval = get_entry(entry_index, 3, tmp_pi_vec, 2, tmp_sig2_beta, &tmp_rho_beta, 2, tmp_sig2_zero, &tmp_rho_zero, &tmp_cost);
+  *cost = tmp_cost;
+  *pi_vec = tmp_pi_vec[0];
+  *sig2_zero = tmp_sig2_zero[0];
+  *sig2_beta = tmp_sig2_beta[0];
+  return retval;
+}
+void    LoglikeCache::add_entry(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float  rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, double cost) {
+  cache_.push_back(LoglikeCacheElem(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost));
+}
+int64_t LoglikeCache::get_entry(int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost) {
+  if (entry_index < 0 || entry_index > cache_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("entry_index out of range"));
+  cache_[entry_index].get(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
   return 0;
 }

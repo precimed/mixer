@@ -201,6 +201,39 @@ class DenseMatrix {
   T* data_;
 };
 
+struct LoglikeCacheElem {
+ public:
+  LoglikeCacheElem() {}
+  LoglikeCacheElem(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float  rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, double cost);
+  void get(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost);
+
+ private:
+  float pi_vec1_;
+  float pi_vec2_;
+  float pi_vec3_;
+  float sig2_beta1_;
+  float sig2_beta2_;
+  float sig2_zero1_;
+  float sig2_zero2_;
+  float rho_beta_;
+  float rho_zero_;
+  double cost_;
+};
+
+// History of log likelihood calculations
+class LoglikeCache {
+public:
+ void    add_entry(float pi_vec, float sig2_zero, float sig2_beta, double cost);
+ int64_t get_entry(int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost);
+ void    add_entry(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float  rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, double cost);
+ int64_t get_entry(int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost);
+
+ void clear() { cache_.clear(); }
+ int num_entries() { return cache_.size(); }
+private:
+  std::vector<LoglikeCacheElem> cache_;
+};
+
 // pre-calculated sum of LD r2 and r4 for each tag snp
 // This takes hvec into account, e.i. we store sum of r2*hvec and r4*hvec^2.
 // The information is in several "components" (for example low and high r2).
@@ -289,6 +322,7 @@ class BgmgCalculator {
   int64_t retrieve_weighted_causal_r2(int length, float* buffer);
 
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_univariate_cost_cache(float pi_vec, float sig2_zero, float sig2_beta);
   double calc_univariate_cost_nocache(float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)
   double calc_univariate_cost_nocache_float(float pi_vec, float sig2_zero, float sig2_beta);  // for testing single vs double precision
   double calc_univariate_cost_nocache_double(float pi_vec, float sig2_zero, float sig2_beta); // for testing single vs double precision
@@ -296,11 +330,21 @@ class BgmgCalculator {
 
   double calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   double calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+  double calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   int64_t calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
   void log_disgnostics();
  
   int64_t seed() { return seed_; }
   void set_seed(int64_t seed) { seed_ = seed; }
+
+  int64_t clear_loglike_cache() { loglike_cache_.clear(); return 0; }
+  int64_t get_loglike_cache_size() { return loglike_cache_.num_entries(); }
+  int64_t get_loglike_cache_univariate_entry(int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost) {
+    return loglike_cache_.get_entry(entry_index, pi_vec, sig2_zero, sig2_beta, cost);
+  }
+  int64_t get_loglike_cache_bivariate_entry(int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost) {
+    return loglike_cache_.get_entry(entry_index, pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
+  }
 
  private:
   int num_snp_;
@@ -328,6 +372,7 @@ class BgmgCalculator {
   std::vector<float> hvec_;
 
   std::shared_ptr<LdTagSum> ld_tag_sum_;
+  LoglikeCache loglike_cache_;
 
   // vectors with one value for each component in the mixture
   // snp_order_ gives the order of how SNPs are considered to be causal 

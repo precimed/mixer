@@ -181,3 +181,31 @@ const char* bgmg_status(int context_id) {
 void bgmg_init_log(const char* file) {
   LoggerImpl::singleton().init(file);
 }
+
+int64_t bgmg_clear_loglike_cache(int context_id) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->clear_loglike_cache();
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_get_loglike_cache_size(int context_id) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->get_loglike_cache_size();
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_get_loglike_cache_univariate_entry(int context_id, int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->get_loglike_cache_univariate_entry(entry_index, pi_vec, sig2_zero, sig2_beta, cost);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_get_loglike_cache_bivariate_entry(int context_id, int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->get_loglike_cache_bivariate_entry(entry_index, pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
+  } CATCH_EXCEPTIONS;
+}

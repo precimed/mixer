@@ -375,6 +375,7 @@ classdef BGMG_util
     end
     
     function loglike_trajectory = extract_univariate_loglike_trajectory() 
+        check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
         num_loglike_entries = calllib('bgmg', 'bgmg_get_loglike_cache_size', 0);
         pBuffer_pivec = libpointer('singlePtr', zeros(1, 1, 'single'));
         pBuffer_sig2zero = libpointer('singlePtr', zeros(1, 1, 'single'));
@@ -396,6 +397,7 @@ classdef BGMG_util
     end
     
     function loglike_trajectory = extract_bivariate_loglike_trajectory() 
+        check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
         num_loglike_entries = calllib('bgmg', 'bgmg_get_loglike_cache_size', 0);
         pBuffer_pivec = libpointer('singlePtr', zeros(1, 3, 'single'));
         pBuffer_sig2beta = libpointer('singlePtr', zeros(1, 2, 'single'));

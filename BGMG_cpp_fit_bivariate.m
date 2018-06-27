@@ -19,7 +19,8 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
     if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
 
     check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-
+    calllib('bgmg', 'bgmg_clear_loglike_cache', 0); check();
+ 
     fminsearch_options = struct('Display', 'on');
     if ~isnan(options.MaxFunEvals), fminsearch_options.MaxFunEvals=options.MaxFunEvals; end;
 
@@ -94,7 +95,8 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
         result.ci = BGMG_util.extract_ci_funcs(ci_params, ci_bivariate_funcs, result.params, options.ci_alpha);
     end
 
-
+    result.loglike_fit_trajectory = BGMG_util.extract_bivariate_loglike_trajectory();
+    
     if options.verbose
        fprintf('Done, results are:\n');
        disp(BGMG_util.struct_to_display(result.params));

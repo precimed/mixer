@@ -373,6 +373,57 @@ classdef BGMG_util
             end
         end
     end
+    
+    function loglike_trajectory = extract_univariate_loglike_trajectory() 
+        num_loglike_entries = calllib('bgmg', 'bgmg_get_loglike_cache_size', 0);
+        pBuffer_pivec = libpointer('singlePtr', zeros(1, 1, 'single'));
+        pBuffer_sig2zero = libpointer('singlePtr', zeros(1, 1, 'single'));
+        pBuffer_sig2beta = libpointer('singlePtr', zeros(1, 1, 'single'));
+        pBuffer_cost = libpointer('doublePtr', zeros(1, 1, 'double'));
+        loglike_trajectory=[];
+        loglike_trajectory.pivec = zeros(num_loglike_entries, 1);
+        loglike_trajectory.sig2zero = zeros(num_loglike_entries, 1);
+        loglike_trajectory.sig2beta = zeros(num_loglike_entries, 1);
+        loglike_trajectory.cost = zeros(num_loglike_entries, 1);
+        for i=1:num_loglike_entries
+            calllib('bgmg', 'bgmg_get_loglike_cache_univariate_entry', 0, i-1, pBuffer_pivec, pBuffer_sig2zero, pBuffer_sig2beta, pBuffer_cost);  check(); 
+            loglike_trajectory.pivec(i) = pBuffer_pivec.Value;
+            loglike_trajectory.sig2zero(i) = pBuffer_sig2zero.Value;
+            loglike_trajectory.sig2beta(i) = pBuffer_sig2beta.Value;
+            loglike_trajectory.cost(i) = pBuffer_cost.Value;
+        end
+        clear pBuffer_pivec pBuffer_sig2zero pBuffer_sig2beta pBuffer_cost
+    end
+    
+    function loglike_trajectory = extract_bivariate_loglike_trajectory() 
+        num_loglike_entries = calllib('bgmg', 'bgmg_get_loglike_cache_size', 0);
+        pBuffer_pivec = libpointer('singlePtr', zeros(1, 3, 'single'));
+        pBuffer_sig2beta = libpointer('singlePtr', zeros(1, 2, 'single'));
+        pBuffer_rho_beta = libpointer('singlePtr', zeros(1, 1, 'single'));
+        pBuffer_sig2zero = libpointer('singlePtr', zeros(1, 2, 'single'));
+        pBuffer_rho_zero = libpointer('singlePtr', zeros(1, 1, 'single'));
+        pBuffer_cost = libpointer('doublePtr', zeros(1, 1, 'double'));
+        loglike_trajectory=[];
+        loglike_trajectory.pivec = zeros(num_loglike_entries, 3);
+        loglike_trajectory.sig2beta = zeros(num_loglike_entries, 2);
+        loglike_trajectory.rho_beta = zeros(num_loglike_entries, 1);
+        loglike_trajectory.sig2zero = zeros(num_loglike_entries, 2);
+        loglike_trajectory.rho_zero = zeros(num_loglike_entries, 1);
+        loglike_trajectory.cost = zeros(num_loglike_entries, 1);
+        for i=1:num_loglike_entries
+            calllib('bgmg', 'bgmg_get_loglike_cache_bivariate_entry', 0, i-1, 3, pBuffer_pivec, 2, pBuffer_sig2beta, pBuffer_rho_beta, 2, pBuffer_sig2zero, pBuffer_rho_zero, pBuffer_cost);  check(); 
+            loglike_trajectory.pivec(i, :) = pBuffer_pivec.Value;
+            loglike_trajectory.sig2beta(i, :) = pBuffer_sig2beta.Value;
+            loglike_trajectory.rho_beta(i) = pBuffer_rho_beta.Value;
+            loglike_trajectory.sig2zero(i, :) = pBuffer_sig2zero.Value;
+            loglike_trajectory.rho_zero(i) = pBuffer_rho_zero.Value;
+            loglike_trajectory.cost(i) = pBuffer_cost.Value;
+        end
+        result.loglike_fit_trajectory = loglike_trajectory;
+        clear pBuffer_pivec pBuffer_sig2zero pBuffer_sig2beta pBuffer_cost pBuffer_rho_beta pBuffer_rho_zero
+
+    end
+    
   end
 end
 

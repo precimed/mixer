@@ -410,18 +410,17 @@ end
 if LOGLIKE_PLOT_FIT && (DO_FIT || ~isempty(init_result_from_out_file)) && ~isempty(trait2_file)
     f = figure; hold on;
     calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', ~FIT_FULL_MODEL); check();
+    calllib('bgmg', 'bgmg_clear_loglike_cache', 0); check();
     [figures, plots_data] = BGMG_cpp_loglike_plot(result.bivariate.params);
-    result.bivariate.loglike_plot_fit_data = plots_data;
+    result.bivariate.loglike_plot_data_fit = plots_data;
+    result.bivariate.loglike_plot_trajectory_fit = BGMG_util.extract_bivariate_loglike_trajectory();
     print(figures.tot, sprintf('%s.loglike.fit.pdf', out_file), '-dpdf')
     %subplot(3,3,7); legend('random overlap', 'full overlap');
 end
 
 if LOGLIKE_PLOT_TRUE && ~isempty(trait2_file)
     if ~DO_FIT && isempty(init_result_from_out_file)
-        fprintf('Fit model with fit_full_model=false to find sig2zero and rho_zero params\n');
-        options.fit_full_model = false;
-        result_sig0_rho0 = BGMG_cpp_fit([trait1_data.zvec, trait2_data.zvec], [trait1_data.nvec, trait2_data.nvec], options);
-        options.fit_full_model = FIT_FULL_MODEL;
+        error('LOGLIKE_PLOT_TRUE require DO_FIT (yes, despite we build loglike curves around true params');
     else
         result_sig0_rho0 = result;
     end
@@ -442,8 +441,11 @@ if LOGLIKE_PLOT_TRUE && ~isempty(trait2_file)
     true_params.rho_zero = result_sig0_rho0.bivariate.params.rho_zero;
     
     calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', ~FIT_FULL_MODEL); check();
+    calllib('bgmg', 'bgmg_clear_loglike_cache', 0); check();
     [figures, plots_data] = BGMG_cpp_loglike_plot(true_params);
-    result.bivariate.loglike_plot_fit_data = plots_data;
+    result.bivariate.loglike_plot_data_true = plots_data;
+    result.bivariate.loglike_plot_trajectory_true = BGMG_util.extract_bivariate_loglike_trajectory();
+    
     print(figures.tot, sprintf('%s.loglike.true.pdf', out_file), '-dpdf')
     %subplot(3,3,7); legend('random overlap', 'full overlap');
 end

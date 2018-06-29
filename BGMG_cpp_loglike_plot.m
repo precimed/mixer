@@ -82,7 +82,6 @@ function [figures, plots_data] = BGMG_cpp_loglike_plot(params)
         plot_name(plot_name=='_')=' ';title(plot_name);
     end
     
-    
     subplot(3,3,length(fnames)+1 : length(fnames)+2);
     ylimval=12;
     ylim([0 ylimval]); xlim([0 7]); loc = ylimval-2; qq_options = params;vec2str=@BGMG_util.vec2str;qq_options.fontsize=12;

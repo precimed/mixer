@@ -209,3 +209,11 @@ int64_t bgmg_get_loglike_cache_bivariate_entry(int context_id, int entry_index, 
     return BgmgCalculatorManager::singleton().Get(context_id)->get_loglike_cache_bivariate_entry(entry_index, pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
   } CATCH_EXCEPTIONS;
 }
+
+double bgmg_calc_univariate_cost_with_deriv(int context_id, double pi_vec, double sig2_zero, double sig2_beta, int deriv_length, double* deriv) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost_cache_deriv(pi_vec, sig2_zero, sig2_beta, deriv_length, deriv);
+  } CATCH_EXCEPTIONS;
+
+}

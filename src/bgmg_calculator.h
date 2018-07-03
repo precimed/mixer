@@ -323,6 +323,7 @@ class BgmgCalculator {
 
   double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
   double calc_univariate_cost_cache(float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_univariate_cost_cache_deriv(float pi_vec, float sig2_zero, float sig2_beta, int deriv_length, double* deriv); // find cost and first derivatives; arguments will be replaced with derivative values
   double calc_univariate_cost_nocache(float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)
   double calc_univariate_cost_nocache_float(float pi_vec, float sig2_zero, float sig2_beta);  // for testing single vs double precision
   double calc_univariate_cost_nocache_double(float pi_vec, float sig2_zero, float sig2_beta); // for testing single vs double precision

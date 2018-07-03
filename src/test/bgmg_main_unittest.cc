@@ -144,6 +144,13 @@ void UgmgTest_CalcLikelihood(float r2min) {
   ASSERT_TRUE(std::isfinite(cost));
   ASSERT_FLOAT_EQ(cost, cost_nocache);
 
+  double deriv[3];
+  double cost_with_deriv = calc.calc_univariate_cost_cache_deriv(0.2, 1.2, 0.1, 3, deriv);
+  ASSERT_FLOAT_EQ(cost, cost_with_deriv);
+  ASSERT_TRUE(std::isfinite(deriv[0]));
+  ASSERT_TRUE(std::isfinite(deriv[1]));
+  ASSERT_TRUE(std::isfinite(deriv[2]));
+
   std::vector<float> zvec_grid, zvec_pdf, zvec_pdf_nocache;
   for (float z = 0; z < 15; z += 0.1) {
     zvec_grid.push_back(z);
@@ -328,11 +335,13 @@ TEST(Test, RandomSeedAndThreading) {
       float rho_beta = 0.8;
       float sig2_zero[] = { 1.1, 1.2 };
       float rho_zero = 0.1;
+      double deriv[3];
       double ugmg_cost = calc.calc_univariate_cost(pi_vec[0], sig2_zero[0], sig2_beta[0]);
       if (num_threads == 1) ugmg_costs[i] = ugmg_cost;
       else ASSERT_FLOAT_EQ(ugmg_costs[i], ugmg_cost);
       ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost(pi_vec[0], sig2_zero[0], sig2_beta[0]));  // check calc twice => the same cost
       ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost_nocache(pi_vec[0], sig2_zero[0], sig2_beta[0]));
+      ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost_cache_deriv(pi_vec[0], sig2_zero[0], sig2_beta[0], 3, deriv));
 
       double bgmg_cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
       if (num_threads == 1) bgmg_costs[i] = bgmg_cost;

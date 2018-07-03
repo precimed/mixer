@@ -61,6 +61,7 @@ set(SRC_LIST
 	bgmg_log.cc
 	bgmg_log.h
 	fmath.hpp
+	semt/semt/VectorExpr.cpp
 )
 
 add_library(bgmg SHARED ${SRC_LIST})
@@ -82,6 +83,7 @@ target_link_libraries(bgmg-test ${Boost_LIBRARIES})
 
 target_include_directories(bgmg PUBLIC ${CMAKE_BINARY_DIR})
 target_include_directories(bgmg PUBLIC ${CMAKE_SOURCE_DIR})
+target_include_directories(bgmg PUBLIC ${PROJECT_SOURCE_DIR}/semt)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest/include)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR})

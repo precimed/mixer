@@ -39,7 +39,7 @@ trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_p
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=8e-04_rep=10_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT=true;FIT_FULL_MODEL=true;STRATIFIED_QQ_PLOT_FIT=true;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=true;QQ_PLOT_FIT=true;cache_tag_r2sum=true;
+DO_FIT=true;FIT_FULL_MODEL=false;STRATIFIED_QQ_PLOT_FIT=false;QQ_PLOT_TRUE=false;LOGLIKE_PLOT_TRUE=false;QQ_PLOT_FIT=false;cache_tag_r2sum=true;
 MAF_THRESH=0.01;
 out_file = 'tmptesting5_ext';
 init_result_from_out_file = ''; %'tmptesting5';
@@ -589,4 +589,32 @@ for chr_index=length(chr_labels):-1:1
     plink_ld_mat_chr_90 = strrep('H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p10_SNPwind50k_chr@.ld.mat', '@', sprintf('%i',chr_labels(chr_index)));
     save(plink_ld_mat_chr_90, '-struct', 'tmp', '-v7');
 end
+end
+
+if 0
+    % quick and dirty fminsearch
+    p0 = result.univariate{1}.params;
+    x0 = [p0.pi_vec, p0.sig2_zero, p0.sig2_beta];
+  
+    fminsearch_options = struct('Display', 'iter');
+    mapparams = @(x)struct('pi_vec', x(1), 'sig2_zero', x(2), 'sig2_beta', x(3));
+    calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', 1); check();
+    UGMG_fminsearch_cost = @(ov)calllib('bgmg', 'bgmg_calc_univariate_cost_with_deriv', 0, ov.pi_vec, ov.sig2_zero, ov.sig2_beta, 3, pBuffer);
+    UGMG_fminsearch_cost2 = @(ov)calllib('bgmg', 'bgmg_calc_univariate_cost', 0, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
+    fit = @(x0)fminsearch(@(x)UGMG_fminsearch_cost(mapparams(x)), x0, fminsearch_options);
+    
+    tic;UGMG_fminsearch_cost(p0);toc
+    pBuffer.Value
+    tic;UGMG_fminsearch_cost2(p0);toc
+    
+      fit(x0)
+
+    options = optimoptions('fminunc','Algorithm','trust-region','GradObj','on','DerivativeCheck','off');
+    fminunc(@(x)BGMG_util.UGMG_fminsearch_cost_with_gradient(mapparams(x)), x0, options)
+    
+    fminsearch_options = struct('Display', 'off'); 
+    fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x)), x0, fminsearch_options);
+    
+    clear pBuffer
+
 end

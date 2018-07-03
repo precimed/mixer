@@ -19,7 +19,7 @@
  * must be available. In this case, you may wish to redefine SEMT_USE_STDMATH.
  */
 #ifndef SEMT_PRECISION
-    typedef double SEMT_PRECISION;
+    typedef float SEMT_PRECISION;
 #endif
 
 /*!

@@ -28,7 +28,7 @@ int introduction()
     DVE.push_back(f);
 
     // Print derivatives and evaluate.
-    vector<double>x0(1, 3.1415);
+    vector<SEMT_PRECISION>x0(1, 3.1415);
     for (int i = 0; i < 5; ++i)
         cout << DVE.get_derivative(i) << " == "
                 << (DVE.get_derivative(i)(x0))
@@ -273,25 +273,61 @@ int for_each()
   // ((((x0)^(2) + ((2 * x0) * x1)) + (x2)^(2)) / ((x0)^(2) + ((x1)^(2) + (x2)^(2))))))
 } // end
 */
+
+using namespace SEMT;
+
+struct pi_struct
+{
+    constexpr static SEMT_PRECISION value = 3.14159265358979323846;
+};
+struct inv_sqrt_2pi_struct
+{
+  constexpr static SEMT_PRECISION value = 0.3989422804014327;
+};
+
+
+Expr<Literal<pi_struct>> pi_value;
+Expr<Literal<inv_sqrt_2pi_struct>> inv_sqrt_2pi_value;
+
+
+void SemtUgmgTest() {
+  DVAR(sig2zero, 0);
+  DVAR(sig2beta, 1);
+  DVAR(pivec, 2);
+  DPARAM(z2, 0)
+    //RAT
+    // auto f = inv_sqrt_2pi_value * POW(sig2beta, -0.5)
+    // EPower(sig2beta, Rational()
+  auto s = sig2zero + sig2beta * pivec;
+  auto f = inv_sqrt_2pi_value * pow(s, RAT(-1, 2)) * exp(RAT(-1, 2) * z2 / s);
+
+  cout << f << endl;
+  cout << deriv_t(f, sig2zero) << endl;
+  cout << deriv_t(f, sig2beta) << endl;
+  cout << deriv_t(f, pivec) << endl;
+
+}
+
 // bgmg-test.exe --gtest_filter=Semt.Test
 TEST(Semt, Test) {
-    return;
-    cout << "These are the examples you find in the documentation.\n";
-    cout << "\nintroduction:\n";
-    introduction();
-    cout << "\nfull example:\n";
-    full_example();
+  SemtUgmgTest();
+  return;
+  cout << "These are the examples you find in the documentation.\n";
+  cout << "\nintroduction:\n";
+  introduction();
+  cout << "\nfull example:\n";
+  full_example();
 
-    cout << "\nvarious examples:\n";
-    macros();
-    binary_operators();
-    unary_operators();
-    simple_deriv();
+  cout << "\nvarious examples:\n";
+  macros();
+  binary_operators();
+  unary_operators();
+  simple_deriv();
 
-    cout << "\nadvanced examples:\n";
-    fold();
-    iterators();
-    //for_each();
+  cout << "\nadvanced examples:\n";
+  fold();
+  iterators();
+  //for_each();
 }
 
 }  // namespace

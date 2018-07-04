@@ -155,7 +155,7 @@ function ov = BGMG_mapparams3(iv, options)
     if is_packing, ov = []; else ov = struct(); end;
     
     [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
-    [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+    [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp3_amd, 'sig2_zero');
     [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
     [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
     

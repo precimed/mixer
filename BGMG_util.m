@@ -67,6 +67,21 @@ classdef BGMG_util
         end
     end
 
+    % divide or multiply argument by a factor of 3
+    % to avoid 0 == log(1). Specialy suited for sig2_zero.
+    function y = exp3_amd(x,s)
+        if ~exist('s', 'var'), s = 1; end
+
+        minval = eps;
+        if s == 0
+          x = minval+3*x;
+          y = log(x);
+        else
+          y = exp(x);
+          y = (y-exp(log(minval)))/3;
+        end
+    end
+
     function y = sigmf_of(x, s)
         if ~exist('s', 'var'), s = 0; end
         if s == 0
@@ -137,7 +152,7 @@ classdef BGMG_util
         if is_packing, ov = []; else ov = struct(); end;
 
         [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
-        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_zero');
+        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp3_amd, 'sig2_zero');
         [ov, ~] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
     end
 

@@ -17,7 +17,7 @@
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1;
+plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1:22;
 randprune_r2_plink_ld_mat = ''; randprune_r2_defvec_threshold = nan;
 randprune_r2_plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p10_SNPwind50k_chr@.ld.mat';
 %defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
@@ -607,7 +607,7 @@ if 0
     pBuffer.Value
     tic;UGMG_fminsearch_cost2(p0);toc
     
-      fit(x0)
+    fit(x0)
 
     options = optimoptions('fminunc','Algorithm','trust-region','GradObj','on','DerivativeCheck','off');
     fminunc(@(x)BGMG_util.UGMG_fminsearch_cost_with_gradient(mapparams(x)), x0, options)
@@ -617,4 +617,9 @@ if 0
     
     clear pBuffer
 
+end
+
+if 0
+    options.params0 = struct('sig2_zero', 1, 'pi_vec', sum(trait1_data.causal_pi), 'sig2_beta', trait1_data.sigsq);
+    result.univariate{1} = BGMG_cpp_fit_univariate(trait1_data.zvec, trait1_data.nvec, options);
 end

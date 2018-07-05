@@ -19,17 +19,19 @@ bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll'
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
 plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1:22;
 randprune_r2_plink_ld_mat = ''; randprune_r2_defvec_threshold = nan;
-randprune_r2_plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_10K_ldmat_p10_SNPwind50k_chr@.ld.mat';
+randprune_r2_plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.mat';
 %defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
 defvec_files = {};
 defvec_files = {'H:\Dropbox\shared\BGMG\defvecs\defvec_11m_infinium-omniexpress-24-v1-3-a1.mat', ...
                 'H:\Dropbox\shared\BGMG\defvecs\defvec_highld_regions.mat', ... 
                 'H:\Dropbox\shared\BGMG\defvecs\centromere_plus_3cm_locations.mat' };
-trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
-trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
+%trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
+%trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
 trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
-trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
+%trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
 
+
+kmax=1;
 
 %trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
@@ -39,9 +41,9 @@ trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_p
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=8e-04_rep=10_tag1=partial25PolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait1_nvec=100000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT=true;FIT_FULL_MODEL=false;STRATIFIED_QQ_PLOT_FIT=false;QQ_PLOT_TRUE=false;LOGLIKE_PLOT_TRUE=false;QQ_PLOT_FIT=false;cache_tag_r2sum=true;
+DO_FIT=false;FIT_FULL_MODEL=false;STRATIFIED_QQ_PLOT_FIT=false;QQ_PLOT_TRUE=true;LOGLIKE_PLOT_TRUE=false;QQ_PLOT_FIT=false;cache_tag_r2sum=true;
 MAF_THRESH=0.01;
-out_file = 'tmptesting5_ext';
+out_file = 'tmptesting6';
 init_result_from_out_file = ''; %'tmptesting5';
 %out_file = 'BGMG_random_overlap_chr1_pi1u=3e-03';
 %out_file = 'BGMG_full_overlap_chr1_pi1u=3e-03';
@@ -622,4 +624,47 @@ end
 if 0
     options.params0 = struct('sig2_zero', 1, 'pi_vec', sum(trait1_data.causal_pi), 'sig2_beta', trait1_data.sigsq);
     result.univariate{1} = BGMG_cpp_fit_univariate(trait1_data.zvec, trait1_data.nvec, options);
+end
+
+if 0
+    params = struct('sig2_zero', 1, 'pi_vec', sum(trait1_data.causal_pi), 'sig2_beta', trait1_data.sigsq);
+    BGMG_cpp_fit_kl_univariate(trait1_data.zvec(defvec), trait1_data.nvec(defvec), struct('params0', params));
+    
+    % Retrieve weights from c++ library
+    check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
+    pBuffer = libpointer('singlePtr', zeros(sum(defvec), 1, 'single'));
+    calllib('bgmg', 'bgmg_retrieve_weights', 0, sum(defvec), pBuffer);  check(); 
+    weights_bgmg = pBuffer.Value;
+    clear pBuffer
+    
+    data_weights = weights_bgmg; data_weights = data_weights/sum(data_weights);
+    model_weights = weights_bgmg;
+    
+    % fit KL divergence between model & data pdf
+    % Calculate data_logpvec
+    zvec = trait1_data.zvec(defvec);
+    hv_z = linspace(0, min(max(abs(zvec)), 38.0), 10000);
+    [data_y, si] = sort(-log10(2*normcdf(-abs(zvec))));
+    data_x=-log10(cumsum(data_weights(si),1,'reverse'));
+    data_idx = ([data_y(2:end); +Inf] ~= data_y);
+    hv_logp = -log10(2*normcdf(-hv_z));
+    data_logpvec = interp1(data_y(data_idx), data_x(data_idx), hv_logp);
+
+    % Calculate model_logpvec
+    
+    zgrid = single(0:0.05:15); 
+    pBuffer = libpointer('singlePtr', zeros(length(zgrid), 1, 'single'));
+    calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, params.pi_vec, params.sig2_zero, params.sig2_beta, length(zgrid), zgrid, pBuffer);  check(); 
+    pdf = pBuffer.Value'; clear pBuffer
+    pdf = pdf / sum(model_weights);
+    if (zgrid(1) == 0), zgrid = [-fliplr(zgrid(2:end)) zgrid];pdf = [fliplr(pdf(2:end)) pdf]; end
+    model_cdf = cumsum(pdf)  * (zgrid(2) - zgrid(1)) ;
+    X = model_cdf;X1 = ones(size(X, 1), 1); X0 = zeros(size(X, 1), 1);
+    model_cdf = 0.5 * ([X0, X(:, 1:(end-1))] + [X(:, 1:(end-1)), X1]);
+    model_logpvec = -log10(2*interp1(-zgrid(zgrid<=0), model_cdf(zgrid<=0), hv_z')); % hv_z is to fine, can't afford calculation on it - do interpolation instead; don't matter for QQ plot (no visual difference), but lamGCfromQQ doesn't work for z_grid (to coarse)
+
+    clf; hold on
+    hData  = plot(data_logpvec, hv_logp, '-', 'LineWidth',1); hold on;
+    hModel = plot(model_logpvec,hv_logp, '-', 'LineWidth',1); hold on;
+ 
 end

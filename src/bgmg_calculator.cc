@@ -58,6 +58,15 @@
 #define LD_TAG_COMPONENT_BELOW_R2MIN 0
 #define LD_TAG_COMPONENT_ABOVE_R2MIN 1
 
+std::vector<float>* BgmgCalculator::get_zvec(int trait_index) {
+  if ((trait_index != 1) && (trait_index != 2)) BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
+  return (trait_index == 1) ? &zvec1_ : &zvec2_;
+}
+
+std::vector<float>* BgmgCalculator::get_nvec(int trait_index) {
+  if ((trait_index != 1) && (trait_index != 2)) BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
+  return (trait_index == 1) ? &nvec1_ : &nvec2_;
+}
 
 BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), r2_min_(0.0), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
@@ -80,13 +89,8 @@ int64_t BgmgCalculator::set_zvec(int trait, int length, float* values) {
   int num_undef = 0;
   for (int i = 0; i < length; i++) if (!std::isfinite(values[i])) num_undef++;
   LOG << " set_zvec(trait=" << trait << "); num_undef=" << num_undef;
-
   check_num_tag(length);
-  if (trait == 1) {
-    zvec1_.assign(values, values + length);
-  } else {
-    zvec2_.assign(values, values + length);
-  }
+  get_zvec(trait)->assign(values, values + length);
   return 0;
 }
 
@@ -98,12 +102,7 @@ int64_t BgmgCalculator::set_nvec(int trait, int length, float* values) {
 
   LOG << " set_nvec(trait=" << trait << "); ";
   check_num_tag(length);
-  if (trait == 1) {
-    nvec1_.assign(values, values + length);
-  } else {
-    nvec2_.assign(values, values + length);
-  }
-
+  get_nvec(trait)->assign(values, values + length);
   return 0;
 }
 
@@ -566,17 +565,19 @@ inline float gaussian2_pdf(const float z1, const float z2, const float a11, cons
 }
 */
 
-int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
+int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
   // input buffer "zvec" contains z scores (presumably an equally spaced grid)
   // output buffer contains pdf(z), aggregated across all SNPs with corresponding weights
-  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   float num_causals = pi_vec * static_cast<float>(num_snp_);
   if ((int)num_causals >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   const int component_id = 0;   // univariate is always component 0.
 
-  LOG << ">calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(zvec)=" << length << ")";
+  LOG << ">calc_univariate_pdf(trait_index="<< trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(zvec)=" << length << ")";
 
   if (cache_tag_r2sum_) {
     find_tag_r2sum(component_id, num_causals);
@@ -617,7 +618,7 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
         if (weights_[tag_index] == 0) continue;
 
         float tag_r2sum_value = tag_r2sum[tag_index];
-        float sig2eff = tag_r2sum_value * nvec1_[tag_index] * sig2_beta + sig2_zero;
+        float sig2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta + sig2_zero;
         float s = sqrt(sig2eff);
 
         for (int z_index = 0; z_index < length; z_index++) {
@@ -631,30 +632,35 @@ int64_t BgmgCalculator::calc_univariate_pdf(float pi_vec, float sig2_zero, float
   }
 
   for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);
-  LOG << "<calc_univariate_pdf(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<calc_univariate_pdf(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
-double BgmgCalculator::calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta) {
-  if (zvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
-  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+double BgmgCalculator::calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  std::vector<float>& zvec(*get_zvec(trait_index));
+  if (zvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec is not set"));
+  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   double cost;
-  if (use_fast_cost_calc_) cost = calc_univariate_cost_fast(pi_vec, sig2_zero, sig2_beta);
-  else if (!cache_tag_r2sum_) cost = calc_univariate_cost_nocache(pi_vec, sig2_zero, sig2_beta);
-  else cost = calc_univariate_cost_cache(pi_vec, sig2_zero, sig2_beta);
+  if (use_fast_cost_calc_) cost = calc_univariate_cost_fast(trait_index,pi_vec, sig2_zero, sig2_beta);
+  else if (!cache_tag_r2sum_) cost = calc_univariate_cost_nocache(trait_index, pi_vec, sig2_zero, sig2_beta);
+  else cost = calc_univariate_cost_cache(trait_index, pi_vec, sig2_zero, sig2_beta);
 
   if (!use_fast_cost_calc_) loglike_cache_.add_entry(pi_vec, sig2_zero, sig2_beta, cost);
   return cost;
 }
 
-double BgmgCalculator::calc_univariate_cost_cache(float pi_vec, float sig2_zero, float sig2_beta) {
+double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  std::vector<float>& zvec(*get_zvec(trait_index));
+
   float num_causals = pi_vec * static_cast<float>(num_snp_);
   if ((int)num_causals >= max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
     
-  LOG << ">calc_univariate_cost(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
+  LOG << ">calc_univariate_cost(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
   find_tag_r2sum(component_id, num_causals);
 
   SimpleTimer timer(-1);
@@ -666,21 +672,21 @@ double BgmgCalculator::calc_univariate_cost_cache(float pi_vec, float sig2_zero,
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec[tag_index])) continue;
 
     double pdf_tag = 0.0f;
     for (int k_index = 0; k_index < k_max_; k_index++) {
       float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
-      float sig2eff = tag_r2sum * nvec1_[tag_index] * sig2_beta + sig2_zero;
+      float sig2eff = tag_r2sum * nvec[tag_index] * sig2_beta + sig2_zero;
 
       float s = sqrt(sig2eff);
-      FLOAT_TYPE pdf = pi_k * gaussian_pdf<FLOAT_TYPE>(zvec1_[tag_index], s);
+      FLOAT_TYPE pdf = pi_k * gaussian_pdf<FLOAT_TYPE>(zvec[tag_index], s);
       pdf_tag += static_cast<double>(pdf);
     }
     log_pdf_total += -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
   }
 
-  LOG << "<calc_univariate_cost(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<calc_univariate_cost(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 
@@ -697,10 +703,13 @@ SEMT::Expr<SEMT::Literal<pi_struct>> pi_value;
 SEMT::Expr<SEMT::Literal<inv_sqrt_2pi_struct>> inv_sqrt_2pi_value;
 
 
-double BgmgCalculator::calc_univariate_cost_cache_deriv(float pi_vec, float sig2_zero, float sig2_beta, int deriv_length, double* deriv) {
+double BgmgCalculator::calc_univariate_cost_cache_deriv(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int deriv_length, double* deriv) {
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  std::vector<float>& zvec(*get_zvec(trait_index));
+
   if (deriv_length != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("deriv_length != 3"));
-  if (zvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
-  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  if (zvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec is not set"));
+  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
   if (!cache_tag_r2sum_) BGMG_THROW_EXCEPTION(::std::runtime_error("bgmg_calc_univariate_cost_with_deriv only works with cache_tag_r2sum")); 
 
@@ -708,7 +717,7 @@ double BgmgCalculator::calc_univariate_cost_cache_deriv(float pi_vec, float sig2
   if ((int)num_causals >= max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
 
-  LOG << ">calc_univariate_cost_deriv(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
+  LOG << ">calc_univariate_cost_deriv(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
   find_tag_r2sum(component_id, num_causals);
 
   SimpleTimer timer(-1);
@@ -730,7 +739,7 @@ double BgmgCalculator::calc_univariate_cost_cache_deriv(float pi_vec, float sig2
 #pragma omp for schedule(static)
     for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
       if (weights_[tag_index] == 0) continue;
-      if (!std::isfinite(zvec1_[tag_index])) continue;
+      if (!std::isfinite(zvec[tag_index])) continue;
 
       for (int k_index = 0; k_index < k_max_; k_index++) {
         float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
@@ -741,7 +750,7 @@ double BgmgCalculator::calc_univariate_cost_cache_deriv(float pi_vec, float sig2
         auto f_sig2zero = SEMT::deriv_t(f, semt_sig2zero);
         auto f_sig2beta = SEMT::deriv_t(f, semt_sig2beta);
         auto f_pivec = SEMT::deriv_t(f, semt_pivec);
-        SEMT::CAR semt_params = { sig2_zero, sig2_beta, pi_vec, zvec1_[tag_index] * zvec1_[tag_index], tag_r2sum * nvec1_[tag_index] / pi_vec };
+        SEMT::CAR semt_params = { sig2_zero, sig2_beta, pi_vec, zvec[tag_index] * zvec[tag_index], tag_r2sum * nvec[tag_index] / pi_vec };
         pdf_double_local[tag_index] += pi_k * f.apply(semt_params);
         pdf_deriv_sig2zero_local[tag_index] += pi_k * f_sig2zero.apply(semt_params);
         pdf_deriv_sig2beta_local[tag_index] += pi_k * f_sig2beta.apply(semt_params);
@@ -764,24 +773,27 @@ double BgmgCalculator::calc_univariate_cost_cache_deriv(float pi_vec, float sig2
   double& sig2_beta_io = deriv[2]; sig2_beta_io = 0;
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec[tag_index])) continue;
     log_pdf_total += -std::log(pdf_double[tag_index]) * weights_[tag_index];
     pi_vec_io += (-pdf_deriv_pivec[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
     sig2_zero_io += (-pdf_deriv_sig2zero[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
     sig2_beta_io += (-pdf_deriv_sig2beta[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
   }
 
-  LOG << "<calc_univariate_cost_deriv(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<calc_univariate_cost_deriv(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 
 template<typename T>
-double calc_univariate_cost_nocache_template(float pi_vec, float sig2_zero, float sig2_beta, BgmgCalculator& rhs) {
+double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, BgmgCalculator& rhs) {
+  std::vector<float>& nvec(*rhs.get_nvec(trait_index));
+  std::vector<float>& zvec(*rhs.get_zvec(trait_index));
+
   float num_causals = pi_vec * static_cast<float>(rhs.num_snp_);
   if ((int)num_causals >= rhs.max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
 
-  LOG << ">calc_univariate_cost_nocache(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
+  LOG << ">calc_univariate_cost_nocache(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
   
   SimpleTimer timer(-1);
 
@@ -799,13 +811,13 @@ double calc_univariate_cost_nocache_template(float pi_vec, float sig2_zero, floa
         rhs.find_tag_r2sum_no_cache(component_id, num_causals, k_index, &tag_r2sum);
         for (int tag_index = 0; tag_index < rhs.num_tag_; tag_index++) {
           if (rhs.weights_[tag_index] == 0) continue;
-          if (!std::isfinite(rhs.zvec1_[tag_index])) continue;
+          if (!std::isfinite(zvec[tag_index])) continue;
 
           float tag_r2sum_value = tag_r2sum[tag_index];
-          float sig2eff = tag_r2sum_value * rhs.nvec1_[tag_index] * sig2_beta + sig2_zero;
+          float sig2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta + sig2_zero;
 
           float s = sqrt(sig2eff);
-          T pdf = pi_k * gaussian_pdf<T>(rhs.zvec1_[tag_index], s);
+          T pdf = pi_k * gaussian_pdf<T>(zvec[tag_index], s);
           pdf_double_local[tag_index] += static_cast<double>(pdf);
         }
       }
@@ -816,22 +828,22 @@ double calc_univariate_cost_nocache_template(float pi_vec, float sig2_zero, floa
   double log_pdf_total = 0.0;
   for (int tag_index = 0; tag_index < rhs.num_tag_; tag_index++) {
     if (rhs.weights_[tag_index] == 0) continue;
-    if (!std::isfinite(rhs.zvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec[tag_index])) continue;
     log_pdf_total += -std::log(pdf_double[tag_index]) * rhs.weights_[tag_index];
   }
 
-  LOG << "<calc_univariate_cost_nocache(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<calc_univariate_cost_nocache(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 
-double BgmgCalculator::calc_univariate_cost_nocache(float pi_vec, float sig2_zero, float sig2_beta) {
-  return calc_univariate_cost_nocache_template<FLOAT_TYPE>(pi_vec, sig2_zero, sig2_beta, *this);
+double BgmgCalculator::calc_univariate_cost_nocache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
+  return calc_univariate_cost_nocache_template<FLOAT_TYPE>(trait_index, pi_vec, sig2_zero, sig2_beta, *this);
 }
-double BgmgCalculator::calc_univariate_cost_nocache_float(float pi_vec, float sig2_zero, float sig2_beta) {
-  return calc_univariate_cost_nocache_template<float>(pi_vec, sig2_zero, sig2_beta, *this);
+double BgmgCalculator::calc_univariate_cost_nocache_float(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
+  return calc_univariate_cost_nocache_template<float>(trait_index, pi_vec, sig2_zero, sig2_beta, *this);
 }
-double BgmgCalculator::calc_univariate_cost_nocache_double(float pi_vec, float sig2_zero, float sig2_beta) {
-  return calc_univariate_cost_nocache_template<double>(pi_vec, sig2_zero, sig2_beta, *this);
+double BgmgCalculator::calc_univariate_cost_nocache_double(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
+  return calc_univariate_cost_nocache_template<double>(trait_index, pi_vec, sig2_zero, sig2_beta, *this);
 }
 
 std::string calc_bivariate_params_to_str(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length) {
@@ -1175,12 +1187,15 @@ void BgmgCalculator::log_disgnostics() {
   LOG << " diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
 }
 
-double BgmgCalculator::calc_univariate_cost_fast(float pi_vec, float sig2_zero, float sig2_beta) {
+double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  std::vector<float>& zvec(*get_zvec(trait_index));
+
   // Use an approximation that preserves variance and kurtosis.
   // This gives a robust cost function that scales up to a very high pivec, including infinitesimal model pi==1.
 
   std::stringstream ss;
-  ss << "calc_univariate_cost_fast(pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
+  ss << "calc_univariate_cost_fast(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
   LOG << ">" << ss.str();
 
   double log_pdf_total = 0.0;
@@ -1191,7 +1206,7 @@ double BgmgCalculator::calc_univariate_cost_fast(float pi_vec, float sig2_zero, 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec[tag_index])) continue;
     
     const float tag_r2 = ld_tag_sum_->ld_tag_sum_r2()[tag_index];
     const float tag_r4 = ld_tag_sum_->ld_tag_sum_r4()[tag_index];
@@ -1207,8 +1222,8 @@ double BgmgCalculator::calc_univariate_cost_fast(float pi_vec, float sig2_zero, 
     const float tag_pi0 = 1 - tag_pi1;
     const float tag_sig2beta = sig2_beta * tag_eta_factor;
 
-    const float tag_z = zvec1_[tag_index];
-    const float tag_n = nvec1_[tag_index];
+    const float tag_z = zvec[tag_index];
+    const float tag_n = nvec[tag_index];
     const FLOAT_TYPE tag_pdf0 = gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero));
     const FLOAT_TYPE tag_pdf1 = gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero + tag_n *tag_sig2beta));
     const FLOAT_TYPE tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;

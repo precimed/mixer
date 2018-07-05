@@ -98,7 +98,7 @@ private:
   std::mt19937 g_;
 };
 
-void UgmgTest_CalcLikelihood(float r2min) {
+void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 5;
@@ -114,9 +114,8 @@ void UgmgTest_CalcLikelihood(float r2min) {
   calc.set_option("cache_tag_r2sum", 1);
   calc.set_option("r2min", r2min);
 
-  int trait = 1;
-  calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
-  calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+  calc.set_zvec(trait_index, num_tag, &tm.zvec()->at(0));
+  calc.set_nvec(trait_index, num_tag, &tm.nvec()->at(0));
   calc.set_weights(num_tag, &tm.weights()->at(0));
 
   std::vector<int> snp_index, tag_index;
@@ -139,13 +138,13 @@ void UgmgTest_CalcLikelihood(float r2min) {
     calc.find_tag_r2sum(0, 3.9);
   }
 
-  double cost = calc.calc_univariate_cost(0.2, 1.2, 0.1);
-  double cost_nocache = calc.calc_univariate_cost_nocache(0.2, 1.2, 0.1);
+  double cost = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
+  double cost_nocache = calc.calc_univariate_cost_nocache(trait_index, 0.2, 1.2, 0.1);
   ASSERT_TRUE(std::isfinite(cost));
   ASSERT_FLOAT_EQ(cost, cost_nocache);
 
   double deriv[3];
-  double cost_with_deriv = calc.calc_univariate_cost_cache_deriv(0.2, 1.2, 0.1, 3, deriv);
+  double cost_with_deriv = calc.calc_univariate_cost_cache_deriv(trait_index, 0.2, 1.2, 0.1, 3, deriv);
   ASSERT_FLOAT_EQ(cost, cost_with_deriv);
   ASSERT_TRUE(std::isfinite(deriv[0]));
   ASSERT_TRUE(std::isfinite(deriv[1]));
@@ -158,31 +157,32 @@ void UgmgTest_CalcLikelihood(float r2min) {
     zvec_pdf_nocache.push_back(0.0f);
   }
 
-  calc.calc_univariate_pdf(0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf[0]);
+  calc.calc_univariate_pdf(trait_index, 0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf[0]);
   calc.set_option("diag", 0.0);
 
   calc.set_option("cache_tag_r2sum", 0);
-  calc.calc_univariate_pdf(0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf_nocache[0]);
+  calc.calc_univariate_pdf(trait_index, 0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf_nocache[0]);
 
   for (int i = 0; i < zvec_pdf_nocache.size(); i++)
     ASSERT_FLOAT_EQ(zvec_pdf[i], zvec_pdf_nocache[i]);
 
   calc.set_option("fast_cost", 1);
-  cost = calc.calc_univariate_cost(0.2, 1.2, 0.1);
+  cost = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
   ASSERT_TRUE(std::isfinite(cost));
 }
 
 // --gtest_filter=UgmgTest.CalcLikelihood
 TEST(UgmgTest, CalcLikelihood) {
-  const float r2min = 0.0;
-  UgmgTest_CalcLikelihood(r2min);
-
+  const float r2min = 0.0; 
+  const int trait_index = 2; // use second trait for calculations; should work...
+  UgmgTest_CalcLikelihood(r2min, trait_index);
 }
 
 // --gtest_filter=UgmgTest.CalcLikelihood_with_r2min
 TEST(UgmgTest, CalcLikelihood_with_r2min) {
   const float r2min = 0.2;
-  UgmgTest_CalcLikelihood(r2min);
+  const int trait_index = 1;
+  UgmgTest_CalcLikelihood(r2min, trait_index);
 
 }
 
@@ -336,12 +336,13 @@ TEST(Test, RandomSeedAndThreading) {
       float sig2_zero[] = { 1.1, 1.2 };
       float rho_zero = 0.1;
       double deriv[3];
-      double ugmg_cost = calc.calc_univariate_cost(pi_vec[0], sig2_zero[0], sig2_beta[0]);
+      int trait_index = 1;
+      double ugmg_cost = calc.calc_univariate_cost(trait_index, pi_vec[0], sig2_zero[0], sig2_beta[0]);
       if (num_threads == 1) ugmg_costs[i] = ugmg_cost;
       else ASSERT_FLOAT_EQ(ugmg_costs[i], ugmg_cost);
-      ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost(pi_vec[0], sig2_zero[0], sig2_beta[0]));  // check calc twice => the same cost
-      ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost_nocache(pi_vec[0], sig2_zero[0], sig2_beta[0]));
-      ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost_cache_deriv(pi_vec[0], sig2_zero[0], sig2_beta[0], 3, deriv));
+      ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost(trait_index, pi_vec[0], sig2_zero[0], sig2_beta[0]));  // check calc twice => the same cost
+      ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost_nocache(trait_index, pi_vec[0], sig2_zero[0], sig2_beta[0]));
+      ASSERT_FLOAT_EQ(ugmg_cost, calc.calc_univariate_cost_cache_deriv(trait_index, pi_vec[0], sig2_zero[0], sig2_beta[0], 3, deriv));
 
       double bgmg_cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
       if (num_threads == 1) bgmg_costs[i] = bgmg_cost;
@@ -363,7 +364,7 @@ TEST(Test, RandomSeedAndThreading) {
             std::vector<float> weights2(num_tag, 0.0);
             weights2[tag_pdf_index] = 1.0;
             calc.set_weights(num_tag, &weights2[0]);
-            calc.calc_univariate_pdf(pi_vec[0], sig2_zero[0], sig2_beta[0], 1, &tm.zvec()->at(tag_pdf_index), &ugmg_pdf[tag_pdf_index]);
+            calc.calc_univariate_pdf(trait_index, pi_vec[0], sig2_zero[0], sig2_beta[0], 1, &tm.zvec()->at(tag_pdf_index), &ugmg_pdf[tag_pdf_index]);
             calc.calc_bivariate_pdf(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero, 1, &tm.zvec()->at(tag_pdf_index), &tm2.zvec()->at(tag_pdf_index), &bgmg_pdf[tag_pdf_index]);
           }
           calc.set_weights(num_tag, &weights[0]); // restore weights back to the original statse
@@ -389,6 +390,7 @@ TEST(Test, RandomSeedAndThreading) {
 }
 
 void test_tag_r2_caching() {
+  int trait_index = 1;
   int num_snp = 100;
   int num_tag = 50;
   int kmax = 200; // #permutations
@@ -425,7 +427,7 @@ void test_tag_r2_caching() {
   for (int j = 0; j < repeats_count; j++) {  // repeat the sequence 100 times and validate that we got the same cost.
     for (int i = 0; i < sequence_length; i++) {
       float pi = static_cast<float>(num_causal_sequence[i]) / static_cast<float>(num_snp);
-      double cost = calc.calc_univariate_cost(pi, 0.2, 0.15);
+      double cost = calc.calc_univariate_cost(trait_index, pi, 0.2, 0.15);
       if (j == 0) costs[i] = cost;
       ASSERT_FLOAT_EQ(cost, costs[i]);
     }
@@ -454,6 +456,7 @@ TEST(Test, tag_r2_caching) {
 // --gtest_filter=Test.performance
 TEST(Test, performance) {
   return;
+  int trait_index = 1;
   // ideally test with scale = 100. To speedup, use 10 or 1.
   for (int scale = 1; scale <= 100; scale *= 10) {
     SimpleTimer timer_prep(-1);
@@ -489,13 +492,13 @@ TEST(Test, performance) {
     float pivec[5] = { 0.0001, 0.0003, 0.001, 0.003, 0.01 };
     for (int repeat = 0; repeat < 5; repeat++) {
       SimpleTimer timer(-1);
-      double cost_float = calc.calc_univariate_cost_nocache_float(pivec[repeat], 0.2, 0.15);
+      double cost_float = calc.calc_univariate_cost_nocache_float(trait_index, pivec[repeat], 0.2, 0.15);
       int time_with_float = timer.elapsed_ms();
       std::cout << "float  cost: " << cost_float << ", time: " << time_with_float << " ms\n";
       ASSERT_TRUE(std::isfinite(cost_float));
 
       SimpleTimer timer2(-1);
-      double cost_double = calc.calc_univariate_cost_nocache_double(pivec[repeat], 0.2, 0.15);
+      double cost_double = calc.calc_univariate_cost_nocache_double(trait_index, pivec[repeat], 0.2, 0.15);
       int time_with_double = timer2.elapsed_ms();
       std::cout << "double cost: " << cost_double << ", time: " << time_with_double << " ms\n";
       ASSERT_TRUE(std::isfinite(cost_double));

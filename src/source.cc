@@ -130,17 +130,17 @@ int64_t bgmg_set_option(int context_id, char* option, double value) {
   } CATCH_EXCEPTIONS;
 }
 
-double bgmg_calc_univariate_cost(int context_id, double pi_vec, double sig2_zero, double sig2_beta) {
+double bgmg_calc_univariate_cost(int context_id, int trait_index, double pi_vec, double sig2_zero, double sig2_beta) {
   try {
     set_last_error(std::string());
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost(pi_vec, sig2_zero, sig2_beta);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost(trait_index, pi_vec, sig2_zero, sig2_beta);
   } CATCH_EXCEPTIONS;
 }
 
-double bgmg_calc_univariate_pdf(int context_id, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
+double bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
   try {
     set_last_error(std::string());
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_pdf(pi_vec, sig2_zero, sig2_beta, length, zvec, pdf);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_pdf(pi_vec, trait_index, sig2_zero, sig2_beta, length, zvec, pdf);
   } CATCH_EXCEPTIONS;
 }
 
@@ -210,10 +210,10 @@ int64_t bgmg_get_loglike_cache_bivariate_entry(int context_id, int entry_index, 
   } CATCH_EXCEPTIONS;
 }
 
-double bgmg_calc_univariate_cost_with_deriv(int context_id, double pi_vec, double sig2_zero, double sig2_beta, int deriv_length, double* deriv) {
+double bgmg_calc_univariate_cost_with_deriv(int context_id, int trait_index, double pi_vec, double sig2_zero, double sig2_beta, int deriv_length, double* deriv) {
   try {
     set_last_error(std::string());
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost_cache_deriv(pi_vec, sig2_zero, sig2_beta, deriv_length, deriv);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost_cache_deriv(trait_index, pi_vec, sig2_zero, sig2_beta, deriv_length, deriv);
   } CATCH_EXCEPTIONS;
 
 }

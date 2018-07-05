@@ -321,13 +321,13 @@ class BgmgCalculator {
   // This function may help us to make a better selection of informative tag variants.
   int64_t retrieve_weighted_causal_r2(int length, float* buffer);
 
-  double calc_univariate_cost(float pi_vec, float sig2_zero, float sig2_beta);
-  double calc_univariate_cost_cache(float pi_vec, float sig2_zero, float sig2_beta);
-  double calc_univariate_cost_cache_deriv(float pi_vec, float sig2_zero, float sig2_beta, int deriv_length, double* deriv); // find cost and first derivatives; arguments will be replaced with derivative values
-  double calc_univariate_cost_nocache(float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)
-  double calc_univariate_cost_nocache_float(float pi_vec, float sig2_zero, float sig2_beta);  // for testing single vs double precision
-  double calc_univariate_cost_nocache_double(float pi_vec, float sig2_zero, float sig2_beta); // for testing single vs double precision
-  int64_t calc_univariate_pdf(float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
+  double calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_univariate_cost_cache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_univariate_cost_cache_deriv(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int deriv_length, double* deriv); // find cost and first derivatives; arguments will be replaced with derivative values
+  double calc_univariate_cost_nocache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)
+  double calc_univariate_cost_nocache_float(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);  // for testing single vs double precision
+  double calc_univariate_cost_nocache_double(int trait_index, float pi_vec, float sig2_zero, float sig2_beta); // for testing single vs double precision
+  int64_t calc_univariate_pdf(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
 
   double calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   double calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
@@ -372,6 +372,9 @@ class BgmgCalculator {
   std::vector<float> weights_;
   std::vector<float> hvec_;
 
+  std::vector<float>* get_zvec(int trait_index);
+  std::vector<float>* get_nvec(int trait_index);
+
   std::shared_ptr<LdTagSum> ld_tag_sum_;
   LoglikeCache loglike_cache_;
 
@@ -393,11 +396,11 @@ class BgmgCalculator {
   bool cache_tag_r2sum_;
   void check_num_snp(int length);
   void check_num_tag(int length);
-  double calc_univariate_cost_fast(float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
 
   template<typename T>
-  friend double calc_univariate_cost_nocache_template(float pi_vec, float sig2_zero, float sig2_beta, BgmgCalculator& rhs);
+  friend double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, BgmgCalculator& rhs);
 };
 
 typedef TemplateManager<BgmgCalculator> BgmgCalculatorManager;

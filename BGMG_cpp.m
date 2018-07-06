@@ -123,7 +123,9 @@ classdef BGMG_cpp
         calllib('bgmg', 'bgmg_set_ld_r2_coo', obj.Context, length(r2), index_A, index_B, r2); obj.check(); 
     end
     function set_ld_r2_coo_from_file(obj, filename)
+        fprintf('Loading %s...', filename);
         calllib('bgmg', 'bgmg_set_ld_r2_coo_from_file', obj.Context, filename); obj.check(); 
+        fprintf('OK.\n'); 
     end
     function set_ld_r2_csr(obj)
         calllib('bgmg', 'bgmg_set_ld_r2_csr', obj.Context); obj.check();

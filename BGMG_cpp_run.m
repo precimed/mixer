@@ -340,6 +340,7 @@ options.fit_with_constrains = FIT_WITH_CONSTRAINS;
 
 if exist('true_params', 'var'), 
     % Do a quick fit to initialize sig2_zero and rho_zero
+    bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
      for trait_index = 1:2
          fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), struct('Display', 'on')));
          fit_sig2_zero  = fit(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', true_params.univariate{trait_index}.pi_vec, 'sig2_beta', true_params.univariate{trait_index}.sig2_beta)));

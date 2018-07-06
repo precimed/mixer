@@ -1,4 +1,4 @@
-function [figures, plot_data] = BGMG_cpp_qq_plot(params, zvec, options)
+function [figures, plot_data] = BGMG_cpp_qq_plot(params, zvec, trait_index, options)
     % QQ plot for data and model
 
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
@@ -36,7 +36,7 @@ function [figures, plot_data] = BGMG_cpp_qq_plot(params, zvec, options)
     % Calculate model_logpvec
     zgrid = single(0:0.05:15); 
     pBuffer = libpointer('singlePtr', zeros(length(zgrid), 1, 'single'));
-    calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, params.pi_vec, params.sig2_zero, params.sig2_beta, length(zgrid), zgrid, pBuffer);  check(); 
+    calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, int32(trait_index), params.pi_vec, params.sig2_zero, params.sig2_beta, length(zgrid), zgrid, pBuffer);  check(); 
     pdf = pBuffer.Value'; clear pBuffer
     pdf = pdf / sum(model_weights);
     if (zgrid(1) == 0), zgrid = [-fliplr(zgrid(2:end)) zgrid];pdf = [fliplr(pdf(2:end)) pdf]; end

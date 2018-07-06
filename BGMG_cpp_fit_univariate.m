@@ -93,7 +93,7 @@ function result = BGMG_cpp_fit_univariate(zvec, Nvec, options)
 end
 
 function cost = UGMG_fminsearch_cost(ov)
-    cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
+    cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
     fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
 end
  

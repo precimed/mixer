@@ -17,21 +17,22 @@
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.mat'; chr_labels = 1:22;
-randprune_r2_plink_ld_mat = ''; randprune_r2_defvec_threshold = nan;
-randprune_r2_plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.mat';
-%defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
-defvec_files = {};
-defvec_files = {'H:\Dropbox\shared\BGMG\defvecs\defvec_11m_infinium-omniexpress-24-v1-3-a1.mat', ...
-                'H:\Dropbox\shared\BGMG\defvecs\defvec_highld_regions.mat', ... 
-                'H:\Dropbox\shared\BGMG\defvecs\centromere_plus_3cm_locations.mat' };
-%trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
-%trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=9e-08_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
-trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
-%trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-04_pi2u=3e-04_pi12=3e-04_rep=10_tag1=completePolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
+plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1:22;
+%randprune_r2_plink_ld_mat = ''; randprune_r2_defvec_threshold = nan;
+%randprune_r2_plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.mat';
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
+%defvec_files = {};
+%defvec_files = {'H:\Dropbox\shared\BGMG\defvecs\defvec_11m_infinium-omniexpress-24-v1-3-a1.mat', ...
+%                'H:\Dropbox\shared\BGMG\defvecs\defvec_highld_regions.mat', ... 
+%                'H:\Dropbox\shared\BGMG\defvecs\centromere_plus_3cm_locations.mat' };
 
+filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity'
+%filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity'
+trait1_file = ['H:\work\simu_9pi_params\' filename '.trait1.mat']; trait1_nvec=100000;
+trait2_file = ['H:\work\simu_9pi_params\' filename '.trait2.mat']; trait2_nvec=100000;
+params_file = ['H:\work\simu_9pi_params\' filename '.params.mat'];
 
-kmax=1;
+kmax=1000;
 
 %trait1_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait1.mat'; trait1_nvec=100000;
 %trait2_file = 'H:\work\SIMU_HAPGEN_EUR_100K_11015883_traits\simu_h2=0.7_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=9e-06_rep=1_tag1=randomPolygenicOverlap_tag2=evenPolygenicity.trait2.mat'; trait2_nvec=100000;
@@ -84,7 +85,7 @@ calllib('bgmg', 'bgmg_init_log', [out_file, '.bgmglib.log']);
 % reference file containing mafvec, chrnumvec and posvec for all SNPs to consider in this analysis. 
 if ~exist('reference_file', 'var'), error('reference_file is required'); end;
 %fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'chrnumvec', 'posvec'); fprintf('OK.\n');
-fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file); fprintf('OK.\n');
+fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'posvec', 'chrnumvec'); fprintf('OK.\n');
 clear('defvec'); defvec_tmp = true(length(ref.mafvec), 1);
     
 % defvec_file determine the set of tag SNPs. It must have a binary variable "defvec" of the same length as defined by reference file ( 1 = tag snp, 0 = exclude from the analysis ). 
@@ -104,13 +105,45 @@ if EXCLUDE_MHC, defvec_mhc = ~((ref.chrnumvec == 6) & (ref.posvec > 25e6) & (ref
 % file per chromosome. Each file should have index_A, index_B, r2
 % variables. index_A and index_B corresponds to a zero-based index in the
 % reference template. @ indicates the label of the chromosome.
-if ~exist('plink_ld_mat', 'var'), error('plink_ld_mat is required'); end;
+if ~exist('plink_ld_bin', 'var'), error('plink_ld_bin is required'); end;
 if ~exist('chr_labels', 'var'), chr_labels = 1:22; end;
 
 if ~exist('trait1_file', 'var'), error('trait1_file is required'); end;
 if ~exist('trait2_file', 'var'), trait2_file = ''; end;
 if ~exist('trait1_nvec', 'var'), trait1_nvec = nan; end;
 if ~exist('trait2_nvec', 'var'), trait2_nvec = nan; end;
+if ~exist('params_file', 'var'), params_file = ''; end
+
+if ~isempty(params_file),
+    params = load(params_file);
+    params.sig2_zero = [1;1];
+    % Make sure that first component is specific to trait1, second
+    % component - specific to trait2, and third is pleiotropic component
+    idx = params.pi_vec_trait1 ~= 0 & params.pi_vec_trait2 == 0; assert(sum(idx) <= 1);
+    params.pi_vec_tmp(1) = sum(params.pi_vec_trait1(idx));
+    params.rho_beta_tmp(1) = sum(params.rho_beta(idx));
+    
+    idx = params.pi_vec_trait2 ~= 0 & params.pi_vec_trait1 == 0; assert(sum(idx) <= 1);
+    params.pi_vec_tmp(2) = sum(params.pi_vec_trait2(idx));
+    params.rho_beta_tmp(2) = sum(params.rho_beta(idx));
+    
+    idx = params.pi_vec_trait2 ~= 0 & params.pi_vec_trait1 ~= 0; assert(sum(idx) <= 1);
+    params.pi_vec_tmp(3) = sum(params.pi_vec_trait2(idx));
+    params.rho_beta_tmp(3) = sum(params.rho_beta(idx));
+    
+    params.pi_vec = params.pi_vec_tmp;
+    params.rho_beta = params.rho_beta_tmp;
+    params = rmfield(params, {'pi_vec_trait2', 'pi_vec_trait1', 'pi_vec_tmp', 'rho_beta_tmp'});
+    
+    if all(size(params.sig2_beta) == [2 1])
+        params.sig2_beta = [params.sig2_beta(1) 0 params.sig2_beta(1); 0 params.sig2_beta(2) params.sig2_beta(2)];
+    end
+
+    true_params = [];
+    true_params.univariate{1} = struct('sig2_zero', params.sig2_zero(1), 'pi_vec', sum(params.pi_vec([1 3])), 'sig2_beta', params.sig2_beta(1,1));
+    true_params.univariate{2} = struct('sig2_zero', params.sig2_zero(2), 'pi_vec', sum(params.pi_vec([2 3])), 'sig2_beta', params.sig2_beta(2,2));
+    true_params.bivariate = params;
+end
 
 fprintf('Loading %s...', trait1_file); trait1_data = load(trait1_file); fprintf('OK.\n'); num_components = 1;
 if (length(trait1_data.zvec) ~= length(ref.chrnumvec)), error('trait1_file is incompatible with the reference'); end;
@@ -128,7 +161,7 @@ if ~isempty(trait2_file),
     fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
 end
 
-if ~exist('randprune_n', 'var'), randprune_n = 100; end;
+if ~exist('randprune_n', 'var'), randprune_n = 16; end;
 if ~exist('randprune_r2', 'var'), randprune_r2 = 0.8; end;
 if ~exist('randprune_r2_weight_threshold', 'var'), randprune_r2_weight_threshold = nan; end; % SNPs with weight below this threshold are excluded from tag snps
 if ~exist('randprune_r2_defvec_threshold', 'var'), randprune_r2_defvec_threshold = nan; end; % 1 iterations at this threshold to reduce set of SNPs (as in defvec)
@@ -140,12 +173,14 @@ if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.02; end;
 if ~exist('cache_tag_r2sum', 'var'), cache_tag_r2sum = 1; end;
 
 if ~exist('DO_FIT', 'var'), DO_FIT = true; end;                % perform fitting
+if ~exist('FIT_INIT_TRUE_PARAMS', 'var'), FIT_INIT_TRUE_PARAMS = true; end;    % on synthetic data, init fit with true parameters
 if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                % use full model (when false, use gaussian approximation)
 if ~exist('FIT_WITH_CONSTRAINS', 'var'), FIT_WITH_CONSTRAINS = true; end;      % fit bivariate model with univariate constrains
 if ~exist('QQ_PLOT_TRUE', 'var'), QQ_PLOT_TRUE = false; end;   % make QQ plots with true parameters
 if ~exist('QQ_PLOT_FIT', 'var'), QQ_PLOT_FIT = false; end;     % make QQ plots with fitted parameters
 if ~exist('QQ_PLOT_DOWNSCALE', 'var'), QQ_PLOT_DOWNSCALE = 1; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('STRATIFIED_QQ_PLOT_FIT', 'var'), STRATIFIED_QQ_PLOT_FIT = false; end;
+if ~exist('STRATIFIED_QQ_PLOT_TRUE', 'var'), STRATIFIED_QQ_PLOT_TRUE = false; end;
 if ~exist('STRATIFIED_QQ_PLOT_DOWNSCALE', 'var'), STRATIFIED_QQ_PLOT_DOWNSCALE = 10; end;     % downscale #snps in stratified QQ plots (model prediction only)
 if ~exist('LOGLIKE_PLOT_FIT', 'var'), LOGLIKE_PLOT_FIT = false; end;
 if ~exist('LOGLIKE_PLOT_TRUE', 'var'), LOGLIKE_PLOT_TRUE = false; end;
@@ -275,25 +310,10 @@ if isfinite(THREADS), calllib('bgmg', 'bgmg_set_option', 0,  'threads', THREADS)
 calllib('bgmg', 'bgmg_set_hvec', 0, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
 
 for chr_index=1:length(chr_labels)
-    plink_ld_mat_chr = strrep(plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
-    fprintf('Loading %s...', plink_ld_mat_chr); tmp = load(plink_ld_mat_chr); fprintf('OK.\n');
-    tmp.index_A = tmp.index_A + 1; 
-    tmp.index_B = tmp.index_B + 1; % 0-based, comming from python
-    fprintf('Importing %s to bgmg library...', plink_ld_mat_chr); 
-    
-    % chunk all LD r2 elements into pieces, each no more than 1e6.
-    chunks_up = length(tmp.r2); chunks_step = 10000000;
-    chunks = 1:chunks_step:chunks_up; 
-    if (length(chunks) >= 3), chunks_start = chunks(1:end-1); chunks_end = [chunks(2:(end-1))-1 chunks_up];
-    else chunks_start = 1; chunks_end=chunks_up; end;
-    if (sum(chunks_end - chunks_start + 1) ~= chunks_up), error('error in chunking logig'); end;
-    
-    for chunk_index = 1:length(chunks_start)
-        a = chunks_start(chunk_index); b = chunks_end(chunk_index);
-        calllib('bgmg', 'bgmg_set_ld_r2_coo', 0, b-a+1, m2c(tmp.index_A(a:b)), m2c(tmp.index_B(a:b)), tmp.r2(a:b)); fprintf('OK.\n'); check(); 
-    end
-    
-    clear('tmp', 'plink_ld_mat_chr', 'a', 'b', 'chunk_index', 'chunk_start', 'chunk_end', 'chunks_step', 'chunk_up');
+    plink_ld_bin_chr = strrep(plink_ld_bin,'@', sprintf('%i',chr_labels(chr_index)));
+    fprintf('Loading %s...', plink_ld_bin_chr);
+    calllib('bgmg', 'bgmg_set_ld_r2_coo_from_file', 0, plink_ld_bin_chr); check(); fprintf('OK.\n'); 
+    clear('plink_ld_bin_chr');
 end; clear('chr_index');
 
 calllib('bgmg', 'bgmg_set_ld_r2_csr', 0);  check();
@@ -319,18 +339,28 @@ options.title = TITLE;
 options.fit_full_model = FIT_FULL_MODEL;
 options.fit_with_constrains = FIT_WITH_CONSTRAINS;
 
-% Save true parameters (if available)
-if isfield(trait1_data, 'causal_pi'), options.causal_pi_T1 = trait1_data.causal_pi; end;
-if isfield(trait1_data, 'sigsq'), options.sigsq_T1 = trait1_data.sigsq; end;
-if ~isempty(trait2_file),
-    if isfield(trait2_data, 'causal_pi'), options.causal_pi_T2 = trait2_data.causal_pi; end;
-    if isfield(trait2_data, 'sigsq'), options.sigsq_T2 = trait2_data.sigsq; end;
-end
+if exist('true_params', 'var'), 
+    % Do a quick fit to initialize sig2_zero and rho_zero
+     for trait_index = 1:2
+         fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), struct('Display', 'on')));
+         fit_sig2_zero  = fit(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', true_params.univariate{trait_index}.pi_vec, 'sig2_beta', true_params.univariate{trait_index}.sig2_beta)));
+         true_params.univariate{trait_index}.sig2_zero = fit_sig2_zero.sig2_zero;
+     end
+     
+     fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), struct('Display', 'on')));
+     fit_rho_zero = fit(...
+         struct('rho_zero', 0.1), ...
+         @(x)BGMG_util.BGMG_mapparams3(x, struct(...
+            'sig2_zero', [true_params.univariate{1}.sig2_zero, true_params.univariate{2}.sig2_zero], ... 
+            'sig2_beta', true_params.bivariate.sig2_beta, ...
+            'rho_beta', true_params.bivariate.rho_beta, ...
+            'pi_vec', true_params.bivariate.pi_vec)));
+    true_params.bivariate.rho_zero = fit_rho_zero.rho_zero;
+
+    options.true_params = true_params;
+end;
 
 disp(options)
-
-% [params, ci, ci_hess, ci_hess_err, ci_params] = BGMG_cpp_fit_univariate(zvec, Nvec, options)
-
 
 % Fit bivariate or univariate model to the data
 if DO_FIT
@@ -365,15 +395,9 @@ calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
 % Produce QQ plots with true params (only works for synthetic data, of course)
 if QQ_PLOT_TRUE
     for trait_index = 1:(1 + ~isempty(trait2_file))
-        if trait_index==1
-            qq_params = struct('sig2_zero', 1, 'pi_vec', sum(trait1_data.causal_pi), 'sig2_beta', trait1_data.sigsq);
-            qq_data = trait1_data;
-        else
-            qq_params = struct('sig2_zero', 1, 'pi_vec', sum(trait2_data.causal_pi), 'sig2_beta', trait2_data.sigsq);
-            qq_data = trait2_data;
-        end
+        if trait_index==1, qq_data = trait1_data; else qq_data = trait2_data; end
         options.downscale = QQ_PLOT_DOWNSCALE;
-        [figures, plot_data] = BGMG_cpp_qq_plot(qq_params, qq_data.zvec(defvec), options);
+        [figures, plot_data] = BGMG_cpp_qq_plot(true_params.univariate{trait_index}, qq_data.zvec(defvec), trait_index, options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
         result.univariate{trait_index}.qq_plot_true_data = plot_data;
@@ -384,15 +408,9 @@ end
 % Produce QQ plots with fitted params
 if QQ_PLOT_FIT
     for trait_index = 1:length(result.univariate)
-        if trait_index==1
-            qq_params = result.univariate{trait_index}.params;
-            qq_data = trait1_data;
-        else
-            qq_params = result.univariate{trait_index}.params;
-            qq_data = trait2_data;
-        end
+        if trait_index==1, qq_data = trait1_data; else qq_data = trait2_data; end
         options.downscale = QQ_PLOT_DOWNSCALE;
-        [figures, plot_data] = BGMG_cpp_qq_plot(qq_params, qq_data.zvec(defvec), options);
+        [figures, plot_data] = BGMG_cpp_qq_plot(result.univariate{trait_index}, qq_data.zvec(defvec), trait_index, options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
         result.univariate{trait_index}.qq_plot_fit_data = plot_data;
@@ -400,8 +418,15 @@ if QQ_PLOT_FIT
     end
 end
 
+if STRATIFIED_QQ_PLOT_TRUE && ~isempty(params_file) && ~isempty(trait2_file)
+    zmat = [trait1_data.zvec, trait2_data.zvec]; 
+    options.downscale = STRATIFIED_QQ_PLOT_DOWNSCALE;
+    [figures, plot_data] = BGMG_cpp_stratified_qq_plot(true_params.bivariate, zmat(defvec, :), options);
+    result.bivariate.stratified_qq_plot_fit_data = plot_data;
+    print(figures.tot, sprintf('%s.stratqq.fit.pdf', out_file), '-dpdf')
+end
+
 if STRATIFIED_QQ_PLOT_FIT && (DO_FIT || ~isempty(init_result_from_out_file)) && ~isempty(trait2_file)
-    %ov=[]; ov.pi_vec = [0, 0, trait1_data.causal_pi];     ov.sig2_beta = [trait1_data.sigsq, trait2_data.sigsq];     ov.sig2_zero = [1, 1];    ov.rho_zero = 0; ov.rho_beta = 0;
     zmat = [trait1_data.zvec, trait2_data.zvec]; 
     options.downscale = STRATIFIED_QQ_PLOT_DOWNSCALE;
     [figures, plot_data] = BGMG_cpp_stratified_qq_plot(result.bivariate.params, zmat(defvec, :), options);
@@ -420,31 +445,10 @@ if LOGLIKE_PLOT_FIT && (DO_FIT || ~isempty(init_result_from_out_file)) && ~isemp
     %subplot(3,3,7); legend('random overlap', 'full overlap');
 end
 
-if LOGLIKE_PLOT_TRUE && ~isempty(trait2_file)
-    if ~DO_FIT && isempty(init_result_from_out_file)
-        error('LOGLIKE_PLOT_TRUE require DO_FIT (yes, despite we build loglike curves around true params');
-    else
-        result_sig0_rho0 = result;
-    end
-
-    true_params = [];
-    pi1u = trait1_data.causal_pi;
-    pi2u = trait2_data.causal_pi;
-    if ~isempty(strfind(trait1_file, 'random')) % <-------- TBD; this needs to be fixed, we need to save true pi_vec somewhere.
-        pi12 = sum(pi1u)*sum(pi2u);
-    else
-        pi12 = sum(pi1u(pi1u>0 & pi2u>0));
-    end
-    pi1u=sum(pi1u); pi2u=sum(pi2u);
-    true_params.pi_vec = [pi1u - pi12, pi2u - pi12, pi12];
-    true_params.sig2_beta = [trait1_data.sigsq,0,trait1_data.sigsq; 0, trait1_data.sigsq, trait2_data.sigsq];
-    true_params.rho_beta = [0.0 0.0 0.0];  % <-------- TBD; this needs to be fixed, we need to save true rho_beta somewhere.
-    true_params.sig2_zero = result_sig0_rho0.bivariate.params.sig2_zero;
-    true_params.rho_zero = result_sig0_rho0.bivariate.params.rho_zero;
-    
+if LOGLIKE_PLOT_TRUE && ~isempty(trait2_file) && ~isempty(params_file)
     calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', ~FIT_FULL_MODEL); check();
     calllib('bgmg', 'bgmg_clear_loglike_cache', 0); check();
-    [figures, plots_data] = BGMG_cpp_loglike_plot(true_params);
+    [figures, plots_data] = BGMG_cpp_loglike_plot(true_params.bivariate);
     result.bivariate.loglike_plot_data_true = plots_data;
     result.bivariate.loglike_plot_trajectory_true = BGMG_util.extract_bivariate_loglike_trajectory();
     
@@ -601,8 +605,8 @@ if 0
     fminsearch_options = struct('Display', 'iter');
     mapparams = @(x)struct('pi_vec', x(1), 'sig2_zero', x(2), 'sig2_beta', x(3));
     calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', 1); check();
-    UGMG_fminsearch_cost = @(ov)calllib('bgmg', 'bgmg_calc_univariate_cost_with_deriv', 0, ov.pi_vec, ov.sig2_zero, ov.sig2_beta, 3, pBuffer);
-    UGMG_fminsearch_cost2 = @(ov)calllib('bgmg', 'bgmg_calc_univariate_cost', 0, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
+    UGMG_fminsearch_cost = @(ov)calllib('bgmg', 'bgmg_calc_univariate_cost_with_deriv', 0, trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta, 3, pBuffer);
+    UGMG_fminsearch_cost2 = @(ov)calllib('bgmg', 'bgmg_calc_univariate_cost', 0, trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
     fit = @(x0)fminsearch(@(x)UGMG_fminsearch_cost(mapparams(x)), x0, fminsearch_options);
     
     tic;UGMG_fminsearch_cost(p0);toc
@@ -654,7 +658,7 @@ if 0
     
     zgrid = single(0:0.05:15); 
     pBuffer = libpointer('singlePtr', zeros(length(zgrid), 1, 'single'));
-    calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, params.pi_vec, params.sig2_zero, params.sig2_beta, length(zgrid), zgrid, pBuffer);  check(); 
+    calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, trait_index, params.pi_vec, params.sig2_zero, params.sig2_beta, length(zgrid), zgrid, pBuffer);  check(); 
     pdf = pBuffer.Value'; clear pBuffer
     pdf = pdf / sum(model_weights);
     if (zgrid(1) == 0), zgrid = [-fliplr(zgrid(2:end)) zgrid];pdf = [fliplr(pdf(2:end)) pdf]; end
@@ -667,4 +671,19 @@ if 0
     hData  = plot(data_logpvec, hv_logp, '-', 'LineWidth',1); hold on;
     hModel = plot(model_logpvec,hv_logp, '-', 'LineWidth',1); hold on;
  
+end
+
+
+if 0
+    % re-save LD info in C++ format
+    for chr_index=1:length(chr_labels)
+        plink_ld_mat_chr = strrep(plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
+        fprintf('Loading %s...', plink_ld_mat_chr); tmp = load(plink_ld_mat_chr); fprintf('OK.\n');
+        fileID = fopen([plink_ld_mat_chr(1:end-4) '.bin'],'w');
+        fwrite(fileID,uint64(length(tmp.index_A)),'uint64');
+        fwrite(fileID,int32(tmp.index_A),'int32');
+        fwrite(fileID,int32(tmp.index_B),'int32');
+        fwrite(fileID,single(tmp.r2),'single');
+        fclose(fileID);
+    end
 end

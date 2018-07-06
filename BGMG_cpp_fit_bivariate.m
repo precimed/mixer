@@ -26,7 +26,7 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
 
     if size(zmat, 2) ~= 2, error('BGMG_cpp_fit_bivariate supports 2 traits'); end;
 
-    fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
+    fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
 
     corrmat = corr(zmat(all(~isnan(zmat), 2), :));
 
@@ -37,11 +37,11 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
     options_inft = struct('sig2_zero', [params1.sig2_zero; params2.sig2_zero], ...
                           'sig2_beta', [params1.pi_vec * params1.sig2_beta; params2.pi_vec * params2.sig2_beta], ...
                           'pi_vec', 1);
-    params_inft  = fit(params_inft0, @(x)BGMG_mapparams1_rho(x, options_inft));
+    params_inft  = fit(params_inft0, @(x)BGMG_util.BGMG_mapparams1_rho(x, options_inft));
 
     % Step2. Final unconstrained optimization (jointly on all parameters), using fast cost function
-    func_map_params = @(x)BGMG_mapparams3(x, struct('sig2_zero', [params1.sig2_zero; params2.sig2_zero], 'sig2_beta', [params1.sig2_beta; params2.sig2_beta], 'rho_zero', params_inft.rho_zero));
-    if ~options.fit_with_constrains,  func_map_params = @(x)BGMG_mapparams3(x); end
+    func_map_params = @(x)BGMG_util.BGMG_mapparams3(x, struct('sig2_zero', [params1.sig2_zero; params2.sig2_zero], 'sig2_beta', [params1.sig2_beta; params2.sig2_beta], 'rho_zero', params_inft.rho_zero));
+    if ~options.fit_with_constrains,  func_map_params = @(x)BGMG_util.BGMG_mapparams3(x); end
 
     fprintf('Trait 1,2: final unconstrained optimization (fast cost function)\n');
 
@@ -65,7 +65,7 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
     if ~isnan(options.ci_alpha)
         fprintf('Trait 1,2: uncertainty estimation\n');
         %ws=warning; warning('off', 'all');
-        [ci_hess, ci_hess_err] = hessian(@(x)BGMG_fminsearch_cost(BGMG_mapparams3(x)), BGMG_mapparams3(result.params));
+        [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.BGMG_fminsearch_cost(BGMG_util.BGMG_mapparams3(x)), BGMG_util.BGMG_mapparams3(result.params));
         result.ci_hess = ci_hess;
         result.ci_hess_err = ci_hess_err;
         %warning(ws);
@@ -82,10 +82,10 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
             % such hessian elements in the code below.
             ci_hess(diag(any(abs(inv(ci_hess)) > 1e10))) = +Inf;
 
-            ci_sample = mvnrnd(BGMG_mapparams3(result.params), inv(ci_hess), options.ci_sample);
+            ci_sample = mvnrnd(BGMG_util.BGMG_mapparams3(result.params), inv(ci_hess), options.ci_sample);
 
             ci_params = cell(options.ci_sample, 1);
-            for i=1:options.ci_sample, ci_params{i} = BGMG_mapparams3(ci_sample(i, :)); end;
+            for i=1:options.ci_sample, ci_params{i} = BGMG_util.BGMG_mapparams3(ci_sample(i, :)); end;
         catch err
             fprintf('Error, %s\n', err.message);
         end
@@ -103,71 +103,5 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
     end
 end
 
-function cost = BGMG_fminsearch_cost(ov)
-    if (length(ov.pi_vec) == 1)
-        % pleiotropic model (one component with shared effects)
-        cost = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, [0 0 ov.pi_vec], 2, ov.sig2_beta, ov.rho_beta, 2, ov.sig2_zero, ov.rho_zero);
-    elseif (length(ov.pi_vec) == 3)
-        % full model
-        cost = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, ov.pi_vec, 2, ov.sig2_beta(:, 3), ov.rho_beta(3), 2, ov.sig2_zero, ov.rho_zero);
-    else
-        error('not implemented');
-    end
 
-    filt = @(x)unique(x(x~=0));
-    fprintf('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], sig2_beta2=[%s], rho_zero=%.3f, sig2_zero=[%s], cost=%.3e\n', ...
-        sprintf('%.3e ', ov.pi_vec), ...
-        sprintf('%.3f ', filt(ov.rho_beta)), ...
-        sprintf('%.2e ', filt(ov.sig2_beta(1, :))), ...
-        sprintf('%.2e ', filt(ov.sig2_beta(2, :))), ...
-        ov.rho_zero, ...
-        sprintf('%.3f ', ov.sig2_zero), cost);
-    if ~isfinite(cost), cost=1e99; end;
-end
-
-function ov = BGMG_mapparams1_rho(iv, options)
-    % mapparams for bivaraite mixture with a one causal pleiotropic component
-    % all params except rho_zero and rho_beta must be fixed by options
-    if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
-    if ~isfield(options, 'rho_beta'), options.rho_beta = nan; end;
-
-    is_packing = isstruct(iv); cnti = 1;
-    if is_packing, ov = []; else ov = options; end;
-    
-    [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
-    [ov, ~] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
-end
-
-function ov = BGMG_mapparams3(iv, options)
-    % mapparams for saturated bivaraite mixture with a three causal component
-    % (trait1-specific, trait2-specific, and pleiotropic components)
-    % pleiotropic component re-use the same sig2_beta as trait-specific
-    % components.
-
-    if ~exist('options', 'var'), options=[]; end;
-    if ~isfield(options, 'pi_vec'), options.pi_vec = [nan nan nan]; end;
-    if ~isfield(options, 'sig2_zero'), options.sig2_zero = [nan; nan]; end;
-    if ~isfield(options, 'sig2_beta'), options.sig2_beta = [nan; nan]; end;
-    if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
-    if ~isfield(options, 'rho_beta'), options.rho_beta = [0 0 nan]; end;
-
-    is_packing = isstruct(iv); cnti = 1;
-    if is_packing, ov = []; else ov = struct(); end;
-    
-    [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.logit_amd, 'pi_vec');
-    [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp3_amd, 'sig2_zero');
-    [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
-    [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
-    
-    % Tricks to map sig2_beta from two-vector into 2x3 matrix with two zero
-    % elements and equal variances in trait-specific and pleiotropic components.
-    if is_packing
-        iv.sig2_beta = iv.sig2_beta(:,3);
-        [ov, ~] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
-    else
-        [ov, ~] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp_amd, 'sig2_beta');
-        s1 = ov.sig2_beta(1); s2 = ov.sig2_beta(2);
-        ov.sig2_beta = [s1 0 s1; 0 s2 s2];
-    end
-end
 

@@ -58,7 +58,7 @@ function result = BGMG_cpp_fit_kl_univariate(zvec, Nvec, options)
 end
 
 function cost = UGMG_fminsearch_cost(ov)
-    cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
+    cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
     fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
 end
 
@@ -86,7 +86,7 @@ function model_logpvec = calc_model_logpvec(params, hv_z, model_weights)
     check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
 
     pBuffer = libpointer('singlePtr', zeros(length(hv_z), 1, 'single'));
-    calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, params.pi_vec, params.sig2_zero, params.sig2_beta, length(hv_z), hv_z, pBuffer);  check(); 
+    calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, trait_index, params.pi_vec, params.sig2_zero, params.sig2_beta, length(hv_z), hv_z, pBuffer);  check(); 
     pdf = pBuffer.Value'; clear pBuffer
     pdf = pdf / sum(model_weights);
     model_cdf = cumsum(pdf)  * (hv_z(2) - hv_z(1)) ;

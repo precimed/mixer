@@ -7,6 +7,7 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
 
     bgmglib = BGMG_cpp();
     weights_bgmg = bgmglib.weights;
+    zmat = [bgmglib.zvec1, bgmglib.zvec2];
 
     % Check that weights and zvec are all defined
     if any(~isfinite(zmat(:))), error('all values must be defined'); end;

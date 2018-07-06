@@ -1,6 +1,4 @@
-function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
-    % zmat      - matrix SNP x 2, z scores
-    % Nmat      - number of subjects genotyped per SNP
+function result = BGMG_cpp_fit_bivariate(params1, params2, options)
     % params1   - univariate parameters for the first trait
     % params2   - univariate parameters for the second trait    
     % options   - options; see the below for a full list of configurable options
@@ -16,18 +14,15 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
     if ~isfield(options, 'fit_full_model'), options.fit_full_model = true; end;  % whether to fit full model
     if ~isfield(options, 'fit_with_constrains'), options.fit_with_constrains = true; end;  % whether to keep constrains from univariate model
     
-    if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
-
     bgmglib = BGMG_cpp();
     bgmglib.clear_loglike_cache();
  
     fminsearch_options = struct('Display', 'on');
     if ~isnan(options.MaxFunEvals), fminsearch_options.MaxFunEvals=options.MaxFunEvals; end;
 
-    if size(zmat, 2) ~= 2, error('BGMG_cpp_fit_bivariate supports 2 traits'); end;
-
     fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
 
+    zmat = [bgmglib.zvec1, bgmglib.zvec2];
     corrmat = corr(zmat(all(~isnan(zmat), 2), :));
 
     fprintf('Trait 1,2: fit infinitesimal model to find initial rho_zero and rho_beta (fast cost function)\n');

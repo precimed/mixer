@@ -16,17 +16,21 @@ function result = BGMG_cpp_fit_univariate(trait_index, options)
     if ~isfield(options, 'params0'), options.params0 = []; end; % initial approximation
     result = [];
 
+    bgmglib = BGMG_cpp();
+    zvec = bgmglib.get_zvec(trait_index);
+    nvec = bgmglib.get_zvec(trait_index);
+    
     fminsearch_options = struct('Display', 'on');
     if ~isnan(options.MaxFunEvals), fminsearch_options.MaxFunEvals=options.MaxFunEvals; end;
 
-    fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
+    fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), fminsearch_options));
 
     % Try to find initial approximation
     if isempty(options.params0)
         fprintf('Fit infinitesimal model to find initial sig2_zero (fast cost function)\n');
         bgmglib.set_option('fast_cost', 1);
 
-        params_inft0 = struct('sig2_zero', var(zvec(~isnan(zvec))), 'sig2_beta', 1 ./ mean(Nvec(~isnan(Nvec))));
+        params_inft0 = struct('sig2_zero', var(zvec(~isnan(zvec))), 'sig2_beta', 1 ./ mean(nvec(~isnan(nvec))));
         params_inft  = fit(params_inft0, @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', 1.0)));
         
         % Stop at infinitesimal model (if requested by user)
@@ -60,7 +64,7 @@ function result = BGMG_cpp_fit_univariate(trait_index, options)
     if ~isnan(options.ci_alpha)  % not implemented
         fprintf('Uncertainty estimation\n');
         %ws=warning; warning('off', 'all'); 
-        [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(BGMG_util.UGMG_mapparams1(x)), BGMG_util.UGMG_mapparams1(result.params)); 
+        [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(BGMG_util.UGMG_mapparams1(x), trait_index), BGMG_util.UGMG_mapparams1(result.params)); 
         result.loglike_ci_trajectory = bgmglib.extract_univariate_loglike_trajectory();
         result.ci_hess = ci_hess;
         result.ci_hess_err = ci_hess_err;

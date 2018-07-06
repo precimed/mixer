@@ -1,4 +1,4 @@
-function [figures, plot_data] = BGMG_cpp_qq_plot(params, zvec, trait_index, options)
+function [figures, plot_data] = BGMG_cpp_qq_plot(params, trait_index, options)
     % QQ plot for data and model
 
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
@@ -7,6 +7,7 @@ function [figures, plot_data] = BGMG_cpp_qq_plot(params, zvec, trait_index, opti
 
     bgmglib = BGMG_cpp();
     weights_bgmg = bgmglib.weights;
+    zvec = bgmglib.get_zvec(trait_index);
 
     % Check that weights and zvec are all defined
     if any(~isfinite(zvec)), error('all values must be defined'); end;

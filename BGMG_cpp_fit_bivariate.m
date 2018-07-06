@@ -18,8 +18,8 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
     
     if any(Nmat(:) <= 0), error('Nmat values must be positive'); end;
 
-    check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-    calllib('bgmg', 'bgmg_clear_loglike_cache', 0); check();
+    bgmglib = BGMG_cpp();
+    bgmglib.clear_loglike_cache();
  
     fminsearch_options = struct('Display', 'on');
     if ~isnan(options.MaxFunEvals), fminsearch_options.MaxFunEvals=options.MaxFunEvals; end;
@@ -31,7 +31,7 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
     corrmat = corr(zmat(all(~isnan(zmat), 2), :));
 
     fprintf('Trait 1,2: fit infinitesimal model to find initial rho_zero and rho_beta (fast cost function)\n');
-    calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', 1); check();
+    bgmglib.set_option('fast_cost', 1);
 
     params_inft0 = struct('rho_zero', corrmat(1,2), 'rho_beta', corrmat(1,2));
     options_inft = struct('sig2_zero', [params1.sig2_zero; params2.sig2_zero], ...
@@ -53,7 +53,7 @@ function result = BGMG_cpp_fit_bivariate(zmat, Nmat, params1, params2, options)
 
     params_fast = fit(params_final0, func_map_params);
 
-    calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', 0); check();
+    bgmglib.set_option('fast_cost', 0);
     if options.fit_full_model
         fprintf('Trait 1,2: final unconstrained optimization (full cost function)\n');
         result.params = fit(params_fast, func_map_params);

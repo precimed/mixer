@@ -1,8 +1,8 @@
 function [figures, plots_data] = BGMG_cpp_loglike_plot(params)
     plots_data = {}; figures.tot = figure; hold on;
 
+    bgmglib = BGMG_cpp();
 	logspace_43 = logspace(log10(3/4), log10(4/3), 21);
-    check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
 
     pi1u = sum(params.pi_vec([1 3]));
     pi2u = sum(params.pi_vec([2 3]));
@@ -16,7 +16,7 @@ function [figures, plots_data] = BGMG_cpp_loglike_plot(params)
         pi_vec = [(1-x), (1-x), x] * pi1u;
         sig2_beta = [dat_trait1.sigsq, dat_trait2.sigsq];
         sig2_zero = params.sig2_zero; rho_beta = params.rho_beta(end); rho_zero = params.rho_zero;
-        plots_data.(plot_name).y(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
+        plots_data.(plot_name).y(end+1, 1) = BGMG_cpp.calc_bivariate_cost(pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
     end;
 
     plot_name = 'pivec_scale';
@@ -25,7 +25,7 @@ function [figures, plots_data] = BGMG_cpp_loglike_plot(params)
         pi_vec = [x, x, x] .* [pi1u-pi12, pi2u-pi12, pi12];
         sig2_beta = [dat_trait1.sigsq, dat_trait2.sigsq];
         sig2_zero = params.sig2_zero; rho_beta = params.rho_beta(end); rho_zero = params.rho_zero;
-        plots_data.(plot_name).y(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
+        plots_data.(plot_name).y(end+1, 1) = BGMG_cpp.calc_bivariate_cost(pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
     end;
 
     plot_name = 'sig2beta_scale';
@@ -34,7 +34,7 @@ function [figures, plots_data] = BGMG_cpp_loglike_plot(params)
         pi_vec = [pi1u-pi12, pi2u-pi12, pi12];
         sig2_beta = [x, x] .* [dat_trait1.sigsq, dat_trait2.sigsq];
         sig2_zero = params.sig2_zero; rho_beta = params.rho_beta(end); rho_zero = params.rho_zero;
-        plots_data.(plot_name).y(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
+        plots_data.(plot_name).y(end+1, 1) =  BGMG_cpp.calc_bivariate_cost(pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
     end;
 
     plot_name = 'sig2zero';
@@ -43,7 +43,7 @@ function [figures, plots_data] = BGMG_cpp_loglike_plot(params)
         pi_vec = [pi1u-pi12, pi2u-pi12, pi12];
         sig2_beta = [dat_trait1.sigsq, dat_trait2.sigsq];
         sig2_zero = params.sig2_zero * x; rho_beta = params.rho_beta(end); rho_zero = params.rho_zero;
-        plots_data.(plot_name).y(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
+        plots_data.(plot_name).y(end+1, 1) =  BGMG_cpp.calc_bivariate_cost(pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
     end;
 
     plot_name = 'rhozero';
@@ -52,7 +52,7 @@ function [figures, plots_data] = BGMG_cpp_loglike_plot(params)
         pi_vec = [pi1u-pi12, pi2u-pi12, pi12];
         sig2_beta = [dat_trait1.sigsq, dat_trait2.sigsq];
         sig2_zero = params.sig2_zero; rho_beta = params.rho_beta(end); rho_zero = x;
-        plots_data.(plot_name).y(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
+        plots_data.(plot_name).y(end+1, 1) =  BGMG_cpp.calc_bivariate_cost(pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
     end;
 
     plot_name = 'rhobeta';
@@ -61,7 +61,7 @@ function [figures, plots_data] = BGMG_cpp_loglike_plot(params)
         pi_vec = [pi1u-pi12, pi2u-pi12, pi12];
         sig2_beta = [dat_trait1.sigsq, dat_trait2.sigsq];
         sig2_zero = params.sig2_zero; rho_beta = x; rho_zero = params.rho_zero;
-        plots_data.(plot_name).y(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
+        plots_data.(plot_name).y(end+1, 1) =  BGMG_cpp.calc_bivariate_cost(pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
     end;
 
     plot_name = 'pivec_scale_const_h2';
@@ -70,7 +70,7 @@ function [figures, plots_data] = BGMG_cpp_loglike_plot(params)
         pi_vec = [x, x, x] .* [pi1u-pi12, pi2u-pi12, pi12];
         sig2_beta = [1./x, 1./x] .* [dat_trait1.sigsq, dat_trait2.sigsq];
         sig2_zero = params.sig2_zero; rho_beta = params.rho_beta(end); rho_zero = params.rho_zero;
-        plots_data.(plot_name).y(end+1, 1) = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);  check(); 
+        plots_data.(plot_name).y(end+1, 1) =  BGMG_cpp.calc_bivariate_cost(pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero);
     end;
     
     fnames = fieldnames(plots_data);

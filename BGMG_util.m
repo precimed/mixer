@@ -383,66 +383,14 @@ classdef BGMG_util
         end
     end
     
-    function loglike_trajectory = extract_univariate_loglike_trajectory() 
-        check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-        num_loglike_entries = calllib('bgmg', 'bgmg_get_loglike_cache_size', 0);
-        pBuffer_pivec = libpointer('singlePtr', zeros(1, 1, 'single'));
-        pBuffer_sig2zero = libpointer('singlePtr', zeros(1, 1, 'single'));
-        pBuffer_sig2beta = libpointer('singlePtr', zeros(1, 1, 'single'));
-        pBuffer_cost = libpointer('doublePtr', zeros(1, 1, 'double'));
-        loglike_trajectory=[];
-        loglike_trajectory.pivec = zeros(num_loglike_entries, 1);
-        loglike_trajectory.sig2zero = zeros(num_loglike_entries, 1);
-        loglike_trajectory.sig2beta = zeros(num_loglike_entries, 1);
-        loglike_trajectory.cost = zeros(num_loglike_entries, 1);
-        for i=1:num_loglike_entries
-            calllib('bgmg', 'bgmg_get_loglike_cache_univariate_entry', 0, i-1, pBuffer_pivec, pBuffer_sig2zero, pBuffer_sig2beta, pBuffer_cost);  check(); 
-            loglike_trajectory.pivec(i) = pBuffer_pivec.Value;
-            loglike_trajectory.sig2zero(i) = pBuffer_sig2zero.Value;
-            loglike_trajectory.sig2beta(i) = pBuffer_sig2beta.Value;
-            loglike_trajectory.cost(i) = pBuffer_cost.Value;
-        end
-        clear pBuffer_pivec pBuffer_sig2zero pBuffer_sig2beta pBuffer_cost
-    end
-    
-    function loglike_trajectory = extract_bivariate_loglike_trajectory() 
-        check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-        num_loglike_entries = calllib('bgmg', 'bgmg_get_loglike_cache_size', 0);
-        pBuffer_pivec = libpointer('singlePtr', zeros(1, 3, 'single'));
-        pBuffer_sig2beta = libpointer('singlePtr', zeros(1, 2, 'single'));
-        pBuffer_rho_beta = libpointer('singlePtr', zeros(1, 1, 'single'));
-        pBuffer_sig2zero = libpointer('singlePtr', zeros(1, 2, 'single'));
-        pBuffer_rho_zero = libpointer('singlePtr', zeros(1, 1, 'single'));
-        pBuffer_cost = libpointer('doublePtr', zeros(1, 1, 'double'));
-        loglike_trajectory=[];
-        loglike_trajectory.pivec = zeros(num_loglike_entries, 3);
-        loglike_trajectory.sig2beta = zeros(num_loglike_entries, 2);
-        loglike_trajectory.rho_beta = zeros(num_loglike_entries, 1);
-        loglike_trajectory.sig2zero = zeros(num_loglike_entries, 2);
-        loglike_trajectory.rho_zero = zeros(num_loglike_entries, 1);
-        loglike_trajectory.cost = zeros(num_loglike_entries, 1);
-        for i=1:num_loglike_entries
-            calllib('bgmg', 'bgmg_get_loglike_cache_bivariate_entry', 0, i-1, 3, pBuffer_pivec, 2, pBuffer_sig2beta, pBuffer_rho_beta, 2, pBuffer_sig2zero, pBuffer_rho_zero, pBuffer_cost);  check(); 
-            loglike_trajectory.pivec(i, :) = pBuffer_pivec.Value;
-            loglike_trajectory.sig2beta(i, :) = pBuffer_sig2beta.Value;
-            loglike_trajectory.rho_beta(i) = pBuffer_rho_beta.Value;
-            loglike_trajectory.sig2zero(i, :) = pBuffer_sig2zero.Value;
-            loglike_trajectory.rho_zero(i) = pBuffer_rho_zero.Value;
-            loglike_trajectory.cost(i) = pBuffer_cost.Value;
-        end
-        result.loglike_fit_trajectory = loglike_trajectory;
-        clear pBuffer_pivec pBuffer_sig2zero pBuffer_sig2beta pBuffer_cost pBuffer_rho_beta pBuffer_rho_zero
-
-    end
-    
     function cost = UGMG_fminsearch_cost(ov, trait_index)
-        cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
+        cost = BGMG_cpp().calc_univariate_cost(trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
         fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
     end
     
     function cost = UGMG_CPP_fminsearch_cost(iv, trait_index)
         ov = BGMG_util.UGMG_mapparams1(iv);
-        cost = calllib('bgmg', 'bgmg_calc_univariate_cost', 0, trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
+        cost = BGMG_cpp().calc_univariate_cost(trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
         fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
     end
     
@@ -462,10 +410,10 @@ classdef BGMG_util
     function cost = BGMG_fminsearch_cost(ov)
         if (length(ov.pi_vec) == 1)
             % pleiotropic model (one component with shared effects)
-            cost = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, [0 0 ov.pi_vec], 2, ov.sig2_beta, ov.rho_beta, 2, ov.sig2_zero, ov.rho_zero);
+            cost = BGMG_cpp().calc_bivariate_cost([0 0 ov.pi_vec], ov.sig2_beta, ov.rho_beta, ov.sig2_zero, ov.rho_zero);
         elseif (length(ov.pi_vec) == 3)
             % full model
-            cost = calllib('bgmg', 'bgmg_calc_bivariate_cost', 0, 3, ov.pi_vec, 2, ov.sig2_beta(:, 3), ov.rho_beta(3), 2, ov.sig2_zero, ov.rho_zero);
+            cost = BGMG_cpp().calc_bivariate_cost(ov.pi_vec, ov.sig2_beta(:, 3), ov.rho_beta(3), ov.sig2_zero, ov.rho_zero);
         else
             error('not implemented');
         end

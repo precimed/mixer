@@ -17,7 +17,7 @@
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1:22;
+plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1; %1:22;
 %randprune_r2_plink_ld_mat = ''; randprune_r2_defvec_threshold = nan;
 %randprune_r2_plink_ld_mat = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.mat';
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
@@ -78,9 +78,10 @@ if ~exist('init_trait2_from_out_file', 'var'), init_trait2_from_out_file = ''; e
 % full path to bgmg shared library
 if ~exist('bgmg_shared_library', 'var'), error('bgmg_shared_library is required'); end;
 if ~exist('bgmg_shared_library_header', 'var'), [a,b,c]=fileparts(bgmg_shared_library); bgmg_shared_library_header = [fullfile(a, b), '.h']; clear('a', 'b','c'); end;
-if libisloaded('bgmg'), unloadlibrary('bgmg'); end;
-if ~libisloaded('bgmg'), fprintf('Loading bgmg library: %s, %s... ', bgmg_shared_library, bgmg_shared_library_header); loadlibrary(bgmg_shared_library, bgmg_shared_library_header, 'alias', 'bgmg');  fprintf('OK.\n'); end;
-calllib('bgmg', 'bgmg_init_log', [out_file, '.bgmglib.log']);
+
+BGMG_cpp.unload(); 
+BGMG_cpp.load(bgmg_shared_library, bgmg_shared_library_header);
+BGMG_cpp.init_log([out_file, '.bgmglib.log']);
 
 % reference file containing mafvec, chrnumvec and posvec for all SNPs to consider in this analysis. 
 if ~exist('reference_file', 'var'), error('reference_file is required'); end;
@@ -135,7 +136,7 @@ if ~isempty(params_file),
     params.rho_beta = params.rho_beta_tmp;
     params = rmfield(params, {'pi_vec_trait2', 'pi_vec_trait1', 'pi_vec_tmp', 'rho_beta_tmp'});
     
-    if all(size(params.sig2_beta) == [2 1])
+    if all(size(params.sig2_beta) == [1 2])
         params.sig2_beta = [params.sig2_beta(1) 0 params.sig2_beta(1); 0 params.sig2_beta(2) params.sig2_beta(2)];
     end
 
@@ -230,36 +231,29 @@ if (length(chr_labels) == 1) && (chr_labels(1) == 1) && ( all(ref.chrnumvec == 1
     clear('chrlabel');
 end
   
-m2c = @(x)(x-1); % convert matlab to c indices
-check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-check_for_context = @(context)fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', context));
-
 if isfinite(randprune_r2_defvec_threshold)
     % Use hard threshold to exlude sinonimous SNPs from fit. Just one
     % iteration of random pruning with very high r2 threshold. Non-selected
     % SNPs are excluded.
     if ~exist('randprune_r2_plink_ld_mat', 'var') error('randprune_r2_plink_ld_mat is required'); end;
     fprintf('Excluding variants based on random pruning at %.3f threshold...\n', randprune_r2_defvec_threshold);
-    context = 1; tag_indices_tmp = find(defvec_tmp);
-    calllib('bgmg', 'bgmg_dispose', context);  check_for_context(context);
-    calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
-    calllib('bgmg', 'bgmg_set_hvec', context, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
+    tag_indices_tmp = find(defvec_tmp);
+    bgmglib=BGMG_cpp(1);
+    bgmglib.dispose();
+    bgmglib.defvec = defvec_tmp;
+    bgmglib.hvec = ref.mafvec .* (1-ref.mafvec) * 2;
 
     for chr_index=1:length(chr_labels)
         plink_ld_mat_chr = strrep(randprune_r2_plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
         tmp = load(plink_ld_mat_chr); tmp.index_A = tmp.index_A + 1; tmp.index_B = tmp.index_B + 1; % 0-based, comming from python
-        calllib('bgmg', 'bgmg_set_ld_r2_coo', context, length(tmp.r2), m2c(tmp.index_A), m2c(tmp.index_B), tmp.r2); fprintf('OK.\n'); check(); 
+        bgmglib.set_ld_r2_coo_from_matlab_indices(tmp.index_A, tmp.index_B, tmp.r2);
+        printf('OK.\n');
     end
-    calllib('bgmg', 'bgmg_set_ld_r2_csr', context);  check_for_context(context);
-    calllib('bgmg', 'bgmg_set_weights_randprune', context, 1, randprune_r2_defvec_threshold);  check_for_context(context);
-    
-    pBuffer = libpointer('singlePtr', zeros(sum(defvec_tmp), 1, 'single'));
-    calllib('bgmg', 'bgmg_retrieve_weights', context, sum(defvec_tmp), pBuffer);  check_for_context(context); weights_bgmg = pBuffer.Value;
-    clear pBuffer
-    calllib('bgmg', 'bgmg_dispose', context);  check_for_context(context);
-
+    bgmglib.set_ld_r2_csr();
+    bgmglib.set_weights_randprune(1, randprune_r2_defvec_threshold);
+    weights_bgmg = bgmglib.weights;
     defvec_tmp(tag_indices_tmp(weights_bgmg==0)) = false;
-    fprintf('Exclude %i variants after random pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), randprune_r2_defvec_threshold, sum(defvec_tmp));
+    fprintf('Exclude %i variants after random pruning at %.3f threshold (%i variants rmain)\n', sum(weights_bgmg == 0), randprune_r2_defvec_threshold, sum(defvec_tmp));
 end
 
 if isfinite(randprune_r2_weight_threshold)
@@ -268,23 +262,23 @@ if isfinite(randprune_r2_weight_threshold)
     % exclude those that contribute to the bottom 10% (randprune_r2_weight_threshold)
     if ~exist('randprune_r2_plink_ld_mat', 'var') error('randprune_r2_plink_ld_mat is required'); end;
     fprintf('Excluding variants with too low weight, based on random pruning at %.3f threshold...\n', randprune_r2);
-    context = 1; tag_indices_tmp = find(defvec_tmp);
-    calllib('bgmg', 'bgmg_dispose', context);  check_for_context(context);
-    calllib('bgmg', 'bgmg_set_tag_indices', context, length(defvec_tmp), length(tag_indices_tmp), m2c(tag_indices_tmp));  check_for_context(context);
-    calllib('bgmg', 'bgmg_set_hvec', context, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
+    tag_indices_tmp = find(defvec_tmp);
+    bgmglib=BGMG_cpp(1);
+    bgmglib.dispose();
+    bgmglib.defvec = defvec_tmp;
+    bgmglib.hvec = ref.mafvec .* (1-ref.mafvec) * 2;
 
     for chr_index=1:length(chr_labels)
         plink_ld_mat_chr = strrep(randprune_r2_plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
         tmp = load(plink_ld_mat_chr); tmp.index_A = tmp.index_A + 1; tmp.index_B = tmp.index_B + 1; % 0-based, comming from python
-        calllib('bgmg', 'bgmg_set_ld_r2_coo', context, length(tmp.r2), m2c(tmp.index_A), m2c(tmp.index_B), tmp.r2); fprintf('OK.\n'); check(); 
+        bgmglib.set_ld_r2_coo_from_matlab_indices(tmp.index_A, tmp.index_B, tmp.r2);
+        printf('OK.\n');
     end
-    calllib('bgmg', 'bgmg_set_ld_r2_csr', context);  check_for_context(context);
-    calllib('bgmg', 'bgmg_set_weights_randprune', context, randprune_n, randprune_r2);  check_for_context(context);
+    bgmglib.set_ld_r2_csr();
+    bgmglib.set_weights_randprune(randprune_n, randprune_r2);
+    weights_bgmg = bgmglib.weights;
+    bgmglib.dispose();
     
-    pBuffer = libpointer('singlePtr', zeros(sum(defvec_tmp), 1, 'single'));
-    calllib('bgmg', 'bgmg_retrieve_weights', context, sum(defvec_tmp), pBuffer);  check_for_context(context); weights_bgmg = pBuffer.Value;
-    clear pBuffer
-    calllib('bgmg', 'bgmg_dispose', context);  check_for_context(context);
     weights_bgmg_sorted = sort(weights_bgmg);
     weights_bgmg_cumsum = cumsum(weights_bgmg_sorted/sum(weights_bgmg_sorted));
     weights_bgmg_thresh = weights_bgmg_sorted(find(weights_bgmg_cumsum > randprune_r2_weight_threshold, 1, 'first'));
@@ -299,35 +293,40 @@ tag_indices = find(defvec);
 
 fprintf('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_indices));
 
-calllib('bgmg', 'bgmg_dispose', 0);  check_for_context(0);
-calllib('bgmg', 'bgmg_set_tag_indices', 0, length(defvec), length(tag_indices), m2c(tag_indices));  check();
-calllib('bgmg', 'bgmg_set_option', 0,  'r2min', r2min); check();
-calllib('bgmg', 'bgmg_set_option', 0,  'kmax', kmax); check();
-calllib('bgmg', 'bgmg_set_option', 0,  'max_causals', floor(max_causal_fraction * length(defvec))); check();  
-calllib('bgmg', 'bgmg_set_option', 0,  'num_components', num_components); check();
-calllib('bgmg', 'bgmg_set_option', 0,  'cache_tag_r2sum', cache_tag_r2sum); check();
-if isfinite(THREADS), calllib('bgmg', 'bgmg_set_option', 0,  'threads', THREADS); check(); end;
-calllib('bgmg', 'bgmg_set_hvec', 0, length(ref.mafvec), ref.mafvec .* (1-ref.mafvec) * 2);  check();
+bgmglib = BGMG_cpp();
+bgmglib.dispose()
+bgmglib.defvec = defvec;
+bgmglib.zvec1 = trait1_data.zvec(defvec);
+bgmglib.zvec2 = trait2_data.zvec(defvec);
+
+bgmglib.set_option('r2min', r2min);
+bgmglib.set_option('kmax', kmax);
+bgmglib.set_option('max_causals', floor(max_causal_fraction * length(defvec)));
+bgmglib.set_option('num_components', num_components);
+bgmglib.set_option('cache_tag_r2sum', cache_tag_r2sum);
+bgmglib.set_option('threads', THREADS);
+
+bgmglib.hvec = ref.mafvec .* (1-ref.mafvec) * 2;
 
 for chr_index=1:length(chr_labels)
     plink_ld_bin_chr = strrep(plink_ld_bin,'@', sprintf('%i',chr_labels(chr_index)));
-    fprintf('Loading %s...', plink_ld_bin_chr);
-    calllib('bgmg', 'bgmg_set_ld_r2_coo_from_file', 0, plink_ld_bin_chr); check(); fprintf('OK.\n'); 
+    fprintf('Loading %s...', plink_ld_bin_chr); bgmglib.set_ld_r2_coo_from_file(plink_ld_bin_chr); fprintf('OK.\n'); 
     clear('plink_ld_bin_chr');
 end; clear('chr_index');
+bgmglib.set_ld_r2_csr();
 
-calllib('bgmg', 'bgmg_set_ld_r2_csr', 0);  check();
-calllib('bgmg', 'bgmg_set_weights_randprune', 0, randprune_n, randprune_r2);  check();
+bgmglib.set_weights_randprune(randprune_n, randprune_r2);
 
-calllib('bgmg', 'bgmg_set_zvec', 0, 1, sum(defvec), trait1_data.zvec(defvec));
-calllib('bgmg', 'bgmg_set_nvec', 0, 1, sum(defvec), trait1_data.nvec(defvec));
+bgmglib.zvec1 = trait1_data.zvec(defvec);
+bgmglib.nvec1 = trait1_data.nvec(defvec);
 
 if ~isempty(trait2_file),
-    calllib('bgmg', 'bgmg_set_zvec', 0, 2, sum(defvec), trait2_data.zvec(defvec));
-    calllib('bgmg', 'bgmg_set_nvec', 0, 2, sum(defvec), trait2_data.nvec(defvec));
+    bgmglib.zvec2 = trait2_data.zvec(defvec);
+    bgmglib.nvec2 = trait2_data.nvec(defvec);
 end
 
-calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
+bgmglib.set_option('diag', 0);
+
 % Preparation is done, BGMG library is fully setup. Now we can use it to
 % calculate model QQ plots and univariate or bivariate cost function.
 
@@ -390,7 +389,7 @@ if DO_FIT
     fprintf('Results saved to %s.mat\n', out_file);
 end
 
-calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
+bgmglib.set_option('diag', 0);
 
 % Produce QQ plots with true params (only works for synthetic data, of course)
 if QQ_PLOT_TRUE
@@ -419,9 +418,8 @@ if QQ_PLOT_FIT
 end
 
 if STRATIFIED_QQ_PLOT_TRUE && ~isempty(params_file) && ~isempty(trait2_file)
-    zmat = [trait1_data.zvec, trait2_data.zvec]; 
     options.downscale = STRATIFIED_QQ_PLOT_DOWNSCALE;
-    [figures, plot_data] = BGMG_cpp_stratified_qq_plot(true_params.bivariate, zmat(defvec, :), options);
+    [figures, plot_data] = BGMG_cpp_stratified_qq_plot(true_params.bivariate, options);
     result.bivariate.stratified_qq_plot_fit_data = plot_data;
     print(figures.tot, sprintf('%s.stratqq.fit.pdf', out_file), '-dpdf')
 end
@@ -436,27 +434,24 @@ end
 
 if LOGLIKE_PLOT_FIT && (DO_FIT || ~isempty(init_result_from_out_file)) && ~isempty(trait2_file)
     f = figure; hold on;
-    calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', ~FIT_FULL_MODEL); check();
-    calllib('bgmg', 'bgmg_clear_loglike_cache', 0); check();
+    bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
+    bgmglib.clear_loglike_cache();
     [figures, plots_data] = BGMG_cpp_loglike_plot(result.bivariate.params);
     result.bivariate.loglike_plot_data_fit = plots_data;
-    result.bivariate.loglike_plot_trajectory_fit = BGMG_util.extract_bivariate_loglike_trajectory();
+    result.bivariate.loglike_plot_trajectory_fit = bgmglib.extract_bivariate_loglike_trajectory();
     print(figures.tot, sprintf('%s.loglike.fit.pdf', out_file), '-dpdf')
-    %subplot(3,3,7); legend('random overlap', 'full overlap');
 end
 
 if LOGLIKE_PLOT_TRUE && ~isempty(trait2_file) && ~isempty(params_file)
-    calllib('bgmg', 'bgmg_set_option', 0, 'fast_cost', ~FIT_FULL_MODEL); check();
-    calllib('bgmg', 'bgmg_clear_loglike_cache', 0); check();
+    bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
+    bgmglib.clear_loglike_cache();
     [figures, plots_data] = BGMG_cpp_loglike_plot(true_params.bivariate);
     result.bivariate.loglike_plot_data_true = plots_data;
-    result.bivariate.loglike_plot_trajectory_true = BGMG_util.extract_bivariate_loglike_trajectory();
-    
+    result.bivariate.loglike_plot_trajectory_true = bgmglib.extract_bivariate_loglike_trajectory();
     print(figures.tot, sprintf('%s.loglike.true.pdf', out_file), '-dpdf')
-    %subplot(3,3,7); legend('random overlap', 'full overlap');
 end
 
-calllib('bgmg', 'bgmg_set_option', 0,  'diag', 0); check();
+bgmglib.set_option('diag', 0);
 
 if ~exist('result', 'var')
     error('No options selected; please enable DO_FIT or QQ_PLOT_TRUE');

@@ -1,16 +1,12 @@
-function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, zmat, options)
+function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
     % QQ plot for data and model
 
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
     if ~isfield(options, 'downscale'), options.downscale = 10; end;
     plot_data = {}; figures.tot = figure; hold on;
 
-    % Retrieve weights from c++ library
-    check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-    pBuffer = libpointer('singlePtr', zeros(size(zmat, 1), 1, 'single'));
-    calllib('bgmg', 'bgmg_retrieve_weights', 0, size(zmat, 1), pBuffer);  check(); 
-    weights_bgmg = pBuffer.Value;
-    clear pBuffer
+    bgmglib = BGMG_cpp();
+    weights_bgmg = bgmglib.weights;
 
     % Check that weights and zvec are all defined
     if any(~isfinite(zmat(:))), error('all values must be defined'); end;
@@ -22,22 +18,20 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, zmat, option
     % At the end of this function we restore weights_bgmg.
     downscale_indices = false(size(weights_bgmg)); downscale_indices(1:options.downscale:end)=true;
     model_weights = zeros(size(weights_bgmg));  model_weights(downscale_indices) = weights_bgmg(downscale_indices); model_weights = model_weights ./ sum(model_weights);
-    calllib('bgmg', 'bgmg_set_weights', 0, length(model_weights), model_weights);  check();
+    bgmglib.weights = model_weights;
     data_weights = weights_bgmg / sum(weights_bgmg);
 
     % Calculate bivariate pdf on a regular 2D grid (z1, z2)
     zgrid = single(-15:0.25:15);
     [zgrid1, zgrid2] = meshgrid(zgrid, zgrid);
     zgrid1 = zgrid1(zgrid >= 0, :); zgrid2 = zgrid2(zgrid >= 0, :);  % taking symmetry into account to speedup by a factor of 2
-    pBuffer = libpointer('singlePtr', zeros(numel(zgrid1), 1, 'single'));
-    calllib('bgmg', 'bgmg_calc_bivariate_pdf', 0, length(params.pi_vec), params.pi_vec, length(params.sig2_beta(:, end)), params.sig2_beta(:, end), params.rho_beta(end), length(params.sig2_zero), params.sig2_zero, params.rho_zero, numel(zgrid1), zgrid1(:), zgrid2(:), pBuffer);  check(); 
-    pdf = reshape(pBuffer.Value', size(zgrid1)); clear pBuffer
+    pdf = bgmglib.calc_bivariate_pdf(params.pi_vec, params.sig2_beta(:, end),  params.rho_beta(end), params.sig2_zero, params.rho_zero, numel(zgrid1), zgrid1(:), zgrid2(:));
     clear('zgrid1', 'zgrid2');
     pdf = [fliplr(flipud(pdf(2:end, :))); pdf];
     pdf = pdf / sum(model_weights);
     
     % Restore original weights
-    calllib('bgmg', 'bgmg_set_weights', 0, length(weights_bgmg), weights_bgmg);  check();
+    bgmglib.weights = weights_bgmg;
 
     hv_z = linspace(0, min(max(abs(zgrid)), 38.0), 10000);
     hv_logp = -log10(2*normcdf(-hv_z));

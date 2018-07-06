@@ -5,13 +5,9 @@ function [figures, plot_data] = BGMG_cpp_qq_plot(params, zvec, trait_index, opti
     if ~isfield(options, 'downscale'), options.downscale = 10; end;
     plot_data = []; figures.tot = figure; hold on;
 
-    % Retrieve weights from c++ library
-    check = @()fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', 0));
-    pBuffer = libpointer('singlePtr', zeros(length(zvec), 1, 'single'));
-    calllib('bgmg', 'bgmg_retrieve_weights', 0, length(zvec), pBuffer);  check(); 
-    weights_bgmg = pBuffer.Value;
-    clear pBuffer
-    
+    bgmglib = BGMG_cpp();
+    weights_bgmg = bgmglib.weights;
+
     % Check that weights and zvec are all defined
     if any(~isfinite(zvec)), error('all values must be defined'); end;
     if any(~isfinite(weights_bgmg)), error('all values must be defined'); end;
@@ -22,7 +18,7 @@ function [figures, plot_data] = BGMG_cpp_qq_plot(params, zvec, trait_index, opti
     % At the end of this function we restore weights_bgmg.
     downscale_indices = false(size(weights_bgmg)); downscale_indices(1:options.downscale:end)=true;
     model_weights = zeros(size(weights_bgmg));  model_weights(downscale_indices) = weights_bgmg(downscale_indices); model_weights = model_weights ./ sum(model_weights);
-    calllib('bgmg', 'bgmg_set_weights', 0, length(model_weights), model_weights);  check();
+    bgmglib.weights = model_weights;
     data_weights = weights_bgmg / sum(weights_bgmg);
     
     % Calculate data_logpvec
@@ -35,9 +31,7 @@ function [figures, plot_data] = BGMG_cpp_qq_plot(params, zvec, trait_index, opti
 
     % Calculate model_logpvec
     zgrid = single(0:0.05:15); 
-    pBuffer = libpointer('singlePtr', zeros(length(zgrid), 1, 'single'));
-    calllib('bgmg', 'bgmg_calc_univariate_pdf', 0, int32(trait_index), params.pi_vec, params.sig2_zero, params.sig2_beta, length(zgrid), zgrid, pBuffer);  check(); 
-    pdf = pBuffer.Value'; clear pBuffer
+    pdf = bgmglib.calc_univariate_pdf(trait_index, params.pi_vec, params.sig2_zero, params.sig2_beta, zgrid);
     pdf = pdf / sum(model_weights);
     if (zgrid(1) == 0), zgrid = [-fliplr(zgrid(2:end)) zgrid];pdf = [fliplr(pdf(2:end)) pdf]; end
     model_cdf = cumsum(pdf)  * (zgrid(2) - zgrid(1)) ;
@@ -46,7 +40,7 @@ function [figures, plot_data] = BGMG_cpp_qq_plot(params, zvec, trait_index, opti
     model_logpvec = -log10(2*interp1(-zgrid(zgrid<=0), model_cdf(zgrid<=0), hv_z')); % hv_z is to fine, can't afford calculation on it - do interpolation instead; don't matter for QQ plot (no visual difference), but lamGCfromQQ doesn't work for z_grid (to coarse)
 
     % Restore original weights
-    calllib('bgmg', 'bgmg_set_weights', 0, length(weights_bgmg), weights_bgmg);  check();
+    bgmglib.weights = weights_bgmg;
 
     hData  = plot(data_logpvec, hv_logp, '-', 'LineWidth',1); hold on;
     hModel = plot(model_logpvec,hv_logp, '-', 'LineWidth',1); hold on;

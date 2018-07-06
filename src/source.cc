@@ -76,10 +76,17 @@ int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_ld_r2_coo(int context_id, int length, int* snp_index, int* tag_index, float* r2) {
+int64_t bgmg_set_ld_r2_coo(int context_id, int64_t length, int* snp_index, int* tag_index, float* r2) {
   try {
     set_last_error(std::string());
     return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(length, snp_index, tag_index, r2);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_set_ld_r2_coo_from_file(int context_id, const char* filename) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(filename);
   } CATCH_EXCEPTIONS;
 }
 
@@ -116,6 +123,27 @@ int64_t bgmg_retrieve_weighted_causal_r2(int context_id, int length, float* buff
   } CATCH_EXCEPTIONS;
 }
 
+int64_t bgmg_retrieve_zvec(int context_id, int trait, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_zvec(trait, length, buffer);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_retrieve_nvec(int context_id, int trait, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_nvec(trait, length, buffer);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_retrieve_hvec(int context_id, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_hvec(length, buffer);
+  } CATCH_EXCEPTIONS;
+}
+
 int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer) {
   try {
     set_last_error(std::string());
@@ -140,7 +168,7 @@ double bgmg_calc_univariate_cost(int context_id, int trait_index, double pi_vec,
 double bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
   try {
     set_last_error(std::string());
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_pdf(pi_vec, trait_index, sig2_zero, sig2_beta, length, zvec, pdf);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_pdf(trait_index, pi_vec, sig2_zero, sig2_beta, length, zvec, pdf);
   } CATCH_EXCEPTIONS;
 }
 
@@ -215,5 +243,4 @@ double bgmg_calc_univariate_cost_with_deriv(int context_id, int trait_index, dou
     set_last_error(std::string());
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost_cache_deriv(trait_index, pi_vec, sig2_zero, sig2_beta, deriv_length, deriv);
   } CATCH_EXCEPTIONS;
-
 }

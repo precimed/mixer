@@ -287,7 +287,8 @@ class BgmgCalculator {
   // must be called after set_tag_indices
   // must be called one for each chromosome, sequentially, starting from lowest chromosome number
   // non-tag variants will be ignored
-  int64_t set_ld_r2_coo(int length, int* snp_index, int* tag_index, float* r2);
+  int64_t set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2);
+  int64_t set_ld_r2_coo(const std::string& filename);
   int64_t set_ld_r2_csr();  // finalize
 
   // must be called after set_ld_r2, as it adjusts r2 matrix
@@ -300,6 +301,10 @@ class BgmgCalculator {
   int64_t set_nvec(int trait, int length, float* values);
   int64_t set_weights(int length, float* values);
   int64_t set_weights_randprune(int n, float r2);   // alternative to set_weights; calculates weights based on random pruning from LD matrix
+
+  int64_t retrieve_zvec(int trait, int length, float* buffer);
+  int64_t retrieve_nvec(int trait, int length, float* buffer);
+  int64_t retrieve_hvec(int length, float* buffer);
   int64_t retrieve_weights(int length, float* buffer);
 
   int64_t find_snp_order();  // private - only for testing

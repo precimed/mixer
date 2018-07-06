@@ -34,6 +34,7 @@
 #include <valarray>
 #include <cmath>
 #include <sstream>
+#include <fstream>
 #include <set>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -174,7 +175,29 @@ int64_t BgmgCalculator::set_tag_indices(int num_snp, int num_tag, int* tag_indic
   return 0;
 }
 
-int64_t BgmgCalculator::set_ld_r2_coo(int length, int* snp_index, int* tag_index, float* r2) {
+int64_t BgmgCalculator::set_ld_r2_coo(const std::string& filename) {
+  std::ifstream is(filename, std::ifstream::binary);
+  if (!is) BGMG_THROW_EXCEPTION(::std::runtime_error("can't open" + filename));
+  if (sizeof(int) != 4) BGMG_THROW_EXCEPTION("sizeof(int) != 4, internal error in BGMG cpp"); // int -> int32_t
+  
+  int64_t numel;
+  is.read(reinterpret_cast<char*>(&numel), sizeof(int64_t));
+  LOG << " set_ld_r2_coo(filename=" << filename << "), reading " << numel << " elements...";
+
+  std::vector<int> snp_index(numel, 0), tag_index(numel, 0);
+  std::vector<float> r2(numel, 0.0f);
+
+  is.read(reinterpret_cast<char*>(&snp_index[0]), numel * sizeof(int));
+  is.read(reinterpret_cast<char*>(&tag_index[0]), numel * sizeof(int));
+  is.read(reinterpret_cast<char*>(&r2[0]), numel * sizeof(float));
+
+  if (!is) BGMG_THROW_EXCEPTION(::std::runtime_error("can't read from " + filename));
+  is.close();
+
+  return set_ld_r2_coo(numel, &snp_index[0], &tag_index[0], &r2[0]);
+}
+
+int64_t BgmgCalculator::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2) {
   if (!csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
   if (hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_hvec"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
@@ -1425,6 +1448,32 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
     weights_[i] = static_cast<float>(passed_random_pruning[i]) / static_cast<float>(n);
 
   LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << "), elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}
+
+int64_t BgmgCalculator::retrieve_zvec(int trait, int length, float* buffer) {
+  if (length != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  std::vector<float>& zvec(*get_zvec(trait));
+  if (zvec.size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec.size() != num_tag_"));
+  LOG << " retrieve_zvec()";
+  for (int i = 0; i < num_tag_; i++) buffer[i] = zvec[i];
+  return 0;
+}
+
+int64_t BgmgCalculator::retrieve_nvec(int trait, int length, float* buffer) {
+  if (length != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  std::vector<float>& nvec(*get_nvec(trait));
+  if (nvec.size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec.size() != num_tag_"));
+  LOG << " retrieve_nvec()";
+  for (int i = 0; i < num_tag_; i++) buffer[i] = nvec[i];
+  return 0;
+}
+
+int64_t BgmgCalculator::retrieve_hvec(int length, float* buffer) {
+  if (length != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (hvec_.size() != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("hvec_.size() != num_tag_"));
+  LOG << " retrieve_hvec()";
+  for (int i = 0; i < num_snp_; i++) buffer[i] = hvec_[i];
   return 0;
 }
 

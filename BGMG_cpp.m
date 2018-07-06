@@ -55,7 +55,7 @@ classdef BGMG_cpp
     function val = get.hvec(obj)
         pBuffer = libpointer('singlePtr', zeros(obj.num_snp, 1, 'single'));
         calllib('bgmg', 'bgmg_retrieve_hvec', obj.Context, obj.num_snp, pBuffer); obj.check();
-        val = pBuffer.Value; clear pBuffer
+        val = double(pBuffer.Value); clear pBuffer
     end
     
     % set/get zvec
@@ -65,7 +65,7 @@ classdef BGMG_cpp
     function val = get_zvec(obj, trait_index)
         pBuffer = libpointer('singlePtr', zeros(obj.num_tag, 1, 'single'));
         calllib('bgmg', 'bgmg_retrieve_zvec', obj.Context, trait_index, obj.num_tag, pBuffer); obj.check();
-        val = pBuffer.Value; clear pBuffer
+        val = double(pBuffer.Value); clear pBuffer
     end
     function val = get.zvec1(obj)
         trait_index = 1; val = obj.get_zvec(trait_index);
@@ -87,7 +87,7 @@ classdef BGMG_cpp
     function val = get_nvec(obj, trait_index)
         pBuffer = libpointer('singlePtr', zeros(obj.num_tag, 1, 'single'));
         calllib('bgmg', 'bgmg_retrieve_nvec', obj.Context, trait_index, obj.num_tag, pBuffer); obj.check();
-        val = pBuffer.Value; clear pBuffer
+        val = double(pBuffer.Value); clear pBuffer
     end
     function val = get.nvec1(obj)
         trait_index = 1; val = obj.get_nvec(trait_index);
@@ -112,7 +112,7 @@ classdef BGMG_cpp
     function val = get.weights(obj)
         pBuffer = libpointer('singlePtr', zeros(obj.num_tag, 1, 'single'));
         calllib('bgmg', 'bgmg_retrieve_weights', obj.Context, obj.num_tag, pBuffer); obj.check();
-        val = pBuffer.Value; clear pBuffer
+        val = double(pBuffer.Value); clear pBuffer
     end
 
     % set LD structure

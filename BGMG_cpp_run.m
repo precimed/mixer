@@ -364,15 +364,13 @@ disp(options)
 % Fit bivariate or univariate model to the data
 if DO_FIT
     if isempty(trait2_file),
-        result.univariate{1} = BGMG_cpp_fit_univariate(trait1_data.zvec, trait1_data.nvec, options);
+        result.univariate{1} = BGMG_cpp_fit_univariate(1, options);
     else
         if ~isfield(result, 'univariate')
-            result.univariate{1} = BGMG_cpp_fit_univariate(trait1_data.zvec, trait1_data.nvec, options);
-            result.univariate{2} = BGMG_cpp_fit_univariate(trait2_data.zvec, trait2_data.nvec, options);
+            result.univariate{1} = BGMG_cpp_fit_univariate(1, options);
+            result.univariate{2} = BGMG_cpp_fit_univariate(2, options);
         end
         result.bivariate = BGMG_cpp_fit_bivariate(...
-            [trait1_data.zvec, trait2_data.zvec], ...
-            [trait1_data.nvec, trait2_data.nvec], ...
             result.univariate{1}.params, ...
             result.univariate{2}.params, ...
             options);
@@ -394,9 +392,8 @@ bgmglib.set_option('diag', 0);
 % Produce QQ plots with true params (only works for synthetic data, of course)
 if QQ_PLOT_TRUE
     for trait_index = 1:(1 + ~isempty(trait2_file))
-        if trait_index==1, qq_data = trait1_data; else qq_data = trait2_data; end
         options.downscale = QQ_PLOT_DOWNSCALE;
-        [figures, plot_data] = BGMG_cpp_qq_plot(true_params.univariate{trait_index}, qq_data.zvec(defvec), trait_index, options);
+        [figures, plot_data] = BGMG_cpp_qq_plot(true_params.univariate{trait_index}, trait_index, options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
         result.univariate{trait_index}.qq_plot_true_data = plot_data;
@@ -407,9 +404,8 @@ end
 % Produce QQ plots with fitted params
 if QQ_PLOT_FIT
     for trait_index = 1:length(result.univariate)
-        if trait_index==1, qq_data = trait1_data; else qq_data = trait2_data; end
         options.downscale = QQ_PLOT_DOWNSCALE;
-        [figures, plot_data] = BGMG_cpp_qq_plot(result.univariate{trait_index}, qq_data.zvec(defvec), trait_index, options);
+        [figures, plot_data] = BGMG_cpp_qq_plot(result.univariate{trait_index}.params, trait_index, options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
         result.univariate{trait_index}.qq_plot_fit_data = plot_data;
@@ -425,9 +421,8 @@ if STRATIFIED_QQ_PLOT_TRUE && ~isempty(params_file) && ~isempty(trait2_file)
 end
 
 if STRATIFIED_QQ_PLOT_FIT && (DO_FIT || ~isempty(init_result_from_out_file)) && ~isempty(trait2_file)
-    zmat = [trait1_data.zvec, trait2_data.zvec]; 
     options.downscale = STRATIFIED_QQ_PLOT_DOWNSCALE;
-    [figures, plot_data] = BGMG_cpp_stratified_qq_plot(result.bivariate.params, zmat(defvec, :), options);
+    [figures, plot_data] = BGMG_cpp_stratified_qq_plot(result.bivariate.params, options);
     result.bivariate.stratified_qq_plot_fit_data = plot_data;
     print(figures.tot, sprintf('%s.stratqq.fit.pdf', out_file), '-dpdf')
 end

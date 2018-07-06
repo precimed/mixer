@@ -1,6 +1,4 @@
 function result = BGMG_cpp_fit_univariate(trait_index, options)
-    % zvat      - vector of length #SNP, z scores
-    % Nmat      - number of subjects genotyped per SNP
     % options   - options; see the below for a full list of configurable options
     %
 
@@ -18,7 +16,7 @@ function result = BGMG_cpp_fit_univariate(trait_index, options)
 
     bgmglib = BGMG_cpp();
     zvec = bgmglib.get_zvec(trait_index);
-    nvec = bgmglib.get_zvec(trait_index);
+    nvec = bgmglib.get_nvec(trait_index);
     
     fminsearch_options = struct('Display', 'on');
     if ~isnan(options.MaxFunEvals), fminsearch_options.MaxFunEvals=options.MaxFunEvals; end;

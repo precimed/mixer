@@ -17,23 +17,23 @@
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1; %1:22;
+plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1:22;
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
 filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity';
 %filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity';
 trait1_file = ['H:\work\simu_9pi_params\' filename '.trait1.mat']; trait1_nvec=100000;
-%trait2_file = ['H:\work\simu_9pi_params\' filename '.trait2.mat']; trait2_nvec=100000;
+trait2_file = ['H:\work\simu_9pi_params\' filename '.trait2.mat']; trait2_nvec=100000;
 simu_params_file = ['H:\work\simu_9pi_params\' filename '.params.mat'];
 
-kmax=1000;
+kmax=5000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
-DO_FIT_UGMG=false; DO_FIT_BGMG=false;
-FIT_FULL_MODEL=false;
+DO_FIT_UGMG=true; DO_FIT_BGMG=true;
+FIT_FULL_MODEL=true;
 QQ_PLOT=true;STRATIFIED_QQ_PLOT=true;BGMG_LOGLIKE_PLOT=true;
 cache_tag_r2sum=true;
 MAF_THRESH=0.01;
-out_file = 'results_2018_07_06\true_params_fast_model';
+out_file = 'results_2018_07_06\init_with_true_params';
 end
 
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
@@ -325,6 +325,7 @@ result.trait2_file = trait2_file;
 result.reference_file = reference_file;
 result.options = options;
 result.params = params;
+if ~isempty(simu_params_file), result.true_params = true_params; end;
     
 % Save the result in .mat file
 % (this overrides previously saved file)

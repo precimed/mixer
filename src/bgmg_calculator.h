@@ -306,6 +306,7 @@ class BgmgCalculator {
   int64_t retrieve_nvec(int trait, int length, float* buffer);
   int64_t retrieve_hvec(int length, float* buffer);
   int64_t retrieve_weights(int length, float* buffer);
+  int64_t retrieve_tag_indices(int num_tag, int* tag_indices);
 
   int64_t find_snp_order();  // private - only for testing
   int64_t find_tag_r2sum(int component_id, float num_causals);  // private - only for testing
@@ -342,6 +343,9 @@ class BgmgCalculator {
  
   int64_t seed() { return seed_; }
   void set_seed(int64_t seed) { seed_ = seed; }
+
+  int num_snp() { return num_snp_; }
+  int num_tag() { return num_tag_; }
 
   int64_t clear_loglike_cache() { loglike_cache_.clear(); return 0; }
   int64_t get_loglike_cache_size() { return loglike_cache_.num_entries(); }

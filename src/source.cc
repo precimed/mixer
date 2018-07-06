@@ -76,6 +76,27 @@ int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_
   } CATCH_EXCEPTIONS;
 }
 
+int64_t bgmg_get_num_tag(int context_id) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->num_tag();
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_get_num_snp(int context_id) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->num_snp();
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_retrieve_tag_indices(int context_id, int num_tag, int* tag_indices) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_tag_indices(num_tag, tag_indices);
+  } CATCH_EXCEPTIONS;
+}
+
 int64_t bgmg_set_ld_r2_coo(int context_id, int64_t length, int* snp_index, int* tag_index, float* r2) {
   try {
     set_last_error(std::string());

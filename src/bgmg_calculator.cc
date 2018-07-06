@@ -1451,6 +1451,14 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
   return 0;
 }
 
+int64_t BgmgCalculator::retrieve_tag_indices(int num_tag, int* tag_indices) {
+  if (num_tag != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (num_tag != tag_to_snp_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("num_tag != tag_to_snp_.size()"));
+  LOG << " retrieve_tag_indices()";
+  for (int i = 0; i < num_tag_; i++) tag_indices[i] = tag_to_snp_[i];
+  return 0;
+}
+
 int64_t BgmgCalculator::retrieve_zvec(int trait, int length, float* buffer) {
   if (length != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
   std::vector<float>& zvec(*get_zvec(trait));

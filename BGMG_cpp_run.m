@@ -22,7 +22,7 @@ defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox
 filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity';
 %filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity';
 trait1_file = ['H:\work\simu_9pi_params\' filename '.trait1.mat']; trait1_nvec=100000;
-trait2_file = ['H:\work\simu_9pi_params\' filename '.trait2.mat']; trait2_nvec=100000;
+%trait2_file = ['H:\work\simu_9pi_params\' filename '.trait2.mat']; trait2_nvec=100000;
 simu_params_file = ['H:\work\simu_9pi_params\' filename '.params.mat'];
 
 kmax=1000;
@@ -30,7 +30,7 @@ kmax=1000;
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
 DO_FIT_UGMG=false; DO_FIT_BGMG=false;
 FIT_FULL_MODEL=false;
-QQ_PLOT=true;STRATIFIED_QQ_PLOT=true;LOGLIKE_PLOT=true;
+QQ_PLOT=true;STRATIFIED_QQ_PLOT=true;BGMG_LOGLIKE_PLOT=true;
 cache_tag_r2sum=true;
 MAF_THRESH=0.01;
 out_file = 'results_2018_07_06\true_params_fast_model';
@@ -89,7 +89,7 @@ if ~exist('QQ_PLOT', 'var'), QQ_PLOT = false; end;   % make QQ plots
 if ~exist('QQ_PLOT_DOWNSCALE', 'var'), QQ_PLOT_DOWNSCALE = 100; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('STRATIFIED_QQ_PLOT', 'var'), STRATIFIED_QQ_PLOT = false; end;
 if ~exist('STRATIFIED_QQ_PLOT_DOWNSCALE', 'var'), STRATIFIED_QQ_PLOT_DOWNSCALE = 1000; end;     % downscale #snps in stratified QQ plots (model prediction only)
-if ~exist('LOGLIKE_PLOT', 'var'), LOGLIKE_PLOT= false; end;
+if ~exist('BGMG_LOGLIKE_PLOT', 'var'), BGMG_LOGLIKE_PLOT= false; end;
 if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
@@ -176,8 +176,6 @@ fprintf('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_indice
 bgmglib = BGMG_cpp();
 bgmglib.dispose()
 bgmglib.defvec = defvec;
-bgmglib.zvec1 = trait1_data.zvec(defvec);
-bgmglib.zvec2 = trait2_data.zvec(defvec);
 
 bgmglib.set_option('r2min', r2min);
 bgmglib.set_option('kmax', kmax);
@@ -354,7 +352,7 @@ if STRATIFIED_QQ_PLOT && ~isempty(trait2_file)
     print(figures.tot, sprintf('%s.stratqq.pdf', out_file), '-dpdf')
 end
 
-if LOGLIKE_PLOT && ~isempty(trait2_file)
+if BGMG_LOGLIKE_PLOT && ~isempty(trait2_file)
     bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
     bgmglib.clear_loglike_cache();
     [figures, plots_data] = BGMG_cpp_loglike_plot(params.bivariate);

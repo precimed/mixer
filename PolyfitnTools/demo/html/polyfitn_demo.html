@@ -1,0 +1,260 @@
+<html xmlns:mwsh="http://www.mathworks.com/namespace/mcode/v1/syntaxhighlight.dtd">
+   <head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   
+      <!--
+This HTML is auto-generated from an M-file.
+To make changes, update the M-file and republish this document.
+      -->
+      <title>polyfitn_demo</title>
+      <meta name="generator" content="MATLAB 7.0.1">
+      <meta name="date" content="2006-08-08">
+      <meta name="m-file" content="polyfitn_demo"><style>
+body {
+  background-color: white;
+  margin:10px;
+}
+h1 {
+  color: #990000; 
+  font-size: x-large;
+}
+h2 {
+  color: #990000;
+  font-size: medium;
+}
+p.footer {
+  text-align: right;
+  font-size: xx-small;
+  font-weight: lighter;
+  font-style: italic;
+  color: gray;
+}
+
+pre.codeinput {
+  margin-left: 30px;
+}
+
+span.keyword {color: #0000FF}
+span.comment {color: #228B22}
+span.string {color: #A020F0}
+span.untermstring {color: #B20000}
+span.syscmd {color: #B28C00}
+
+pre.showbuttons {
+  margin-left: 30px;
+  border: solid black 2px;
+  padding: 4px;
+  background: #EBEFF3;
+}
+
+pre.codeoutput {
+  color: gray;
+  font-style: italic;
+}
+pre.error {
+  color: red;
+}
+
+/* Make the text shrink to fit narrow windows, but not stretch too far in 
+wide windows.  On Gecko-based browsers, the shrink-to-fit doesn't work. */ 
+p,h1,h2,div {
+  /* for MATLAB's browser */
+  width: 600px;
+  /* for Mozilla, but the "width" tag overrides it anyway */
+  max-width: 600px;
+  /* for IE */
+  width:expression(document.body.clientWidth > 620 ? "600px": "auto" );
+}
+
+    </style></head>
+   <body>
+      <h2>Contents</h2>
+      <div>
+         <ul>
+            <li><a href="#2">Fit a 1-d model to cos(x). We only need the even order terms.</a></li>
+            <li><a href="#3">A surface model in 2-d, with all terms up to third order.</a></li>
+            <li><a href="#4">A linear model, but with no constant term, in 2-d</a></li>
+            <li><a href="#5">A model with various exponents, not all positive integers.</a></li>
+         </ul>
+      </div><pre class="codeinput"><span class="comment">% Author: John D'Errico</span>
+<span class="comment">% Release: 2.0</span>
+<span class="comment">% Release date: 8/8/06</span>
+<span class="comment">% What follows are example usages of polyfitn, polyvaln, poly2sympoly, polyn2sym</span>
+</pre><h2>Fit a 1-d model to cos(x). We only need the even order terms.<a name="2"></a></h2><pre class="codeinput">x = -2:.1:2;
+y = cos(x);
+p = polyfitn(x,y,<span class="string">'constant x^2 x^4 x^6'</span>)
+
+<span class="keyword">if</span> exist(<span class="string">'sympoly'</span>) == 2
+  <span class="comment">% Conversion to a sympoly. If nothing else, its a nice way to display the model.</span>
+  polyn2sympoly(p)
+<span class="keyword">end</span>
+<span class="keyword">if</span> exist(<span class="string">'sym'</span>) == 2
+  <span class="comment">% Conversion to a symbolic form. Its also nice.</span>
+  polyn2sym(p)
+<span class="keyword">end</span>
+
+<span class="comment">% Evaluate the regression model at some set of points</span>
+polyvaln(p,[0 .5 1])
+</pre><pre class="codeoutput">
+p = 
+
+      ModelTerms: [4x1 double]
+    Coefficients: [0.99996 -0.49968 0.041242 -0.0012079]
+    ParameterVar: [1.2876e-10 1.084e-09 4.6603e-10 1.3903e-11]
+    ParameterStd: [1.1347e-05 3.2925e-05 2.1588e-05 3.7286e-06]
+              R2: 1
+            RMSE: 3.1468e-05
+        VarNames: {'x'}
+
+A scalar sympoly object
+    0.99996 - 0.49968*x^2 + 0.041242*x^4 - 0.0012079*x^6
+
+ans =
+
+      0.99996
+       0.8776
+      0.54031
+
+</pre><h2>A surface model in 2-d, with all terms up to third order.<a name="3"></a></h2><pre class="codeinput"><span class="comment">% Use lots of data.</span>
+n = 1000;
+x = rand(n,2);
+y = exp(sum(x,2)) + randn(n,1)/100;
+p = polyfitn(x,y,3)
+
+<span class="keyword">if</span> exist(<span class="string">'sympoly'</span>) == 2
+  polyn2sympoly(p)
+<span class="keyword">end</span>
+<span class="keyword">if</span> exist(<span class="string">'sym'</span>) == 2
+  polyn2sym(p)
+<span class="keyword">end</span>
+
+<span class="comment">% Evaluate on a grid and plot:</span>
+[xg,yg]=meshgrid(0:.05:1);
+zg = polyvaln(p,[xg(:),yg(:)]);
+surf(xg,yg,reshape(zg,size(xg)))
+hold <span class="string">on</span>
+plot3(x(:,1),x(:,2),y,<span class="string">'o'</span>)
+hold <span class="string">off</span>
+</pre><pre class="codeoutput">
+p = 
+
+      ModelTerms: [10x2 double]
+    Coefficients: [1x10 double]
+    ParameterVar: [1x10 double]
+    ParameterStd: [1x10 double]
+              R2: 0.99992
+            RMSE: 0.011198
+        VarNames: {}
+
+A scalar sympoly object
+    0.50402*X1^3 + 1.3927*X1^2*X2 - 0.017552*X1^2 + 1.3798*X1*X2^2 + 0.081473*X1*X2 + 1.2726*X1 + 0.43959*X2^3 + 0.087656*X2^2 + 1.2254*X2 + 0.96196
+</pre><img vspace="5" hspace="5" src="polyfitn_demo_01.png"> <h2>A linear model, but with no constant term, in 2-d<a name="4"></a></h2><pre class="codeinput">uv = rand(100,2);
+w = sin(sum(uv,2));
+p = polyfitn(uv,w,<span class="string">'u, v'</span>);
+<span class="keyword">if</span> exist(<span class="string">'sympoly'</span>) == 2
+  polyn2sympoly(p)
+<span class="keyword">end</span>
+<span class="keyword">if</span> exist(<span class="string">'sym'</span>) == 2
+  polyn2sym(p)
+<span class="keyword">end</span>
+</pre><pre class="codeoutput">A scalar sympoly object
+    0.76416*u + 0.70472*v
+</pre><h2>A model with various exponents, not all positive integers.<a name="5"></a></h2><pre class="codeinput"><span class="comment">% Note: with only 1 variable, x &amp; y may be row or column vectors.</span>
+x = 1:10;
+y = 3 + 2./x + sqrt(x) + randn(size(x))/100;
+p = polyfitn(x,y,<span class="string">'constant x^-1 x^0.5'</span>);
+<span class="keyword">if</span> exist(<span class="string">'sympoly'</span>) == 2
+  polyn2sympoly(p)
+<span class="keyword">end</span>
+<span class="keyword">if</span> exist(<span class="string">'sym'</span>) == 2
+  polyn2sym(p)
+<span class="keyword">end</span>
+
+xi = 1:.1:10;
+yi = polyvaln(p,xi);
+plot(x,y,<span class="string">'ro'</span>,xi,yi,<span class="string">'b-'</span>)
+</pre><pre class="codeoutput">A scalar sympoly object
+    2.9805 + 2.0448*x^-1 + 1.0041*x^0.5
+</pre><img vspace="5" hspace="5" src="polyfitn_demo_02.png"> <p class="footer"><br>
+         Published with MATLAB&reg; 7.0.1<br></p>
+      <!--
+##### SOURCE BEGIN #####
+% Author: John D'Errico
+% Release: 2.0
+% Release date: 8/8/06
+% What follows are example usages of polyfitn, polyvaln, poly2sympoly, polyn2sym
+
+%% Fit a 1-d model to cos(x). We only need the even order terms.
+x = -2:.1:2;
+y = cos(x);
+p = polyfitn(x,y,'constant x^2 x^4 x^6')
+
+if exist('sympoly') == 2
+  % Conversion to a sympoly. If nothing else, its a nice way to display the model.
+  polyn2sympoly(p)
+end
+if exist('sym') == 2
+  % Conversion to a symbolic form. Its also nice.
+  polyn2sym(p)
+end
+
+% Evaluate the regression model at some set of points
+polyvaln(p,[0 .5 1])
+
+%% A surface model in 2-d, with all terms up to third order.
+
+% Use lots of data.
+n = 1000;
+x = rand(n,2);
+y = exp(sum(x,2)) + randn(n,1)/100;
+p = polyfitn(x,y,3)
+
+if exist('sympoly') == 2
+  polyn2sympoly(p)
+end
+if exist('sym') == 2
+  polyn2sym(p)
+end
+
+% Evaluate on a grid and plot:
+[xg,yg]=meshgrid(0:.05:1);
+zg = polyvaln(p,[xg(:),yg(:)]);
+surf(xg,yg,reshape(zg,size(xg)))
+hold on
+plot3(x(:,1),x(:,2),y,'o')
+hold off
+
+%% A linear model, but with no constant term, in 2-d
+uv = rand(100,2);
+w = sin(sum(uv,2));
+p = polyfitn(uv,w,'u, v');
+if exist('sympoly') == 2
+  polyn2sympoly(p)
+end
+if exist('sym') == 2
+  polyn2sym(p)
+end
+
+%% A model with various exponents, not all positive integers.
+
+% Note: with only 1 variable, x & y may be row or column vectors.
+x = 1:10;
+y = 3 + 2./x + sqrt(x) + randn(size(x))/100;
+p = polyfitn(x,y,'constant x^-1 x^0.5');
+if exist('sympoly') == 2
+  polyn2sympoly(p)
+end
+if exist('sym') == 2
+  polyn2sym(p)
+end
+
+xi = 1:.1:10;
+yi = polyvaln(p,xi);
+plot(x,y,'ro',xi,yi,'b-')
+
+
+
+##### SOURCE END #####
+-->
+   </body>
+</html>

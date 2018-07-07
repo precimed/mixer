@@ -33,7 +33,7 @@ FIT_FULL_MODEL=true;
 QQ_PLOT=true;STRATIFIED_QQ_PLOT=true;BGMG_LOGLIKE_PLOT=true;
 cache_tag_r2sum=true;
 MAF_THRESH=0.01;
-out_file = 'results_2018_07_06\init_with_true_params';
+out_file = 'results_2018_07_07\init_with_true_params';
 end
 
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
@@ -68,7 +68,7 @@ if ~exist('hardprune_plink_ld_bin', 'var'), hardprune_plink_ld_bin = ''; end;
 
 if ~exist('kmax', 'var'), kmax = 1000; end;
 if ~exist('r2min', 'var'), r2min = 0.01; end;
-if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.02; end;
+if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.008; end;
 if ~exist('cache_tag_r2sum', 'var'), cache_tag_r2sum = 1; end;
 
 % The following three options control how to get univariate & bivariate params
@@ -312,6 +312,11 @@ if DO_FIT_UGMG
     if ~isempty(trait2_file),
         result.univariate{2} = BGMG_cpp_fit_univariate(2, params.univariate{2}, options);
         params.univariate{2} = result.univariate{2}.params;
+        
+        % Update initial approximation for bivariate fit
+        params.bivariate.sig2_zero = [params.univariate{1}.sig2_zero; params.univariate{2}.sig2_zero];
+        params.bivariate.sig2_beta = [params.univariate{1}.sig2_beta 0 params.univariate{1}.sig2_beta; ...
+                                      0 params.univariate{2}.sig2_beta params.univariate{2}.sig2_beta];
     end
 end
 
@@ -578,6 +583,7 @@ end
 
 if 0
     % re-save LD info in C++ format
+    plink_ld_mat='1000Genome_ldmat_p05_SNPwind50k_chr@.ld.mat';chr_labels=1:22;
     for chr_index=1:length(chr_labels)
         plink_ld_mat_chr = strrep(plink_ld_mat,'@', sprintf('%i',chr_labels(chr_index)));
         fprintf('Loading %s...', plink_ld_mat_chr); tmp = load(plink_ld_mat_chr); fprintf('OK.\n');

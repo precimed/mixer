@@ -19,8 +19,8 @@ bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll'
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
 plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1:22;
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
-filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity';
-%filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity';
+%filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity';
+filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity';
 trait1_file = ['H:\work\simu_9pi_params\' filename '.trait1.mat']; trait1_nvec=100000;
 trait2_file = ['H:\work\simu_9pi_params\' filename '.trait2.mat']; trait2_nvec=100000;
 simu_params_file = ['H:\work\simu_9pi_params\' filename '.params.mat'];
@@ -33,7 +33,7 @@ FIT_FULL_MODEL=true;
 QQ_PLOT=true;STRATIFIED_QQ_PLOT=true;BGMG_LOGLIKE_PLOT=true;
 cache_tag_r2sum=true;
 MAF_THRESH=0.01;
-out_file = 'results_2018_07_07\init_with_true_params';
+out_file = ['results_2018_07_08/' filename];
 end
 
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
@@ -142,6 +142,7 @@ if (length(chr_labels) == 1) && (chr_labels(1) == 1) && ( all(ref.chrnumvec == 1
 end
   
 addpath('DERIVESTsuite');
+addpath('PolyfitnTools');
 BGMG_cpp.unload(); 
 BGMG_cpp.load(bgmg_shared_library, bgmg_shared_library_header);
 BGMG_cpp.init_log([out_file, '.bgmglib.log']);
@@ -239,6 +240,8 @@ if ~isempty(simu_params_file),
     if all(size(tmp_params.sig2_beta) == [1 2])
         tmp_params.sig2_beta = [tmp_params.sig2_beta(1) 0 tmp_params.sig2_beta(1); 0 tmp_params.sig2_beta(2) tmp_params.sig2_beta(2)];
     end
+    
+    if (tmp_params.pi_vec(end)<1e-15), tmp_params.pi_vec(end) = prod(tmp_params.pi_vec(1:end-1)); end;
 
     true_params = [];
     true_params.univariate{1} = struct('sig2_zero', tmp_params.sig2_zero(1), 'pi_vec', sum(tmp_params.pi_vec([1 3])), 'sig2_beta', tmp_params.sig2_beta(1,1));
@@ -594,4 +597,45 @@ if 0
         fwrite(fileID,single(tmp.r2),'single');
         fclose(fileID);
     end
+end
+
+if 0
+    % new plots for loglike trajectory - a as a function of the same params
+    % as we use in fminsearch
+    t = result.bivariate.loglike_plot_trajectory_fit;
+    t = result.bivariate.loglike_fit_trajectory;
+    p0 = result.bivariate.params;
+    func_map_params = @(x)BGMG_util.BGMG_mapparams3(x, struct('sig2_zero', p0.sig2_zero, 'sig2_beta', p0.sig2_beta(:, end), 'rho_zero', p0.rho_zero));
+    
+    x0 = func_map_params(p0)
+    x = []
+    for i=1:length(t.cost)
+        x = [x; func_map_params(struct('pi_vec', t.pivec(i, :), 'rho_beta', [0 0 t.rho_beta(i)]))];
+    end
+    
+    idx = t.cost < quantile(t.cost, 0.5);
+    
+    figure(1); clf;
+    [~, x0id] = min(sum((x  - repmat(x0, [size(x, 1), 1])).^2, 2));
+    for param_index=1:4
+        xu = unique(x(idx, param_index))
+        cu = nan(size(xu));
+        for i=1:length(xu)
+            cu(i) = min(t.cost(x(:, param_index) == xu(i)));
+        end
+        subplot(2,2,param_index);  hold on;
+        %plot(xu, cu, '.');
+        plot(x0(param_index), t.cost(x0id), '*');
+        plot(x(idx, param_index), t.cost(idx), '.');
+    end
+    
+    
+    polymodel = polyfitn(x(idx, :),t.cost(idx), 2)
+    cost2 = polyvaln(polymodel, x);
+    plot(t.cost(idx), cost2(idx), '.')
+    optfunc = @(xarg)polyvaln(polymodel, xarg);
+    fminsearch(optfunc, x0, struct('Display', 'iter'))
+
+    
+    
 end

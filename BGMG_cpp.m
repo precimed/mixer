@@ -222,6 +222,10 @@ classdef BGMG_cpp
     function init_log(log_file)
         calllib('bgmg', 'bgmg_init_log', log_file);
     end
+    
+    function dispose_all_context_ids
+        calllib('bgmg', 'bgmg_dispose', -1);
+    end
   end
 end
 

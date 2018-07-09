@@ -51,8 +51,6 @@
 
 #define OMP_CHUNK 1000
 
-#define BGMG_THROW_EXCEPTION(x) throw x
-
 #define FLOAT_TYPE float
 
 #define LD_TAG_COMPONENT_COUNT 2

@@ -41,9 +41,24 @@ catch (const std::runtime_error& e) {                                          \
   return -1;                                                                   \
 }
 
+// validation logic
+template<typename T> void fix_pi_vec(T *pi_vec) { if (*pi_vec < 0) { LOG << " FIX: pi_vec < 0"; *pi_vec = 0; } }
+template<typename T> void fix_num_causal(T *num_causal) { if (*num_causal < 0) { LOG << " FIX: num_causal < 0"; *num_causal = 0; } }
+template<typename T> void fix_rho(T *rho) { 
+  if (*rho < -1) { LOG << " FIX: rho < -1"; *rho = -1; }; 
+  if (*rho > 1) { LOG << " FIX: rho > 1"; *rho = 1; }
+}
+
+void check_trait_index(int trait_index) { if ((trait_index != 1) && (trait_index != 2)) { BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2")); } }
+template<typename T> void check_is_positive(T arg) { if (arg <= 0) { BGMG_THROW_EXCEPTION(::std::runtime_error("arg <= 0")); } }
+template<typename T> void check_is_nonnegative(T arg) { if (arg < 0) { BGMG_THROW_EXCEPTION(::std::runtime_error("arg < 0")); } }
+template<typename T> void check_is_not_null(T* ptr) { if (ptr == nullptr) { BGMG_THROW_EXCEPTION(::std::runtime_error("ptr == nullptr")); } }
+template<typename T> void check_r2(T arg) { if (arg < 0 | arg > 1) { BGMG_THROW_EXCEPTION(::std::runtime_error("arg < 0 | arg > 1")); } }
+
 int64_t bgmg_set_zvec(int context_id, int trait, int length, float* values) {
   try {
     set_last_error(std::string());
+    check_trait_index(trait); check_is_positive(length); check_is_not_null(values);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_zvec(trait, length, values);
   } CATCH_EXCEPTIONS;
 }
@@ -51,6 +66,7 @@ int64_t bgmg_set_zvec(int context_id, int trait, int length, float* values) {
 int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values) {
   try {
     set_last_error(std::string());
+    check_trait_index(trait); check_is_positive(length); check_is_not_null(values);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_nvec(trait, length, values);
   } CATCH_EXCEPTIONS;
 }
@@ -58,6 +74,7 @@ int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values) {
 int64_t bgmg_set_hvec(int context_id, int length, float* values) {
   try {
     set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(values);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_hvec(length, values);
   } CATCH_EXCEPTIONS;
 }
@@ -65,6 +82,7 @@ int64_t bgmg_set_hvec(int context_id, int length, float* values) {
 int64_t bgmg_set_weights(int context_id, int length, float* values) {
   try {
     set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(values);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_weights(length, values);
   } CATCH_EXCEPTIONS;
 }
@@ -72,6 +90,7 @@ int64_t bgmg_set_weights(int context_id, int length, float* values) {
 int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_indices) {
   try {
     set_last_error(std::string());
+    check_is_positive(num_snp); check_is_positive(num_tag); check_is_not_null(tag_indices);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_tag_indices(num_snp, num_tag, tag_indices);
   } CATCH_EXCEPTIONS;
 }
@@ -93,6 +112,7 @@ int64_t bgmg_get_num_snp(int context_id) {
 int64_t bgmg_retrieve_tag_indices(int context_id, int num_tag, int* tag_indices) {
   try {
     set_last_error(std::string());
+    check_is_positive(num_tag); check_is_not_null(tag_indices);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_tag_indices(num_tag, tag_indices);
   } CATCH_EXCEPTIONS;
 }
@@ -100,6 +120,7 @@ int64_t bgmg_retrieve_tag_indices(int context_id, int num_tag, int* tag_indices)
 int64_t bgmg_set_ld_r2_coo(int context_id, int64_t length, int* snp_index, int* tag_index, float* r2) {
   try {
     set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(snp_index); check_is_not_null(tag_index); check_is_not_null(r2);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(length, snp_index, tag_index, r2);
   } CATCH_EXCEPTIONS;
 }
@@ -107,6 +128,7 @@ int64_t bgmg_set_ld_r2_coo(int context_id, int64_t length, int* snp_index, int* 
 int64_t bgmg_set_ld_r2_coo_from_file(int context_id, const char* filename) {
   try {
     set_last_error(std::string());
+    check_is_not_null(filename);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(filename);
   } CATCH_EXCEPTIONS;
 }
@@ -121,6 +143,7 @@ int64_t bgmg_set_ld_r2_csr(int context_id) {
 int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_causal, int length, float* buffer) {
   try {
     set_last_error(std::string());
+    check_is_nonnegative(component_id); fix_num_causal(&num_causal); check_is_positive(length); check_is_not_null(buffer);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_tag_r2_sum(component_id, num_causal, length, buffer);
   } CATCH_EXCEPTIONS;
 }
@@ -128,18 +151,21 @@ int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_cau
 int64_t bgmg_retrieve_ld_tag_r2_sum(int context_id, int length, float* buffer) {
   try {
     set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_ld_tag_r2_sum(length, buffer);
   } CATCH_EXCEPTIONS;
 }
 int64_t bgmg_retrieve_ld_tag_r4_sum(int context_id, int length, float* buffer) {
   try {
     set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_ld_tag_r4_sum(length, buffer);
   } CATCH_EXCEPTIONS;
 }
 int64_t bgmg_retrieve_weighted_causal_r2(int context_id, int length, float* buffer) {
   try {
     set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_weighted_causal_r2(length, buffer);
   } CATCH_EXCEPTIONS;
 }
@@ -147,6 +173,7 @@ int64_t bgmg_retrieve_weighted_causal_r2(int context_id, int length, float* buff
 int64_t bgmg_retrieve_zvec(int context_id, int trait, int length, float* buffer) {
   try {
     set_last_error(std::string());
+    check_trait_index(trait); check_is_positive(length); check_is_not_null(buffer);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_zvec(trait, length, buffer);
   } CATCH_EXCEPTIONS;
 }
@@ -154,6 +181,7 @@ int64_t bgmg_retrieve_zvec(int context_id, int trait, int length, float* buffer)
 int64_t bgmg_retrieve_nvec(int context_id, int trait, int length, float* buffer) {
   try {
     set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_nvec(trait, length, buffer);
   } CATCH_EXCEPTIONS;
 }
@@ -161,6 +189,7 @@ int64_t bgmg_retrieve_nvec(int context_id, int trait, int length, float* buffer)
 int64_t bgmg_retrieve_hvec(int context_id, int length, float* buffer) {
   try {
     set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_hvec(length, buffer);
   } CATCH_EXCEPTIONS;
 }
@@ -168,6 +197,7 @@ int64_t bgmg_retrieve_hvec(int context_id, int length, float* buffer) {
 int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer) {
   try {
     set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_weights(length, buffer);
   } CATCH_EXCEPTIONS;
 }
@@ -175,6 +205,7 @@ int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer) {
 int64_t bgmg_set_option(int context_id, char* option, double value) {
   try {
     set_last_error(std::string());
+    check_is_not_null(option);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_option(option, value);
   } CATCH_EXCEPTIONS;
 }
@@ -182,6 +213,7 @@ int64_t bgmg_set_option(int context_id, char* option, double value) {
 double bgmg_calc_univariate_cost(int context_id, int trait_index, double pi_vec, double sig2_zero, double sig2_beta) {
   try {
     set_last_error(std::string());
+    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost(trait_index, pi_vec, sig2_zero, sig2_beta);
   } CATCH_EXCEPTIONS;
 }
@@ -189,6 +221,7 @@ double bgmg_calc_univariate_cost(int context_id, int trait_index, double pi_vec,
 double bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
   try {
     set_last_error(std::string());
+    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta); check_is_positive(length); check_is_not_null(zvec); check_is_not_null(pdf);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_pdf(trait_index, pi_vec, sig2_zero, sig2_beta, length, zvec, pdf);
   } CATCH_EXCEPTIONS;
 }
@@ -196,6 +229,11 @@ double bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, f
 double bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
   try {
     set_last_error(std::string());
+    check_is_positive(pi_vec_len); check_is_positive(sig2_beta_len); check_is_positive(sig2_zero_len);
+    for (int i = 0; i < pi_vec_len; i++) fix_pi_vec(&pi_vec[i]);
+    for (int i = 0; i < sig2_beta_len; i++) check_is_positive(&sig2_beta[i]);
+    for (int i = 0; i < sig2_zero_len; i++) check_is_positive(&sig2_zero[i]);
+    fix_rho(&rho_beta); fix_rho(&rho_zero);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_cost(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   } CATCH_EXCEPTIONS;
 }
@@ -203,6 +241,12 @@ double bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, i
 int64_t bgmg_calc_bivariate_pdf(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf) {
   try {
     set_last_error(std::string());
+    check_is_positive(pi_vec_len); check_is_positive(sig2_beta_len); check_is_positive(sig2_zero_len);
+    for (int i = 0; i < pi_vec_len; i++) fix_pi_vec(&pi_vec[i]);
+    for (int i = 0; i < sig2_beta_len; i++) check_is_positive(&sig2_beta[i]);
+    for (int i = 0; i < sig2_zero_len; i++) check_is_positive(&sig2_zero[i]);
+    fix_rho(&rho_beta); fix_rho(&rho_zero);
+    check_is_positive(length); check_is_not_null(zvec1); check_is_not_null(zvec2); check_is_not_null(pdf);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_pdf(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, length, zvec1, zvec2, pdf);
   } CATCH_EXCEPTIONS;
 
@@ -211,6 +255,7 @@ int64_t bgmg_calc_bivariate_pdf(int context_id, int pi_vec_len, float* pi_vec, i
 int64_t bgmg_set_weights_randprune(int context_id, int n, float r2) {
   try {
     set_last_error(std::string());
+    check_is_positive(n); check_r2(r2);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_weights_randprune(n, r2);
   } CATCH_EXCEPTIONS;
 }
@@ -218,7 +263,8 @@ int64_t bgmg_set_weights_randprune(int context_id, int n, float r2) {
 int64_t bgmg_dispose(int context_id) {
   try {
     set_last_error(std::string());
-    BgmgCalculatorManager::singleton().Erase(context_id);
+    if (context_id == -1) BgmgCalculatorManager::singleton().Clear();
+    else BgmgCalculatorManager::singleton().Erase(context_id);
     return 0;
   } CATCH_EXCEPTIONS;
 }
@@ -228,6 +274,7 @@ const char* bgmg_status(int context_id) {
 }
 
 void bgmg_init_log(const char* file) {
+  check_is_not_null(file);
   LoggerImpl::singleton().init(file);
 }
 
@@ -248,6 +295,7 @@ int64_t bgmg_get_loglike_cache_size(int context_id) {
 int64_t bgmg_get_loglike_cache_univariate_entry(int context_id, int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost) {
   try {
     set_last_error(std::string());
+    check_is_nonnegative(entry_index); check_is_not_null(pi_vec); check_is_not_null(sig2_zero); check_is_not_null(sig2_beta); check_is_not_null(cost);
     return BgmgCalculatorManager::singleton().Get(context_id)->get_loglike_cache_univariate_entry(entry_index, pi_vec, sig2_zero, sig2_beta, cost);
   } CATCH_EXCEPTIONS;
 }
@@ -255,6 +303,8 @@ int64_t bgmg_get_loglike_cache_univariate_entry(int context_id, int entry_index,
 int64_t bgmg_get_loglike_cache_bivariate_entry(int context_id, int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost) {
   try {
     set_last_error(std::string());
+    check_is_nonnegative(entry_index); check_is_nonnegative(pi_vec_len); check_is_nonnegative(sig2_beta_len); check_is_nonnegative(sig2_zero_len);
+    check_is_not_null(pi_vec); check_is_not_null(sig2_beta); check_is_not_null(rho_beta); check_is_not_null(sig2_zero); check_is_not_null(rho_zero); check_is_not_null(cost);
     return BgmgCalculatorManager::singleton().Get(context_id)->get_loglike_cache_bivariate_entry(entry_index, pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
   } CATCH_EXCEPTIONS;
 }
@@ -262,6 +312,7 @@ int64_t bgmg_get_loglike_cache_bivariate_entry(int context_id, int entry_index, 
 double bgmg_calc_univariate_cost_with_deriv(int context_id, int trait_index, double pi_vec, double sig2_zero, double sig2_beta, int deriv_length, double* deriv) {
   try {
     set_last_error(std::string());
+    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost_cache_deriv(trait_index, pi_vec, sig2_zero, sig2_beta, deriv_length, deriv);
   } CATCH_EXCEPTIONS;
 }

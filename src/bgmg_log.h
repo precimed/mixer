@@ -8,6 +8,7 @@
 
 #define LOG Logger::singleton()
 #define MAX_LOG_LINES 10000000
+#define BGMG_THROW_EXCEPTION(x) throw x
 
 class LoggerImpl : boost::noncopyable {
 public:

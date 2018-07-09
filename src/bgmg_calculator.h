@@ -53,6 +53,11 @@ class TemplateManager : boost::noncopyable {
     map_.erase(id);
   }
 
+  void Clear() {
+    LOG << " Dispose all context ids";
+    map_.clear();
+  }
+
  private:
   TemplateManager() { }  // Singleton (make constructor private)
   std::unordered_map<int, std::shared_ptr<Type>> map_;

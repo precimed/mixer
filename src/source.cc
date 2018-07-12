@@ -316,3 +316,19 @@ double bgmg_calc_univariate_cost_with_deriv(int context_id, int trait_index, dou
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost_cache_deriv(trait_index, pi_vec, sig2_zero, sig2_beta, deriv_length, deriv);
   } CATCH_EXCEPTIONS;
 }
+
+int64_t bgmg_set_chrnumvec(int context_id, int length, int* values) {
+  try {
+    set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(values);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_chrnumvec(length, values);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_retrieve_chrnumvec(int context_id, int length, int* buffer) {
+  try {
+    set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_chrnumvec(length, buffer);
+  } CATCH_EXCEPTIONS;
+}

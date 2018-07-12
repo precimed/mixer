@@ -285,6 +285,9 @@ class BgmgCalculator {
   // indices = array of size num_tag, containing indices from 0 to num_snp-1
   // NB: all tag variants must have defined zvec, hvec, hvec and weights.
   int64_t set_tag_indices(int num_snp, int num_tag, int* tag_indices);
+  
+  int64_t set_chrnumvec(int num_snp, int* chrlabel);
+  int64_t retrieve_chrnumvec(int length, int* buffer);
 
   // consume input in plink format, e.i. lower triangular LD r2 matrix
   // - snp_index is less than tag_index;
@@ -367,6 +370,8 @@ class BgmgCalculator {
   std::vector<int> tag_to_snp_; // 0..num_snp_-1, size=num_tag_
   std::vector<int> snp_to_tag_; // 0..num_tag-1,  size=num_snp_, -1 indicate non-tag snp
   std::vector<char> is_tag_;    // true or false, size=num_snp_, is_tag_[i] == (snp_to_tag_[i] != -1)
+  std::vector<int> chrnumvec_;  // vector of chromosome labels, one per snp
+
 
   // csr_ld_snp_index_.size() == num_snp_ + 1; 
   // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant

@@ -29,6 +29,8 @@ DLL_PUBLIC int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag
 DLL_PUBLIC int64_t bgmg_get_num_tag(int context_id);
 DLL_PUBLIC int64_t bgmg_get_num_snp(int context_id);
 DLL_PUBLIC int64_t bgmg_retrieve_tag_indices(int context_id, int num_tag, int* tag_indices);
+DLL_PUBLIC int64_t bgmg_set_chrnumvec(int context_id, int length, int* values);
+DLL_PUBLIC int64_t bgmg_retrieve_chrnumvec(int context_id, int length, int* buffer);
 DLL_PUBLIC int64_t bgmg_set_option(int context_id, char* option, double value);
 DLL_PUBLIC int64_t bgmg_set_zvec(int context_id, int trait, int length, float* values);
 DLL_PUBLIC int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values);

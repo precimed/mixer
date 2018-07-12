@@ -1600,3 +1600,20 @@ int64_t LoglikeCache::get_entry(int entry_index, int pi_vec_len, float* pi_vec, 
   cache_[entry_index].get(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
   return 0;
 }
+
+int64_t BgmgCalculator::set_chrnumvec(int num_snp, int* chrlabel) {
+  if (!chrnumvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can not set chrnumvec twice"));
+  LOG << ">set_chrnumvec(" << num_snp << "); ";
+  check_num_snp(num_snp);
+  chrnumvec_.assign(chrlabel, chrlabel + num_snp);
+  LOG << "<set_chrnumvec(" << num_snp << "); ";
+  return 0;
+}
+
+int64_t BgmgCalculator::retrieve_chrnumvec(int length, int* buffer) {
+  if (length != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  if (chrnumvec_.size() != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("chrnumvec_.size() != num_snp_"));
+  LOG << " retrieve_chrnumvec()";
+  for (int i = 0; i < num_snp_; i++) buffer[i] = chrnumvec_[i];
+  return 0;
+}

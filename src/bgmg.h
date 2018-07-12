@@ -39,6 +39,9 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_get_num_snp(int context_id);
   DLL_PUBLIC int64_t bgmg_retrieve_tag_indices(int context_id, int num_tag, int* tag_indices);
 
+  DLL_PUBLIC int64_t bgmg_set_chrnumvec(int context_id, int length, int* values);
+  DLL_PUBLIC int64_t bgmg_retrieve_chrnumvec(int context_id, int length, int* buffer);
+
   // Set variouns options:
   // diag, kmax, r2min, max_causals, num_components, seed, fast_cost, threads, cache_tag_r2sum; refer to BgmgCalculator::set_option for a full list.
   // NB. Most options reset LD structure, you'll have to bgmg_set_ld_r2_coo / bgmg_set_ld_r2_csr again.

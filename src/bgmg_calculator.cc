@@ -249,11 +249,14 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
     ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec_[tag_to_snp_[i]]);
   }
   
+  SimpleTimer timer2(-1);
   // Use parallel sort? https://software.intel.com/en-us/articles/a-parallel-stable-sort-using-c11-for-tbb-cilk-plus-and-openmp
 #if _OPENMP >= 200805
   pss::parallel_stable_sort(coo_ld_.begin(), coo_ld_.end(), std::less<std::tuple<int, int, float>>());
+  LOG << "pss::parallel_stable_sort took " << timer.elapsed_ms() << "ms.";
 #else
   std::sort(coo_ld_.begin(), coo_ld_.end());
+  LOG << "std::sort took " << timer.elapsed_ms() << "ms.";
 #endif
 
   csr_ld_tag_index_.reserve(coo_ld_.size());

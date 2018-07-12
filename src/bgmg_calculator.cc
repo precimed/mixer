@@ -40,6 +40,10 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
 
+#if _OPENMP >= 200805
+#include "parallel_stable_sort.h"
+#endif
+
 // Include namespace SEMT & global operators.
 #define SEMT_DISABLE_PRINT 0
 #include "semt/Semt.h"
@@ -246,7 +250,11 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
   }
   
   // Use parallel sort? https://software.intel.com/en-us/articles/a-parallel-stable-sort-using-c11-for-tbb-cilk-plus-and-openmp
+#if _OPENMP >= 200805
+  pss::parallel_stable_sort(coo_ld_.begin(), coo_ld_.end(), std::less<std::tuple<int, int, float>>());
+#else
   std::sort(coo_ld_.begin(), coo_ld_.end());
+#endif
 
   csr_ld_tag_index_.reserve(coo_ld_.size());
   csr_ld_r2_.reserve(coo_ld_.size());

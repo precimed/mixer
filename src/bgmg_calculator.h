@@ -379,8 +379,8 @@ class BgmgCalculator {
   // csr_ld_tag_index_.size() == csr_ld_r2_.size() == number of non-zero LD r2 values
   // csr_ld_tag_index_ contains values from 0 to num_tag_-1
   // csr_ld_r2_ contains values from 0 to 1, indicating LD r2 between snp and tag variants
-  std::vector<int> csr_ld_snp_index_;
-  std::vector<int> csr_ld_tag_index_;
+  std::vector<int64_t> csr_ld_snp_index_;
+  std::vector<int> csr_ld_tag_index_;  // NB! This array can be very long. Indeed more than 2e9 !
   std::vector<float> csr_ld_r2_;
   std::vector<std::tuple<int, int, float>> coo_ld_; // snp, tag, r2
 

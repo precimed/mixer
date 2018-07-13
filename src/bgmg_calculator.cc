@@ -204,20 +204,20 @@ int64_t BgmgCalculator::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_i
   if (hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_hvec"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
 
-  for (int i = 0; i < length; i++)
+  for (int64_t i = 0; i < length; i++)
     if (snp_index[i] == tag_index[i])
       BGMG_THROW_EXCEPTION(::std::runtime_error("snp_index[i] == tag_index[i] --- unexpected for ld files created via plink"));
 
   if (snp_order_.empty()) find_snp_order();
 
-  for (int i = 0; i < length; i++) {
+  for (int64_t i = 0; i < length; i++) {
     if (!std::isfinite(r2[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
   SimpleTimer timer(-1);
 
   int was = coo_ld_.size();
-  for (int i = 0; i < length; i++) {
+  for (int64_t i = 0; i < length; i++) {
     CHECK_SNP_INDEX(snp_index[i]); CHECK_SNP_INDEX(tag_index[i]);
 
     int ld_component = (r2[i] < r2_min_) ? LD_TAG_COMPONENT_BELOW_R2MIN : LD_TAG_COMPONENT_ABOVE_R2MIN;
@@ -249,7 +249,7 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
     ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec_[tag_to_snp_[i]]);
   }
   
-  LOG << "Sorting r2 elements... ";
+  LOG << " sorting ld r2 elements... ";
   SimpleTimer timer2(-1);
   // Use parallel sort? https://software.intel.com/en-us/articles/a-parallel-stable-sort-using-c11-for-tbb-cilk-plus-and-openmp
 #if _OPENMP >= 200805
@@ -264,14 +264,14 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
   csr_ld_tag_index_.reserve(coo_ld_.size());
   csr_ld_r2_.reserve(coo_ld_.size());
 
-  for (int i = 0; i < coo_ld_.size(); i++) {
+  for (int64_t i = 0; i < coo_ld_.size(); i++) {
     csr_ld_tag_index_.push_back(std::get<1>(coo_ld_[i]));
     csr_ld_r2_.push_back(std::get<2>(coo_ld_[i]));
   }
 
   // find starting position for each snp
   csr_ld_snp_index_.resize(snp_to_tag_.size() + 1, coo_ld_.size());
-  for (int i = (coo_ld_.size() - 1); i >= 0; i--) {
+  for (int64_t i = (coo_ld_.size() - 1); i >= 0; i--) {
     int snp_index = std::get<0>(coo_ld_[i]);
     csr_ld_snp_index_[snp_index] = i;
   }
@@ -282,7 +282,6 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
 
   LOG << "<set_ld_r2_csr (coo_ld_.size()==" << coo_ld_.size() << "); elapsed time " << timer.elapsed_ms() << " ms"; 
   coo_ld_.clear();
-
   validate_ld_r2_csr();
 
   return 0;
@@ -298,17 +297,17 @@ int64_t BgmgCalculator::validate_ld_r2_csr() {
   for (int i = 1; i < csr_ld_snp_index_.size(); i++) if (csr_ld_snp_index_[i-1] > csr_ld_snp_index_[i]) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_[i-1] > csr_ld_snp_index_[i]"));
   if (csr_ld_snp_index_.back() != csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.back() != csr_ld_r2_.size()"));
   if (csr_ld_tag_index_.size() != csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_.size() != csr_ld_r2_.size()"));
-  for (int i = 0; i < csr_ld_tag_index_.size(); i++) if (csr_ld_tag_index_[i] < 0 || csr_ld_tag_index_[i] >= num_tag_) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
+  for (int64_t i = 0; i < csr_ld_tag_index_.size(); i++) if (csr_ld_tag_index_[i] < 0 || csr_ld_tag_index_[i] >= num_tag_) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
 
   // Test that all values are between zero and r2min
-  for (int i = 0; i < csr_ld_r2_.size(); i++) if (csr_ld_r2_[i] < r2_min_ || csr_ld_r2_[i] > 1.0f) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
-  for (int i = 0; i < csr_ld_r2_.size(); i++) if (!std::isfinite(csr_ld_r2_[i])) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(csr_ld_r2_[i])"));
+  for (int64_t i = 0; i < csr_ld_r2_.size(); i++) if (csr_ld_r2_[i] < r2_min_ || csr_ld_r2_[i] > 1.0f) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
+  for (int64_t i = 0; i < csr_ld_r2_.size(); i++) if (!std::isfinite(csr_ld_r2_[i])) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(csr_ld_r2_[i])"));
 
   // Test that LDr2 does not have duplicates
   for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-    const int r2_index_from = csr_ld_snp_index_[causal_index];
-    const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
-    for (int r2_index = r2_index_from; r2_index < (r2_index_to - 1); r2_index++) {
+    const int64_t r2_index_from = csr_ld_snp_index_[causal_index];
+    const int64_t r2_index_to = csr_ld_snp_index_[causal_index + 1];
+    for (int64_t r2_index = r2_index_from; r2_index < (r2_index_to - 1); r2_index++) {
       if (csr_ld_tag_index_[r2_index] == csr_ld_tag_index_[r2_index + 1])
         BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_[r2_index] == csr_ld_tag_index_[r2_index + 1]"));
     }
@@ -320,22 +319,17 @@ int64_t BgmgCalculator::validate_ld_r2_csr() {
     if (!is_tag_[causal_index]) continue;
     const int tag_index_of_the_snp = snp_to_tag_[causal_index];
 
-    const int r2_index_from = csr_ld_snp_index_[causal_index];
-    const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
+    const int64_t r2_index_from = csr_ld_snp_index_[causal_index];
+    const int64_t r2_index_to = csr_ld_snp_index_[causal_index + 1];
     bool ld_r2_contains_diagonal = false;
-    for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
+    for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
       const int tag_index = csr_ld_tag_index_[r2_index];
       const float r2 = csr_ld_r2_[r2_index];  // here we are interested in r2 (hvec is irrelevant)
       
       if (tag_index == tag_index_of_the_snp) ld_r2_contains_diagonal = true;
       float r2symm = find_and_retrieve_ld_r2(tag_to_snp_[tag_index], tag_index_of_the_snp);
       if (!std::isfinite(r2symm)) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(r2symm)"));
-      if (r2symm != r2) {
-
-
-
-        BGMG_THROW_EXCEPTION(std::runtime_error("r2symm != r2"));
-      }
+      if (r2symm != r2) BGMG_THROW_EXCEPTION(std::runtime_error("r2symm != r2"));
     }
 
     if (!ld_r2_contains_diagonal) BGMG_THROW_EXCEPTION(std::runtime_error("!ld_r2_contains_diagonal"));
@@ -516,9 +510,9 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
       int scan_index = change.first;
       float scan_weight = change.second;
       int snp_index = (*snp_order_[component_id])(scan_index, k_index);  // index of a causal snp
-      int r2_index_from = csr_ld_snp_index_[snp_index];
-      int r2_index_to = csr_ld_snp_index_[snp_index + 1];
-      for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
+      int64_t r2_index_from = csr_ld_snp_index_[snp_index];
+      int64_t r2_index_to = csr_ld_snp_index_[snp_index + 1];
+      for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
         int tag_index = csr_ld_tag_index_[r2_index];
         float r2 = csr_ld_r2_[r2_index];
         float hval = hvec_[snp_index];
@@ -1492,25 +1486,24 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
         const int random_tag_index = candidate_tag_indices[random_candidate_index];
         if (processed_tag_indices[random_tag_index]) {
           candidate_tag_indices.assign(non_processed_tag_indices.begin(), non_processed_tag_indices.end());
-          
-          for (int i = 0; i < num_tag_; i++) {
-            const bool is_processed = (non_processed_tag_indices.find(i) == non_processed_tag_indices.end());
-            if (processed_tag_indices[i] != is_processed) {
-              LOG << " set_weights_randprune is stuck, processed_tag_indices inconsistent with non_processed_tag_indices. Cancel random pruning iteration " << prune_i;
-              candidate_tag_indices.clear();
-              break;
-            }
-          }
-
+          // Validate that non_processed_tag_indices is consistent with processed_tag_indices.
+          // for (int i = 0; i < num_tag_; i++) {
+          //  const bool is_processed = (non_processed_tag_indices.find(i) == non_processed_tag_indices.end());
+          //  if (processed_tag_indices[i] != is_processed) {
+          //    LOG << " set_weights_randprune is stuck, processed_tag_indices inconsistent with non_processed_tag_indices. Cancel random pruning iteration " << prune_i;
+          //    candidate_tag_indices.clear();
+          //    break;
+          //  }
+          // }
           continue;
         }
 
         passed_random_pruning_local[random_tag_index] += 1;
         int causal_index = tag_to_snp_[random_tag_index];
-        const int r2_index_from = csr_ld_snp_index_[causal_index];
-        const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
+        const int64_t r2_index_from = csr_ld_snp_index_[causal_index];
+        const int64_t r2_index_to = csr_ld_snp_index_[causal_index + 1];
         int num_changes = 0;
-        for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
+        for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
           const int tag_index = csr_ld_tag_index_[r2_index];
           const float r2_value = csr_ld_r2_[r2_index];  // here we are interested in r2 (hvec is irrelevant)
           if (r2_value < r2_threshold) continue;
@@ -1594,9 +1587,9 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
     int scan_index = change.first;
     float scan_weight = change.second;
     int snp_index = (*snp_order_[component_id])(scan_index, k_index);
-    int r2_index_from = csr_ld_snp_index_[snp_index];
-    int r2_index_to = csr_ld_snp_index_[snp_index + 1];
-    for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
+    int64_t r2_index_from = csr_ld_snp_index_[snp_index];
+    int64_t r2_index_to = csr_ld_snp_index_[snp_index + 1];
+    for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
       int tag_index = csr_ld_tag_index_[r2_index];
       float r2 = csr_ld_r2_[r2_index];
       float hval = hvec_[snp_index];
@@ -1622,9 +1615,9 @@ int64_t BgmgCalculator::retrieve_weighted_causal_r2(int length, float* buffer) {
 
   for (int i = 0; i < num_snp_; i++) buffer[i] = 0.0f;
   for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-    const int r2_index_from = csr_ld_snp_index_[causal_index];
-    const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
-    for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
+    const int64_t r2_index_from = csr_ld_snp_index_[causal_index];
+    const int64_t r2_index_to = csr_ld_snp_index_[causal_index + 1];
+    for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
       const int tag_index = csr_ld_tag_index_[r2_index];
       const float r2 = csr_ld_r2_[r2_index];  // here we are interested in r2 (hvec is irrelevant)
       buffer[causal_index] += r2 * weights_[tag_index];

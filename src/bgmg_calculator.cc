@@ -249,6 +249,7 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
     ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec_[tag_to_snp_[i]]);
   }
   
+  LOG << "Sorting r2 elements... ";
   SimpleTimer timer2(-1);
   // Use parallel sort? https://software.intel.com/en-us/articles/a-parallel-stable-sort-using-c11-for-tbb-cilk-plus-and-openmp
 #if _OPENMP >= 200805
@@ -257,6 +258,7 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
 #else
   std::sort(coo_ld_.begin(), coo_ld_.end());
   LOG << " std::sort took " << timer.elapsed_ms() << "ms.";
+  LOG << " (to enable parallel sort build bgmglib with compiler that supports OpenMP 3.0";
 #endif
 
   csr_ld_tag_index_.reserve(coo_ld_.size());
@@ -280,6 +282,66 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
 
   LOG << "<set_ld_r2_csr (coo_ld_.size()==" << coo_ld_.size() << "); elapsed time " << timer.elapsed_ms() << " ms"; 
   coo_ld_.clear();
+
+  validate_ld_r2_csr();
+
+  return 0;
+}
+
+int64_t BgmgCalculator::validate_ld_r2_csr() {
+  LOG << ">validate_ld_r2_csr(); ";
+  SimpleTimer timer(-1);
+
+  // Test correctness of sparse representation
+  if (csr_ld_snp_index_.size() != (num_snp_ + 1)) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.size() != (num_snp_ + 1))"));
+  for (int i = 0; i < csr_ld_snp_index_.size(); i++) if (csr_ld_snp_index_[i] < 0 || csr_ld_snp_index_[i] > csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_[i] < 0 || csr_ld_snp_index_[i] > csr_ld_r2_.size()"));
+  for (int i = 1; i < csr_ld_snp_index_.size(); i++) if (csr_ld_snp_index_[i-1] > csr_ld_snp_index_[i]) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_[i-1] > csr_ld_snp_index_[i]"));
+  if (csr_ld_snp_index_.back() != csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.back() != csr_ld_r2_.size()"));
+  if (csr_ld_tag_index_.size() != csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_.size() != csr_ld_r2_.size()"));
+  for (int i = 0; i < csr_ld_tag_index_.size(); i++) if (csr_ld_tag_index_[i] < 0 || csr_ld_tag_index_[i] >= num_tag_) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
+
+  // Test that all values are between zero and r2min
+  for (int i = 0; i < csr_ld_r2_.size(); i++) if (csr_ld_r2_[i] < r2_min_ || csr_ld_r2_[i] > 1.0f) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
+  for (int i = 0; i < csr_ld_r2_.size(); i++) if (!std::isfinite(csr_ld_r2_[i])) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(csr_ld_r2_[i])"));
+
+  // Test that LDr2 does not have duplicates
+  for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
+    const int r2_index_from = csr_ld_snp_index_[causal_index];
+    const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
+    for (int r2_index = r2_index_from; r2_index < (r2_index_to - 1); r2_index++) {
+      if (csr_ld_tag_index_[r2_index] == csr_ld_tag_index_[r2_index + 1])
+        BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_[r2_index] == csr_ld_tag_index_[r2_index + 1]"));
+    }
+  }
+
+  // Test that LDr2 is symmetric (as long as both SNPs are tag)
+  // Test that LDr2 contains the diagonal
+  for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
+    if (!is_tag_[causal_index]) continue;
+    const int tag_index_of_the_snp = snp_to_tag_[causal_index];
+
+    const int r2_index_from = csr_ld_snp_index_[causal_index];
+    const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
+    bool ld_r2_contains_diagonal = false;
+    for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
+      const int tag_index = csr_ld_tag_index_[r2_index];
+      const float r2 = csr_ld_r2_[r2_index];  // here we are interested in r2 (hvec is irrelevant)
+      
+      if (tag_index == tag_index_of_the_snp) ld_r2_contains_diagonal = true;
+      float r2symm = find_and_retrieve_ld_r2(tag_to_snp_[tag_index], tag_index_of_the_snp);
+      if (!std::isfinite(r2symm)) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(r2symm)"));
+      if (r2symm != r2) {
+
+
+
+        BGMG_THROW_EXCEPTION(std::runtime_error("r2symm != r2"));
+      }
+    }
+
+    if (!ld_r2_contains_diagonal) BGMG_THROW_EXCEPTION(std::runtime_error("!ld_r2_contains_diagonal"));
+  }
+
+  LOG << "<validate_ld_r2_csr (); elapsed time " << timer.elapsed_ms() << " ms";
   return 0;
 }
 
@@ -1643,4 +1705,11 @@ int64_t BgmgCalculator::retrieve_chrnumvec(int length, int* buffer) {
   LOG << " retrieve_chrnumvec()";
   for (int i = 0; i < num_snp_; i++) buffer[i] = chrnumvec_[i];
   return 0;
+}
+
+float BgmgCalculator::find_and_retrieve_ld_r2(int snp_index, int tag_index) {
+  auto r2_iter_from = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index];
+  auto r2_iter_to = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index + 1];
+  auto iter = std::lower_bound(r2_iter_from, r2_iter_to, tag_index);
+  return (iter != r2_iter_to) ? csr_ld_r2_[iter - csr_ld_tag_index_.begin()] : NAN;
 }

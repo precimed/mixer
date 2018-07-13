@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "omp.h"
 
+#include <set>
 #include <iostream>
 #include <random>
 #include <algorithm>
@@ -74,13 +75,19 @@ public:
     std::vector<float> rand_list;
     for (int i = 0; i < 1000; i++) rand_list.push_back(dis2(g_));
     
+    std::set<std::tuple<int, int>> pairs;
+
     std::uniform_int_distribution<> dis(0, num_snp_ - 1);
-    while (tag_index->size() < num_r2) {
+    int num_try = 0;
+    while ((tag_index->size() < num_r2) && (num_try < 10*num_r2)) {
+      num_try++;
       int tag = dis(g_);
       int snp = dis(g_);
       if (tag <= snp) continue;
+      if (pairs.find(std::make_tuple(tag, snp)) != pairs.end()) continue;
       tag_index->push_back(tag);
       snp_index->push_back(snp);
+      pairs.insert(std::make_tuple(tag, snp));
       r2->push_back(rand_list[r2->size() % rand_list.size()]);
     }
   }

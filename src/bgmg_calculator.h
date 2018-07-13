@@ -298,6 +298,7 @@ class BgmgCalculator {
   int64_t set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2);
   int64_t set_ld_r2_coo(const std::string& filename);
   int64_t set_ld_r2_csr();  // finalize
+  int64_t validate_ld_r2_csr();  // validate
 
   // must be called after set_ld_r2, as it adjusts r2 matrix
   // one value for each snp (tag and non-tag)
@@ -415,6 +416,7 @@ class BgmgCalculator {
   bool cache_tag_r2sum_;
   void check_num_snp(int length);
   void check_num_tag(int length);
+  float find_and_retrieve_ld_r2(int snp_index, int tag_index);  // nan if doesn't exist.
   double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
 

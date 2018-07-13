@@ -1430,6 +1430,16 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
         const int random_tag_index = candidate_tag_indices[random_candidate_index];
         if (processed_tag_indices[random_tag_index]) {
           candidate_tag_indices.assign(non_processed_tag_indices.begin(), non_processed_tag_indices.end());
+          
+          for (int i = 0; i < num_tag_; i++) {
+            const bool is_processed = (non_processed_tag_indices.find(i) == non_processed_tag_indices.end());
+            if (processed_tag_indices[i] != is_processed) {
+              LOG << " set_weights_randprune is stuck, processed_tag_indices inconsistent with non_processed_tag_indices. Cancel random pruning iteration " << prune_i;
+              candidate_tag_indices.clear();
+              break;
+            }
+          }
+
           continue;
         }
 
@@ -1437,13 +1447,19 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
         int causal_index = tag_to_snp_[random_tag_index];
         const int r2_index_from = csr_ld_snp_index_[causal_index];
         const int r2_index_to = csr_ld_snp_index_[causal_index + 1];
+        int num_changes = 0;
         for (int r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
           const int tag_index = csr_ld_tag_index_[r2_index];
           const float r2_value = csr_ld_r2_[r2_index];  // here we are interested in r2 (hvec is irrelevant)
           if (r2_value < r2_threshold) continue;
           if (processed_tag_indices[tag_index]) continue;
-          processed_tag_indices[tag_index] = 1;         //  mark as processed, and
+          processed_tag_indices[tag_index] = 1;         // mark as processed, and
           non_processed_tag_indices.erase(tag_index);   // remove from the set
+          num_changes++;
+        }
+        if (num_changes == 0) {
+          LOG << " set_weights_randprune is stuck, num_changes=0. Cancel random pruning iteration " << prune_i;
+          break;
         }
       }
     }

@@ -4,6 +4,8 @@ function result = BGMG_cpp_fit_univariate(trait_index, params0, options)
     % List of all configurable options
     if ~exist('options', 'var'), options = struct(); end;
     if ~isfield(options, 'MaxFunEvals'), options.MaxFunEvals = NaN; end;
+    if ~isfield(options, 'TolX'), options.TolX = NaN; end;
+    if ~isfield(options, 'TolFun'), options.TolFun = NaN; end;
     if ~isfield(options, 'ci_alpha'), options.ci_alpha = 0.05; end;
     if ~isfield(options, 'ci_sample'), options.ci_sample = 10000; end;
     if ~isfield(options, 'total_het'), options.total_het = nan; end;  % required for heritability estimate
@@ -13,6 +15,8 @@ function result = BGMG_cpp_fit_univariate(trait_index, params0, options)
     
     fminsearch_options = struct('Display', 'on');
     if ~isnan(options.MaxFunEvals), fminsearch_options.MaxFunEvals=options.MaxFunEvals; end;
+    if ~isnan(options.TolX), fminsearch_options.MaxFunEvals=options.TolX; end;
+    if ~isnan(options.TolFun), fminsearch_options.MaxFunEvals=options.TolFun; end;
 
     fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), fminsearch_options));
 

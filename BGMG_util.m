@@ -134,6 +134,27 @@ classdef BGMG_util
           y = y/(1-minval);
         end
     end
+    
+    function ov = UGMG_mapparams1_indep(iv, options)
+        % mapparams for univariate mixture with a single causal component
+        if ~exist('options', 'var'), options=[]; end;
+        if ~isfield(options, 'sig2_zero'), options.sig2_zero = nan; end;
+        if ~isfield(options, 'pi_vec'), options.pi_vec = nan; end;
+        if ~isfield(options, 'sig2_beta'), options.sig2_beta = nan; end;
+        if isnan(options.pi_vec) ~= isnan(options.sig2_beta), error('isnan(options.pi_vec) ~= isnan(options.sig2_beta)'); end;
+        
+        is_packing = isstruct(iv); cnti = 1;
+        if is_packing, ov = []; else ov = struct(); end;
+
+        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp3_amd, 'sig2_zero');
+        if is_packing
+            ov = cat(2, ov, log(atanh(iv.pi_vec)) + log(iv.sig2_beta));
+            ov = cat(2, ov, log(atanh(iv.pi_vec)) - log(iv.sig2_beta));
+        else
+            ov.pi_vec = tanh(exp((iv(cnti) + iv(cnti+1))/2));
+            ov.sig2_beta = exp((iv(cnti) - iv(cnti+1))/2);
+        end
+    end
 
     function ov = UGMG_mapparams1(iv, options)
         % mapparams for univariate mixture with a single causal component
@@ -440,6 +461,52 @@ classdef BGMG_util
 
         [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
         [ov, ~] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
+    end
+
+    function ov = BGMG_mapparams3_indep(iv, options)
+        % mapparams for BGMG model with 3 free parameters:
+        % - pi12frac = pi12/min(pi1u, pi2u)
+        % - rho_zero
+        % - rho_beta
+        %
+        % options must contain univariate results: 
+        % - pi_vec, vector 2x1, univariate polygenicitiyes pi1u, pi2u
+        % - sig2_beta, vector 2x1
+        % - sig2_zero, vector 2x1
+        %
+        % test
+        % params  = struct('pi_vec', [0.1 0.2 0.3], 'rho_zero', 0.1, 'rho_beta', 0.2); 
+        % options = struct('pi_vec', [sum(params.pi_vec([1 3])), sum(params.pi_vec([2 3]))], 'sig2_beta', [1e-2 1e-3], 'sig2_zero', [1.5 1.8]); 
+        % x = BGMG_util.BGMG_mapparams3_indep(params, options)
+        % p = BGMG_util.BGMG_mapparams3_indep(x, options)
+        % options.rho_zero = 0.1; options.rho_beta = 0.2;
+
+        if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
+        if ~isfield(options, 'rho_beta'), options.rho_beta = nan; end;
+
+        transform_forward = 0;
+        transform_backward = 1;
+        is_packing = isstruct(iv); cnti = 1;
+        if is_packing, ov = []; else ov = struct(); end;
+        
+        
+        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
+        
+        if is_packing
+            assert(sum(iv.pi_vec([1,3])) == options.pi_vec(1));
+            assert(sum(iv.pi_vec([2,3])) == options.pi_vec(2));
+            if isfield(iv, 'sig2_beta') && isfield(options, 'sig2_beta'), assert(all(iv.sig2_beta(:, end) == BGMG_util.colvec(options.sig2_beta))); end;
+            if isfield(iv, 'sig2_zero') && isfield(options, 'sig2_zero'), assert(all(iv.sig2_zero == BGMG_util.colvec(options.sig2_zero))); end;
+            ov = cat(2, ov, BGMG_util.logit_amd(iv.pi_vec(end) / min(options.pi_vec), transform_forward));
+        else
+            pi12frac = BGMG_util.logit_amd(iv(cnti), transform_backward); cnti=cnti+1;
+            pi12 = min(options.pi_vec) * pi12frac;
+            ov.pi_vec = [options.pi_vec(1)-pi12, options.pi_vec(2)-pi12, pi12];
+            ov.sig2_beta = [options.sig2_beta(1), 0, options.sig2_beta(1); ...
+                            0, options.sig2_beta(2), options.sig2_beta(2)];
+            ov.sig2_zero = BGMG_util.colvec(options.sig2_zero);
+        end
     end
 
     function ov = BGMG_mapparams3(iv, options)

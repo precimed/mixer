@@ -17,25 +17,25 @@
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1:22;
-%defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
-defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
-%filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity';
-filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity';
+plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1; % 1:22;
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3_hardprune_p1.mat'};
+%defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
+filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity';
+%filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity';
 trait1_file = ['H:\work\simu_9pi_params\' filename '.trait1.mat']; trait1_nvec=100000;
 trait2_file = ['H:\work\simu_9pi_params\' filename '.trait2.mat']; trait2_nvec=100000;
 simu_params_file = ['H:\work\simu_9pi_params\' filename '.params.mat'];
 
-kmax=5000;
+kmax=1000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
 DO_FIT_UGMG=true; DO_FIT_BGMG=true;
 FIT_FULL_MODEL=true;
-QQ_PLOT=true;STRATIFIED_QQ_PLOT=true;BGMG_LOGLIKE_PLOT=true;
+QQ_PLOT=false;STRATIFIED_QQ_PLOT=false;BGMG_LOGLIKE_PLOT=false;
 cache_tag_r2sum=false;
 MAF_THRESH=0.01;
 r2min=0.05;
-out_file = ['results_2018_07_10/' filename];
+out_file = ['results_2018_08_09/' filename];
 end
 
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
@@ -324,10 +324,20 @@ if DO_FIT_UGMG
         result.univariate{2} = BGMG_cpp_fit_univariate(2, params.univariate{2}, options);
         params.univariate{2} = result.univariate{2}.params;
         
-        % Update initial approximation for bivariate fit
+        % Update initial approximation for bivariate fit (sig2_zero, sig2_beta)
         params.bivariate.sig2_zero = [params.univariate{1}.sig2_zero; params.univariate{2}.sig2_zero];
         params.bivariate.sig2_beta = [params.univariate{1}.sig2_beta 0 params.univariate{1}.sig2_beta; ...
                                       0 params.univariate{2}.sig2_beta params.univariate{2}.sig2_beta];
+                                  
+        % Also, update pi_vec. Preserve univariate estimates, and set
+        % pi12frac to what it was in params.bivariate (e.i. either what we
+        % load, or what we fit with BGMG_cpp_fit_bivariate_fast
+        tmp.pi_vec = params.bivariate.pi_vec;
+        tmp.pi_frac = tmp.pi_vec(3) / min(sum(tmp.pi_vec([1, 3])), sum(tmp.pi_vec([2, 3])));
+        tmp.pi_vec = [params.univariate{1}.pi_vec, params.univariate{2}.pi_vec];
+        tmp.pi12 = min(tmp.pi_vec) * tmp.pi_frac;
+        params.bivariate.pi_vec = [tmp.pi_vec(1) - tmp.pi12, tmp.pi_vec(2) - tmp.pi12, tmp.pi12];
+        clear('tmp');
     end
 end
 
@@ -388,12 +398,12 @@ fprintf('Results saved to %s.mat\n', out_file);
 if 0
     % Helper code to save all results to a text file
     % SIMU_BGMG2_2018_06_17
-    dirs=dir('H:\work\SIMU_BGMG_9pifrac_2018_06_21\*.bgmg.mat');
-    fileID = fopen(['H:\work\SIMU_BGMG_9pifrac_2018_06_21.csv'], 'w');
+    dirs=dir('H:\work\SIMU_BGMG_9pifrac_20000\*.bgmg.mat');
+    fileID = fopen(['H:\work\SIMU_BGMG_9pifrac_20000\SIMU_BGMG_9pifrac_20000.csv'], 'w');
     has_header = false;
     for i=1:length(dirs)
         try
-        x = load(fullfile('H:\work\SIMU_BGMG_9pifrac_2018_06_21', dirs(i).name));
+        x = load(fullfile('H:\work\SIMU_BGMG_9pifrac_20000', dirs(i).name));
         if ~isfield(x.result, 'options'), x.result.options = []; end;
         if ~isfield(x.result.bivariate, 'params'), continue; end;
         catch

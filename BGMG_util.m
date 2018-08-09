@@ -135,7 +135,7 @@ classdef BGMG_util
         end
     end
     
-    function ov = UGMG_mapparams1_indep(iv, options)
+    function ov = UGMG_mapparams1_decorrelated_parametrization(iv, options)
         % mapparams for univariate mixture with a single causal component
         if ~exist('options', 'var'), options=[]; end;
         if ~isfield(options, 'sig2_zero'), options.sig2_zero = nan; end;
@@ -463,7 +463,7 @@ classdef BGMG_util
         [ov, ~] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
     end
 
-    function ov = BGMG_mapparams3_indep(iv, options)
+    function ov = BGMG_mapparams3_rho_and_pifrac(iv, options)
         % mapparams for BGMG model with 3 free parameters:
         % - pi12frac = pi12/min(pi1u, pi2u)
         % - rho_zero
@@ -477,12 +477,12 @@ classdef BGMG_util
         % test
         % params  = struct('pi_vec', [0.1 0.2 0.3], 'rho_zero', 0.1, 'rho_beta', 0.2); 
         % options = struct('pi_vec', [sum(params.pi_vec([1 3])), sum(params.pi_vec([2 3]))], 'sig2_beta', [1e-2 1e-3], 'sig2_zero', [1.5 1.8]); 
-        % x = BGMG_util.BGMG_mapparams3_indep(params, options)
-        % p = BGMG_util.BGMG_mapparams3_indep(x, options)
+        % x = BGMG_util.BGMG_mapparams3_rho_and_pifrac(params, options)
+        % p = BGMG_util.BGMG_mapparams3_rho_and_pifrac(x, options)
         % options.rho_zero = 0.1; options.rho_beta = 0.2;
 
         if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
-        if ~isfield(options, 'rho_beta'), options.rho_beta = nan; end;
+        if ~isfield(options, 'rho_beta'), options.rho_beta = [0 0 nan]; end;
 
         transform_forward = 0;
         transform_backward = 1;
@@ -508,6 +508,8 @@ classdef BGMG_util
             ov.sig2_zero = BGMG_util.colvec(options.sig2_zero);
         end
     end
+    
+    
 
     function ov = BGMG_mapparams3(iv, options)
         % mapparams for saturated bivaraite mixture with a three causal component

@@ -158,6 +158,7 @@ classdef BGMG_cpp
             loglike_trajectory.sig2_beta(i) = pBuffer_sig2_beta.Value;
             loglike_trajectory.cost(i) = pBuffer_cost.Value;
         end
+        loglike_trajectory.cost(loglike_trajectory.cost > 1e99) = nan;
         clear pBuffer_pivec pBuffer_sig2_zero pBuffer_sig2_beta pBuffer_cost
     end
     function loglike_trajectory = extract_bivariate_loglike_trajectory(obj) 
@@ -184,6 +185,7 @@ classdef BGMG_cpp
             loglike_trajectory.rho_zero(i) = pBuffer_rho_zero.Value;
             loglike_trajectory.cost(i) = pBuffer_cost.Value;
         end
+        loglike_trajectory.cost(loglike_trajectory.cost > 1e99) = nan;
         clear pBuffer_pivec pBuffer_sig2_zero pBuffer_sig2_beta pBuffer_cost pBuffer_rho_beta pBuffer_rho_zero
     end
     

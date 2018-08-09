@@ -20,8 +20,8 @@ bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
 plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1; % 1:22;
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3_hardprune_p1.mat'};
 %defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
-filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity';
-%filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity';
+%filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity';
+filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity';
 trait1_file = ['H:\work\simu_9pi_params\' filename '.trait1.mat']; trait1_nvec=100000;
 trait2_file = ['H:\work\simu_9pi_params\' filename '.trait2.mat']; trait2_nvec=100000;
 simu_params_file = ['H:\work\simu_9pi_params\' filename '.params.mat'];
@@ -95,7 +95,8 @@ if ~exist('QQ_PLOT', 'var'), QQ_PLOT = false; end;   % make QQ plots
 if ~exist('QQ_PLOT_DOWNSCALE', 'var'), QQ_PLOT_DOWNSCALE = 100; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('STRATIFIED_QQ_PLOT', 'var'), STRATIFIED_QQ_PLOT = false; end;
 if ~exist('STRATIFIED_QQ_PLOT_DOWNSCALE', 'var'), STRATIFIED_QQ_PLOT_DOWNSCALE = 1000; end;     % downscale #snps in stratified QQ plots (model prediction only)
-if ~exist('BGMG_LOGLIKE_PLOT', 'var'), BGMG_LOGLIKE_PLOT= false; end;
+if ~exist('BGMG_LOGLIKE_PLOT', 'var'), BGMG_LOGLIKE_PLOT = false; end;
+if ~exist('UGMG_LOGLIKE_PLOT', 'var'), UGMG_LOGLIKE_PLOT = false; end;
 if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
@@ -257,15 +258,15 @@ if ~isempty(simu_params_file),
     % Do a quick fit to initialize sig2_zero and rho_zero
     bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
      for trait_index = 1:2
-         fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), struct('Display', 'on', 'TolX', TolX, 'TolFun', TolFun)));
-         fit_sig2_zero  = fit(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', true_params.univariate{trait_index}.pi_vec, 'sig2_beta', true_params.univariate{trait_index}.sig2_beta)));
+         fitfunc = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), struct('Display', 'on', 'TolX', TolX, 'TolFun', TolFun)));
+         fit_sig2_zero  = fitfunc(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', true_params.univariate{trait_index}.pi_vec, 'sig2_beta', true_params.univariate{trait_index}.sig2_beta)));
          true_params.univariate{trait_index}.sig2_zero = fit_sig2_zero.sig2_zero;
      end
      
      zmattmp = [bgmglib.zvec1, bgmglib.zvec2];
      corrmat = corr(zmattmp(all(~isnan(zmattmp), 2), :));
-     fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), struct('Display', 'on', 'TolX', TolX, 'TolFun', TolFun)));
-     fit_rho_zero = fit(...
+     fitfunc = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), struct('Display', 'on', 'TolX', TolX, 'TolFun', TolFun)));
+     fit_rho_zero = fitfunc(...
          struct('rho_zero', corrmat(1,2)), ...
          @(x)BGMG_util.BGMG_mapparams3(x, struct(...
             'sig2_zero', [true_params.univariate{1}.sig2_zero, true_params.univariate{2}.sig2_zero], ... 
@@ -379,13 +380,68 @@ if STRATIFIED_QQ_PLOT && ~isempty(trait2_file)
     print(figures.tot, sprintf('%s.stratqq.pdf', out_file), '-dpdf')
 end
 
+if UGMG_LOGLIKE_PLOT
+    bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
+    for trait_index = 1:(1 + ~isempty(trait2_file))
+        bgmglib.clear_loglike_cache();
+        x0 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(result.params.univariate{trait_index});
+        x_range = abs(x0)*0.0 + 1; x_low = x0 - x_range; x_up  = x0 + x_range;
+        arg_index=3; %1:length(x0)
+        xgrid = linspace(x_low(arg_index), x_up(arg_index), 20)';
+        for xi = 1:length(xgrid)
+            x=x0; x(arg_index)=xgrid(xi);
+            BGMG_util.UGMG_fminsearch_cost(BGMG_util.UGMG_mapparams1_decorrelated_parametrization(x), trait_index);
+        end
+        ut = bgmglib.extract_univariate_loglike_trajectory()
+        ut.cost = ut.cost-min(ut.cost);
+        figure(10+trait_index);
+        
+        def = isfinite(xgrid+ut.cost);
+        x = xgrid(def);
+        y = ut.cost(def);
+        [curve2, gof2] = fit(x, y, 'poly2');
+        [curve3, gof3] = fit(x, y, 'poly3');
+        fprintf('%.3f vs %.3f\n', gof2.rsquare, gof3.rsquare)
+
+        plot(x, [(curve2(x)-y).^2, (curve3(x)-y).^2], '.')
+        x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
+
+        clf; 
+        subplot(1,2,1); plot(ut.pivec, [ut.cost, curve2(xgrid), curve3(xgrid)], '.-');
+        subplot(1,2,2); plot(xgrid, [ut.cost, curve2(xgrid), curve3(xgrid)], '.-'); hold on; plot(x0opt, curve3(x0opt), '*k');
+    end
+end
+
 if BGMG_LOGLIKE_PLOT && ~isempty(trait2_file)
     bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
     bgmglib.clear_loglike_cache();
-    [figures, plots_data] = BGMG_cpp_loglike_plot(params.bivariate);
-    result.bivariate.loglike_plot_data_fit = plots_data;
-    result.bivariate.loglike_plot_trajectory_fit = bgmglib.extract_bivariate_loglike_trajectory();
-    print(figures.tot, sprintf('%s.loglike.pdf', out_file), '-dpdf')
+
+    x0 = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(result.params.bivariate);
+    x_range = 2; x_low = x0 - x_range; x_up  = x0 + x_range;
+    arg_index=9;
+    xgrid = linspace(x_low(arg_index), x_up(arg_index), 20)';
+    for xi = 1:length(xgrid)
+        x=x0; x(arg_index)=xgrid(xi);
+        cost = BGMG_util.BGMG_fminsearch_cost(BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x));
+    end
+    bt = bgmglib.extract_bivariate_loglike_trajectory();
+    
+    def = isfinite(xgrid+bt.cost);
+    x = xgrid(def);
+    y = bt.cost(def);
+    curve3 = fit(x, y, 'poly3');
+    x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
+        
+    x0(arg_index) = x0opt;
+    %result.params = options.mapparams(x0);
+        
+    figure(20);
+    subplot(1,2,1); plot(bt.pivec(:, 3) ./ min(sum(bt.pivec(:, [1 3]), 2), sum(bt.pivec(:, [2 3]), 2)), [bt.cost, curve3(xgrid)])
+    subplot(1,2,2); plot(xgrid, [bt.cost, curve3(xgrid)])
+    
+    %result.bivariate.loglike_plot_data_fit = plots_data;
+    %result.bivariate.loglike_plot_trajectory_fit = bgmglib.extract_bivariate_loglike_trajectory();
+    %print(figures.tot, sprintf('%s.loglike.pdf', out_file), '-dpdf')
 end
 
 bgmglib.set_option('diag', 0);

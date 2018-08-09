@@ -463,6 +463,26 @@ classdef BGMG_util
         [ov, ~] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
     end
 
+    function ov = BGMG_mapparams3_decorrelated_parametrization(iv)
+        % mapparams for BGMG model with 9 free parameters
+        % - 3 parameters from UGMG_mapparams1_decorrelated_parametrization(trait1)
+        % - 3 parameters from UGMG_mapparams1_decorrelated_parametrization(trait2)
+        % - 3 parameters from BGMG_mapparams3_rho_and_pifrac
+
+        is_packing = isstruct(iv);
+        if is_packing, ov = []; else ov = struct(); end;
+        
+        if is_packing
+            ov = cat(2, ov, BGMG_util.UGMG_mapparams1_decorrelated_parametrization(struct('pi_vec', sum(iv.pi_vec([1,3])), 'sig2_beta', iv.sig2_beta(1, 3), 'sig2_zero', iv.sig2_zero(1))));
+            ov = cat(2, ov, BGMG_util.UGMG_mapparams1_decorrelated_parametrization(struct('pi_vec', sum(iv.pi_vec([2,3])), 'sig2_beta', iv.sig2_beta(2, 3), 'sig2_zero', iv.sig2_zero(2))));
+            ov = cat(2, ov, BGMG_util.BGMG_mapparams3_rho_and_pifrac(iv));
+        else
+        	p1 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(iv(1:3));
+            p2 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(iv(4:6));
+            ov = BGMG_util.BGMG_mapparams3_rho_and_pifrac(iv(7:9), struct('pi_vec', [p1.pi_vec, p2.pi_vec], 'sig2_beta', [p1.sig2_beta, p2.sig2_beta], 'sig2_zero', [p1.sig2_zero, p2.sig2_zero]));
+        end
+    end
+
     function ov = BGMG_mapparams3_rho_and_pifrac(iv, options)
         % mapparams for BGMG model with 3 free parameters:
         % - pi12frac = pi12/min(pi1u, pi2u)
@@ -481,6 +501,7 @@ classdef BGMG_util
         % p = BGMG_util.BGMG_mapparams3_rho_and_pifrac(x, options)
         % options.rho_zero = 0.1; options.rho_beta = 0.2;
 
+        if ~exist('options', 'var'), options=[]; end;
         if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
         if ~isfield(options, 'rho_beta'), options.rho_beta = [0 0 nan]; end;
 
@@ -488,12 +509,12 @@ classdef BGMG_util
         transform_backward = 1;
         is_packing = isstruct(iv); cnti = 1;
         if is_packing, ov = []; else ov = struct(); end;
-        
-        
+
         [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
         [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
         
         if is_packing
+            if ~isfield(options, 'pi_vec'), options.pi_vec = [sum(iv.pi_vec([1,3])), sum(iv.pi_vec([2,3]))]; end;
             assert(sum(iv.pi_vec([1,3])) == options.pi_vec(1));
             assert(sum(iv.pi_vec([2,3])) == options.pi_vec(2));
             if isfield(iv, 'sig2_beta') && isfield(options, 'sig2_beta'), assert(all(iv.sig2_beta(:, end) == BGMG_util.colvec(options.sig2_beta))); end;

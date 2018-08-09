@@ -25,12 +25,41 @@ function result = BGMG_cpp_fit_bivariate(params, options)
         'sig2_beta', params.sig2_beta(:, end), ...
         'pi_vec', [sum(params.pi_vec([1, 3])), sum(params.pi_vec([2, 3]))]));
 
-    fit = @(x0)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
+    fitfunc = @(x0)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
 
     % Step2. Final unconstrained optimization (jointly on all parameters), using fast cost function
     fprintf('Trait 1,2: final optimization (full cost function)\n');
-    result.params = fit(params);
+    result.params = fitfunc(params);
 
+    % Adjust based on smooth approximation
+    if 1
+        bgmglib.clear_loglike_cache();
+        x0 = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(result.params);
+        arg_index=9;
+        xgrid = linspace(x0(arg_index) - 2, x0(arg_index) + 2, 30)';
+        for xi = 1:length(xgrid)
+            x=x0; x(arg_index)=xgrid(xi);
+            BGMG_util.BGMG_fminsearch_cost(BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x));
+        end
+        result.loglike_adj_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
+        def = isfinite(xgrid+result.loglike_adj_trajectory.cost);
+        x = xgrid(def);
+        y = result.loglike_adj_trajectory.cost(def);
+        curve3 = fit(x, y, 'poly3');
+        x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
+        
+
+        x0(arg_index) = x0opt;
+        result.params = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x0);
+    
+        if 0
+         figure(20);
+         bt = result.loglike_adj_trajectory;
+         subplot(1,2,1); plot(bt.pivec(:, 3) ./ min(sum(bt.pivec(:, [1 3]), 2), sum(bt.pivec(:, [2 3]), 2)), [bt.cost, curve3(xgrid)])
+         subplot(1,2,2); plot(xgrid, [bt.cost, curve3(xgrid)])
+        end
+    end
+    
     % Step3. Uncertainty estimation. 
     if ~isnan(options.ci_alpha)
         fprintf('Trait 1,2: uncertainty estimation\n');

@@ -19,13 +19,39 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
     if ~isnan(options.TolX), fminsearch_options.MaxFunEvals=options.TolX; end;
     if ~isnan(options.TolFun), fminsearch_options.MaxFunEvals=options.TolFun; end;
 
-    fit = @(x0)options.mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index), options.mapparams(x0), fminsearch_options));
+    fitfunc = @(x0)options.mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index), options.mapparams(x0), fminsearch_options));
 
     fprintf('Final unconstrained optimization\n');
     bgmglib.clear_loglike_cache();
-    result.params = fit(params0);
+    result.params = fitfunc(params0);
     result.loglike_fit_trajectory = bgmglib.extract_univariate_loglike_trajectory();
 
+    % For the last parameter, fit quadradic curve and take the minimum
+    % Decide what range to include (filter out points that are too far to fit the curve)
+    if 1
+        bgmglib.clear_loglike_cache();
+        x0 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(result.params);
+        arg_index = 3;
+        xgrid = linspace(x0(arg_index) - 1, x0(arg_index) + 1, 30)';
+        for xi = 1:length(xgrid)
+            x=x0; x(arg_index)=xgrid(xi);
+            BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index);
+        end
+        result.loglike_adj_trajectory = bgmglib.extract_univariate_loglike_trajectory();
+        def = isfinite(xgrid+result.loglike_adj_trajectory.cost);
+        x = xgrid(def);
+        y = result.loglike_adj_trajectory.cost(def);
+        curve3 = fit(x, y, 'poly3');
+        x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
+        
+        x0(arg_index) = x0opt;
+        result.params = options.mapparams(x0);
+        
+        %figure;
+        %subplot(1,2,1); plot(result.loglike_adj_trajectory.pivec, [result.loglike_adj_trajectory.cost, curve3(xgrid)], '.-');
+        %subplot(1,2,2); plot(xgrid, [result.loglike_adj_trajectory.cost, curve3(xgrid)], '.-'); hold on; plot(x0opt, curve3(x0opt), '*k');
+    end
+    
     bgmglib.clear_loglike_cache();
     if ~isnan(options.ci_alpha)  % not implemented
         fprintf('Uncertainty estimation\n');

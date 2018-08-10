@@ -134,6 +134,27 @@ classdef BGMG_util
           y = y/(1-minval);
         end
     end
+    
+    function ov = UGMG_mapparams1_decorrelated_parametrization(iv, options)
+        % mapparams for univariate mixture with a single causal component
+        if ~exist('options', 'var'), options=[]; end;
+        if ~isfield(options, 'sig2_zero'), options.sig2_zero = nan; end;
+        if ~isfield(options, 'pi_vec'), options.pi_vec = nan; end;
+        if ~isfield(options, 'sig2_beta'), options.sig2_beta = nan; end;
+        if isnan(options.pi_vec) ~= isnan(options.sig2_beta), error('isnan(options.pi_vec) ~= isnan(options.sig2_beta)'); end;
+        
+        is_packing = isstruct(iv); cnti = 1;
+        if is_packing, ov = []; else ov = struct(); end;
+
+        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.exp3_amd, 'sig2_zero');
+        if is_packing
+            ov = cat(2, ov, log(atanh(iv.pi_vec)) + log(iv.sig2_beta));
+            ov = cat(2, ov, log(atanh(iv.pi_vec)) - log(iv.sig2_beta));
+        else
+            ov.pi_vec = tanh(exp((iv(cnti) + iv(cnti+1))/2));
+            ov.sig2_beta = exp((iv(cnti) - iv(cnti+1))/2);
+        end
+    end
 
     function ov = UGMG_mapparams1(iv, options)
         % mapparams for univariate mixture with a single causal component
@@ -385,13 +406,13 @@ classdef BGMG_util
     
     function cost = UGMG_fminsearch_cost(ov, trait_index)
         cost = BGMG_cpp().calc_univariate_cost(trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
-        fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
+        BGMG_cpp.log('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
     end
     
     function cost = UGMG_CPP_fminsearch_cost(iv, trait_index)
         ov = BGMG_util.UGMG_mapparams1(iv);
         cost = BGMG_cpp().calc_univariate_cost(trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
-        fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
+        BGMG_cpp.log('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
     end
     
     function [cost, gradient] = UGMG_fminsearch_cost_with_gradient(ov, trait_index)
@@ -404,7 +425,7 @@ classdef BGMG_util
         cost = calllib('bgmg', 'bgmg_calc_univariate_cost_with_deriv', 0, trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta, 3, pBuffer);
         gradient = pBuffer.value;
         clear pBuffer
-        fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f, deriv=%s\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost, mat2str(gradient));
+        BGMG_cpp.log('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f, deriv=%s\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost, mat2str(gradient));
     end
     
     function cost = BGMG_fminsearch_cost(ov)
@@ -419,7 +440,7 @@ classdef BGMG_util
         end
 
         filt = @(x)unique(x(x~=0));
-        fprintf('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], sig2_beta2=[%s], rho_zero=%.3f, sig2_zero=[%s], cost=%.3e\n', ...
+        BGMG_cpp.log('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], sig2_beta2=[%s], rho_zero=%.3f, sig2_zero=[%s], cost=%.3e\n', ...
             sprintf('%.3e ', ov.pi_vec), ...
             sprintf('%.3f ', ov.rho_beta(end)), ...
             sprintf('%.2e ', filt(ov.sig2_beta(1, :))), ...
@@ -441,6 +462,75 @@ classdef BGMG_util
         [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
         [ov, ~] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
     end
+
+    function ov = BGMG_mapparams3_decorrelated_parametrization(iv)
+        % mapparams for BGMG model with 9 free parameters
+        % - 3 parameters from UGMG_mapparams1_decorrelated_parametrization(trait1)
+        % - 3 parameters from UGMG_mapparams1_decorrelated_parametrization(trait2)
+        % - 3 parameters from BGMG_mapparams3_rho_and_pifrac
+
+        is_packing = isstruct(iv);
+        if is_packing, ov = []; else ov = struct(); end;
+        
+        if is_packing
+            ov = cat(2, ov, BGMG_util.UGMG_mapparams1_decorrelated_parametrization(struct('pi_vec', sum(iv.pi_vec([1,3])), 'sig2_beta', iv.sig2_beta(1, 3), 'sig2_zero', iv.sig2_zero(1))));
+            ov = cat(2, ov, BGMG_util.UGMG_mapparams1_decorrelated_parametrization(struct('pi_vec', sum(iv.pi_vec([2,3])), 'sig2_beta', iv.sig2_beta(2, 3), 'sig2_zero', iv.sig2_zero(2))));
+            ov = cat(2, ov, BGMG_util.BGMG_mapparams3_rho_and_pifrac(iv));
+        else
+        	p1 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(iv(1:3));
+            p2 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(iv(4:6));
+            ov = BGMG_util.BGMG_mapparams3_rho_and_pifrac(iv(7:9), struct('pi_vec', [p1.pi_vec, p2.pi_vec], 'sig2_beta', [p1.sig2_beta, p2.sig2_beta], 'sig2_zero', [p1.sig2_zero, p2.sig2_zero]));
+        end
+    end
+
+    function ov = BGMG_mapparams3_rho_and_pifrac(iv, options)
+        % mapparams for BGMG model with 3 free parameters:
+        % - pi12frac = pi12/min(pi1u, pi2u)
+        % - rho_zero
+        % - rho_beta
+        %
+        % options must contain univariate results: 
+        % - pi_vec, vector 2x1, univariate polygenicitiyes pi1u, pi2u
+        % - sig2_beta, vector 2x1
+        % - sig2_zero, vector 2x1
+        %
+        % test
+        % params  = struct('pi_vec', [0.1 0.2 0.3], 'rho_zero', 0.1, 'rho_beta', 0.2); 
+        % options = struct('pi_vec', [sum(params.pi_vec([1 3])), sum(params.pi_vec([2 3]))], 'sig2_beta', [1e-2 1e-3], 'sig2_zero', [1.5 1.8]); 
+        % x = BGMG_util.BGMG_mapparams3_rho_and_pifrac(params, options)
+        % p = BGMG_util.BGMG_mapparams3_rho_and_pifrac(x, options)
+        % options.rho_zero = 0.1; options.rho_beta = 0.2;
+
+        if ~exist('options', 'var'), options=[]; end;
+        if ~isfield(options, 'rho_zero'), options.rho_zero = nan; end;
+        if ~isfield(options, 'rho_beta'), options.rho_beta = [0 0 nan]; end;
+
+        transform_forward = 0;
+        transform_backward = 1;
+        is_packing = isstruct(iv); cnti = 1;
+        if is_packing, ov = []; else ov = struct(); end;
+
+        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_zero');
+        [ov, cnti] = BGMG_util.mapparams(iv, ov, cnti, options, @BGMG_util.sigmf_of, 'rho_beta');
+        
+        if is_packing
+            if ~isfield(options, 'pi_vec'), options.pi_vec = [sum(iv.pi_vec([1,3])), sum(iv.pi_vec([2,3]))]; end;
+            assert(sum(iv.pi_vec([1,3])) == options.pi_vec(1));
+            assert(sum(iv.pi_vec([2,3])) == options.pi_vec(2));
+            if isfield(iv, 'sig2_beta') && isfield(options, 'sig2_beta'), assert(all(iv.sig2_beta(:, end) == BGMG_util.colvec(options.sig2_beta))); end;
+            if isfield(iv, 'sig2_zero') && isfield(options, 'sig2_zero'), assert(all(iv.sig2_zero == BGMG_util.colvec(options.sig2_zero))); end;
+            ov = cat(2, ov, BGMG_util.logit_amd(iv.pi_vec(end) / min(options.pi_vec), transform_forward));
+        else
+            pi12frac = BGMG_util.logit_amd(iv(cnti), transform_backward); cnti=cnti+1;
+            pi12 = min(options.pi_vec) * pi12frac;
+            ov.pi_vec = [options.pi_vec(1)-pi12, options.pi_vec(2)-pi12, pi12];
+            ov.sig2_beta = [options.sig2_beta(1), 0, options.sig2_beta(1); ...
+                            0, options.sig2_beta(2), options.sig2_beta(2)];
+            ov.sig2_zero = BGMG_util.colvec(options.sig2_zero);
+        end
+    end
+    
+    
 
     function ov = BGMG_mapparams3(iv, options)
         % mapparams for saturated bivaraite mixture with a three causal component

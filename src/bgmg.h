@@ -27,6 +27,7 @@ extern "C" {
   // "System" functions - error diagnostics, logging debug info to a file, memory management, status.
   DLL_PUBLIC const char* bgmg_get_last_error();
   DLL_PUBLIC void bgmg_init_log(const char* file);
+  DLL_PUBLIC void bgmg_log_message(const char* message);
   DLL_PUBLIC int64_t bgmg_dispose(int context_id);
   DLL_PUBLIC const char* bgmg_status(int context_id);
 

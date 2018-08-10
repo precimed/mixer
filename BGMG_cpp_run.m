@@ -17,23 +17,25 @@
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1:22;
-defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
+plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1; % 1:22;
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3_hardprune_p1.mat'};
+%defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
 %filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=1e-03_rep=5_tag1=customPolygenicOverlapAt0p375_tag2=evenPolygenicity';
 filename = 'simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=10_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity';
 trait1_file = ['H:\work\simu_9pi_params\' filename '.trait1.mat']; trait1_nvec=100000;
 trait2_file = ['H:\work\simu_9pi_params\' filename '.trait2.mat']; trait2_nvec=100000;
 simu_params_file = ['H:\work\simu_9pi_params\' filename '.params.mat'];
 
-kmax=5000;
+kmax=1000;
 
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
 DO_FIT_UGMG=true; DO_FIT_BGMG=true;
 FIT_FULL_MODEL=true;
-QQ_PLOT=true;STRATIFIED_QQ_PLOT=true;BGMG_LOGLIKE_PLOT=true;
-cache_tag_r2sum=true;
+QQ_PLOT=false;STRATIFIED_QQ_PLOT=false;BGMG_LOGLIKE_PLOT=false;
+cache_tag_r2sum=false;
 MAF_THRESH=0.01;
-out_file = ['results_2018_07_08/' filename];
+r2min=0.05;
+out_file = ['results_2018_08_09/' filename];
 end
 
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
@@ -43,7 +45,12 @@ if exist('DO_FIT', 'var'), error('DO_FIT is deprecated; use DO_FIT_UGMG or DO_FI
 if ~exist('bgmg_shared_library', 'var'), error('bgmg_shared_library is required'); end;
 if ~exist('bgmg_shared_library_header', 'var'), [a,b,c]=fileparts(bgmg_shared_library); bgmg_shared_library_header = [fullfile(a, b), '.h']; clear('a', 'b','c'); end;
 
-% defvec_file determine the set of tag SNPs. It must have a binary variable "defvec" of the same length as defined by reference file ( 1 = tag snp, 0 = exclude from the analysis ). 
+BGMG_cpp.unload(); 
+BGMG_cpp.load(bgmg_shared_library, bgmg_shared_library_header);
+BGMG_cpp.init_log([out_file, '.bgmglib.log']);
+BGMG_cpp.log('out file: %s\n', out_file);
+
+% defvec_file determine the set of tag S\NPs. It must have a binary variable "defvec" of the same length as defined by reference file ( 1 = tag snp, 0 = exclude from the analysis ). 
 % When multiple defvec_files are defined we take an overlap (e.i. consider only tag SNPs defined across all defvec files).
 if ~exist('defvec_files', 'var'), defvec_files = {}; end;
 if ~exist('MAF_THRESH', 'var'), MAF_THRESH = nan; end;
@@ -83,13 +90,18 @@ if ~exist('init_result_from_out_file', 'var'), init_result_from_out_file = ''; e
 if ~exist('init_trait1_from_out_file', 'var'), init_trait1_from_out_file = ''; end;
 if ~exist('init_trait2_from_out_file', 'var'), init_trait2_from_out_file = ''; end;
 
+% Setup tolerance for fminsearch
+if ~exist('TolX', 'var'), TolX = 1e-2; end;
+if ~exist('TolFun', 'var'), TolFun = 1e-2; end;
+
 if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                % use full model (when false, use gaussian approximation)
 if ~exist('FIT_WITH_CONSTRAINS', 'var'), FIT_WITH_CONSTRAINS = true; end;      % fit bivariate model with univariate constrains
 if ~exist('QQ_PLOT', 'var'), QQ_PLOT = false; end;   % make QQ plots
 if ~exist('QQ_PLOT_DOWNSCALE', 'var'), QQ_PLOT_DOWNSCALE = 100; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('STRATIFIED_QQ_PLOT', 'var'), STRATIFIED_QQ_PLOT = false; end;
 if ~exist('STRATIFIED_QQ_PLOT_DOWNSCALE', 'var'), STRATIFIED_QQ_PLOT_DOWNSCALE = 1000; end;     % downscale #snps in stratified QQ plots (model prediction only)
-if ~exist('BGMG_LOGLIKE_PLOT', 'var'), BGMG_LOGLIKE_PLOT= false; end;
+if ~exist('BGMG_LOGLIKE_PLOT', 'var'), BGMG_LOGLIKE_PLOT = false; end;
+if ~exist('UGMG_LOGLIKE_PLOT', 'var'), UGMG_LOGLIKE_PLOT = false; end;
 if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
@@ -99,35 +111,35 @@ if POWER_PLOT, error('not yet implemented in c++ version'); end;
 
 % reference file containing mafvec, chrnumvec and posvec for all SNPs to consider in this analysis. 
 if ~exist('reference_file', 'var'), error('reference_file is required'); end;
-fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'posvec', 'chrnumvec'); fprintf('OK.\n');
+BGMG_cpp.log('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'posvec', 'chrnumvec'); fprintf('OK.\n');
 clear('defvec'); defvec_tmp = true(length(ref.mafvec), 1);
  
 for i=1:length(defvec_files)
-    fprintf('Loading %s... ', defvec_files{i}); cur_defvec = load(defvec_files{i}); defvec_tmp = defvec_tmp & cur_defvec.defvec; fprintf('OK.\n');
-    fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
+    BGMG_cpp.log('Loading %s... ', defvec_files{i}); cur_defvec = load(defvec_files{i}); defvec_tmp = defvec_tmp & cur_defvec.defvec; fprintf('OK.\n');
+    BGMG_cpp.log('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
 end; clear('i');
-if isfinite(MAF_THRESH), defvec_tmp = defvec_tmp & (ref.mafvec >= MAF_THRESH); fprintf('Exclude %i variants due to mafvec (%i variants remain)\n', sum(ref.mafvec < MAF_THRESH), sum(defvec_tmp)); end
-if EXCLUDE_MHC, defvec_mhc = ~((ref.chrnumvec == 6) & (ref.posvec > 25e6) & (ref.posvec < 35e6)); defvec_tmp = defvec_tmp & defvec_mhc; fprintf('Exclude %i variants in MHC region (%i variants remain)\n', sum(~defvec_mhc), sum(defvec_tmp)); end
+if isfinite(MAF_THRESH), defvec_tmp = defvec_tmp & (ref.mafvec >= MAF_THRESH); BGMG_cpp.log('Exclude %i variants due to mafvec (%i variants remain)\n', sum(ref.mafvec < MAF_THRESH), sum(defvec_tmp)); end
+if EXCLUDE_MHC, defvec_mhc = ~((ref.chrnumvec == 6) & (ref.posvec > 25e6) & (ref.posvec < 35e6)); defvec_tmp = defvec_tmp & defvec_mhc; BGMG_cpp.log('Exclude %i variants in MHC region (%i variants remain)\n', sum(~defvec_mhc), sum(defvec_tmp)); end
 
-fprintf('Loading %s...', trait1_file); trait1_data = load(trait1_file); fprintf('OK.\n'); num_components = 1;
+BGMG_cpp.log('Loading %s...', trait1_file); trait1_data = load(trait1_file); fprintf('OK.\n'); num_components = 1;
 if (length(trait1_data.zvec) ~= length(ref.chrnumvec)), error('trait1_file is incompatible with the reference'); end;
 if isfinite(trait1_nvec), trait1_data.nvec = ones(size(trait1_data.zvec)) * trait1_nvec; end;
 if ~isfield(trait1_data, 'nvec'), error('nvec is not available in trait1_file, and trait1_nvec parameter is not set'); end;
 cur_defvec.defvec = isfinite(trait1_data.zvec + trait1_data.nvec); defvec_tmp = defvec_tmp & cur_defvec.defvec;
-fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
+BGMG_cpp.log('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
 
 if ~isempty(trait2_file),
-    fprintf('Loading %s...', trait2_file); trait2_data = load(trait2_file); fprintf('OK.\n'); num_components = 3;
+    BGMG_cpp.log('Loading %s...', trait2_file); trait2_data = load(trait2_file); fprintf('OK.\n'); num_components = 3;
     if (length(trait2_data.zvec) ~= length(ref.chrnumvec)), error('trait2_file is incompatible with the reference'); end;
     if isfinite(trait2_nvec), trait2_data.nvec = ones(size(trait2_data.zvec)) * trait2_nvec; end;
     if ~isfield(trait2_data, 'nvec'), error('nvec is not available in trait2_file, and trait2_nvec parameter is not set'); end;
     cur_defvec.defvec = isfinite(trait2_data.zvec + trait2_data.nvec); defvec_tmp = defvec_tmp & cur_defvec.defvec;
-    fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
+    BGMG_cpp.log('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
 end
 
 if (length(chr_labels) == 1) && (chr_labels(1) == 1) && ( all(ref.chrnumvec == 1) || (find(ref.chrnumvec == 1, 1, 'last' ) < find(ref.chrnumvec ~= 1, 1 )))
     chrlabel = chr_labels(1);
-    fprintf('Reduce reference to a signle chromosome (chr%i).\n', chrlabel);
+    BGMG_cpp.log('Reduce reference to a signle chromosome (chr%i).\n', chrlabel);
     trait1_data.zvec = trait1_data.zvec(ref.chrnumvec == chrlabel);
     trait1_data.nvec = trait1_data.nvec(ref.chrnumvec == chrlabel);
     if ~isempty(trait2_file),
@@ -143,16 +155,13 @@ end
   
 addpath('DERIVESTsuite');
 addpath('PolyfitnTools');
-BGMG_cpp.unload(); 
-BGMG_cpp.load(bgmg_shared_library, bgmg_shared_library_header);
-BGMG_cpp.init_log([out_file, '.bgmglib.log']);
 
 if isfinite(hardprune_r2)
     % Use hard threshold to exlude sinonimous SNPs from fit. Just one
     % iteration of random pruning with very high r2 threshold. Non-selected
     % SNPs are excluded.
     if ~exist('hardprune_plink_ld_mat', 'var'), error('randprune_r2_plink_ld_mat is required'); end;
-    fprintf('Excluding variants based on random pruning at %.3f threshold...\n', hardprune_r2);
+    BGMG_cpp.log('Excluding variants based on random pruning at %.3f threshold...\n', hardprune_r2);
     tag_indices_tmp = find(defvec_tmp);
     bgmglib=BGMG_cpp(1);
     bgmglib.dispose();
@@ -165,14 +174,14 @@ if isfinite(hardprune_r2)
     weights_bgmg = bgmglib.weights;
     bgmglib.dispose();
     defvec_tmp(tag_indices_tmp(weights_bgmg==0)) = false;
-    fprintf('Exclude %i variants after random pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), hardprune_r2, sum(defvec_tmp));
+    BGMG_cpp.log('Exclude %i variants after random pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), hardprune_r2, sum(defvec_tmp));
 end
 
 % finalize defvec, from here it must not change.
 defvec = defvec_tmp; clear('defvec_tmp', 'cur_defvec');
 tag_indices = find(defvec);
 
-fprintf('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_indices));
+BGMG_cpp.log('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_indices));
 
 bgmglib = BGMG_cpp();
 bgmglib.dispose()
@@ -251,15 +260,15 @@ if ~isempty(simu_params_file),
     % Do a quick fit to initialize sig2_zero and rho_zero
     bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
      for trait_index = 1:2
-         fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), struct('Display', 'on')));
-         fit_sig2_zero  = fit(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', true_params.univariate{trait_index}.pi_vec, 'sig2_beta', true_params.univariate{trait_index}.sig2_beta)));
+         fitfunc = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), struct('Display', 'on', 'TolX', TolX, 'TolFun', TolFun)));
+         fit_sig2_zero  = fitfunc(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', true_params.univariate{trait_index}.pi_vec, 'sig2_beta', true_params.univariate{trait_index}.sig2_beta)));
          true_params.univariate{trait_index}.sig2_zero = fit_sig2_zero.sig2_zero;
      end
      
      zmattmp = [bgmglib.zvec1, bgmglib.zvec2];
      corrmat = corr(zmattmp(all(~isnan(zmattmp), 2), :));
-     fit = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), struct('Display', 'on')));
-     fit_rho_zero = fit(...
+     fitfunc = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), struct('Display', 'on', 'TolX', TolX, 'TolFun', TolFun)));
+     fit_rho_zero = fitfunc(...
          struct('rho_zero', corrmat(1,2)), ...
          @(x)BGMG_util.BGMG_mapparams3(x, struct(...
             'sig2_zero', [true_params.univariate{1}.sig2_zero, true_params.univariate{2}.sig2_zero], ... 
@@ -269,7 +278,7 @@ if ~isempty(simu_params_file),
     true_params.bivariate.rho_zero = fit_rho_zero.rho_zero;
     true_params.bivariate.sig2_zero = [true_params.univariate{1}.sig2_zero, true_params.univariate{2}.sig2_zero];
 
-    fprintf('Params loaded from intput file (synthetic data)\n');
+    BGMG_cpp.log('Params loaded from intput file (synthetic data)\n');
     params = true_params;
 end;
 
@@ -278,23 +287,23 @@ if ~isempty(init_trait1_from_out_file) || ~isempty(init_trait2_from_out_file)
     if isempty(init_trait1_from_out_file) || isempty(init_trait2_from_out_file), error('init_traitN_from_out_file should be specified for both traits (N=1 and N=2)'); end;
     if ~isempty(init_result_from_out_file), error('init_result_from_out_file is incompatible with init_traitN_from_out_file'); end;
 
-    fprintf('Loading existing params for trait1 from %s...\n', init_trait1_from_out_file);
+    BGMG_cpp.log('Loading existing params for trait1 from %s...\n', init_trait1_from_out_file);
     tmp = load(init_trait1_from_out_file); params.univariate{1} = tmp.univariate{1}.params;
     if length(tmp.univariate) ~= 1 || isfield(tmp, 'bivariate'), error('init_trait1_from_out_file does not appear to be a result of univariate analysis'); end;
-    fprintf('Loading existing params for trait2 from %s...\n', init_trait2_from_out_file);
+    BGMG_cpp.log('Loading existing params for trait2 from %s...\n', init_trait2_from_out_file);
     tmp = load(init_trait2_from_out_file); params.univariate{2} = tmp.univariate{1}.params;
     if length(tmp.univariate) ~= 1 || isfield(tmp, 'bivariate'), error('init_trait2_from_out_file does not appear to be a result of univariate analysis'); end;
     clear('tmp');
-    fprintf('Univariate params load from initial file');
+    BGMG_cpp.log('Univariate params load from initial file');
 end
 
 if ~isempty(init_result_from_out_file)
-    fprintf('Loading init file from %s...\n', init_result_from_out_file);
+    BGMG_cpp.log('Loading init file from %s...\n', init_result_from_out_file);
     tmp = load(init_result_from_out_file);
     params.univariate{1} = tmp.result.univariate{1}.params;
     params.univariate{2} = tmp.result.univariate{2}.params;
     params.bivariate = tmp.result.bivariate.params;
-    fprintf('Univariate and bivariate params load from initial file');
+    BGMG_cpp.log('Univariate and bivariate params load from initial file');
     clear('tmp');
 end
 
@@ -318,10 +327,20 @@ if DO_FIT_UGMG
         result.univariate{2} = BGMG_cpp_fit_univariate(2, params.univariate{2}, options);
         params.univariate{2} = result.univariate{2}.params;
         
-        % Update initial approximation for bivariate fit
+        % Update initial approximation for bivariate fit (sig2_zero, sig2_beta)
         params.bivariate.sig2_zero = [params.univariate{1}.sig2_zero; params.univariate{2}.sig2_zero];
         params.bivariate.sig2_beta = [params.univariate{1}.sig2_beta 0 params.univariate{1}.sig2_beta; ...
                                       0 params.univariate{2}.sig2_beta params.univariate{2}.sig2_beta];
+                                  
+        % Also, update pi_vec. Preserve univariate estimates, and set
+        % pi12frac to what it was in params.bivariate (e.i. either what we
+        % load, or what we fit with BGMG_cpp_fit_bivariate_fast
+        tmp.pi_vec = params.bivariate.pi_vec;
+        tmp.pi_frac = tmp.pi_vec(3) / min(sum(tmp.pi_vec([1, 3])), sum(tmp.pi_vec([2, 3])));
+        tmp.pi_vec = [params.univariate{1}.pi_vec, params.univariate{2}.pi_vec];
+        tmp.pi12 = min(tmp.pi_vec) * tmp.pi_frac;
+        params.bivariate.pi_vec = [tmp.pi_vec(1) - tmp.pi12, tmp.pi_vec(2) - tmp.pi12, tmp.pi12];
+        clear('tmp');
     end
 end
 
@@ -340,7 +359,7 @@ if ~isempty(simu_params_file), result.true_params = true_params; end;
 % Save the result in .mat file
 % (this overrides previously saved file)
 save([out_file '.preliminary.mat'], 'result');
-fprintf('Results saved to %s.preliminary.mat\n', out_file);
+BGMG_cpp.log('Results saved to %s.preliminary.mat\n', out_file);
 
 bgmglib.set_option('diag', 0);
 
@@ -363,13 +382,68 @@ if STRATIFIED_QQ_PLOT && ~isempty(trait2_file)
     print(figures.tot, sprintf('%s.stratqq.pdf', out_file), '-dpdf')
 end
 
+if UGMG_LOGLIKE_PLOT
+    bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
+    for trait_index = 1:(1 + ~isempty(trait2_file))
+        bgmglib.clear_loglike_cache();
+        x0 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(result.params.univariate{trait_index});
+        x_range = abs(x0)*0.0 + 1; x_low = x0 - x_range; x_up  = x0 + x_range;
+        arg_index=3; %1:length(x0)
+        xgrid = linspace(x_low(arg_index), x_up(arg_index), 20)';
+        for xi = 1:length(xgrid)
+            x=x0; x(arg_index)=xgrid(xi);
+            BGMG_util.UGMG_fminsearch_cost(BGMG_util.UGMG_mapparams1_decorrelated_parametrization(x), trait_index);
+        end
+        ut = bgmglib.extract_univariate_loglike_trajectory()
+        ut.cost = ut.cost-min(ut.cost);
+        figure(10+trait_index);
+        
+        def = isfinite(xgrid+ut.cost);
+        x = xgrid(def);
+        y = ut.cost(def);
+        [curve2, gof2] = fit(x, y, 'poly2');
+        [curve3, gof3] = fit(x, y, 'poly3');
+        fprintf('%.3f vs %.3f\n', gof2.rsquare, gof3.rsquare)
+
+        plot(x, [(curve2(x)-y).^2, (curve3(x)-y).^2], '.')
+        x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
+
+        clf; 
+        subplot(1,2,1); plot(ut.pivec, [ut.cost, curve2(xgrid), curve3(xgrid)], '.-');
+        subplot(1,2,2); plot(xgrid, [ut.cost, curve2(xgrid), curve3(xgrid)], '.-'); hold on; plot(x0opt, curve3(x0opt), '*k');
+    end
+end
+
 if BGMG_LOGLIKE_PLOT && ~isempty(trait2_file)
     bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
     bgmglib.clear_loglike_cache();
-    [figures, plots_data] = BGMG_cpp_loglike_plot(params.bivariate);
-    result.bivariate.loglike_plot_data_fit = plots_data;
-    result.bivariate.loglike_plot_trajectory_fit = bgmglib.extract_bivariate_loglike_trajectory();
-    print(figures.tot, sprintf('%s.loglike.pdf', out_file), '-dpdf')
+
+    x0 = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(result.params.bivariate);
+    x_range = 2; x_low = x0 - x_range; x_up  = x0 + x_range;
+    arg_index=9;
+    xgrid = linspace(x_low(arg_index), x_up(arg_index), 20)';
+    for xi = 1:length(xgrid)
+        x=x0; x(arg_index)=xgrid(xi);
+        cost = BGMG_util.BGMG_fminsearch_cost(BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x));
+    end
+    bt = bgmglib.extract_bivariate_loglike_trajectory();
+    
+    def = isfinite(xgrid+bt.cost);
+    x = xgrid(def);
+    y = bt.cost(def);
+    curve3 = fit(x, y, 'poly3');
+    x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
+        
+    x0(arg_index) = x0opt;
+    %result.params = options.mapparams(x0);
+        
+    figure(20);
+    subplot(1,2,1); plot(bt.pivec(:, 3) ./ min(sum(bt.pivec(:, [1 3]), 2), sum(bt.pivec(:, [2 3]), 2)), [bt.cost, curve3(xgrid)])
+    subplot(1,2,2); plot(xgrid, [bt.cost, curve3(xgrid)])
+    
+    %result.bivariate.loglike_plot_data_fit = plots_data;
+    %result.bivariate.loglike_plot_trajectory_fit = bgmglib.extract_bivariate_loglike_trajectory();
+    %print(figures.tot, sprintf('%s.loglike.pdf', out_file), '-dpdf')
 end
 
 bgmglib.set_option('diag', 0);
@@ -377,17 +451,17 @@ bgmglib.set_option('diag', 0);
 % Save the result in .mat file
 % (this overrides previously saved file)
 save([out_file '.mat'], 'result');
-fprintf('Results saved to %s.mat\n', out_file);
+BGMG_cpp.log('Results saved to %s.mat\n', out_file);
 
 if 0
     % Helper code to save all results to a text file
     % SIMU_BGMG2_2018_06_17
-    dirs=dir('H:\work\SIMU_BGMG_9pifrac_2018_06_21\*.bgmg.mat');
-    fileID = fopen(['H:\work\SIMU_BGMG_9pifrac_2018_06_21.csv'], 'w');
+    dirs=dir('H:\work\SIMU_BGMG_9pifrac_20000\*.bgmg.mat');
+    fileID = fopen(['H:\work\SIMU_BGMG_9pifrac_20000\SIMU_BGMG_9pifrac_20000.csv'], 'w');
     has_header = false;
     for i=1:length(dirs)
         try
-        x = load(fullfile('H:\work\SIMU_BGMG_9pifrac_2018_06_21', dirs(i).name));
+        x = load(fullfile('H:\work\SIMU_BGMG_9pifrac_20000', dirs(i).name));
         if ~isfield(x.result, 'options'), x.result.options = []; end;
         if ~isfield(x.result.bivariate, 'params'), continue; end;
         catch
@@ -640,4 +714,72 @@ if 0
 
     
     
+end
+
+if 0 
+    %datafolder = 'H:\\GitHub\\BGMG\\tes2017_07_10';
+    bgmglib.verbose=false;
+    datafolder = '/home/oleksandr/precimed/BGMG/test_cost_func';
+    outtag_vec= {'fitFromTrue'; 'fitFromScratch'}
+    for repi=1:10
+        trait1_data = load(fullfile(datafolder, sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity.trait1.mat', repi)));
+        trait2_data = load(fullfile(datafolder, sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity.trait2.mat', repi)));
+        bgmglib.zvec1=trait1_data.zvec(bgmglib.defvec);
+        bgmglib.zvec2=trait2_data.zvec(bgmglib.defvec);
+
+    for outtagi=1:2;
+        outtag=outtag_vec{outtagi};
+        try
+            load(fullfile(datafolder, sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity_outtag=%s.hardprune.bgmg.mat', repi,outtag)))
+        catch
+            fprintf('\n');
+            continue
+        end
+    ov = result.params.bivariate;
+    cost_recalculated = bgmglib.calc_bivariate_cost(ov.pi_vec, ov.sig2_beta(:, 3), ov.rho_beta(3), ov.sig2_zero, ov.rho_zero);
+
+    %pi_vec = result.bivariate.params.pi_vec;
+    %fprintf('%s%i: pi_vec=%.3e, %.3e, %.3e\n', strpad(outtag, 15, 'post', ' '), repi, pi_vec(1), pi_vec(2), pi_vec(3) );
+    [~, id] = min(result.bivariate.loglike_fit_trajectory.cost);
+    pi_vec2=result.bivariate.loglike_fit_trajectory.pivec(id, :);
+    strpad=@(x)[x repmat(' ', [1, 15-length(x)])];
+    fprintf('%s%i: pi_vec=%.3e, %.3e, %.3e, cost=%.8e, cost_recalculated=%.8e, diff=%.4f \n', strpad(outtag), repi, pi_vec2(1), pi_vec2(2), pi_vec2(3), result.bivariate.loglike_fit_trajectory.cost(id), cost_recalculated, cost_recalculated-result.bivariate.loglike_fit_trajectory.cost(id) );
+
+    plotfile = sprintf('%s_%s_v2_simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity.trait1.mat', out_file, outtag, repi)
+    for trait_index = 1:2
+        options.downscale = 10;
+        [figures, plot_data] = BGMG_cpp_qq_plot(result.univariate{trait_index}.params, trait_index, options);
+        print(figures.tot, sprintf('%s.trait%i.qq.pdf', plotfile, trait_index), '-dpdf')
+        save(sprintf('%s.trait%i.qq.mat', plotfile, trait_index), 'plot_data', 'result');
+    end
+
+    options.downscale = 1000;
+    [figures, plot_data] = BGMG_cpp_stratified_qq_plot(result.params.bivariate, options);
+    print(figures.tot, sprintf('%s.stratqq.pdf', plotfile), '-dpdf')
+    save(sprintf('%s.stratqq.mat', plotfile), 'plot_data', 'result')
+    end
+    end
+end
+
+if 0 
+    % summarize results of fit-from-scratch runs
+    for j=1:4
+    figure(1);
+    load(fullfile('H:\work\SIMU_BGMG_9pifrac_run3', sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity_outtag=fitFromScratch.kmax5000.hardprune.run3.bgmg.mat', j)))
+    for i=1:2
+    r=result.univariate{i};f=r.loglike_adj_trajectory;
+    subplot(4,3,i+3*(j-1)); plot(f.pivec, f.cost, '.-', r.params.pi_vec, min(f.cost), '*')
+     xlabel(sprintf('pi%iu', i)); 
+     if i==1, ylabel(sprintf('iter %i', j)); end;
+    end
+    r=result.bivariate;f=r.loglike_adj_trajectory;
+    pifrac = f.pivec(:, 3) ./ (min(f.pivec(:, 1:2)')' + f.pivec(:, 3));
+    pifrac0 = r.params.pi_vec(3)/(min(r.params.pi_vec([1:2])) + r.params.pi_vec(3));
+    subplot(4,3,3+3*(j-1)); plot(pifrac, f.cost, '.-', pifrac0, min(f.cost), '*');
+     xlabel('pifrac = pi12/min(pi1u, pi2u)');
+    end
+    f=figure(1);
+    set(f,'PaperOrientation','portrait','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+    print(f, 'H:\Dropbox\analysis\2018_07_07_BGMG_fit_procedure\loglike_pi1u=3e-3_bgmg.pdf', '-dpdf')
+
 end

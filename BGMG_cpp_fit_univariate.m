@@ -21,7 +21,7 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
 
     fitfunc = @(x0)options.mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index), options.mapparams(x0), fminsearch_options));
 
-    fprintf('Final unconstrained optimization\n');
+    BGMG_cpp.log('Final unconstrained optimization\n');
     bgmglib.clear_loglike_cache();
     result.params = fitfunc(params0);
     result.loglike_fit_trajectory = bgmglib.extract_univariate_loglike_trajectory();
@@ -54,7 +54,7 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
     
     bgmglib.clear_loglike_cache();
     if ~isnan(options.ci_alpha)  % not implemented
-        fprintf('Uncertainty estimation\n');
+        BGMG_cpp.log('Uncertainty estimation\n');
         %ws=warning; warning('off', 'all'); 
         [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index), options.mapparams(result.params)); 
         result.loglike_ci_trajectory = bgmglib.extract_univariate_loglike_trajectory();
@@ -68,7 +68,7 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
             result.ci_params = cell(options.ci_sample, 1);
             for i=1:options.ci_sample, result.ci_params{i} = options.mapparams(ci_sample(i, :)); end;
         catch err
-            fprintf('Error, %s\n', err.message);
+            BGMG_cpp.log('Error, %s\n', err.message);
         end
 
         [ci_univariate_funcs, ~] = BGMG_util.find_extract_funcs(options);

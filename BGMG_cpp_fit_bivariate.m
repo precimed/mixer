@@ -28,7 +28,7 @@ function result = BGMG_cpp_fit_bivariate(params, options)
     fitfunc = @(x0)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
 
     % Step2. Final unconstrained optimization (jointly on all parameters), using fast cost function
-    fprintf('Trait 1,2: final optimization (full cost function)\n');
+    BGMG_cpp.log('Trait 1,2: final optimization (full cost function)\n');
     result.params = fitfunc(params);
 
     % Adjust based on smooth approximation
@@ -62,7 +62,7 @@ function result = BGMG_cpp_fit_bivariate(params, options)
     
     % Step3. Uncertainty estimation. 
     if ~isnan(options.ci_alpha)
-        fprintf('Trait 1,2: uncertainty estimation\n');
+        BGMG_cpp.log('Trait 1,2: uncertainty estimation\n');
         %ws=warning; warning('off', 'all');
         [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(result.params));
         result.ci_hess = ci_hess;
@@ -86,7 +86,7 @@ function result = BGMG_cpp_fit_bivariate(params, options)
             ci_params = cell(options.ci_sample, 1);
             for i=1:options.ci_sample, ci_params{i} = mapparams(ci_sample(i, :)); end;
         catch err
-            fprintf('Error, %s\n', err.message);
+            BGMG_cpp.log('Error, %s\n', err.message);
         end
 
         result.ci_params = ci_params;

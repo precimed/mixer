@@ -228,6 +228,11 @@ classdef BGMG_cpp
     function dispose_all_context_ids
         calllib('bgmg', 'bgmg_dispose', -1);
     end
+    
+    function log(varargin)
+        fprintf(varargin{:});
+        if libisloaded('bgmg'), calllib('bgmg', 'bgmg_log_message', regexprep(sprintf(varargin{:}),'[\n\r]+', '\t')); end;
+    end
   end
 end
 

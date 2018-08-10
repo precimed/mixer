@@ -45,6 +45,11 @@ if exist('DO_FIT', 'var'), error('DO_FIT is deprecated; use DO_FIT_UGMG or DO_FI
 if ~exist('bgmg_shared_library', 'var'), error('bgmg_shared_library is required'); end;
 if ~exist('bgmg_shared_library_header', 'var'), [a,b,c]=fileparts(bgmg_shared_library); bgmg_shared_library_header = [fullfile(a, b), '.h']; clear('a', 'b','c'); end;
 
+BGMG_cpp.unload(); 
+BGMG_cpp.load(bgmg_shared_library, bgmg_shared_library_header);
+BGMG_cpp.init_log([out_file, '.bgmglib.log']);
+BGMG_cpp.log('out file: %s\n', out_file);
+
 % defvec_file determine the set of tag S\NPs. It must have a binary variable "defvec" of the same length as defined by reference file ( 1 = tag snp, 0 = exclude from the analysis ). 
 % When multiple defvec_files are defined we take an overlap (e.i. consider only tag SNPs defined across all defvec files).
 if ~exist('defvec_files', 'var'), defvec_files = {}; end;
@@ -106,35 +111,35 @@ if POWER_PLOT, error('not yet implemented in c++ version'); end;
 
 % reference file containing mafvec, chrnumvec and posvec for all SNPs to consider in this analysis. 
 if ~exist('reference_file', 'var'), error('reference_file is required'); end;
-fprintf('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'posvec', 'chrnumvec'); fprintf('OK.\n');
+BGMG_cpp.log('Loading reference from %s... ', reference_file); ref = load(reference_file, 'mafvec', 'posvec', 'chrnumvec'); fprintf('OK.\n');
 clear('defvec'); defvec_tmp = true(length(ref.mafvec), 1);
  
 for i=1:length(defvec_files)
-    fprintf('Loading %s... ', defvec_files{i}); cur_defvec = load(defvec_files{i}); defvec_tmp = defvec_tmp & cur_defvec.defvec; fprintf('OK.\n');
-    fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
+    BGMG_cpp.log('Loading %s... ', defvec_files{i}); cur_defvec = load(defvec_files{i}); defvec_tmp = defvec_tmp & cur_defvec.defvec; fprintf('OK.\n');
+    BGMG_cpp.log('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
 end; clear('i');
-if isfinite(MAF_THRESH), defvec_tmp = defvec_tmp & (ref.mafvec >= MAF_THRESH); fprintf('Exclude %i variants due to mafvec (%i variants remain)\n', sum(ref.mafvec < MAF_THRESH), sum(defvec_tmp)); end
-if EXCLUDE_MHC, defvec_mhc = ~((ref.chrnumvec == 6) & (ref.posvec > 25e6) & (ref.posvec < 35e6)); defvec_tmp = defvec_tmp & defvec_mhc; fprintf('Exclude %i variants in MHC region (%i variants remain)\n', sum(~defvec_mhc), sum(defvec_tmp)); end
+if isfinite(MAF_THRESH), defvec_tmp = defvec_tmp & (ref.mafvec >= MAF_THRESH); BGMG_cpp.log('Exclude %i variants due to mafvec (%i variants remain)\n', sum(ref.mafvec < MAF_THRESH), sum(defvec_tmp)); end
+if EXCLUDE_MHC, defvec_mhc = ~((ref.chrnumvec == 6) & (ref.posvec > 25e6) & (ref.posvec < 35e6)); defvec_tmp = defvec_tmp & defvec_mhc; BGMG_cpp.log('Exclude %i variants in MHC region (%i variants remain)\n', sum(~defvec_mhc), sum(defvec_tmp)); end
 
-fprintf('Loading %s...', trait1_file); trait1_data = load(trait1_file); fprintf('OK.\n'); num_components = 1;
+BGMG_cpp.log('Loading %s...', trait1_file); trait1_data = load(trait1_file); fprintf('OK.\n'); num_components = 1;
 if (length(trait1_data.zvec) ~= length(ref.chrnumvec)), error('trait1_file is incompatible with the reference'); end;
 if isfinite(trait1_nvec), trait1_data.nvec = ones(size(trait1_data.zvec)) * trait1_nvec; end;
 if ~isfield(trait1_data, 'nvec'), error('nvec is not available in trait1_file, and trait1_nvec parameter is not set'); end;
 cur_defvec.defvec = isfinite(trait1_data.zvec + trait1_data.nvec); defvec_tmp = defvec_tmp & cur_defvec.defvec;
-fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
+BGMG_cpp.log('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
 
 if ~isempty(trait2_file),
-    fprintf('Loading %s...', trait2_file); trait2_data = load(trait2_file); fprintf('OK.\n'); num_components = 3;
+    BGMG_cpp.log('Loading %s...', trait2_file); trait2_data = load(trait2_file); fprintf('OK.\n'); num_components = 3;
     if (length(trait2_data.zvec) ~= length(ref.chrnumvec)), error('trait2_file is incompatible with the reference'); end;
     if isfinite(trait2_nvec), trait2_data.nvec = ones(size(trait2_data.zvec)) * trait2_nvec; end;
     if ~isfield(trait2_data, 'nvec'), error('nvec is not available in trait2_file, and trait2_nvec parameter is not set'); end;
     cur_defvec.defvec = isfinite(trait2_data.zvec + trait2_data.nvec); defvec_tmp = defvec_tmp & cur_defvec.defvec;
-    fprintf('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
+    BGMG_cpp.log('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));
 end
 
 if (length(chr_labels) == 1) && (chr_labels(1) == 1) && ( all(ref.chrnumvec == 1) || (find(ref.chrnumvec == 1, 1, 'last' ) < find(ref.chrnumvec ~= 1, 1 )))
     chrlabel = chr_labels(1);
-    fprintf('Reduce reference to a signle chromosome (chr%i).\n', chrlabel);
+    BGMG_cpp.log('Reduce reference to a signle chromosome (chr%i).\n', chrlabel);
     trait1_data.zvec = trait1_data.zvec(ref.chrnumvec == chrlabel);
     trait1_data.nvec = trait1_data.nvec(ref.chrnumvec == chrlabel);
     if ~isempty(trait2_file),
@@ -150,16 +155,13 @@ end
   
 addpath('DERIVESTsuite');
 addpath('PolyfitnTools');
-BGMG_cpp.unload(); 
-BGMG_cpp.load(bgmg_shared_library, bgmg_shared_library_header);
-BGMG_cpp.init_log([out_file, '.bgmglib.log']);
 
 if isfinite(hardprune_r2)
     % Use hard threshold to exlude sinonimous SNPs from fit. Just one
     % iteration of random pruning with very high r2 threshold. Non-selected
     % SNPs are excluded.
     if ~exist('hardprune_plink_ld_mat', 'var'), error('randprune_r2_plink_ld_mat is required'); end;
-    fprintf('Excluding variants based on random pruning at %.3f threshold...\n', hardprune_r2);
+    BGMG_cpp.log('Excluding variants based on random pruning at %.3f threshold...\n', hardprune_r2);
     tag_indices_tmp = find(defvec_tmp);
     bgmglib=BGMG_cpp(1);
     bgmglib.dispose();
@@ -172,14 +174,14 @@ if isfinite(hardprune_r2)
     weights_bgmg = bgmglib.weights;
     bgmglib.dispose();
     defvec_tmp(tag_indices_tmp(weights_bgmg==0)) = false;
-    fprintf('Exclude %i variants after random pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), hardprune_r2, sum(defvec_tmp));
+    BGMG_cpp.log('Exclude %i variants after random pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), hardprune_r2, sum(defvec_tmp));
 end
 
 % finalize defvec, from here it must not change.
 defvec = defvec_tmp; clear('defvec_tmp', 'cur_defvec');
 tag_indices = find(defvec);
 
-fprintf('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_indices));
+BGMG_cpp.log('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_indices));
 
 bgmglib = BGMG_cpp();
 bgmglib.dispose()
@@ -276,7 +278,7 @@ if ~isempty(simu_params_file),
     true_params.bivariate.rho_zero = fit_rho_zero.rho_zero;
     true_params.bivariate.sig2_zero = [true_params.univariate{1}.sig2_zero, true_params.univariate{2}.sig2_zero];
 
-    fprintf('Params loaded from intput file (synthetic data)\n');
+    BGMG_cpp.log('Params loaded from intput file (synthetic data)\n');
     params = true_params;
 end;
 
@@ -285,23 +287,23 @@ if ~isempty(init_trait1_from_out_file) || ~isempty(init_trait2_from_out_file)
     if isempty(init_trait1_from_out_file) || isempty(init_trait2_from_out_file), error('init_traitN_from_out_file should be specified for both traits (N=1 and N=2)'); end;
     if ~isempty(init_result_from_out_file), error('init_result_from_out_file is incompatible with init_traitN_from_out_file'); end;
 
-    fprintf('Loading existing params for trait1 from %s...\n', init_trait1_from_out_file);
+    BGMG_cpp.log('Loading existing params for trait1 from %s...\n', init_trait1_from_out_file);
     tmp = load(init_trait1_from_out_file); params.univariate{1} = tmp.univariate{1}.params;
     if length(tmp.univariate) ~= 1 || isfield(tmp, 'bivariate'), error('init_trait1_from_out_file does not appear to be a result of univariate analysis'); end;
-    fprintf('Loading existing params for trait2 from %s...\n', init_trait2_from_out_file);
+    BGMG_cpp.log('Loading existing params for trait2 from %s...\n', init_trait2_from_out_file);
     tmp = load(init_trait2_from_out_file); params.univariate{2} = tmp.univariate{1}.params;
     if length(tmp.univariate) ~= 1 || isfield(tmp, 'bivariate'), error('init_trait2_from_out_file does not appear to be a result of univariate analysis'); end;
     clear('tmp');
-    fprintf('Univariate params load from initial file');
+    BGMG_cpp.log('Univariate params load from initial file');
 end
 
 if ~isempty(init_result_from_out_file)
-    fprintf('Loading init file from %s...\n', init_result_from_out_file);
+    BGMG_cpp.log('Loading init file from %s...\n', init_result_from_out_file);
     tmp = load(init_result_from_out_file);
     params.univariate{1} = tmp.result.univariate{1}.params;
     params.univariate{2} = tmp.result.univariate{2}.params;
     params.bivariate = tmp.result.bivariate.params;
-    fprintf('Univariate and bivariate params load from initial file');
+    BGMG_cpp.log('Univariate and bivariate params load from initial file');
     clear('tmp');
 end
 
@@ -357,7 +359,7 @@ if ~isempty(simu_params_file), result.true_params = true_params; end;
 % Save the result in .mat file
 % (this overrides previously saved file)
 save([out_file '.preliminary.mat'], 'result');
-fprintf('Results saved to %s.preliminary.mat\n', out_file);
+BGMG_cpp.log('Results saved to %s.preliminary.mat\n', out_file);
 
 bgmglib.set_option('diag', 0);
 
@@ -449,7 +451,7 @@ bgmglib.set_option('diag', 0);
 % Save the result in .mat file
 % (this overrides previously saved file)
 save([out_file '.mat'], 'result');
-fprintf('Results saved to %s.mat\n', out_file);
+BGMG_cpp.log('Results saved to %s.mat\n', out_file);
 
 if 0
     % Helper code to save all results to a text file

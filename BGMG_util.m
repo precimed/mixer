@@ -406,13 +406,13 @@ classdef BGMG_util
     
     function cost = UGMG_fminsearch_cost(ov, trait_index)
         cost = BGMG_cpp().calc_univariate_cost(trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
-        fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
+        BGMG_cpp.log('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
     end
     
     function cost = UGMG_CPP_fminsearch_cost(iv, trait_index)
         ov = BGMG_util.UGMG_mapparams1(iv);
         cost = BGMG_cpp().calc_univariate_cost(trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta);
-        fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
+        BGMG_cpp.log('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
     end
     
     function [cost, gradient] = UGMG_fminsearch_cost_with_gradient(ov, trait_index)
@@ -425,7 +425,7 @@ classdef BGMG_util
         cost = calllib('bgmg', 'bgmg_calc_univariate_cost_with_deriv', 0, trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta, 3, pBuffer);
         gradient = pBuffer.value;
         clear pBuffer
-        fprintf('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f, deriv=%s\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost, mat2str(gradient));
+        BGMG_cpp.log('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f, deriv=%s\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost, mat2str(gradient));
     end
     
     function cost = BGMG_fminsearch_cost(ov)
@@ -440,7 +440,7 @@ classdef BGMG_util
         end
 
         filt = @(x)unique(x(x~=0));
-        fprintf('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], sig2_beta2=[%s], rho_zero=%.3f, sig2_zero=[%s], cost=%.3e\n', ...
+        BGMG_cpp.log('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], sig2_beta2=[%s], rho_zero=%.3f, sig2_zero=[%s], cost=%.3e\n', ...
             sprintf('%.3e ', ov.pi_vec), ...
             sprintf('%.3f ', ov.rho_beta(end)), ...
             sprintf('%.2e ', filt(ov.sig2_beta(1, :))), ...

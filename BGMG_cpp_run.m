@@ -312,7 +312,7 @@ if ~isfield(params, 'univariate')
     if ~isempty(trait1_file), params.univariate{1} = BGMG_cpp_fit_univariate_fast(1); end
     if ~isempty(trait2_file), params.univariate{2} = BGMG_cpp_fit_univariate_fast(2); end
 end
-if ~isfield(params, 'bivariate')
+if ~isfield(params, 'bivariate') && ~isempty(trait2_file)
     params.bivariate = BGMG_cpp_fit_bivariate_fast(params.univariate{1}, params.univariate{2});
 end
 
@@ -765,7 +765,8 @@ if 0
     % summarize results of fit-from-scratch runs
     for j=1:4
     figure(1);
-    load(fullfile('H:\work\SIMU_BGMG_9pifrac_run3', sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity_outtag=fitFromScratch.kmax5000.hardprune.run3.bgmg.mat', j)))
+    %load(fullfile('H:\work\SIMU_BGMG_9pifrac_run3', sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity_outtag=fitFromScratch.kmax5000.hardprune.run3.bgmg.mat', j)))
+    load(fullfile('H:\work\SIMU_BGMG_9pifrac_run3', sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity_outtag=fitFromTrue.kmax5000.hardprune.run3.bgmg.mat', j)))
     for i=1:2
     r=result.univariate{i};f=r.loglike_adj_trajectory;
     subplot(4,3,i+3*(j-1)); plot(f.pivec, f.cost, '.-', r.params.pi_vec, min(f.cost), '*')
@@ -780,6 +781,6 @@ if 0
     end
     f=figure(1);
     set(f,'PaperOrientation','portrait','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-    print(f, 'H:\Dropbox\analysis\2018_07_07_BGMG_fit_procedure\loglike_pi1u=3e-3_bgmg.pdf', '-dpdf')
+    print(f, 'H:\Dropbox\analysis\2018_07_07_BGMG_fit_procedure\loglike_pi1u=3e-3_bgmg_fromTrue.pdf', '-dpdf')
 
 end

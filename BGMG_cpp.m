@@ -1,6 +1,7 @@
 classdef BGMG_cpp
   properties
     Context
+    verbose
   end
   properties (Dependent)
     defvec              % instead of tag_indices
@@ -19,10 +20,11 @@ classdef BGMG_cpp
         if ~libisloaded('bgmg'), error('call BGMG_cpp.load(...) before creating BGMG_cpp objects'); end;
         if ~exist('context', 'var'), context = 0; end
         obj.Context = context;
+        obj.verbose = true;
     end
 
     function check(obj)
-        fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', obj.Context));
+        if obj.verbose, fprintf('RESULT: %s; STATUS: %s\n', calllib('bgmg', 'bgmg_get_last_error'), calllib('bgmg', 'bgmg_status', obj.Context)); end;
     end
     
     function dispose(obj)

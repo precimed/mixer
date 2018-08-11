@@ -36,22 +36,27 @@ out_folder = 'results_2018_08_11.kmax=5000';
 % QQ plots with true params
 out_file = fullfile(out_folder, [filename '.true']); 
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
-simu_params_file = ['H:\GitHub\BGMG\' filename '.params.mat']; 
+simu_params_file = ['H:\GitHub\BGMG\' filename '.params.mat']; init_result_from_out_file='';
 DO_FIT_UGMG=false; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; UGMG_cpp_run;
 
 % Fit UGMG parameters
 out_file = fullfile(out_folder, [filename '.fit']);
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3_hardprune_p1.mat'};
 simu_params_file = ''; init_result_from_out_file = '';
-DO_FIT_UGMG=true; QQ_PLOT=false; UGMG_cpp_run;
+DO_FIT_UGMG=true; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; UGMG_cpp_run;
 
 % QQ plots with fitted params
 out_file = fullfile(out_folder, [filename '.fit.test']);
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
-init_result_from_out_file = fullfile(out_folder, [filename '.fit.mat']);
+simu_params_file = ''; init_result_from_out_file = fullfile(out_folder, [filename '.fit.mat']);
 DO_FIT_UGMG=false; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; UGMG_cpp_run
 
 % TBD test hardprune feature
+out_file = fullfile(out_folder, [filename '.hardprune']);
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
+simu_params_file = ''; init_result_from_out_file = '';
+hardprune_r2 = 0.1; hardprune_plink_ld_bin = plink_ld_bin;
+DO_FIT_UGMG=false; QQ_PLOT=false; QQ_PLOT_DOWNSCALE = 10; UGMG_cpp_run
 end
 
 
@@ -100,6 +105,7 @@ if ~exist('SEED', 'var'), seed = nan; end;
 if ~exist('DO_FIT_UGMG', 'var'), DO_FIT_UGMG = true; end;               % perform univariate fit
 if ~exist('simu_params_file', 'var'), simu_params_file = ''; end                  % load true parameters from 'simu' (simulation tool)
 if ~exist('init_result_from_out_file', 'var'), init_result_from_out_file = ''; end;
+if ~isempty(simu_params_file) && ~isempty(init_result_from_out_file), error('simu_params_file can not be used with init_result_from_out_file'); end;
 
 % Setup tolerance for fminsearch
 if ~exist('TolX', 'var'), TolX = 1e-2; end;
@@ -149,7 +155,7 @@ addpath('DERIVESTsuite');
 addpath('PolyfitnTools');
 
 if isfinite(hardprune_r2)
-    if ~exist('hardprune_plink_ld_mat', 'var'), error('randprune_r2_plink_ld_mat is required'); end;
+    if ~exist('hardprune_plink_ld_bin', 'var'), error('hardprune_plink_ld_bin is required'); end;
     defvec_tmp = BGMG_util.find_hardprune_indices(defvec_tmp, hardprune_r2, ref.mafvec, hardprune_plink_ld_bin, chr_labels);
 end
 
@@ -199,16 +205,16 @@ params = [];
 % Load true params for simulated data. Do a quick fit to initialize sig2_zero 
 if ~isempty(simu_params_file),
     tmp_params = load(simu_params_file);    trait_index = 1;
-    true_params.univariate{trait_index}.pi_vec = tmp_params.causal_pi;
-    true_params.univariate{trait_index}.sig2_beta = tmp_params.sigsq;
+    params.univariate{trait_index}.pi_vec = tmp_params.causal_pi;
+    params.univariate{trait_index}.sig2_beta = tmp_params.sigsq;
 
     bgmglib.set_option('fast_cost', 1); % ~FIT_FULL_MODEL);   % <- shortcut, initialize sig2zero based on fast model
     fitfunc = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), struct('Display', 'on', 'TolX', TolX, 'TolFun', TolFun)));
-    fit_sig2_zero = fitfunc(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', true_params.univariate{trait_index}.pi_vec, 'sig2_beta', true_params.univariate{trait_index}.sig2_beta)));
-    true_params.univariate{trait_index}.sig2_zero = fit_sig2_zero.sig2_zero;
+    fit_sig2_zero = fitfunc(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', params.univariate{trait_index}.pi_vec, 'sig2_beta', params.univariate{trait_index}.sig2_beta)));
+    params.univariate{trait_index}.sig2_zero = fit_sig2_zero.sig2_zero;
+    true_params = params;  % save, just in case
 
     BGMG_cpp.log('Params loaded from intput file (synthetic data).\n');
-    params = true_params;
 end;
 
 % Load params from previous runs.

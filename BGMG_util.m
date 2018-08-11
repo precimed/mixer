@@ -570,7 +570,6 @@ classdef BGMG_util
         % Use hard threshold to exlude sinonimous SNPs from fit. Just one
         % iteration of random pruning with very high r2 threshold. Non-selected
         % SNPs are excluded.
-        if ~exist('hardprune_plink_ld_mat', 'var'), error('randprune_r2_plink_ld_mat is required'); end;
         BGMG_cpp.log('Excluding variants based on random pruning at %.3f threshold...\n', hardprune_r2);
         tag_indices_tmp = find(defvec_tmp);
         bgmglib=BGMG_cpp(1);
@@ -584,7 +583,7 @@ classdef BGMG_util
         weights_bgmg = bgmglib.weights;
         bgmglib.dispose();
         defvec_tmp(tag_indices_tmp(weights_bgmg==0)) = false;
-        BGMG_cpp.log('Exclude %i variants after random pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), hardprune_r2, sum(defvec_tmp));
+        BGMG_cpp.log('Exclude %i variants after hard pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), hardprune_r2, sum(defvec_tmp));
     end
   end
 end

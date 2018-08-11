@@ -200,7 +200,7 @@ if ~isempty(simu_params_file),
     true_params.univariate{trait_index}.pi_vec = tmp_params.causal_pi;
     true_params.univariate{trait_index}.sig2_beta = tmp_params.sigsq;
 
-    bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
+    bgmglib.set_option('fast_cost', 1); % ~FIT_FULL_MODEL);   % <- shortcut, initialize sig2zero based on fast model
     fitfunc = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), struct('Display', 'on', 'TolX', TolX, 'TolFun', TolFun)));
     fit_sig2_zero = fitfunc(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', true_params.univariate{trait_index}.pi_vec, 'sig2_beta', true_params.univariate{trait_index}.sig2_beta)));
     true_params.univariate{trait_index}.sig2_zero = fit_sig2_zero.sig2_zero;

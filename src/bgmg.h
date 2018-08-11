@@ -74,9 +74,9 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_set_weights_randprune(int context_id, int n, float r2);
   DLL_PUBLIC int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer);
 
-  // Retrieve certain aspects of the DL structure. Mainly for debugging purpose.
+  // Retrieve certain aspects of the LD structure. Mainly for debugging purpose.
   DLL_PUBLIC int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_causal, int length, float* buffer);
-  DLL_PUBLIC int64_t bgmg_retrieve_ld_tag_r2_sum(int context_id, int length, float* buffer);  // LD scores (r2 and r4)
+  DLL_PUBLIC int64_t bgmg_retrieve_ld_tag_r2_sum(int context_id, int length, float* buffer);  // LD scores (r2 and r4). Not adjusted for hvec.
   DLL_PUBLIC int64_t bgmg_retrieve_ld_tag_r4_sum(int context_id, int length, float* buffer);
   DLL_PUBLIC int64_t bgmg_retrieve_weighted_causal_r2(int context_id, int length, float* buffer);
 

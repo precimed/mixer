@@ -396,6 +396,7 @@ class BgmgCalculator {
   std::vector<float>* get_nvec(int trait_index);
 
   std::shared_ptr<LdTagSum> ld_tag_sum_adjust_for_hvec_;
+  std::shared_ptr<LdTagSum> ld_tag_sum_;
 
   LoglikeCache loglike_cache_;
 

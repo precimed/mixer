@@ -174,6 +174,7 @@ int64_t BgmgCalculator::set_tag_indices(int num_snp, int num_tag, int* tag_indic
   }
 
   ld_tag_sum_adjust_for_hvec_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, num_tag_);
+  ld_tag_sum_                 = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, num_tag_);
   return 0;
 }
 
@@ -224,6 +225,9 @@ int64_t BgmgCalculator::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_i
     if (is_tag_[tag_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, snp_to_tag_[tag_index[i]], r2[i] * hvec_[snp_index[i]]);
     if (is_tag_[snp_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, snp_to_tag_[snp_index[i]], r2[i] * hvec_[tag_index[i]]);
 
+    if (is_tag_[tag_index[i]]) ld_tag_sum_->store(ld_component, snp_to_tag_[tag_index[i]], r2[i]);
+    if (is_tag_[snp_index[i]]) ld_tag_sum_->store(ld_component, snp_to_tag_[snp_index[i]], r2[i]);
+
     if (r2[i] < r2_min_) continue;
     // tricky part here is that we take into account snp_can_be_causal_
     // there is no reason to keep LD information about certain causal SNP if we never selecting it as causal
@@ -247,6 +251,7 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
   for (int i = 0; i < tag_to_snp_.size(); i++) {
     coo_ld_.push_back(std::make_tuple(tag_to_snp_[i], i, 1.0f));
     ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec_[tag_to_snp_[i]]);
+    ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f);
   }
   
   LOG << " sorting ld r2 elements... ";
@@ -548,7 +553,7 @@ int64_t BgmgCalculator::retrieve_ld_tag_r2_sum(int length, float* buffer) {
   check_num_tag(length);
   LOG << " retrieve_ld_tag_r2_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    buffer[tag_index] = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r2()[tag_index];
+    buffer[tag_index] = ld_tag_sum_->ld_tag_sum_r2()[tag_index];
   }
   return 0;
 }
@@ -557,7 +562,7 @@ int64_t BgmgCalculator::retrieve_ld_tag_r4_sum(int length, float* buffer) {
   check_num_tag(length);
   LOG << " retrieve_ld_tag_r4_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    buffer[tag_index] = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r4()[tag_index];
+    buffer[tag_index] = ld_tag_sum_->ld_tag_sum_r4()[tag_index];
   }
   return 0;
 }
@@ -1417,6 +1422,7 @@ void BgmgCalculator::clear_state() {
   coo_ld_.clear();
   hvec_.clear();
   ld_tag_sum_adjust_for_hvec_->clear();
+  ld_tag_sum_->clear();
 
   // clear ordering of SNPs
   snp_order_.clear();

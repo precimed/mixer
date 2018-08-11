@@ -351,7 +351,8 @@ bgmglib.set_option('diag', 0);
 if QQ_PLOT
     for trait_index = 1:(1 + ~isempty(trait2_file))
         options.downscale = QQ_PLOT_DOWNSCALE;
-        [figures, plot_data] = BGMG_cpp_qq_plot(params.univariate{trait_index}, trait_index, options);
+        figures.tot = figure;
+        plot_data = BGMG_cpp_qq_plot(params.univariate{trait_index}, trait_index, options);
 
         % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
         result.univariate{trait_index}.qq_plot_true_data = plot_data;

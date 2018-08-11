@@ -37,7 +37,7 @@ out_folder = 'results_2018_08_11.kmax=1000';
 out_file = fullfile(out_folder, [filename '.true']); 
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
 simu_params_file = ['H:\GitHub\BGMG\' filename '.params.mat']; init_result_from_out_file='';
-DO_FIT_UGMG=false; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; UGMG_cpp_run;
+DO_FIT_UGMG=false; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; QQ_PLOT_BINS=1; QQ_PLOT_BINS_DOWNSCALE = 1; UGMG_cpp_run;
 
 % Fit UGMG parameters
 out_file = fullfile(out_folder, [filename '.fit']);
@@ -114,6 +114,8 @@ if ~exist('TolFun', 'var'), TolFun = 1e-2; end;
 if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                % use full model (when false, use gaussian approximation)
 if ~exist('QQ_PLOT', 'var'), QQ_PLOT = false; end;   % make QQ plots
 if ~exist('QQ_PLOT_DOWNSCALE', 'var'), QQ_PLOT_DOWNSCALE = 100; end;     % downscale #snps in QQ plots (model prediction only)
+if ~exist('QQ_PLOT_BINS', 'var'), QQ_PLOT_BINS = false; end;   % make QQ plots
+if ~exist('QQ_PLOT_BINS_DOWNSCALE', 'var'), QQ_PLOT_BINS_DOWNSCALE = 10; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('UGMG_LOGLIKE_PLOT', 'var'), UGMG_LOGLIKE_PLOT = false; end;
 if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
@@ -256,11 +258,33 @@ bgmglib.set_option('diag', 0);
 % Produce QQ plots
 if QQ_PLOT
     options.downscale = QQ_PLOT_DOWNSCALE;trait_index=1;
-    [figures, plot_data] = BGMG_cpp_qq_plot(params.univariate{trait_index}, trait_index, options);
+    figures.tot = figure;
+    plot_data = BGMG_cpp_qq_plot(params.univariate{trait_index}, trait_index, options);
 
     % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
-    result.univariate{trait_index}.qq_plot_true_data = plot_data;
-    print(figures.tot, sprintf('%s.trait%i.qq.pdf', out_file, trait_index), '-dpdf')
+    result.univariate{trait_index}.qq_plot_data = plot_data;
+    print(figures.tot, sprintf('%s.qq.pdf', out_file), '-dpdf')
+end
+
+if QQ_PLOT_BINS
+    options.downscale = QQ_PLOT_BINS_DOWNSCALE;trait_index=1;
+    mafvec = bgmglib.mafvec(bgmglib.defvec);
+    ldscore = bgmglib.ld_tag_r2_sum;
+    maf_bins = [-inf quantile(mafvec, 2) inf];
+    tld_bins = [-inf quantile(ldscore, 2) inf];
+    total_fig = figure;set(gcf, 'Position', get(0, 'Screensize'));
+    options.full_annotation = false;
+    for i=1:3
+        for j=1:3
+            subplot(3,3,(i-1)*3+j);
+            options.title = sprintf('$$ maf \\in [%.3f,%.3f) $$ \n $$ L \\in [%.3f,%.3f) $$', maf_bins(i), maf_bins(i+1), tld_bins(j), tld_bins(j+1));
+            options.mask = (mafvec > maf_bins(i)) & (mafvec <= maf_bins(i+1)) & (ldscore > tld_bins(j)) & (ldscore <= tld_bins(j+1));
+            plot_data = BGMG_cpp_qq_plot(params.univariate{trait_index}, trait_index, options);
+            result.univariate{trait_index}.qq_plot_bins_data{i,j} = plot_data;
+        end
+    end
+    set(total_fig,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
+    print(total_fig, sprintf('%s.qq.bins.pdf', out_file), '-dpdf')
 end
 
 bgmglib.set_option('diag', 0);

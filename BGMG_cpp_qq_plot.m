@@ -1,30 +1,39 @@
-function [figures, plot_data] = BGMG_cpp_qq_plot(params, trait_index, options)
+function plot_data = BGMG_cpp_qq_plot(params, trait_index, options)
     % QQ plot for data and model
 
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
     if ~isfield(options, 'downscale'), options.downscale = 10; end;
-    plot_data = []; figures.tot = figure; hold on;
+    if ~isfield(options, 'full_annotation'), options.full_annotation = true; end;
+    plot_data = []; hold on;
 
     bgmglib = BGMG_cpp();
     weights_bgmg = bgmglib.weights;
     zvec = bgmglib.get_zvec(trait_index);
-
+    
     % Check that weights and zvec are all defined
     if any(~isfinite(zvec)), error('all values must be defined'); end;
     if any(~isfinite(weights_bgmg)), error('all values must be defined'); end;
-    
+
+    % We may limit QQ plots to certain group of SNPs (let's say a bin of mafvec and TLD)
+    % Such subset should be defined via mask (same convention as defvec, 1 in mask means "use for QQ plot)
+    if ~isfield(options, 'mask'), options.mask = true(size(zvec)); end;
+
     % To speedup calculations we set temporary weights where many elements
-    % are zeroed. The remaining elements are set to 1 (e.i. there is no
-    % weighting). For data QQ plots all elements are set to 1.
+    % are zeroed. For data QQ plots all elements are set to 1.
     % At the end of this function we restore weights_bgmg.
-    downscale_indices = false(size(weights_bgmg)); downscale_indices(1:options.downscale:end)=true;
-    model_weights = zeros(size(weights_bgmg));  model_weights(downscale_indices) = weights_bgmg(downscale_indices); model_weights = model_weights ./ sum(model_weights);
+    downscale_mask_indices = false(sum(options.mask), 1); 
+    downscale_mask_indices(1:options.downscale:end)=true;
+    mask_indices = find(options.mask); downscale_indices = mask_indices(downscale_mask_indices);
+    
+    model_weights = zeros(size(weights_bgmg)); 
+    model_weights(downscale_indices) = weights_bgmg(downscale_indices); 
+    model_weights = model_weights ./ sum(model_weights);
     bgmglib.weights = model_weights;
-    data_weights = weights_bgmg / sum(weights_bgmg);
     
     % Calculate data_logpvec
+    data_weights = weights_bgmg(options.mask) / sum(weights_bgmg(options.mask));
     hv_z = linspace(0, min(max(abs(zvec)), 38.0), 10000);
-    [data_y, si] = sort(-log10(2*normcdf(-abs(zvec))));
+    [data_y, si] = sort(-log10(2*normcdf(-abs(zvec(options.mask)))));
     data_x=-log10(cumsum(data_weights(si),1,'reverse'));
     data_idx = ([data_y(2:end); +Inf] ~= data_y);
     hv_logp = -log10(2*normcdf(-hv_z));
@@ -65,9 +74,10 @@ function [figures, plot_data] = BGMG_cpp_qq_plot(params, trait_index, options)
         end
     end
     
+    qq_options.full_annotation = options.full_annotation;
     qq_options.lamGC_data = BGMG_util.lamGCfromQQ(data_logpvec, hv_logp);
     qq_options.lamGC_model = BGMG_util.lamGCfromQQ(model_logpvec, hv_logp);
-    qq_options.n_snps = length(zvec);
+    qq_options.n_snps = sum(options.mask);
 
     annotate_qq_plot(qq_options);
 end
@@ -85,9 +95,11 @@ function annotate_qq_plot(qq_options)
 
     plot([0 qq_options.qqlimy],[0 qq_options.qqlimy], 'k--');
     xlim([0 qq_options.qqlimx]); ylim([0 qq_options.qqlimy]);
-    if has_opt('legend') && qq_options.legend, lgd=legend('Data', 'Model', 'Expected', 'Location', 'SouthEast'); lgd.FontSize = qq_options.fontsize; end;
-    if has_opt('xlabel') && qq_options.xlabel, xlabel('Empirical -log 10(q)','fontsize',qq_options.fontsize); end;
-    if has_opt('ylabel') && qq_options.ylabel, ylabel('Nominal -log 10(p)','fontsize',qq_options.fontsize); end;
+    if qq_options.full_annotation
+        if has_opt('legend') && qq_options.legend, lgd=legend('Data', 'Model', 'Expected', 'Location', 'SouthEast'); lgd.FontSize = qq_options.fontsize; end;
+        if has_opt('xlabel') && qq_options.xlabel, xlabel('Empirical -log 10(q)','fontsize',qq_options.fontsize); end;
+        if has_opt('ylabel') && qq_options.ylabel, ylabel('Nominal -log 10(p)','fontsize',qq_options.fontsize); end;
+    end
     if has_opt('title'), title(qq_options.title,'fontsize',qq_options.fontsize,'Interpreter','latex'); end;
     xt = get(gca, 'XTick');set(gca, 'FontSize', qq_options.fontsize);
     yt = get(gca, 'YTick');set(gca, 'FontSize', qq_options.fontsize);
@@ -95,11 +107,13 @@ function annotate_qq_plot(qq_options)
 
     loc = qq_options.qqlimy-2;
     if has_opt('n_snps'), text(0.5,loc,sprintf('$$ n_{snps} = %i $$', qq_options.n_snps),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
+    if qq_options.full_annotation
     if has_opt('sig2_zero'), text(0.5,loc,sprintf('$$ \\hat\\sigma_0^2 = %.3f $$', qq_options.sig2_zero),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
     if has_opt('pi_vec'), text(0.5,loc,sprintf('$$ \\hat\\pi^u_1 = %s $$', vec2str(qq_options.pi_vec)),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
     if has_opt('sig2_beta'), text(0.5,loc,sprintf('$$ \\hat\\sigma_{\\beta}^2 = %s $$', vec2str(qq_options.sig2_beta)),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
     h2vec = ''; if has_opt('h2vec'), h2vec = ['$$ \\; $$' vec2str(qq_options.h2vec, 3)]; end;
     if has_opt('h2'), text(0.5,loc,sprintf('$$ \\hat h^2 = %.3f%s$$', qq_options.h2, h2vec),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
+    end
     if has_opt('lamGC_model'), text(0.5,loc,sprintf('$$ \\hat\\lambda_{model} = %.3f $$', qq_options.lamGC_model),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
     if has_opt('lamGC_data'), text(0.5,loc,sprintf('$$ \\hat\\lambda_{data} = %.3f $$', qq_options.lamGC_data),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
 end

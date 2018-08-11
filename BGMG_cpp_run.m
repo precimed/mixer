@@ -157,24 +157,8 @@ addpath('DERIVESTsuite');
 addpath('PolyfitnTools');
 
 if isfinite(hardprune_r2)
-    % Use hard threshold to exlude sinonimous SNPs from fit. Just one
-    % iteration of random pruning with very high r2 threshold. Non-selected
-    % SNPs are excluded.
     if ~exist('hardprune_plink_ld_mat', 'var'), error('randprune_r2_plink_ld_mat is required'); end;
-    BGMG_cpp.log('Excluding variants based on random pruning at %.3f threshold...\n', hardprune_r2);
-    tag_indices_tmp = find(defvec_tmp);
-    bgmglib=BGMG_cpp(1);
-    bgmglib.dispose();
-    bgmglib.defvec = defvec_tmp;
-    bgmglib.hvec = ref.mafvec .* (1-ref.mafvec) * 2;
-    for chr_index=1:length(chr_labels), bgmglib.set_ld_r2_coo_from_file(strrep(hardprune_plink_ld_bin,'@', sprintf('%i', chr_labels(chr_index)))); end;
-    bgmglib.set_ld_r2_csr();
-    hardprune_n = 1;
-    bgmglib.set_weights_randprune(hardprune_n, hardprune_r2);
-    weights_bgmg = bgmglib.weights;
-    bgmglib.dispose();
-    defvec_tmp(tag_indices_tmp(weights_bgmg==0)) = false;
-    BGMG_cpp.log('Exclude %i variants after random pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), hardprune_r2, sum(defvec_tmp));
+    defvec_tmp = BGMG_util.find_hardprune_indices(defvec_tmp, hardprune_r2, ref.mafvec, hardprune_plink_ld_bin, chr_labels);
 end
 
 % finalize defvec, from here it must not change.
@@ -452,6 +436,12 @@ bgmglib.set_option('diag', 0);
 % (this overrides previously saved file)
 save([out_file '.mat'], 'result');
 BGMG_cpp.log('Results saved to %s.mat\n', out_file);
+
+return
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Helper code below 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if 0
     % Helper code to save all results to a text file

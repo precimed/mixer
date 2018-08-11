@@ -42,8 +42,12 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
         def = isfinite(xgrid+result.loglike_adj_trajectory.cost);
         x = xgrid(def);
         y = result.loglike_adj_trajectory.cost(def);
-        curve3 = fit(x, y, 'poly3');
-        x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
+        try
+            curve3 = fit(x, y, 'poly3');
+            x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
+        catch
+            x0opt = nan;
+        end
 
         if isfinite(x0opt) && (x0opt > quantile(xgrid(def), 0.2)) && (x0opt < quantile(xgrid(def), 0.8))
             BGMG_cpp.log('Change UGMG solution (%.3f -> %.3f) based on smooth curve3 fit\n', x0(arg_index), x0opt);

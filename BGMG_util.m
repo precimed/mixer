@@ -565,6 +565,27 @@ classdef BGMG_util
             ov.sig2_beta = [s1 0 s1; 0 s2 s2];
         end
     end
+    
+    function defvec_tmp = find_hardprune_indices(defvec_tmp, hardprune_r2, mafvec, hardprune_plink_ld_bin, chr_labels)
+        % Use hard threshold to exlude sinonimous SNPs from fit. Just one
+        % iteration of random pruning with very high r2 threshold. Non-selected
+        % SNPs are excluded.
+        if ~exist('hardprune_plink_ld_mat', 'var'), error('randprune_r2_plink_ld_mat is required'); end;
+        BGMG_cpp.log('Excluding variants based on random pruning at %.3f threshold...\n', hardprune_r2);
+        tag_indices_tmp = find(defvec_tmp);
+        bgmglib=BGMG_cpp(1);
+        bgmglib.dispose();
+        bgmglib.defvec = defvec_tmp;
+        bgmglib.hvec = mafvec .* (1-mafvec) * 2;
+        for chr_index=1:length(chr_labels), bgmglib.set_ld_r2_coo_from_file(strrep(hardprune_plink_ld_bin,'@', sprintf('%i', chr_labels(chr_index)))); end;
+        bgmglib.set_ld_r2_csr();
+        hardprune_n = 1;
+        bgmglib.set_weights_randprune(hardprune_n, hardprune_r2);
+        weights_bgmg = bgmglib.weights;
+        bgmglib.dispose();
+        defvec_tmp(tag_indices_tmp(weights_bgmg==0)) = false;
+        BGMG_cpp.log('Exclude %i variants after random pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), hardprune_r2, sum(defvec_tmp));
+    end
   end
 end
 

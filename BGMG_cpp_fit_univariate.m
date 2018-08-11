@@ -38,24 +38,30 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
             BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index);
         end
         result.loglike_adj_trajectory = bgmglib.extract_univariate_loglike_trajectory();
+        result.loglike_adj_trajectory.xgrid = xgrid;
         def = isfinite(xgrid+result.loglike_adj_trajectory.cost);
         x = xgrid(def);
         y = result.loglike_adj_trajectory.cost(def);
         curve3 = fit(x, y, 'poly3');
         x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
-        
-        x0(arg_index) = x0opt;
-        result.params = options.mapparams(x0);
-        
+
+        if isfinite(x0opt) && (x0opt > quantile(xgrid(def), 0.2)) && (x0opt < quantile(xgrid(def), 0.8))
+            BGMG_cpp.log('Change UGMG solution (%.3f -> %.3f) based on smooth curve3 fit\n', x0(arg_index), x0opt);
+            x0(arg_index) = x0opt;
+            result.params = options.mapparams(x0);
+        else
+            BGMG_cpp.log('Refuse to change BGMG solution (%.3f -> %.3f) based on smooth curve3 fit\n', x0(arg_index), x0opt);
+        end
+
         %figure;
         %subplot(1,2,1); plot(result.loglike_adj_trajectory.pivec, [result.loglike_adj_trajectory.cost, curve3(xgrid)], '.-');
         %subplot(1,2,2); plot(xgrid, [result.loglike_adj_trajectory.cost, curve3(xgrid)], '.-'); hold on; plot(x0opt, curve3(x0opt), '*k');
     end
     
-    bgmglib.clear_loglike_cache();
     if ~isnan(options.ci_alpha)  % not implemented
         BGMG_cpp.log('Uncertainty estimation\n');
         %ws=warning; warning('off', 'all'); 
+        bgmglib.clear_loglike_cache();
         [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index), options.mapparams(result.params)); 
         result.loglike_ci_trajectory = bgmglib.extract_univariate_loglike_trajectory();
         result.ci_hess = ci_hess;

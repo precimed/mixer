@@ -30,6 +30,7 @@ function result = BGMG_cpp_fit_bivariate(params, options)
     % Step2. Final unconstrained optimization (jointly on all parameters), using fast cost function
     BGMG_cpp.log('Trait 1,2: final optimization (full cost function)\n');
     result.params = fitfunc(params);
+    result.loglike_fit_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
 
     % Adjust based on smooth approximation
     if 1
@@ -42,16 +43,21 @@ function result = BGMG_cpp_fit_bivariate(params, options)
             BGMG_util.BGMG_fminsearch_cost(BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x));
         end
         result.loglike_adj_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
+        result.loglike_adj_trajectory.xgrid = xgrid;
         def = isfinite(xgrid+result.loglike_adj_trajectory.cost);
         x = xgrid(def);
         y = result.loglike_adj_trajectory.cost(def);
         curve3 = fit(x, y, 'poly3');
         x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
         
+        if isfinite(x0opt) && (x0opt > quantile(xgrid(def), 0.2)) && (x0opt < quantile(xgrid(def), 0.8))
+            BGMG_cpp.log('Change BGMG solution (%.3f -> %.3f) based on smooth curve3 fit\n', x0(arg_index), x0opt);
+            x0(arg_index) = x0opt;
+            result.params = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x0);
+        else
+            BGMG_cpp.log('Refuse to change BGMG solution (%.3f -> %.3f) based on smooth curve3 fit\n', x0(arg_index), x0opt);
+        end
 
-        x0(arg_index) = x0opt;
-        result.params = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x0);
-    
         if 0
          figure(20);
          bt = result.loglike_adj_trajectory;
@@ -64,7 +70,9 @@ function result = BGMG_cpp_fit_bivariate(params, options)
     if ~isnan(options.ci_alpha)
         BGMG_cpp.log('Trait 1,2: uncertainty estimation\n');
         %ws=warning; warning('off', 'all');
+        bgmglib.clear_loglike_cache();
         [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(result.params));
+        result.loglike_ci_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
         result.ci_hess = ci_hess;
         result.ci_hess_err = ci_hess_err;
         %warning(ws);
@@ -94,8 +102,6 @@ function result = BGMG_cpp_fit_bivariate(params, options)
         result.ci = BGMG_util.extract_ci_funcs(ci_params, ci_bivariate_funcs, result.params, options.ci_alpha);
     end
 
-    result.loglike_fit_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
-    
     if options.verbose
        fprintf('Done, results are:\n');
        disp(BGMG_util.struct_to_display(result.params));

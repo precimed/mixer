@@ -30,7 +30,7 @@ reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfil
 filename = 'simu_h2=0.4_pi1u=0.001_rep=1';
 trait1_file = ['H:\GitHub\BGMG\' filename '.trait1.mat']; trait1_nvec=100000;
 
-kmax=5000; cache_tag_r2sum=true; r2min=0.05;
+kmax=5000; cache_tag_r2sum=true; r2min=0.05; SEED=123;
 out_folder = 'results_2018_08_11.kmax=5000';
 
 % QQ plots with true params
@@ -90,6 +90,7 @@ if ~exist('kmax', 'var'), kmax = 1000; end;
 if ~exist('r2min', 'var'), r2min = 0.01; end;
 if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.03; end;
 if ~exist('cache_tag_r2sum', 'var'), cache_tag_r2sum = 1; end;
+if ~exist('SEED', 'var'), seed = nan; end;
 
 % The following three options control how to get univariate & bivariate params
 % BGMG_cpp_run can take previous results file, and enhance it with
@@ -168,6 +169,7 @@ bgmglib.set_option('max_causals', floor(max_causal_fraction * length(defvec)));
 bgmglib.set_option('num_components', num_components);
 bgmglib.set_option('cache_tag_r2sum', cache_tag_r2sum);
 bgmglib.set_option('threads', THREADS);
+if isfinite(SEED), bgmglib.set_option('seed', SEED); end;
 
 bgmglib.hvec = ref.mafvec .* (1-ref.mafvec) * 2;
 

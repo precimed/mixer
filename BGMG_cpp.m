@@ -13,6 +13,8 @@ classdef BGMG_cpp
     zvec2
     nvec1
     nvec2
+    ld_tag_r2_sum
+    ld_tag_r4_sum
   end
   
   methods
@@ -117,6 +119,18 @@ classdef BGMG_cpp
         val = double(pBuffer.Value); clear pBuffer
     end
 
+    % get ld scores (sum of r2 and r4)
+    function val = get.ld_tag_r2_sum(obj)
+        pBuffer = libpointer('singlePtr', zeros(obj.num_tag, 1, 'single'));
+        calllib('bgmg', 'bgmg_retrieve_ld_tag_r2_sum', obj.Context, obj.num_tag, pBuffer); obj.check();
+        val = double(pBuffer.Value); clear pBuffer
+    end
+    function val = get.ld_tag_r4_sum(obj)
+        pBuffer = libpointer('singlePtr', zeros(obj.num_tag, 1, 'single'));
+        calllib('bgmg', 'bgmg_retrieve_ld_tag_r4_sum', obj.Context, obj.num_tag, pBuffer); obj.check();
+        val = double(pBuffer.Value); clear pBuffer
+    end
+    
     % set LD structure
     function set_ld_r2_coo_from_matlab_indices(obj, index_A, index_B, r2)
         % convert matlab to c++ indices

@@ -51,7 +51,7 @@ defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
 simu_params_file = ''; init_result_from_out_file = fullfile(out_folder, [filename '.fit.mat']);
 DO_FIT_UGMG=false; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; UGMG_cpp_run
 
-% TBD test hardprune feature
+% Test hardprune feature
 out_file = fullfile(out_folder, [filename '.hardprune']);
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
 simu_params_file = ''; init_result_from_out_file = '';

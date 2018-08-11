@@ -173,7 +173,7 @@ int64_t BgmgCalculator::set_tag_indices(int num_snp, int num_tag, int* tag_indic
     snp_to_tag_[tag_to_snp_[i]] = i;
   }
 
-  ld_tag_sum_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, num_tag_);
+  ld_tag_sum_adjust_for_hvec_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, num_tag_);
   return 0;
 }
 
@@ -221,8 +221,8 @@ int64_t BgmgCalculator::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_i
     CHECK_SNP_INDEX(snp_index[i]); CHECK_SNP_INDEX(tag_index[i]);
 
     int ld_component = (r2[i] < r2_min_) ? LD_TAG_COMPONENT_BELOW_R2MIN : LD_TAG_COMPONENT_ABOVE_R2MIN;
-    if (is_tag_[tag_index[i]]) ld_tag_sum_->store(ld_component, snp_to_tag_[tag_index[i]], r2[i] * hvec_[snp_index[i]]);
-    if (is_tag_[snp_index[i]]) ld_tag_sum_->store(ld_component, snp_to_tag_[snp_index[i]], r2[i] * hvec_[tag_index[i]]);
+    if (is_tag_[tag_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, snp_to_tag_[tag_index[i]], r2[i] * hvec_[snp_index[i]]);
+    if (is_tag_[snp_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, snp_to_tag_[snp_index[i]], r2[i] * hvec_[tag_index[i]]);
 
     if (r2[i] < r2_min_) continue;
     // tricky part here is that we take into account snp_can_be_causal_
@@ -246,7 +246,7 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
   LOG << " set_ld_r2_csr adds " << tag_to_snp_.size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
   for (int i = 0; i < tag_to_snp_.size(); i++) {
     coo_ld_.push_back(std::make_tuple(tag_to_snp_[i], i, 1.0f));
-    ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec_[tag_to_snp_[i]]);
+    ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec_[tag_to_snp_[i]]);
   }
   
   LOG << " sorting ld r2 elements... ";
@@ -498,7 +498,7 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   }
 
   // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
-  const std::vector<float>& tag_sum_r2_below_r2min = ld_tag_sum_->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  const std::vector<float>& tag_sum_r2_below_r2min = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
   const float pival_delta = (num_causals_original - last_num_causals_original) / static_cast<float>(num_snp_);
 
   // it is OK to parallelize the following loop on k_index, because:
@@ -548,7 +548,7 @@ int64_t BgmgCalculator::retrieve_ld_tag_r2_sum(int length, float* buffer) {
   check_num_tag(length);
   LOG << " retrieve_ld_tag_r2_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    buffer[tag_index] = ld_tag_sum_->ld_tag_sum_r2()[tag_index];
+    buffer[tag_index] = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r2()[tag_index];
   }
   return 0;
 }
@@ -557,7 +557,7 @@ int64_t BgmgCalculator::retrieve_ld_tag_r4_sum(int length, float* buffer) {
   check_num_tag(length);
   LOG << " retrieve_ld_tag_r4_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    buffer[tag_index] = ld_tag_sum_->ld_tag_sum_r4()[tag_index];
+    buffer[tag_index] = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r4()[tag_index];
   }
   return 0;
 }
@@ -1296,8 +1296,8 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec[tag_index])) continue;
     
-    const float tag_r2 = ld_tag_sum_->ld_tag_sum_r2()[tag_index];
-    const float tag_r4 = ld_tag_sum_->ld_tag_sum_r4()[tag_index];
+    const float tag_r2 = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r2()[tag_index];
+    const float tag_r4 = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r4()[tag_index];
 
     if (tag_r2 == 0 || tag_r4 == 0) {
       num_zero_tag_r2++; continue;
@@ -1348,8 +1348,8 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
     const float z2 = zvec2_[tag_index];
     const float n2 = nvec2_[tag_index];
 
-    const float tag_r2 = ld_tag_sum_->ld_tag_sum_r2()[tag_index];
-    const float tag_r4 = ld_tag_sum_->ld_tag_sum_r4()[tag_index];
+    const float tag_r2 = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r2()[tag_index];
+    const float tag_r4 = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r4()[tag_index];
 
     if (tag_r2 == 0 || tag_r4 == 0) {
       num_zero_tag_r2++; continue;
@@ -1416,7 +1416,7 @@ void BgmgCalculator::clear_state() {
   csr_ld_r2_.clear();
   coo_ld_.clear();
   hvec_.clear();
-  ld_tag_sum_->clear();
+  ld_tag_sum_adjust_for_hvec_->clear();
 
   // clear ordering of SNPs
   snp_order_.clear();
@@ -1598,7 +1598,7 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
   }
 
   // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
-  const std::vector<float>& tag_sum_r2_below_r2min = ld_tag_sum_->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  const std::vector<float>& tag_sum_r2_below_r2min = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
   const float pival = num_causal / static_cast<float>(num_snp_);
   for (int i = 0; i < num_tag_; i++) {
     buffer->at(i) += (pival * tag_sum_r2_below_r2min[i]);

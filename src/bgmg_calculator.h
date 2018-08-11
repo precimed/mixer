@@ -395,7 +395,8 @@ class BgmgCalculator {
   std::vector<float>* get_zvec(int trait_index);
   std::vector<float>* get_nvec(int trait_index);
 
-  std::shared_ptr<LdTagSum> ld_tag_sum_;
+  std::shared_ptr<LdTagSum> ld_tag_sum_adjust_for_hvec_;
+
   LoglikeCache loglike_cache_;
 
   // vectors with one value for each component in the mixture

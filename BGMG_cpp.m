@@ -7,7 +7,7 @@ classdef BGMG_cpp
     defvec              % instead of tag_indices
     num_snp
     num_tag
-    hvec
+    mafvec
     weights
     zvec1
     zvec2
@@ -50,13 +50,13 @@ classdef BGMG_cpp
         val = calllib('bgmg', 'bgmg_get_num_snp', obj.Context); obj.check();
     end
 
-    % set/get hvec
-    function obj = set.hvec(obj, val)
-        calllib('bgmg', 'bgmg_set_hvec', obj.Context, length(val), val);  obj.check();
+    % set/get mafvec
+    function obj = set.mafvec(obj, val)
+        calllib('bgmg', 'bgmg_set_mafvec', obj.Context, length(val), val);  obj.check();
     end
-    function val = get.hvec(obj)
+    function val = get.mafvec(obj)
         pBuffer = libpointer('singlePtr', zeros(obj.num_snp, 1, 'single'));
-        calllib('bgmg', 'bgmg_retrieve_hvec', obj.Context, obj.num_snp, pBuffer); obj.check();
+        calllib('bgmg', 'bgmg_retrieve_mafvec', obj.Context, obj.num_snp, pBuffer); obj.check();
         val = double(pBuffer.Value); clear pBuffer
     end
     

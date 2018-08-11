@@ -202,7 +202,7 @@ int64_t BgmgCalculator::set_ld_r2_coo(const std::string& filename) {
 
 int64_t BgmgCalculator::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2) {
   if (!csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
-  if (hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_hvec"));
+  if (mafvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_mafvec"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
 
   for (int64_t i = 0; i < length; i++)
@@ -217,13 +217,16 @@ int64_t BgmgCalculator::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_i
 
   SimpleTimer timer(-1);
 
+  std::vector<float> hvec;
+  find_hvec(&hvec);
+
   int was = coo_ld_.size();
   for (int64_t i = 0; i < length; i++) {
     CHECK_SNP_INDEX(snp_index[i]); CHECK_SNP_INDEX(tag_index[i]);
 
     int ld_component = (r2[i] < r2_min_) ? LD_TAG_COMPONENT_BELOW_R2MIN : LD_TAG_COMPONENT_ABOVE_R2MIN;
-    if (is_tag_[tag_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, snp_to_tag_[tag_index[i]], r2[i] * hvec_[snp_index[i]]);
-    if (is_tag_[snp_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, snp_to_tag_[snp_index[i]], r2[i] * hvec_[tag_index[i]]);
+    if (is_tag_[tag_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, snp_to_tag_[tag_index[i]], r2[i] * hvec[snp_index[i]]);
+    if (is_tag_[snp_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, snp_to_tag_[snp_index[i]], r2[i] * hvec[tag_index[i]]);
 
     if (is_tag_[tag_index[i]]) ld_tag_sum_->store(ld_component, snp_to_tag_[tag_index[i]], r2[i]);
     if (is_tag_[snp_index[i]]) ld_tag_sum_->store(ld_component, snp_to_tag_[snp_index[i]], r2[i]);
@@ -247,10 +250,13 @@ int64_t BgmgCalculator::set_ld_r2_csr() {
 
   SimpleTimer timer(-1);
 
+  std::vector<float> hvec;
+  find_hvec(&hvec);
+
   LOG << " set_ld_r2_csr adds " << tag_to_snp_.size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
   for (int i = 0; i < tag_to_snp_.size(); i++) {
     coo_ld_.push_back(std::make_tuple(tag_to_snp_[i], i, 1.0f));
-    ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec_[tag_to_snp_[i]]);
+    ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec[tag_to_snp_[i]]);
     ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f);
   }
   
@@ -506,6 +512,9 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   const std::vector<float>& tag_sum_r2_below_r2min = ld_tag_sum_adjust_for_hvec_->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
   const float pival_delta = (num_causals_original - last_num_causals_original) / static_cast<float>(num_snp_);
 
+  std::vector<float> hvec;
+  find_hvec(&hvec);
+
   // it is OK to parallelize the following loop on k_index, because:
   // - all structures here are readonly, except tag_r2sum_ that we are accumulating
   // - two threads will never touch the same memory location (that's why we choose k_index as an outer loop)
@@ -520,7 +529,7 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
       for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
         int tag_index = csr_ld_tag_index_[r2_index];
         float r2 = csr_ld_r2_[r2_index];
-        float hval = hvec_[snp_index];
+        float hval = hvec[snp_index];
         (*tag_r2sum_[component_id])(tag_index, k_index) += (scan_weight * r2 * hval);
       }
     }
@@ -535,17 +544,17 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   return 0;
 }
 
-int64_t BgmgCalculator::set_hvec(int length, float* values) {
+int64_t BgmgCalculator::set_mafvec(int length, float* values) {
   for (int i = 0; i < length; i++) {
     if (!std::isfinite(values[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
-  if (!hvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can not set hvec twice"));
+  if (!mafvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can not set mafvec twice"));
 
-  LOG << ">set_hvec(" << length << "); ";
+  LOG << ">set_mafvec(" << length << "); ";
   check_num_snp(length);
-  hvec_.assign(values, values + length);
-  LOG << "<set_hvec(" << length << "); ";
+  mafvec_.assign(values, values + length);
+  LOG << "<set_mafvec(" << length << "); ";
   return 0;
 }
 
@@ -1256,8 +1265,8 @@ void BgmgCalculator::log_disgnostics() {
   LOG << " diag: nvec2_=" << std_vector_to_str(nvec2_);
   LOG << " diag: weights_.size()=" << weights_.size();
   LOG << " diag: weights_=" << std_vector_to_str(weights_);
-  LOG << " diag: hvec_.size()=" << hvec_.size();
-  LOG << " diag: hvec_=" << std_vector_to_str(hvec_);
+  LOG << " diag: mafvec_.size()=" << mafvec_.size();
+  LOG << " diag: mafvec_=" << std_vector_to_str(mafvec_);
   for (int i = 0; i < snp_order_.size(); i++) {
     mem_bytes = snp_order_[i]->size() * sizeof(int); mem_bytes_total += mem_bytes;
     LOG << " diag: snp_order_[" << i << "].shape=[" << snp_order_[i]->no_rows() << ", " << snp_order_[i]->no_columns() << "]" << " (mem usage = " << mem_bytes << " bytes)";
@@ -1420,7 +1429,7 @@ void BgmgCalculator::clear_state() {
   csr_ld_tag_index_.clear();
   csr_ld_r2_.clear();
   coo_ld_.clear();
-  hvec_.clear();
+  mafvec_.clear();
   ld_tag_sum_adjust_for_hvec_->clear();
   ld_tag_sum_->clear();
 
@@ -1563,11 +1572,11 @@ int64_t BgmgCalculator::retrieve_nvec(int trait, int length, float* buffer) {
   return 0;
 }
 
-int64_t BgmgCalculator::retrieve_hvec(int length, float* buffer) {
+int64_t BgmgCalculator::retrieve_mafvec(int length, float* buffer) {
   if (length != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
-  if (hvec_.size() != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("hvec_.size() != num_tag_"));
-  LOG << " retrieve_hvec()";
-  for (int i = 0; i < num_snp_; i++) buffer[i] = hvec_[i];
+  if (mafvec_.size() != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("mafvec_.size() != num_tag_"));
+  LOG << " retrieve_mafvec()";
+  for (int i = 0; i < num_snp_; i++) buffer[i] = mafvec_[i];
   return 0;
 }
 
@@ -1589,6 +1598,9 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
 
   for (int i = 0; i < num_tag_; i++) buffer->at(i) = 0;
 
+  std::vector<float> hvec;
+  find_hvec(&hvec);
+
   for (auto change : changeset) {
     int scan_index = change.first;
     float scan_weight = change.second;
@@ -1596,9 +1608,10 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
     int64_t r2_index_from = csr_ld_snp_index_[snp_index];
     int64_t r2_index_to = csr_ld_snp_index_[snp_index + 1];
     for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
-      int tag_index = csr_ld_tag_index_[r2_index];
-      float r2 = csr_ld_r2_[r2_index];
-      float hval = hvec_[snp_index];
+      const int tag_index = csr_ld_tag_index_[r2_index];
+      const float r2 = csr_ld_r2_[r2_index];
+      const float mafval = mafvec_[snp_index];
+      const float hval = 2.0f * mafval * (1 - mafval);
       buffer->at(tag_index) += (scan_weight * r2 * hval);
     }
   }
@@ -1711,4 +1724,11 @@ float BgmgCalculator::find_and_retrieve_ld_r2(int snp_index, int tag_index) {
   auto r2_iter_to = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index + 1];
   auto iter = std::lower_bound(r2_iter_from, r2_iter_to, tag_index);
   return (iter != r2_iter_to) ? csr_ld_r2_[iter - csr_ld_tag_index_.begin()] : NAN;
+}
+
+void BgmgCalculator::find_hvec(std::vector<float>* hvec) {
+  hvec->resize(mafvec_.size(), 0.0f);
+  for (int snp_index = 0; snp_index < mafvec_.size(); snp_index++) {
+    hvec->at(snp_index) = 2.0f * mafvec_[snp_index] * (1.0f - mafvec_[snp_index]);
+  }
 }

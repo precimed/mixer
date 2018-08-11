@@ -71,11 +71,11 @@ int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values) {
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_hvec(int context_id, int length, float* values) {
+int64_t bgmg_set_mafvec(int context_id, int length, float* values) {
   try {
     set_last_error(std::string());
     check_is_positive(length); check_is_not_null(values);
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_hvec(length, values);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_mafvec(length, values);
   } CATCH_EXCEPTIONS;
 }
 
@@ -186,11 +186,11 @@ int64_t bgmg_retrieve_nvec(int context_id, int trait, int length, float* buffer)
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_retrieve_hvec(int context_id, int length, float* buffer) {
+int64_t bgmg_retrieve_mafvec(int context_id, int length, float* buffer) {
   try {
     set_last_error(std::string());
     check_is_positive(length); check_is_not_null(buffer);
-    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_hvec(length, buffer);
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_mafvec(length, buffer);
   } CATCH_EXCEPTIONS;
 }
 

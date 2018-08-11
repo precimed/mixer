@@ -283,7 +283,7 @@ class BgmgCalculator {
   // num_snp = total size of the reference (e.i. the total number of genotyped variants)
   // num_tag = number of tag variants to include in the inference (must be a subset of the reference)
   // indices = array of size num_tag, containing indices from 0 to num_snp-1
-  // NB: all tag variants must have defined zvec, hvec, hvec and weights.
+  // NB: all tag variants must have defined zvec, nvec, mafvec and weights.
   int64_t set_tag_indices(int num_snp, int num_tag, int* tag_indices);
   
   int64_t set_chrnumvec(int num_snp, int* chrlabel);
@@ -302,7 +302,7 @@ class BgmgCalculator {
 
   // must be called after set_ld_r2, as it adjusts r2 matrix
   // one value for each snp (tag and non-tag)
-  int64_t set_hvec(int length, float* values);
+  int64_t set_mafvec(int length, float* values);
   
   // zvec, nvec, weights for tag variants
   // all values must be defined
@@ -313,7 +313,7 @@ class BgmgCalculator {
 
   int64_t retrieve_zvec(int trait, int length, float* buffer);
   int64_t retrieve_nvec(int trait, int length, float* buffer);
-  int64_t retrieve_hvec(int length, float* buffer);
+  int64_t retrieve_mafvec(int length, float* buffer);
   int64_t retrieve_weights(int length, float* buffer);
   int64_t retrieve_tag_indices(int num_tag, int* tag_indices);
 
@@ -390,7 +390,8 @@ class BgmgCalculator {
   std::vector<float> zvec2_;
   std::vector<float> nvec2_;
   std::vector<float> weights_;
-  std::vector<float> hvec_;
+  std::vector<float> mafvec_;
+  void find_hvec(std::vector<float>* hvec);
 
   std::vector<float>* get_zvec(int trait_index);
   std::vector<float>* get_nvec(int trait_index);

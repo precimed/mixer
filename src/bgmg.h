@@ -32,7 +32,7 @@ extern "C" {
   DLL_PUBLIC const char* bgmg_status(int context_id);
 
   // API to work with "defvec". Here 
-  // - num_snp is how many SNPs there is in the reference (particularly, in LD files and hvec)
+  // - num_snp is how many SNPs there is in the reference (particularly, in LD files and mafvec)
   // - num_tag is how many SNPs there is in the GWAS (zvec, nvec, weights)
   // Tag snps must be a subset of the reference. tag_indices give indices of tag SNPs in the reference.
   DLL_PUBLIC int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_indices);
@@ -48,14 +48,14 @@ extern "C" {
   // NB. Most options reset LD structure, you'll have to bgmg_set_ld_r2_coo / bgmg_set_ld_r2_csr again.
   DLL_PUBLIC int64_t bgmg_set_option(int context_id, char* option, double value);
 
-  // API to populate and retrieve zvec, nvec, hvec
+  // API to populate and retrieve zvec, nvec, mafvec
   DLL_PUBLIC int64_t bgmg_set_zvec(int context_id, int trait, int length, float* values);
   DLL_PUBLIC int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values);
-  DLL_PUBLIC int64_t bgmg_set_hvec(int context_id, int length, float* values);
+  DLL_PUBLIC int64_t bgmg_set_mafvec(int context_id, int length, float* values);
 
   DLL_PUBLIC int64_t bgmg_retrieve_zvec(int context_id, int trait, int length, float* buffer);
   DLL_PUBLIC int64_t bgmg_retrieve_nvec(int context_id, int trait, int length, float* buffer);
-  DLL_PUBLIC int64_t bgmg_retrieve_hvec(int context_id, int length, float* buffer);
+  DLL_PUBLIC int64_t bgmg_retrieve_mafvec(int context_id, int length, float* buffer);
 
   // API to populate LD structure
   // "from_file" expect a binary file of the following structure:

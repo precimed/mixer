@@ -30,8 +30,8 @@ reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfil
 filename = 'simu_h2=0.4_pi1u=0.001_rep=1';
 trait1_file = ['H:\GitHub\BGMG\' filename '.trait1.mat']; trait1_nvec=100000;
 
-kmax=5000; cache_tag_r2sum=true; r2min=0.05; SEED=123;
-out_folder = 'results_2018_08_11.kmax=5000';
+kmax=1000; cache_tag_r2sum=true; r2min=0.05; SEED=123;
+out_folder = 'results_2018_08_11.kmax=1000';
 
 % QQ plots with true params
 out_file = fullfile(out_folder, [filename '.true']); 
@@ -177,7 +177,7 @@ bgmglib.set_option('cache_tag_r2sum', cache_tag_r2sum);
 bgmglib.set_option('threads', THREADS);
 if isfinite(SEED), bgmglib.set_option('seed', SEED); end;
 
-bgmglib.hvec = ref.mafvec .* (1-ref.mafvec) * 2;
+bgmglib.mafvec = ref.mafvec;
 
 for chr_index=1:length(chr_labels), bgmglib.set_ld_r2_coo_from_file(strrep(plink_ld_bin,'@', sprintf('%i',chr_labels(chr_index)))); end;
 bgmglib.set_ld_r2_csr();

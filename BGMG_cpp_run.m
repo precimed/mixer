@@ -178,7 +178,7 @@ bgmglib.set_option('num_components', num_components);
 bgmglib.set_option('cache_tag_r2sum', cache_tag_r2sum);
 bgmglib.set_option('threads', THREADS);
 
-bgmglib.hvec = ref.mafvec .* (1-ref.mafvec) * 2;
+bgmglib.mafvec = ref.mafvec;
 
 for chr_index=1:length(chr_labels), bgmglib.set_ld_r2_coo_from_file(strrep(plink_ld_bin,'@', sprintf('%i',chr_labels(chr_index)))); end;
 bgmglib.set_ld_r2_csr();

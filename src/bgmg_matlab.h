@@ -35,10 +35,10 @@ DLL_PUBLIC int64_t bgmg_retrieve_chrnumvec(int context_id, int length, int* buff
 DLL_PUBLIC int64_t bgmg_set_option(int context_id, char* option, double value);
 DLL_PUBLIC int64_t bgmg_set_zvec(int context_id, int trait, int length, float* values);
 DLL_PUBLIC int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values);
-DLL_PUBLIC int64_t bgmg_set_hvec(int context_id, int length, float* values);
+DLL_PUBLIC int64_t bgmg_set_mafvec(int context_id, int length, float* values);
 DLL_PUBLIC int64_t bgmg_retrieve_zvec(int context_id, int trait, int length, float* buffer);
 DLL_PUBLIC int64_t bgmg_retrieve_nvec(int context_id, int trait, int length, float* buffer);
-DLL_PUBLIC int64_t bgmg_retrieve_hvec(int context_id, int length, float* buffer);
+DLL_PUBLIC int64_t bgmg_retrieve_mafvec(int context_id, int length, float* buffer);
 DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int64_t length, int* snp_index, int* tag_index, float* r2);
 DLL_PUBLIC int64_t bgmg_set_ld_r2_coo_from_file(int context_id, const char* filename);
 DLL_PUBLIC int64_t bgmg_set_ld_r2_csr(int context_id);

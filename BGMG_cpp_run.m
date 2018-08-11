@@ -763,10 +763,12 @@ end
 
 if 0 
     % summarize results of fit-from-scratch runs
+    folders = {'SIMU_BGMG_9pifrac_withSampleOverlap50k', 'SIMU_BGMG_9pifrac_withoutSampleOverlap'};
+    for folder_index=1:length(folders)
     for j=1:4
-    figure(1);
+    figure(folder_index);
     %load(fullfile('H:\work\SIMU_BGMG_9pifrac_run3', sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity_outtag=fitFromScratch.kmax5000.hardprune.run3.bgmg.mat', j)))
-    load(fullfile('H:\work\SIMU_BGMG_9pifrac_run3', sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity_outtag=fitFromTrue.kmax5000.hardprune.run3.bgmg.mat', j)))
+    load(fullfile('H:\work', folders{folder_index}, sprintf('simu_h2=0.4_rg=0.0_pi1u=3e-03_pi2u=3e-03_pi12=0e+00_rep=%i_tag1=customPolygenicOverlapAt0p0_tag2=evenPolygenicity_outtag=fitFromScratch.kmax5000.hardprune.run4.bgmg.mat', j)))
     for i=1:2
     r=result.univariate{i};f=r.loglike_adj_trajectory;
     subplot(4,3,i+3*(j-1)); plot(f.pivec, f.cost, '.-', r.params.pi_vec, min(f.cost), '*')
@@ -775,12 +777,13 @@ if 0
     end
     r=result.bivariate;f=r.loglike_adj_trajectory;
     pifrac = f.pivec(:, 3) ./ (min(f.pivec(:, 1:2)')' + f.pivec(:, 3));
-    pifrac0 = r.params.pi_vec(3)/(min(r.params.pi_vec([1:2])) + r.params.pi_vec(3));
+    pifrac0 = r.params.pi_vec(3)/(min(r.params.pi_vec([1:2])) + r.params.pi_vec(3));    
     subplot(4,3,3+3*(j-1)); plot(pifrac, f.cost, '.-', pifrac0, min(f.cost), '*');
      xlabel('pifrac = pi12/min(pi1u, pi2u)');
+     %xlim([0 0.25]);
     end
-    f=figure(1);
+    f=figure(folder_index);
     set(f,'PaperOrientation','portrait','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-    print(f, 'H:\Dropbox\analysis\2018_07_07_BGMG_fit_procedure\loglike_pi1u=3e-3_bgmg_fromTrue.pdf', '-dpdf')
-
+    print(f, fullfile('H:\Dropbox\analysis\2018_07_07_BGMG_fit_procedure',sprintf('loglike_pi1u=3e-3_bgmg_fromScratch_%s.pdf', folders{folder_index})), '-dpdf')
+    end
 end

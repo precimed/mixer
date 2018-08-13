@@ -91,14 +91,6 @@ private:
 // Class to store LD matrix for a given chromosome (or chunk) in CSR format
 class LdMatrixCsrChunk {
  public:
-  // csr_ld_snp_index_.size() == num_snp_ + 1; 
-  // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
-  // csr_ld_tag_index_.size() == csr_ld_r2_.size() == number of non-zero LD r2 values
-  // csr_ld_tag_index_ contains values from 0 to num_tag_-1
-  // csr_ld_r2_ contains values from 0 to 1, indicating LD r2 between snp and tag variants
-  std::vector<int64_t> csr_ld_snp_index_;
-  std::vector<int> csr_ld_tag_index_;  // NB! This array can be very long. Indeed more than 2e9 !
-  std::vector<float> csr_ld_r2_;
   std::vector<std::tuple<int, int, float>> coo_ld_; // snp, tag, r2
   size_t log_diagnostics();
   void clear();
@@ -107,16 +99,16 @@ class LdMatrixCsrChunk {
 // Class for sparse LD matrix stored in CSR format (Compressed Sparse Row Format)
 class LdMatrixCsr {
  public:
-   LdMatrixCsr(TagToSnpMapping& mapping) : mapping_(mapping), chunks_(), combined_() {}
+   LdMatrixCsr(TagToSnpMapping& mapping) : mapping_(mapping) {}
 
    int64_t set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2, float r2_min);
    int64_t set_ld_r2_coo(const std::string& filename, float r2_min);
    int64_t set_ld_r2_csr(float r2_min);  // finalize
 
-   const int snp_index_size() { return combined_.csr_ld_snp_index_.size(); }
-   const int64_t ld_index(int snp_index) { return combined_.csr_ld_snp_index_[snp_index]; }
-   const int tag_index(int64_t ld_index) { return combined_.csr_ld_tag_index_[ld_index]; }
-   const float r2(int64_t ld_index) { return combined_.csr_ld_r2_[ld_index]; }
+   const int snp_index_size() { return csr_ld_snp_index_.size(); }
+   const int64_t ld_index(int snp_index) { return csr_ld_snp_index_[snp_index]; }
+   const int tag_index(int64_t ld_index) { return csr_ld_tag_index_[ld_index]; }
+   const float r2(int64_t ld_index) { return csr_ld_r2_[ld_index]; }
 
    const LdTagSum* ld_tag_sum_adjust_for_hvec() { return ld_tag_sum_adjust_for_hvec_.get(); }
    const LdTagSum* ld_tag_sum() { return ld_tag_sum_.get(); }
@@ -129,7 +121,16 @@ private:
 
   TagToSnpMapping& mapping_;
   std::vector<LdMatrixCsrChunk> chunks_;  // split per chromosomes (before aggregation)
-  LdMatrixCsrChunk combined_;             // final LD matrix (after set_ld_r2_csr, e.i. aggregation across chromosomes)
+  
+  // csr_ld_snp_index_.size() == num_snp_ + 1; 
+  // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
+  // csr_ld_tag_index_.size() == csr_ld_r2_.size() == number of non-zero LD r2 values
+  // csr_ld_tag_index_ contains values from 0 to num_tag_-1
+  // csr_ld_r2_ contains values from 0 to 1, indicating LD r2 between snp and tag variants
+  std::vector<int64_t> csr_ld_snp_index_;
+  std::vector<int> csr_ld_tag_index_;  // NB! This array can be very long. Indeed more than 2e9 !
+  std::vector<float> csr_ld_r2_;
+
   std::shared_ptr<LdTagSum> ld_tag_sum_adjust_for_hvec_;
   std::shared_ptr<LdTagSum> ld_tag_sum_;
 };

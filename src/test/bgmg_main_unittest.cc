@@ -108,6 +108,38 @@ private:
   std::mt19937 g_;
 };
 
+// --gtest_filter=LdTest.ValidateMultipleChromosomes
+TEST(LdTest, ValidateMultipleChromosomes) {
+  int num_snp = 60;
+  int num_tag = 40;
+  int kmax = 20; // #permutations
+  int N = 100;  // gwas sample size, constant across all variants
+  TestMother tm(60, 40, N);
+  
+  std::vector<int> chrnumvec; 
+  for (int i = 0; i < 40; i++) chrnumvec.push_back(1);
+  for (int i = 0; i < 20; i++) chrnumvec.push_back(2);
+  
+  BgmgCalculator calc;
+  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_option("seed", 0);
+  calc.set_option("max_causals", num_snp);
+  calc.set_option("kmax", kmax);
+  calc.set_option("num_components", 1);
+  calc.set_option("cache_tag_r2sum", 1);
+  calc.set_option("r2min", 0.15f);
+
+  calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
+  calc.set_chrnumvec(num_snp, &chrnumvec[0]);
+
+  std::vector<int> snp_index, tag_index;
+  std::vector<float> r2;
+  tm.make_r2(200, &snp_index, &tag_index, &r2);
+  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+
+  calc.set_ld_r2_csr();  // finalize csr structure
+}
+
 void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;

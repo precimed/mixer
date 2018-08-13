@@ -1520,6 +1520,10 @@ int64_t LoglikeCache::get_entry(int entry_index, int pi_vec_len, float* pi_vec, 
 
 int64_t BgmgCalculator::set_chrnumvec(int num_snp, int* chrlabel) {
   if (!chrnumvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can not set chrnumvec twice"));
+  for (int i = 1; i < num_snp; i++) {
+    if (chrlabel[i] < chrlabel[i - 1]) BGMG_THROW_EXCEPTION(::std::runtime_error("chrnumvec must be sorted"));
+  }
+
   LOG << ">set_chrnumvec(" << num_snp << "); ";
   check_num_snp(num_snp);
   chrnumvec_.assign(chrlabel, chrlabel + num_snp);

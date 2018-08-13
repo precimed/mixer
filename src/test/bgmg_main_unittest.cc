@@ -206,8 +206,9 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
   calc.set_option("cache_tag_r2sum", 0);
   calc.calc_univariate_pdf(trait_index, 0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf_nocache[0]);
 
-  for (int i = 0; i < zvec_pdf_nocache.size(); i++)
-    ASSERT_FLOAT_EQ(zvec_pdf[i], zvec_pdf_nocache[i]);
+  for (int i = 0; i < zvec_pdf_nocache.size(); i++) {
+    ASSERT_NEAR(zvec_pdf[i], zvec_pdf_nocache[i], 2e-7);  // 4.93722e-05 vs 4.9372218e-05 due to approximation of float as uint16_t
+  }
 
   calc.set_option("fast_cost", 1);
   cost = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);

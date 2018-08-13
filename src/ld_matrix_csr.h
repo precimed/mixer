@@ -30,6 +30,34 @@
 #define LD_TAG_COMPONENT_BELOW_R2MIN 0
 #define LD_TAG_COMPONENT_ABOVE_R2MIN 1
 
+class packed_r2_value {
+ public:
+   packed_r2_value(float value) {
+    assert((value >= 0.0f) && (value <= 1.0f));
+    value_ = static_cast<uint16_t>(roundf(value * 65535.0f));
+  }
+
+  float get() {
+    static float data_[65536];
+    static bool initialized;
+    if (!initialized) {
+      initialized = true;
+      for (int i = 0; i < 65536; i++) data_[i] = static_cast<float>(i) / 65535.0f;
+    }
+
+    return data_[value_];
+  }
+
+ private:
+  uint16_t value_;
+  friend inline bool operator <(const packed_r2_value& lhs, const packed_r2_value& rhs);
+};
+
+inline bool operator <(const packed_r2_value& lhs, const packed_r2_value& rhs)
+{
+  return lhs.value_ < rhs.value_;
+}
+
 // An interface to provide the following information:
 // - how many snps are there in the reference, and which of them are available in GWAS ("tag snps")
 // - chromosome label for each snp
@@ -91,7 +119,7 @@ private:
 // Class to store LD matrix for a given chromosome (or chunk) in CSR format
 class LdMatrixCsrChunk {
  public:
-  std::vector<std::tuple<int, int, float>> coo_ld_; // snp, tag, r2
+  std::vector<std::tuple<int, int, packed_r2_value>> coo_ld_; // snp, tag, r2
   size_t log_diagnostics();
   void clear();
 };
@@ -108,7 +136,7 @@ class LdMatrixCsr {
    const int snp_index_size() { return csr_ld_snp_index_.size(); }
    const int64_t ld_index(int snp_index) { return csr_ld_snp_index_[snp_index]; }
    const int tag_index(int64_t ld_index) { return csr_ld_tag_index_[ld_index]; }
-   const float r2(int64_t ld_index) { return csr_ld_r2_[ld_index]; }
+   const float r2(int64_t ld_index) { return csr_ld_r2_[ld_index].get(); }
 
    const LdTagSum* ld_tag_sum_adjust_for_hvec() { return ld_tag_sum_adjust_for_hvec_.get(); }
    const LdTagSum* ld_tag_sum() { return ld_tag_sum_.get(); }
@@ -129,7 +157,7 @@ private:
   // csr_ld_r2_ contains values from 0 to 1, indicating LD r2 between snp and tag variants
   std::vector<int64_t> csr_ld_snp_index_;
   std::vector<int> csr_ld_tag_index_;  // NB! This array can be very long. Indeed more than 2e9 !
-  std::vector<float> csr_ld_r2_;
+  std::vector<packed_r2_value> csr_ld_r2_;
 
   std::shared_ptr<LdTagSum> ld_tag_sum_adjust_for_hvec_;
   std::shared_ptr<LdTagSum> ld_tag_sum_;

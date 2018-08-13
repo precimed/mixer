@@ -30,7 +30,8 @@ bgmglib.set_option('num_components', 1);  % use 3 for bivariate
 bgmglib.set_option('cache_tag_r2sum', 1);
 bgmglib.set_option('threads', 16);  % omp concurrency
 
-bgmglib.hvec = mafvec .* (1-mafvec) * 2;
+bgmglib.mafvec = mafvec;
+bgmglib.chrnumvec = chrnumvec;
 
 bgmglib.set_ld_r2_coo_from_file(plink_ld_bin);
 bgmglib.set_ld_r2_csr();

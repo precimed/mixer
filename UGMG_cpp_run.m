@@ -170,6 +170,7 @@ BGMG_cpp.log('%i tag SNPs will go into fit and/or qq plots, etc\n', length(tag_i
 bgmglib = BGMG_cpp();
 bgmglib.dispose()
 bgmglib.defvec = defvec;
+bgmglib.chrnumvec = ref.chrnumvec;
 
 bgmglib.set_option('r2min', r2min);
 bgmglib.set_option('kmax', kmax);

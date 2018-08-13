@@ -7,6 +7,7 @@ classdef BGMG_cpp
     defvec              % instead of tag_indices
     num_snp
     num_tag
+    chrnumvec
     mafvec
     weights
     zvec1
@@ -52,6 +53,16 @@ classdef BGMG_cpp
         val = calllib('bgmg', 'bgmg_get_num_snp', obj.Context); obj.check();
     end
 
+    % get/set chrnumvec
+    function obj = set.chrnumvec(obj, val)
+        calllib('bgmg', 'bgmg_set_chrnumvec', obj.Context, length(val), val);  obj.check();
+    end
+    function val = get.chrnumvec(obj)
+        pBuffer = libpointer('int32Ptr', zeros(obj.num_snp, 1, 'int32'));
+        calllib('bgmg', 'bgmg_retrieve_chrnumvec', obj.Context, obj.num_snp, pBuffer); obj.check();
+        val = double(pBuffer.Value); clear pBuffer
+    end
+    
     % set/get mafvec
     function obj = set.mafvec(obj, val)
         calllib('bgmg', 'bgmg_set_mafvec', obj.Context, length(val), val);  obj.check();

@@ -154,8 +154,9 @@ classdef BGMG_cpp
         calllib('bgmg', 'bgmg_set_ld_r2_coo_from_file', obj.Context, filename); obj.check(); 
         fprintf('OK.\n'); 
     end
-    function set_ld_r2_csr(obj)
-        calllib('bgmg', 'bgmg_set_ld_r2_csr', obj.Context); obj.check();
+    function set_ld_r2_csr(obj, chr_label)
+        if ~exist('chr_label', 'var'), chr_label = -1; end;  % -1 means to finalize all chromosomes
+        calllib('bgmg', 'bgmg_set_ld_r2_csr', obj.Context, chr_label); obj.check();
     end
     
     % set option

@@ -181,8 +181,10 @@ bgmglib.set_option('threads', THREADS);
 
 bgmglib.mafvec = ref.mafvec;
 
-for chr_index=1:length(chr_labels), bgmglib.set_ld_r2_coo_from_file(strrep(plink_ld_bin,'@', sprintf('%i',chr_labels(chr_index)))); end;
-bgmglib.set_ld_r2_csr();
+for chr_index=1:length(chr_labels),
+    bgmglib.set_ld_r2_coo_from_file(strrep(plink_ld_bin,'@', sprintf('%i',chr_labels(chr_index)))); 
+    bgmglib.set_ld_r2_csr(chr_labels(chr_index));
+end;
 
 bgmglib.set_weights_randprune(randprune_n, randprune_r2);
 

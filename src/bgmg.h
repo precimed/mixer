@@ -67,7 +67,7 @@ extern "C" {
   // NB. we expect that this data originates from plink, where LD matrix is lower triangular, diagonal not included. So snpA must be always lower than snpB.
   DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int64_t length, int* snp_index, int* tag_index, float* r2);
   DLL_PUBLIC int64_t bgmg_set_ld_r2_coo_from_file(int context_id, const char* filename);
-  DLL_PUBLIC int64_t bgmg_set_ld_r2_csr(int context_id);
+  DLL_PUBLIC int64_t bgmg_set_ld_r2_csr(int context_id, int chr_label);
 
   // Set weights, either explicitly or based on random pruning
   DLL_PUBLIC int64_t bgmg_set_weights(int context_id, int length, float* values);

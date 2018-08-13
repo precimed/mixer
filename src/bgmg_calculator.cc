@@ -171,9 +171,8 @@ int64_t BgmgCalculator::set_ld_r2_coo(const std::string& filename) {
   return ld_matrix_csr_.set_ld_r2_coo(filename, r2_min_);
 }
 
-int64_t BgmgCalculator::set_ld_r2_csr() {
-  int64_t retval = ld_matrix_csr_.set_ld_r2_csr(r2_min_);
-  if (snp_order_.empty()) find_snp_order();
+int64_t BgmgCalculator::set_ld_r2_csr(int chr_label) {
+  int64_t retval = ld_matrix_csr_.set_ld_r2_csr(r2_min_, chr_label);
   return retval;
 }
 
@@ -407,6 +406,7 @@ int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, float num_causal, 
 
   LOG << " retrieve_tag_r2_sum(component_id=" << component_id << ", num_causal=" << num_causal << ")";
 
+  if (snp_order_.empty()) find_snp_order();
   if (cache_tag_r2sum_) {
     // use negative to retrieve tag_r2_sum for last_num_causal (for debugging purpose)
     if (num_causal >= 0) {
@@ -505,6 +505,7 @@ int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float
 
   LOG << ">calc_univariate_pdf(trait_index="<< trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(zvec)=" << length << ")";
 
+  if (snp_order_.empty()) find_snp_order();
   if (cache_tag_r2sum_) {
     find_tag_r2sum(component_id, num_causals);
   }
@@ -718,6 +719,7 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
   float num_causals = pi_vec * static_cast<float>(rhs.num_snp_);
   if ((int)num_causals >= rhs.max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
+  if (rhs.snp_order_.empty()) rhs.find_snp_order();
 
   LOG << ">calc_univariate_cost_nocache(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
   
@@ -880,6 +882,8 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
     if ((int)num_causals[component_id] >= max_causals_) return 1e100; // too large pi_vec
   }
 
+  if (snp_order_.empty()) find_snp_order();
+
   SimpleTimer timer(-1);
 
   // Sigma0  = [a0 b0; b0 c0];
@@ -973,6 +977,7 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
     if ((int)num_causals[component_id] >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   }
 
+  if (snp_order_.empty()) find_snp_order();
   if (cache_tag_r2sum_) {
     for (int component_id = 0; component_id < 3; component_id++) {
       find_tag_r2sum(component_id, num_causals[component_id]);

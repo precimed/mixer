@@ -53,9 +53,6 @@ int64_t LdMatrixCsr::set_ld_r2_coo(const std::string& filename, float r2_min) {
 }
 
 int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2, float r2_min) {
-  if (std::any_of(chunks_.begin(), chunks_.end(), [](LdMatrixCsrChunk& chunk) {return !chunk.csr_ld_r2_.empty(); }))
-    BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
-
   if (mapping_.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_mafvec"));
   if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_chrnumvec"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
@@ -129,7 +126,7 @@ int64_t LdMatrixCsrChunk::set_ld_r2_csr(int num_snp, int chr_label) {
 
   if (!csr_ld_snp_index_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_csr twice"));
 
-  LOG << ">set_ld_r2_csr(); ";
+  LOG << ">set_ld_r2_csr(chr_label=" << chr_label << "); ";
 
   SimpleTimer timer(-1);
 
@@ -139,13 +136,13 @@ int64_t LdMatrixCsrChunk::set_ld_r2_csr(int num_snp, int chr_label) {
   {
     SimpleTimer timer2(-1);
     pss::parallel_stable_sort(coo_ld_.begin(), coo_ld_.end(), std::less<std::tuple<int, int, packed_r2_value>>());
-    LOG << " pss::parallel_stable_sort (chr " << chr_label << ") took " << timer2.elapsed_ms() << "ms.";
+    LOG << " pss::parallel_stable_sort took " << timer2.elapsed_ms() << "ms.";
   }
 #else
   {
     SimpleTimer timer2(-1);
     std::sort(coo_ld_.begin(), coo_ld_.end());
-    LOG << " std::sort (chr " << chr_label << ") took " << timer2.elapsed_ms() << "ms.";
+    LOG << " std::sort took " << timer2.elapsed_ms() << "ms.";
   }
   static bool first_call = true;
   if (first_call) { first_call = false; LOG << " To enable parallel sort within each chr label build bgmglib with compiler that supports OpenMP 3.0";}
@@ -172,19 +169,17 @@ int64_t LdMatrixCsrChunk::set_ld_r2_csr(int num_snp, int chr_label) {
 
   coo_ld_.clear();
 
-  LOG << "<set_ld_r2_csr(); elapsed time " << timer.elapsed_ms() << " ms";
-
+  LOG << "<set_ld_r2_csr(chr_label=" << chr_label << "); elapsed time " << timer.elapsed_ms() << " ms";
   return 0;
 }
 
-int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min) {
-  LOG << ">set_ld_r2_csr();";
-  for (int chr_label = 0; chr_label < chunks_.size(); chr_label++) {
+int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min, int chr_label) {
+  if (chr_label < 0) {
+    for (int i = 0; i < chunks_.size(); i++) set_ld_r2_csr(r2_min, i);
+  } else {  
     chunks_[chr_label].set_ld_r2_csr(mapping_.num_snp(), chr_label);
     chunks_[chr_label].validate_ld_r2_csr(r2_min, chr_label, mapping_);
   }
-
-  LOG << "<set_ld_r2_csr();";
   return 0;
 }
 

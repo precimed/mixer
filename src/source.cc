@@ -133,10 +133,10 @@ int64_t bgmg_set_ld_r2_coo_from_file(int context_id, const char* filename) {
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_ld_r2_csr(int context_id) {
+int64_t bgmg_set_ld_r2_csr(int context_id, int chr_label) {
   try {
     set_last_error(std::string());
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_csr();
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_csr(chr_label);
   } CATCH_EXCEPTIONS;
 }
 

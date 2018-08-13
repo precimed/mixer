@@ -180,7 +180,7 @@ class LdMatrixCsr {
 
    int64_t set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2, float r2_min);
    int64_t set_ld_r2_coo(const std::string& filename, float r2_min);
-   int64_t set_ld_r2_csr(float r2_min);  // finalize
+   int64_t set_ld_r2_csr(float r2_min, int chr_label);  // finalize
 
    bool is_ready() { return !empty() && std::all_of(chunks_.begin(), chunks_.end(), [](LdMatrixCsrChunk& chunk) { return chunk.coo_ld_.empty(); }); }
    int64_t size() { return std::accumulate(chunks_.begin(), chunks_.end(), 0, [](int64_t sum, LdMatrixCsrChunk& chunk) {return sum + chunk.csr_ld_r2_.size(); }); }

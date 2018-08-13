@@ -25,7 +25,7 @@
 if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1; % 1:22;
+plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1:22;
 reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfile_merged_ldmat_p01_SNPwind50k_per_allele_4bins_wld.mat';
 filename = 'simu_h2=0.4_pi1u=0.001_rep=1';
 trait1_file = ['H:\GitHub\BGMG\' filename '.trait1.mat']; trait1_nvec=100000;
@@ -182,8 +182,10 @@ if isfinite(SEED), bgmglib.set_option('seed', SEED); end;
 
 bgmglib.mafvec = ref.mafvec;
 
-for chr_index=1:length(chr_labels), bgmglib.set_ld_r2_coo_from_file(strrep(plink_ld_bin,'@', sprintf('%i',chr_labels(chr_index)))); end;
-bgmglib.set_ld_r2_csr();
+for chr_index=1:length(chr_labels), 
+    bgmglib.set_ld_r2_coo_from_file(strrep(plink_ld_bin,'@', sprintf('%i',chr_labels(chr_index)))); 
+    bgmglib.set_ld_r2_csr(chr_labels(chr_index));
+end;
 
 bgmglib.set_weights_randprune(randprune_n, randprune_r2);
 

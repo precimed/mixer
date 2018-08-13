@@ -71,6 +71,11 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
     if (!std::isfinite(r2[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
   }
 
+  SimpleTimer timer(-1);
+
+  std::vector<float> hvec;
+  find_hvec(mapping_, &hvec);
+
   if (chunks_.empty()) {
     int max_chr_label = 0;
     for (int i = 0; i < mapping_.chrnumvec().size(); i++) {
@@ -79,12 +84,15 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
     }
     chunks_.resize(max_chr_label + 1);  // here we most likely create one useless LD structure for chr_label==0. But that's fine, it'll just stay empty.
     LOG << " highest chr label: " << max_chr_label;
+
+    LOG << " set_ld_r2_coo adds " << mapping_.tag_to_snp().size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
+    for (int i = 0; i < mapping_.tag_to_snp().size(); i++) {
+      int snp_index = mapping_.tag_to_snp()[i];
+      chunks_[mapping_.chrnumvec()[snp_index]].coo_ld_.push_back(std::make_tuple(snp_index, i, 1.0f));
+      ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec[mapping_.tag_to_snp()[i]]);
+      ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f);
+    }
   }
-
-  SimpleTimer timer(-1);
-
-  std::vector<float> hvec;
-  find_hvec(mapping_, &hvec);
 
   int64_t new_elements = 0;
   int64_t elements_on_different_chromosomes = 0;
@@ -119,17 +127,6 @@ int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min) {
   LOG << ">set_ld_r2_csr(); ";
 
   SimpleTimer timer(-1);
-
-  std::vector<float> hvec;
-  find_hvec(mapping_, &hvec);
-
-  LOG << " set_ld_r2_csr adds " << mapping_.tag_to_snp().size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
-  for (int i = 0; i < mapping_.tag_to_snp().size(); i++) {
-    int snp_index = mapping_.tag_to_snp()[i];
-    chunks_[mapping_.chrnumvec()[snp_index]].coo_ld_.push_back(std::make_tuple(snp_index, i, 1.0f));
-    ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec[mapping_.tag_to_snp()[i]]);
-    ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f);
-  }
 
   LOG << " sorting ld r2 elements... ";
   // Use parallel sort? https://software.intel.com/en-us/articles/a-parallel-stable-sort-using-c11-for-tbb-cilk-plus-and-openmp

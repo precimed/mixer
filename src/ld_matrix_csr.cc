@@ -53,6 +53,7 @@ int64_t LdMatrixCsr::set_ld_r2_coo(const std::string& filename, float r2_min) {
 int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2, float r2_min) {
   if (!combined_.csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
   if (mapping_.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_mafvec"));
+  if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_chrnumvec"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
 
   if (ld_tag_sum_adjust_for_hvec_ == nullptr) {
@@ -85,11 +86,8 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
     if (mapping_.is_tag()[snp_index[i]]) ld_tag_sum_->store(ld_component, mapping_.snp_to_tag()[snp_index[i]], r2[i]);
 
     if (r2[i] < r2_min) continue;
-    // tricky part here is that we take into account snp_can_be_causal_
-    // there is no reason to keep LD information about certain causal SNP if we never selecting it as causal
-    // (see how snp_can_be_causal_ is created during find_snp_order() call)
-    if (mapping_.snp_can_be_causal()[snp_index[i]] && mapping_.is_tag()[tag_index[i]]) combined_.coo_ld_.push_back(std::make_tuple(snp_index[i], mapping_.snp_to_tag()[tag_index[i]], r2[i]));
-    if (mapping_.snp_can_be_causal()[tag_index[i]] && mapping_.is_tag()[snp_index[i]]) combined_.coo_ld_.push_back(std::make_tuple(tag_index[i], mapping_.snp_to_tag()[snp_index[i]], r2[i]));
+    if (mapping_.is_tag()[tag_index[i]]) combined_.coo_ld_.push_back(std::make_tuple(snp_index[i], mapping_.snp_to_tag()[tag_index[i]], r2[i]));
+    if (mapping_.is_tag()[snp_index[i]]) combined_.coo_ld_.push_back(std::make_tuple(tag_index[i], mapping_.snp_to_tag()[snp_index[i]], r2[i]));
   }
   LOG << "<set_ld_r2_coo: done; coo_ld_.size()=" << combined_.coo_ld_.size() << " (new: " << combined_.coo_ld_.size() - was << "), elapsed time " << timer.elapsed_ms() << " ms";
   return 0;

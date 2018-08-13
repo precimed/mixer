@@ -302,7 +302,6 @@ class BgmgCalculator : public TagToSnpMapping {
   virtual const std::vector<char>& is_tag() { return is_tag_; }
   virtual const std::vector<int>& chrnumvec() { return chrnumvec_; }
   virtual const std::vector<float>& mafvec() { return mafvec_; }
-  virtual const std::vector<char>& snp_can_be_causal() { return snp_can_be_causal_; }
 
   int64_t clear_loglike_cache() { loglike_cache_.clear(); return 0; }
   int64_t get_loglike_cache_size() { return loglike_cache_.num_entries(); }
@@ -342,7 +341,6 @@ class BgmgCalculator : public TagToSnpMapping {
   std::vector<std::shared_ptr<DenseMatrix<int>>> snp_order_;  // permutation matrix; #rows = pimax*num_snp; #cols=k_max_
   std::vector<std::shared_ptr<DenseMatrix<float>>> tag_r2sum_;
   std::vector<float>                               last_num_causals_;
-  std::vector<char>                              snp_can_be_causal_;  // mask of SNPs that may be causal (e.i. included in snp_order array)
 
   // options, and what do they affect
   int k_max_;           

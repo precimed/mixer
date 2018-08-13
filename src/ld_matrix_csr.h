@@ -44,7 +44,6 @@ public:
   virtual const std::vector<char>& is_tag() = 0;
   virtual const std::vector<int>& chrnumvec() = 0;
   virtual const std::vector<float>& mafvec() = 0;
-  virtual const std::vector<char>& snp_can_be_causal() = 0;
 };
 
 #define CHECK_SNP_INDEX(mapping, i) if (i < 0 || i >= mapping.num_snp()) BGMG_THROW_EXCEPTION(::std::runtime_error("CHECK_SNP_INDEX failed"));

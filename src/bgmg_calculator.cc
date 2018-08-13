@@ -170,12 +170,10 @@ int64_t BgmgCalculator::set_tag_indices(int num_snp, int num_tag, int* tag_indic
 }
 
 int64_t BgmgCalculator::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2) {
-  if (snp_order_.empty()) find_snp_order();
   return ld_matrix_csr_.set_ld_r2_coo(length, snp_index, tag_index, r2, r2_min_);
 }
 
 int64_t BgmgCalculator::set_ld_r2_coo(const std::string& filename) {
-  if (snp_order_.empty()) find_snp_order();
   return ld_matrix_csr_.set_ld_r2_coo(filename, r2_min_);
 }
 
@@ -227,8 +225,7 @@ int64_t BgmgCalculator::find_snp_order() {
   //    "for (int i = 0; i < num_tag_; i++) snp_can_be_causal_[tag_to_snp_[i]] = 1;"
   //  - calculate sum_r2, sum_r4 (=> LD must be stored for all variants, OR we need to change the logic and load hvec so that sum_r2 and sum_r4 are calculated on the fly in set_ld_r2_coo.
   // For now we simply set snp_can_be_causal_ to 1 and store LD structure for all variants.
-  snp_can_be_causal_.resize(num_snp_, 1);
-  const bool snp_can_be_causal_is_constant_1 = true;
+  std::vector<char> snp_can_be_causal(num_snp_, 0);  // mask of SNPs that may be causal (e.i. included in snp_order array)
 
   SimpleTimer log_timer(10000); // log some message each 10 seconds
   for (int component_index = 0; component_index < num_components_; component_index++) {
@@ -263,18 +260,16 @@ int64_t BgmgCalculator::find_snp_order() {
       }
     }
 
-    // Fill in snp_can_be_causal_
-    if (!snp_can_be_causal_is_constant_1) {
-      for (int k = 0; k < k_max_; k++) {
-        for (int i = 0; i < max_causals_; i++) {
-          snp_can_be_causal_[(*snp_order_[component_index])(i, k)] = 1;
-        }
+    // Fill in snp_can_be_causal
+    for (int k = 0; k < k_max_; k++) {
+      for (int i = 0; i < max_causals_; i++) {
+        snp_can_be_causal[(*snp_order_[component_index])(i, k)] = 1;
       }
     }
   }
 
   int num_can_be_causal = 0;
-  for (int i = 0; i < num_snp_; i++) num_can_be_causal += snp_can_be_causal_[i];
+  for (int i = 0; i < num_snp_; i++) num_can_be_causal += snp_can_be_causal[i];
   LOG << "<find_snp_order: num_can_be_causal = " << num_can_be_causal << ", elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
@@ -1259,7 +1254,6 @@ void BgmgCalculator::clear_state() {
   snp_order_.clear();
   tag_r2sum_.clear();
   last_num_causals_.clear();
-  snp_can_be_causal_.clear();
 }
 
 void BgmgCalculator::clear_tag_r2sum(int component_id) {

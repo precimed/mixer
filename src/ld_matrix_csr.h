@@ -114,9 +114,10 @@ class LdMatrixCsr {
    int64_t set_ld_r2_coo(const std::string& filename, float r2_min);
    int64_t set_ld_r2_csr(float r2_min);  // finalize
 
-   const std::vector<int64_t>& csr_ld_snp_index() { return combined_.csr_ld_snp_index_; }
-   const std::vector<int>& csr_ld_tag_index() { return combined_.csr_ld_tag_index_; }
-   const std::vector<float>& csr_ld_r2() { return combined_.csr_ld_r2_; }
+   const int snp_index_size() { return combined_.csr_ld_snp_index_.size(); }
+   const int64_t ld_index(int snp_index) { return combined_.csr_ld_snp_index_[snp_index]; }
+   const int tag_index(int64_t ld_index) { return combined_.csr_ld_tag_index_[ld_index]; }
+   const float r2(int64_t ld_index) { return combined_.csr_ld_r2_[ld_index]; }
 
    const LdTagSum* ld_tag_sum_adjust_for_hvec() { return ld_tag_sum_adjust_for_hvec_.get(); }
    const LdTagSum* ld_tag_sum() { return ld_tag_sum_.get(); }

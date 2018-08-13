@@ -156,23 +156,23 @@ int64_t LdMatrixCsr::validate_ld_r2_csr(float r2_min) {
   SimpleTimer timer(-1);
   
   // Test correctness of sparse representation
-  if (csr_ld_snp_index().size() != (mapping_.num_snp() + 1)) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.size() != (num_snp_ + 1))"));
-  for (int i = 0; i < csr_ld_snp_index().size(); i++) if (csr_ld_snp_index()[i] < 0 || csr_ld_snp_index()[i] > csr_ld_r2().size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_[i] < 0 || csr_ld_snp_index_[i] > csr_ld_r2_.size()"));
-  for (int i = 1; i < csr_ld_snp_index().size(); i++) if (csr_ld_snp_index()[i - 1] > csr_ld_snp_index()[i]) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_[i-1] > csr_ld_snp_index_[i]"));
-  if (csr_ld_snp_index().back() != csr_ld_r2().size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.back() != csr_ld_r2_.size()"));
-  if (csr_ld_tag_index().size() != csr_ld_r2().size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_.size() != csr_ld_r2_.size()"));
-  for (int64_t i = 0; i < csr_ld_tag_index().size(); i++) if (csr_ld_tag_index()[i] < 0 || csr_ld_tag_index()[i] >= mapping_.num_tag()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
+  if (combined_.csr_ld_snp_index_.size() != (mapping_.num_snp() + 1)) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.size() != (num_snp_ + 1))"));
+  for (int i = 0; i < combined_.csr_ld_snp_index_.size(); i++) if (combined_.csr_ld_snp_index_[i] < 0 || combined_.csr_ld_snp_index_[i] > combined_.csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_[i] < 0 || csr_ld_snp_index_[i] > csr_ld_r2_.size()"));
+  for (int i = 1; i < combined_.csr_ld_snp_index_.size(); i++) if (combined_.csr_ld_snp_index_[i - 1] > combined_.csr_ld_snp_index_[i]) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_[i-1] > csr_ld_snp_index_[i]"));
+  if (combined_.csr_ld_snp_index_.back() != combined_.csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.back() != csr_ld_r2_.size()"));
+  if (combined_.csr_ld_tag_index_.size() != combined_.csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_.size() != csr_ld_r2_.size()"));
+  for (int64_t i = 0; i < combined_.csr_ld_tag_index_.size(); i++) if (combined_.csr_ld_tag_index_[i] < 0 || combined_.csr_ld_tag_index_[i] >= mapping_.num_tag()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
 
   // Test that all values are between zero and r2min
-  for (int64_t i = 0; i < csr_ld_r2().size(); i++) if (csr_ld_r2()[i] < r2_min || csr_ld_r2()[i] > 1.0f) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
-  for (int64_t i = 0; i < csr_ld_r2().size(); i++) if (!std::isfinite(csr_ld_r2()[i])) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(csr_ld_r2_[i])"));
+  for (int64_t i = 0; i < combined_.csr_ld_r2_.size(); i++) if (combined_.csr_ld_r2_[i] < r2_min || combined_.csr_ld_r2_[i] > 1.0f) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
+  for (int64_t i = 0; i < combined_.csr_ld_r2_.size(); i++) if (!std::isfinite(combined_.csr_ld_r2_[i])) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(csr_ld_r2_[i])"));
 
   // Test that LDr2 does not have duplicates
   for (int causal_index = 0; causal_index < mapping_.num_snp(); causal_index++) {
-    const int64_t r2_index_from = csr_ld_snp_index()[causal_index];
-    const int64_t r2_index_to = csr_ld_snp_index()[causal_index + 1];
+    const int64_t r2_index_from = combined_.csr_ld_snp_index_[causal_index];
+    const int64_t r2_index_to = combined_.csr_ld_snp_index_[causal_index + 1];
     for (int64_t r2_index = r2_index_from; r2_index < (r2_index_to - 1); r2_index++) {
-      if (csr_ld_tag_index()[r2_index] == csr_ld_tag_index()[r2_index + 1])
+      if (combined_.csr_ld_tag_index_[r2_index] == combined_.csr_ld_tag_index_[r2_index + 1])
         BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_[r2_index] == csr_ld_tag_index_[r2_index + 1]"));
     }
   }
@@ -183,12 +183,12 @@ int64_t LdMatrixCsr::validate_ld_r2_csr(float r2_min) {
     if (!mapping_.is_tag()[causal_index]) continue;
     const int tag_index_of_the_snp = mapping_.snp_to_tag()[causal_index];
 
-    const int64_t r2_index_from = csr_ld_snp_index()[causal_index];
-    const int64_t r2_index_to = csr_ld_snp_index()[causal_index + 1];
+    const int64_t r2_index_from = combined_.csr_ld_snp_index_[causal_index];
+    const int64_t r2_index_to = combined_.csr_ld_snp_index_[causal_index + 1];
     bool ld_r2_contains_diagonal = false;
     for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
-      const int tag_index = csr_ld_tag_index()[r2_index];
-      const float r2 = csr_ld_r2()[r2_index];  // here we are interested in r2 (hvec is irrelevant)
+      const int tag_index = combined_.csr_ld_tag_index_[r2_index];
+      const float r2 = combined_.csr_ld_r2_[r2_index];  // here we are interested in r2 (hvec is irrelevant)
 
       if (tag_index == tag_index_of_the_snp) ld_r2_contains_diagonal = true;
       float r2symm = find_and_retrieve_ld_r2(mapping_.tag_to_snp()[tag_index], tag_index_of_the_snp);
@@ -204,10 +204,10 @@ int64_t LdMatrixCsr::validate_ld_r2_csr(float r2_min) {
 }
 
 float LdMatrixCsr::find_and_retrieve_ld_r2(int snp_index, int tag_index) {
-  auto r2_iter_from = csr_ld_tag_index().begin() + csr_ld_snp_index()[snp_index];
-  auto r2_iter_to = csr_ld_tag_index().begin() + csr_ld_snp_index()[snp_index + 1];
+  auto r2_iter_from = combined_.csr_ld_tag_index_.begin() + combined_.csr_ld_snp_index_[snp_index];
+  auto r2_iter_to = combined_.csr_ld_tag_index_.begin() + combined_.csr_ld_snp_index_[snp_index + 1];
   auto iter = std::lower_bound(r2_iter_from, r2_iter_to, tag_index);
-  return (iter != r2_iter_to) ? csr_ld_r2()[iter - csr_ld_tag_index().begin()] : NAN;
+  return (iter != r2_iter_to) ? combined_.csr_ld_r2_[iter - combined_.csr_ld_tag_index_.begin()] : NAN;
 }
 
 size_t LdMatrixCsr::log_diagnostics() {

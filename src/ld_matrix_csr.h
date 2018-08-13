@@ -26,6 +26,10 @@
 
 #include "bgmg_log.h"
 
+#if _OPENMP >= 200805
+#include "parallel_stable_sort.h"
+#endif
+
 #define LD_TAG_COMPONENT_COUNT 2
 #define LD_TAG_COMPONENT_BELOW_R2MIN 0
 #define LD_TAG_COMPONENT_ABOVE_R2MIN 1

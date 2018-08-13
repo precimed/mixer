@@ -40,10 +40,6 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
 
-#if _OPENMP >= 200805
-#include "parallel_stable_sort.h"
-#endif
-
 // Include namespace SEMT & global operators.
 #define SEMT_DISABLE_PRINT 0
 #include "semt/Semt.h"
@@ -52,8 +48,6 @@
 
 #include "bgmg_log.h"
 #include "fmath.hpp"
-
-#define OMP_CHUNK 1000
 
 #define FLOAT_TYPE float
 

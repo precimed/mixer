@@ -22,7 +22,6 @@
 
 #include <unordered_map>
 #include <memory>
-#include <chrono>
 
 #include <iostream>
 #include <sstream>
@@ -30,6 +29,7 @@
 #include "boost/utility.hpp"
 
 #include "bgmg_log.h"
+#include "ld_matrix_csr.h"
 
 // Singleton class to manage a collection of objects, identifiable with some integer ID.
 template<class Type>
@@ -61,27 +61,6 @@ class TemplateManager : boost::noncopyable {
  private:
   TemplateManager() { }  // Singleton (make constructor private)
   std::unordered_map<int, std::shared_ptr<Type>> map_;
-};
-
-// A timer that fire an event each X milliseconds.
-class SimpleTimer {
-public:
-  SimpleTimer(int period_ms) : start_(std::chrono::system_clock::now()), period_ms_(period_ms) {}
-
-  int elapsed_ms() {
-    auto delta = (std::chrono::system_clock::now() - start_);
-    auto delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta);
-    return delta_ms.count();
-  }
-
-  bool fire() {
-    if (elapsed_ms() < period_ms_) return false;
-    start_ = std::chrono::system_clock::now();
-    return true;
-  }
-private:
-  std::chrono::time_point<std::chrono::system_clock> start_;
-  int period_ms_;
 };
 
 template<typename T>
@@ -239,46 +218,10 @@ private:
   std::vector<LoglikeCacheElem> cache_;
 };
 
-// pre-calculated sum of LD r2 and r4 for each tag snp
-// This takes hvec into account, e.i. we store sum of r2*hvec and r4*hvec^2.
-// The information is in several "components" (for example low and high r2).
-class LdTagSum {
-public:
-  LdTagSum(int num_ld_components, int num_tag_snp) : total_ld_component(num_ld_components) {
-    ld_tag_sum_r2_.resize(num_ld_components + 1);
-    ld_tag_sum_r4_.resize(num_ld_components + 1);
-    for (int ic = 0; ic < (num_ld_components + 1); ic++) {
-      ld_tag_sum_r2_[ic].resize(num_tag_snp, 0.0f);
-      ld_tag_sum_r4_[ic].resize(num_tag_snp, 0.0f);
-    }
-  }
-
-  void store(int ld_component, int tag_index, float r2_times_hval) {
-    ld_tag_sum_r2_[ld_component][tag_index] += r2_times_hval;
-    ld_tag_sum_r4_[ld_component][tag_index] += (r2_times_hval * r2_times_hval);
-
-    ld_tag_sum_r2_[total_ld_component][tag_index] += r2_times_hval;
-    ld_tag_sum_r4_[total_ld_component][tag_index] += (r2_times_hval * r2_times_hval);
-  }
-
-  const std::vector<float>& ld_tag_sum_r2() { return ld_tag_sum_r2_[total_ld_component]; }
-  const std::vector<float>& ld_tag_sum_r4() { return ld_tag_sum_r4_[total_ld_component]; }
-  const std::vector<float>& ld_tag_sum_r2(int ld_component) { return ld_tag_sum_r2_[ld_component]; }
-  const std::vector<float>& ld_tag_sum_r4(int ld_component) { return ld_tag_sum_r4_[ld_component]; }
-
-  void clear() {
-    for (int i = 0; i < ld_tag_sum_r2_.size(); i++) std::fill(ld_tag_sum_r2_[i].begin(), ld_tag_sum_r2_[i].end(), 0.0f);
-    for (int i = 0; i < ld_tag_sum_r4_.size(); i++) std::fill(ld_tag_sum_r4_[i].begin(), ld_tag_sum_r4_[i].end(), 0.0f);
-  }
-private:
-  std::vector<std::vector<float>> ld_tag_sum_r2_;
-  std::vector<std::vector<float>> ld_tag_sum_r4_;
-  const int total_ld_component;
-};
-
-class BgmgCalculator {
+class BgmgCalculator : public TagToSnpMapping {
  public:
   BgmgCalculator();
+  virtual ~BgmgCalculator() {}
   
   // num_snp = total size of the reference (e.i. the total number of genotyped variants)
   // num_tag = number of tag variants to include in the inference (must be a subset of the reference)
@@ -298,7 +241,6 @@ class BgmgCalculator {
   int64_t set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2);
   int64_t set_ld_r2_coo(const std::string& filename);
   int64_t set_ld_r2_csr();  // finalize
-  int64_t validate_ld_r2_csr();  // validate
 
   // must be called after set_ld_r2, as it adjusts r2 matrix
   // one value for each snp (tag and non-tag)
@@ -348,13 +290,19 @@ class BgmgCalculator {
   double calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   double calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   int64_t calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
-  void log_disgnostics();
+  void log_diagnostics();
  
   int64_t seed() { return seed_; }
   void set_seed(int64_t seed) { seed_ = seed; }
 
-  int num_snp() { return num_snp_; }
-  int num_tag() { return num_tag_; }
+  virtual int num_snp() { return num_snp_; }
+  virtual int num_tag() { return num_tag_; }
+  virtual const std::vector<int>& tag_to_snp() { return  tag_to_snp_; }
+  virtual const std::vector<int>& snp_to_tag() { return snp_to_tag_; }
+  virtual const std::vector<char>& is_tag() { return is_tag_; }
+  virtual const std::vector<int>& chrnumvec() { return chrnumvec_; }
+  virtual const std::vector<float>& mafvec() { return mafvec_; }
+  virtual const std::vector<char>& snp_can_be_causal() { return snp_can_be_causal_; }
 
   int64_t clear_loglike_cache() { loglike_cache_.clear(); return 0; }
   int64_t get_loglike_cache_size() { return loglike_cache_.num_entries(); }
@@ -373,16 +321,7 @@ class BgmgCalculator {
   std::vector<char> is_tag_;    // true or false, size=num_snp_, is_tag_[i] == (snp_to_tag_[i] != -1)
   std::vector<int> chrnumvec_;  // vector of chromosome labels, one per snp
 
-
-  // csr_ld_snp_index_.size() == num_snp_ + 1; 
-  // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
-  // csr_ld_tag_index_.size() == csr_ld_r2_.size() == number of non-zero LD r2 values
-  // csr_ld_tag_index_ contains values from 0 to num_tag_-1
-  // csr_ld_r2_ contains values from 0 to 1, indicating LD r2 between snp and tag variants
-  std::vector<int64_t> csr_ld_snp_index_;
-  std::vector<int> csr_ld_tag_index_;  // NB! This array can be very long. Indeed more than 2e9 !
-  std::vector<float> csr_ld_r2_;
-  std::vector<std::tuple<int, int, float>> coo_ld_; // snp, tag, r2
+  LdMatrixCsr ld_matrix_csr_;
 
   // all stored for for tag variants (only)
   std::vector<float> zvec1_;
@@ -391,13 +330,9 @@ class BgmgCalculator {
   std::vector<float> nvec2_;
   std::vector<float> weights_;
   std::vector<float> mafvec_;
-  void find_hvec(std::vector<float>* hvec);
 
   std::vector<float>* get_zvec(int trait_index);
   std::vector<float>* get_nvec(int trait_index);
-
-  std::shared_ptr<LdTagSum> ld_tag_sum_adjust_for_hvec_;
-  std::shared_ptr<LdTagSum> ld_tag_sum_;
 
   LoglikeCache loglike_cache_;
 
@@ -419,7 +354,6 @@ class BgmgCalculator {
   bool cache_tag_r2sum_;
   void check_num_snp(int length);
   void check_num_tag(int length);
-  float find_and_retrieve_ld_r2(int snp_index, int tag_index);  // nan if doesn't exist.
   double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
 

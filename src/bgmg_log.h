@@ -5,10 +5,32 @@
 
 #include <fstream>
 #include <vector>
+#include <chrono>
 
 #define LOG Logger::singleton()
 #define MAX_LOG_LINES 10000000
 #define BGMG_THROW_EXCEPTION(x) throw x
+
+// A timer that fire an event each X milliseconds.
+class SimpleTimer {
+public:
+  SimpleTimer(int period_ms) : start_(std::chrono::system_clock::now()), period_ms_(period_ms) {}
+
+  int elapsed_ms() {
+    auto delta = (std::chrono::system_clock::now() - start_);
+    auto delta_ms = std::chrono::duration_cast<std::chrono::milliseconds>(delta);
+    return delta_ms.count();
+  }
+
+  bool fire() {
+    if (elapsed_ms() < period_ms_) return false;
+    start_ = std::chrono::system_clock::now();
+    return true;
+  }
+private:
+  std::chrono::time_point<std::chrono::system_clock> start_;
+  int period_ms_;
+};
 
 class LoggerImpl : boost::noncopyable {
 public:

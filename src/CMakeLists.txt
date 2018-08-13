@@ -56,8 +56,10 @@ endif()
 set(SRC_LIST
 	source.cc
 	bgmg_calculator.cc
+	ld_matrix_csr.cc
 	bgmg.h
 	bgmg_calculator.h
+	ld_matrix_csr.h
 	bgmg_log.cc
 	bgmg_log.h
 	fmath.hpp
@@ -73,6 +75,7 @@ set(SRC_TEST_LIST
 	test/semt_test.cc
 	semt/semt/VectorExpr.cpp
 	bgmg_calculator.cc
+	ld_matrix_csr.cc
 	bgmg_log.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc

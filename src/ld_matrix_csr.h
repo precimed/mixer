@@ -23,6 +23,7 @@
 #include <memory>
 #include <vector>
 #include <tuple>
+#include <numeric>
 
 #include "bgmg_log.h"
 
@@ -183,7 +184,7 @@ class LdMatrixCsr {
 
    bool is_ready() { return !empty() && std::all_of(chunks_.begin(), chunks_.end(), [](LdMatrixCsrChunk& chunk) { return chunk.coo_ld_.empty(); }); }
    int64_t size() { return std::accumulate(chunks_.begin(), chunks_.end(), 0, [](int64_t sum, LdMatrixCsrChunk& chunk) {return sum + chunk.csr_ld_r2_.size(); }); }
-   bool empty() { return (size() > 0); }
+   bool empty() { return (size() == 0); }
 
    LdMatrixIterator begin(int snp_index) const {
      const int chr_label = mapping_.chrnumvec()[snp_index];

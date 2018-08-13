@@ -172,7 +172,9 @@ int64_t BgmgCalculator::set_ld_r2_coo(const std::string& filename) {
 }
 
 int64_t BgmgCalculator::set_ld_r2_csr() {
-  return ld_matrix_csr_.set_ld_r2_csr(r2_min_);
+  int64_t retval = ld_matrix_csr_.set_ld_r2_csr(r2_min_);
+  if (snp_order_.empty()) find_snp_order();
+  return retval;
 }
 
 
@@ -402,7 +404,7 @@ int64_t BgmgCalculator::retrieve_ld_tag_r4_sum(int length, float* buffer) {
 int64_t BgmgCalculator::retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer) {
   if (length != (k_max_ * num_tag_)) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
   if (num_causal < 0 && !cache_tag_r2sum_) BGMG_THROW_EXCEPTION(::std::runtime_error("retrieve_tag_r2sum with num_causal<0 is meant for cache_tag_r2sum==true"));
-  if (component_id < 0 || component_id >= num_components_ || tag_r2sum_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong component_id"));
+  if (component_id < 0 || component_id >= num_components_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong component_id"));
 
   LOG << " retrieve_tag_r2_sum(component_id=" << component_id << ", num_causal=" << num_causal << ")";
 
@@ -1400,6 +1402,7 @@ int64_t BgmgCalculator::retrieve_weights(int length, float* buffer) {
 
 void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal, int k_index, std::vector<float>* buffer) {
   assert(buffer->size() == num_tag_);
+  if (snp_order_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("find_tag_r2sum_no_cache called before find_snp_order()"));
 
   std::vector<std::pair<int, float>> changeset;
   float floor_num_causals = floor(num_causal);

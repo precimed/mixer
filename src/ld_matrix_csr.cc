@@ -138,7 +138,7 @@ int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min) {
     SimpleTimer timer2(-1);
     auto& coo_ld_ = chunks_[chr_label].coo_ld_;
     if (coo_ld_.empty()) continue;
-    pss::parallel_stable_sort(coo_ld_.begin(), coo_ld_.end(), std::less<std::tuple<int, int, float>>());
+    pss::parallel_stable_sort(coo_ld_.begin(), coo_ld_.end(), std::less<std::tuple<int, int, packed_r2_value>>());
     LOG << " pss::parallel_stable_sort (chr " << chr_label << ") took " << timer2.elapsed_ms() << "ms.";
   }
 #else

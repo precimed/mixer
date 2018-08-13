@@ -36,6 +36,7 @@
 
 class packed_r2_value {
  public:
+   packed_r2_value() : value_(0) {}
    packed_r2_value(float value) {
     assert((value >= 0.0f) && (value <= 1.0f));
     value_ = static_cast<uint16_t>(roundf(value * 65535.0f));

@@ -42,7 +42,7 @@ class packed_r2_value {
     value_ = static_cast<uint16_t>(roundf(value * 65535.0f));
   }
 
-  float get() {
+  float get() const {
     static float data_[65536];
     static bool initialized;
     if (!initialized) {
@@ -125,9 +125,52 @@ private:
 class LdMatrixCsrChunk {
  public:
   std::vector<std::tuple<int, int, packed_r2_value>> coo_ld_; // snp, tag, r2
+
+  // csr_ld_snp_index_.size() == num_snp_ + 1; 
+  // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
+  // csr_ld_tag_index_.size() == csr_ld_r2_.size() == number of non-zero LD r2 values
+  // csr_ld_tag_index_ contains values from 0 to num_tag_-1
+  // csr_ld_r2_ contains values from 0 to 1, indicating LD r2 between snp and tag variants
+  std::vector<int64_t> csr_ld_snp_index_;
+  std::vector<int> csr_ld_tag_index_;  // NB! This array can be very long. Indeed more than 2e9 !
+  std::vector<packed_r2_value> csr_ld_r2_;
+
+  int64_t set_ld_r2_csr(int num_snp, int chr_label);
+  int64_t validate_ld_r2_csr(float r2_min, int chr_label, TagToSnpMapping& mapping);  // validate
+  float find_and_retrieve_ld_r2(int snp_index, int tag_index);  // nan if doesn't exist.
+
   size_t log_diagnostics();
   void clear();
 };
+
+class LdMatrixIterator {
+public:
+  LdMatrixIterator(int64_t ld_index, const LdMatrixCsrChunk* parent) : ld_index_(ld_index), parent_(parent) {}
+
+  int tag_index() const { return parent_->csr_ld_tag_index_[ld_index_]; }
+  float r2() const { return parent_->csr_ld_r2_[ld_index_].get(); }
+
+  LdMatrixIterator& operator++ () {
+    ld_index_++;
+    return *this;
+  }
+  LdMatrixIterator  operator++ (int)
+  {
+    LdMatrixIterator result(*this);
+    ++(*this);
+    return result;
+  }
+
+private:
+  int64_t ld_index_;
+  const LdMatrixCsrChunk* parent_;
+  friend inline bool operator <(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs);
+};
+
+inline bool operator <(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs)
+{
+  return (lhs.parent_ == rhs.parent_) && (lhs.ld_index_ < rhs.ld_index_);
+}
 
 // Class for sparse LD matrix stored in CSR format (Compressed Sparse Row Format)
 class LdMatrixCsr {
@@ -138,10 +181,19 @@ class LdMatrixCsr {
    int64_t set_ld_r2_coo(const std::string& filename, float r2_min);
    int64_t set_ld_r2_csr(float r2_min);  // finalize
 
-   const int snp_index_size() { return csr_ld_snp_index_.size(); }
-   const int64_t ld_index(int snp_index) { return csr_ld_snp_index_[snp_index]; }
-   const int tag_index(int64_t ld_index) { return csr_ld_tag_index_[ld_index]; }
-   const float r2(int64_t ld_index) { return csr_ld_r2_[ld_index].get(); }
+   bool is_ready() { return !empty() && std::all_of(chunks_.begin(), chunks_.end(), [](LdMatrixCsrChunk& chunk) { return chunk.coo_ld_.empty(); }); }
+   int64_t size() { return std::accumulate(chunks_.begin(), chunks_.end(), 0, [](int64_t sum, LdMatrixCsrChunk& chunk) {return sum + chunk.csr_ld_r2_.size(); }); }
+   bool empty() { return (size() > 0); }
+
+   LdMatrixIterator begin(int snp_index) const {
+     const int chr_label = mapping_.chrnumvec()[snp_index];
+     return LdMatrixIterator(chunks_[chr_label].csr_ld_snp_index_[snp_index], &chunks_[chr_label]);
+   }
+
+   LdMatrixIterator end(int snp_index) const {
+     const int chr_label = mapping_.chrnumvec()[snp_index];
+     return LdMatrixIterator(chunks_[chr_label].csr_ld_snp_index_[snp_index + 1], &chunks_[chr_label]);
+   }
 
    const LdTagSum* ld_tag_sum_adjust_for_hvec() { return ld_tag_sum_adjust_for_hvec_.get(); }
    const LdTagSum* ld_tag_sum() { return ld_tag_sum_.get(); }
@@ -149,21 +201,10 @@ class LdMatrixCsr {
    size_t log_diagnostics();
    void clear();
 private:
-  int64_t validate_ld_r2_csr(float r2_min);  // validate
-  float find_and_retrieve_ld_r2(int snp_index, int tag_index);  // nan if doesn't exist.
 
   TagToSnpMapping& mapping_;
   std::vector<LdMatrixCsrChunk> chunks_;  // split per chromosomes (before aggregation)
   
-  // csr_ld_snp_index_.size() == num_snp_ + 1; 
-  // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
-  // csr_ld_tag_index_.size() == csr_ld_r2_.size() == number of non-zero LD r2 values
-  // csr_ld_tag_index_ contains values from 0 to num_tag_-1
-  // csr_ld_r2_ contains values from 0 to 1, indicating LD r2 between snp and tag variants
-  std::vector<int64_t> csr_ld_snp_index_;
-  std::vector<int> csr_ld_tag_index_;  // NB! This array can be very long. Indeed more than 2e9 !
-  std::vector<packed_r2_value> csr_ld_r2_;
-
   std::shared_ptr<LdTagSum> ld_tag_sum_adjust_for_hvec_;
   std::shared_ptr<LdTagSum> ld_tag_sum_;
 };

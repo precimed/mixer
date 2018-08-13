@@ -349,11 +349,10 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
       int scan_index = change.first;
       float scan_weight = change.second;
       int snp_index = (*snp_order_[component_id])(scan_index, k_index);  // index of a causal snp
-      int64_t r2_index_from = ld_matrix_csr_.ld_index(snp_index);
-      int64_t r2_index_to = ld_matrix_csr_.ld_index(snp_index + 1);
-      for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
-        int tag_index = ld_matrix_csr_.tag_index(r2_index);
-        float r2 = ld_matrix_csr_.r2(r2_index);
+      auto iter_end = ld_matrix_csr_.end(snp_index);
+      for (auto iter = ld_matrix_csr_.begin(snp_index); iter < iter_end; iter++) {
+        int tag_index = iter.tag_index();
+        float r2 = iter.r2();
         float hval = hvec[snp_index];
         (*tag_r2sum_[component_id])(tag_index, k_index) += (scan_weight * r2 * hval);
       }
@@ -1276,7 +1275,7 @@ void BgmgCalculator::clear_tag_r2sum(int component_id) {
 }
 
 int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
-  if (ld_matrix_csr_.snp_index_size() == 0) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_weights_randprune before set_ld_r2_csr"));
+  if (!ld_matrix_csr_.is_ready()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_weights_randprune before set_ld_r2_csr"));
   LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << ")";
   if (r2_threshold < r2_min_) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: r2 < r2_min_"));
   if (n <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: n <= 0"));
@@ -1327,12 +1326,11 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
 
         passed_random_pruning_local[random_tag_index] += 1;
         int causal_index = tag_to_snp_[random_tag_index];
-        const int64_t r2_index_from = ld_matrix_csr_.ld_index(causal_index);
-        const int64_t r2_index_to = ld_matrix_csr_.ld_index(causal_index + 1);
+        auto iter_end = ld_matrix_csr_.end(causal_index);
         int num_changes = 0;
-        for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
-          const int tag_index = ld_matrix_csr_.tag_index(r2_index);
-          const float r2_value = ld_matrix_csr_.r2(r2_index);  // here we are interested in r2 (hvec is irrelevant)
+        for (auto iter = ld_matrix_csr_.begin(causal_index); iter < iter_end; iter++) {
+          const int tag_index = iter.tag_index();
+          const float r2_value = iter.r2();  // here we are interested in r2 (hvec is irrelevant)        
           if (r2_value < r2_threshold) continue;
           if (processed_tag_indices[tag_index]) continue;
           processed_tag_indices[tag_index] = 1;         // mark as processed, and
@@ -1418,13 +1416,12 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
     int scan_index = change.first;
     float scan_weight = change.second;
     int snp_index = (*snp_order_[component_id])(scan_index, k_index);
-    int64_t r2_index_from = ld_matrix_csr_.ld_index(snp_index);
-    int64_t r2_index_to = ld_matrix_csr_.ld_index(snp_index + 1);
-    for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
-      const int tag_index = ld_matrix_csr_.tag_index(r2_index);
-      const float r2 = ld_matrix_csr_.r2(r2_index);
+    auto iter_end = ld_matrix_csr_.end(snp_index);
+    for (auto iter = ld_matrix_csr_.begin(snp_index); iter < iter_end; iter++) {
       const float mafval = mafvec_[snp_index];
       const float hval = 2.0f * mafval * (1 - mafval);
+      const int tag_index = iter.tag_index();
+      const float r2 = iter.r2();
       buffer->at(tag_index) += (scan_weight * r2 * hval);
     }
   }
@@ -1440,18 +1437,17 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
 int64_t BgmgCalculator::retrieve_weighted_causal_r2(int length, float* buffer) {
   if (length != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("length != num_snp_: wrong buffer size"));
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
-  if (ld_matrix_csr_.snp_index_size() == 0) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call retrieve_weighted_causal_r2 before set_ld_r2_csr"));
+  if (!ld_matrix_csr_.is_ready()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call retrieve_weighted_causal_r2 before set_ld_r2_csr"));
 
   LOG << ">retrieve_weighted_causal_r2()";
   SimpleTimer timer(-1);
 
   for (int i = 0; i < num_snp_; i++) buffer[i] = 0.0f;
   for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-    const int64_t r2_index_from = ld_matrix_csr_.ld_index(causal_index);
-    const int64_t r2_index_to = ld_matrix_csr_.ld_index(causal_index + 1);
-    for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
-      const int tag_index = ld_matrix_csr_.tag_index(r2_index);
-      const float r2 = ld_matrix_csr_.r2(r2_index);  // here we are interested in r2 (hvec is irrelevant)
+    auto iter_end = ld_matrix_csr_.end(causal_index);
+    for (auto iter = ld_matrix_csr_.begin(causal_index); iter < iter_end; iter++) {
+      const int tag_index = iter.tag_index();
+      const float r2 = iter.r2();  // here we are interested in r2 (hvec is irrelevant)          
       buffer[causal_index] += r2 * weights_[tag_index];
     }
   }
@@ -1492,6 +1488,7 @@ void    LoglikeCache::add_entry(float pi_vec, float sig2_zero, float sig2_beta, 
   float tmp_sig2_beta[2] = { sig2_beta, NAN };
   add_entry(3, tmp_pi_vec, 2, tmp_sig2_beta, NAN, 2, tmp_sig2_zero, NAN, cost);
 }
+
 int64_t LoglikeCache::get_entry(int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost) {
   float tmp_pi_vec[3];
   float tmp_sig2_zero[2];

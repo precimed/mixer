@@ -53,7 +53,9 @@ int64_t LdMatrixCsr::set_ld_r2_coo(const std::string& filename, float r2_min) {
 }
 
 int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2, float r2_min) {
-  if (!csr_ld_r2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
+  if (std::any_of(chunks_.begin(), chunks_.end(), [](LdMatrixCsrChunk& chunk) {return !chunk.csr_ld_r2_.empty(); }))
+    BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo after set_ld_r2_csr"));
+
   if (mapping_.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_mafvec"));
   if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_chrnumvec"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
@@ -119,9 +121,12 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
   return 0;
 }
 
-int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min) {
-  if (std::all_of(chunks_.begin(), chunks_.end(), [](LdMatrixCsrChunk& chunk) {return chunk.coo_ld_.empty(); }))
-    BGMG_THROW_EXCEPTION(::std::runtime_error("coo_ld_ is empty"));
+int64_t LdMatrixCsrChunk::set_ld_r2_csr(int num_snp, int chr_label) {
+  if (coo_ld_.empty()) {
+    csr_ld_snp_index_.resize(num_snp + 1, coo_ld_.size());
+    return 0;
+  }
+
   if (!csr_ld_snp_index_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_csr twice"));
 
   LOG << ">set_ld_r2_csr(); ";
@@ -131,66 +136,63 @@ int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min) {
   LOG << " sorting ld r2 elements... ";
   // Use parallel sort? https://software.intel.com/en-us/articles/a-parallel-stable-sort-using-c11-for-tbb-cilk-plus-and-openmp
 #if _OPENMP >= 200805
-  for (int chr_label = 0; chr_label < chunks_.size(); chr_label++) {
+  {
     SimpleTimer timer2(-1);
-    auto& coo_ld_ = chunks_[chr_label].coo_ld_;
-    if (coo_ld_.empty()) continue;
     pss::parallel_stable_sort(coo_ld_.begin(), coo_ld_.end(), std::less<std::tuple<int, int, packed_r2_value>>());
     LOG << " pss::parallel_stable_sort (chr " << chr_label << ") took " << timer2.elapsed_ms() << "ms.";
   }
 #else
-#pragma omp parallel for schedule(dynamic)
-  for (int chr_label = 0; chr_label < chunks_.size(); chr_label++) {
+  {
     SimpleTimer timer2(-1);
-    auto& coo_ld_ = chunks_[chr_label].coo_ld_;
-    if (coo_ld_.empty()) continue;
     std::sort(coo_ld_.begin(), coo_ld_.end());
     LOG << " std::sort (chr " << chr_label << ") took " << timer2.elapsed_ms() << "ms.";
   }
-  LOG << " To enable parallel sort within each chr label build bgmglib with compiler that supports OpenMP 3.0";
+  static bool first_call = true;
+  if (first_call) { first_call = false; LOG << " To enable parallel sort within each chr label build bgmglib with compiler that supports OpenMP 3.0";}
 #endif
 
-  int64_t numel = std::accumulate(chunks_.begin(), chunks_.end(), 0LL, [](int64_t sum, LdMatrixCsrChunk& chunk) {return sum + chunk.coo_ld_.size(); });
-  csr_ld_tag_index_.reserve(numel);
-  csr_ld_r2_.reserve(numel);
+  csr_ld_tag_index_.reserve(coo_ld_.size());
+  csr_ld_r2_.reserve(coo_ld_.size());
 
-  for (int chr_label = 0; chr_label < chunks_.size(); chr_label++) {
-    auto& coo_ld_ = chunks_[chr_label].coo_ld_;
-    if (coo_ld_.empty()) continue;
-    for (int64_t i = 0; i < coo_ld_.size(); i++) {
-      csr_ld_tag_index_.push_back(std::get<1>(coo_ld_[i]));
-      csr_ld_r2_.push_back(std::get<2>(coo_ld_[i]));
-    }
+  for (int64_t i = 0; i < coo_ld_.size(); i++) {
+    csr_ld_tag_index_.push_back(std::get<1>(coo_ld_[i]));
+    csr_ld_r2_.push_back(std::get<2>(coo_ld_[i]));
   }
 
   // find starting position for each snp
-  csr_ld_snp_index_.resize(mapping_.snp_to_tag().size() + 1, numel);
-  int64_t ld_index = numel - 1;
-  for (int chr_label = chunks_.size() - 1; chr_label >= 0; chr_label--) {
-    auto& coo_ld_ = chunks_[chr_label].coo_ld_;
-    if (coo_ld_.empty()) continue;
-    for (int64_t i = (coo_ld_.size() - 1); i >= 0; i--, ld_index--) {
-      int snp_index = std::get<0>(coo_ld_[i]);
-      csr_ld_snp_index_[snp_index] = ld_index;
-    }
+  csr_ld_snp_index_.resize(num_snp + 1, coo_ld_.size());
+  for (int64_t ld_index = coo_ld_.size() - 1; ld_index >= 0; ld_index--) {
+    int snp_index = std::get<0>(coo_ld_[ld_index]);
+    csr_ld_snp_index_[snp_index] = ld_index;
   }
-  if (ld_index != -1) BGMG_THROW_EXCEPTION(std::runtime_error("ld_index != -1, internal error in set_ld_r2_csr"));
 
   for (int i = (csr_ld_snp_index_.size() - 2); i >= 0; i--)
     if (csr_ld_snp_index_[i] > csr_ld_snp_index_[i + 1])
       csr_ld_snp_index_[i] = csr_ld_snp_index_[i + 1];
 
-  chunks_.clear();
+  coo_ld_.clear();
 
   LOG << "<set_ld_r2_csr(); elapsed time " << timer.elapsed_ms() << " ms";
-  validate_ld_r2_csr(r2_min);
 
   return 0;
 }
 
-int64_t LdMatrixCsr::validate_ld_r2_csr(float r2_min) {
+int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min) {
+  LOG << ">set_ld_r2_csr();";
+  for (int chr_label = 0; chr_label < chunks_.size(); chr_label++) {
+    chunks_[chr_label].set_ld_r2_csr(mapping_.num_snp(), chr_label);
+    chunks_[chr_label].validate_ld_r2_csr(r2_min, chr_label, mapping_);
+  }
+
+  LOG << "<set_ld_r2_csr();";
+  return 0;
+}
+
+int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToSnpMapping& mapping_) {
   LOG << ">validate_ld_r2_csr(); ";
   SimpleTimer timer(-1);
+
+  if (csr_ld_r2_.empty()) return 0;  // allow empty chunks
   
   // Test correctness of sparse representation
   if (csr_ld_snp_index_.size() != (mapping_.num_snp() + 1)) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.size() != (num_snp_ + 1))"));
@@ -215,9 +217,10 @@ int64_t LdMatrixCsr::validate_ld_r2_csr(float r2_min) {
   }
 
   // Test that LDr2 is symmetric (as long as both SNPs are tag)
-  // Test that LDr2 contains the diagonal
+  // Test that LDr2 contains the diagonal (as long as we looking at correct chr_label; remember that this validation is for a given LD chunk, e.i. for a given LD chromosome)
   for (int causal_index = 0; causal_index < mapping_.num_snp(); causal_index++) {
     if (!mapping_.is_tag()[causal_index]) continue;
+    if (mapping_.chrnumvec()[causal_index] != chr_label) continue;
     const int tag_index_of_the_snp = mapping_.snp_to_tag()[causal_index];
 
     const int64_t r2_index_from = csr_ld_snp_index_[causal_index];
@@ -240,7 +243,7 @@ int64_t LdMatrixCsr::validate_ld_r2_csr(float r2_min) {
   return 0;
 }
 
-float LdMatrixCsr::find_and_retrieve_ld_r2(int snp_index, int tag_index) {
+float LdMatrixCsrChunk::find_and_retrieve_ld_r2(int snp_index, int tag_index) {
   auto r2_iter_from = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index];
   auto r2_iter_to = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index + 1];
   auto iter = std::lower_bound(r2_iter_from, r2_iter_to, tag_index);
@@ -254,12 +257,6 @@ size_t LdMatrixCsr::log_diagnostics() {
     mem_bytes_total += chunks_[i].log_diagnostics();
   }
 
-  LOG << " diag: csr_ld_snp_index_.size()=" << csr_ld_snp_index_.size();
-  mem_bytes = csr_ld_tag_index_.size() * sizeof(int); mem_bytes_total += mem_bytes;
-  LOG << " diag: csr_ld_tag_index_.size()=" << csr_ld_tag_index_.size() << " (mem usage = " << mem_bytes << " bytes)";
-  mem_bytes = csr_ld_r2_.size() * sizeof(packed_r2_value); mem_bytes_total += mem_bytes;
-  LOG << " diag: csr_ld_r2_.size()=" << csr_ld_r2_.size() << " (mem usage = " << mem_bytes << " bytes)";
-
   return mem_bytes_total;
 }
 
@@ -267,14 +264,16 @@ size_t LdMatrixCsrChunk::log_diagnostics() {
   size_t mem_bytes = 0, mem_bytes_total = 0;
   mem_bytes = coo_ld_.size() * (sizeof(packed_r2_value) + sizeof(int) + sizeof(int)); mem_bytes_total += mem_bytes;
   LOG << " diag: coo_ld_.size()=" << coo_ld_.size() << " (mem usage = " << mem_bytes << " bytes)";
+  LOG << " diag: csr_ld_snp_index_.size()=" << csr_ld_snp_index_.size();
+  mem_bytes = csr_ld_tag_index_.size() * sizeof(int); mem_bytes_total += mem_bytes;
+  LOG << " diag: csr_ld_tag_index_.size()=" << csr_ld_tag_index_.size() << " (mem usage = " << mem_bytes << " bytes)";
+  mem_bytes = csr_ld_r2_.size() * sizeof(packed_r2_value); mem_bytes_total += mem_bytes;
+  LOG << " diag: csr_ld_r2_.size()=" << csr_ld_r2_.size() << " (mem usage = " << mem_bytes << " bytes)";
   return mem_bytes_total;
 }
 
 void LdMatrixCsr::clear() {
   chunks_.clear();
-  csr_ld_snp_index_.clear();
-  csr_ld_tag_index_.clear();
-  csr_ld_r2_.clear();
   if (ld_tag_sum_adjust_for_hvec_ != nullptr) ld_tag_sum_adjust_for_hvec_->clear();
   if (ld_tag_sum_ != nullptr) ld_tag_sum_->clear();
 }

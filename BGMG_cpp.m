@@ -159,6 +159,27 @@ classdef BGMG_cpp
         calllib('bgmg', 'bgmg_set_ld_r2_csr', obj.Context, chr_label); obj.check();
     end
     
+    % get LD structure
+    function [tag, r2] = get_ld_r2_snp(obj, snp_index)
+      num_ld_r2 = calllib('bgmg', 'bgmg_num_ld_r2_snp', obj.Context, snp_index); obj.check();
+      pBuffer_tag = libpointer('int32Ptr', zeros(num_ld_r2, 1, 'int32'));
+      pBuffer_r2 = libpointer('singlePtr', zeros(num_ld_r2, 1, 'single'));
+      calllib('bgmg', 'bgmg_retrieve_ld_r2_snp', obj.Context, snp_index, num_ld_r2, pBuffer_tag, pBuffer_r2); obj.check();
+      tag = pBuffer_tag.Value; clear pBuffer_tag
+      r2 = pBuffer_r2.Value; clear pBuffer_r2
+    end
+
+    function [snp, tag, r2] = get_ld_r2_chr(obj, chr_label)
+      num_ld_r2 = calllib('bgmg', 'bgmg_num_ld_r2_chr', obj.Context, chr_label); obj.check();
+      pBuffer_snp = libpointer('int32Ptr', zeros(num_ld_r2, 1, 'int32'));
+      pBuffer_tag = libpointer('int32Ptr', zeros(num_ld_r2, 1, 'int32'));
+      pBuffer_r2 = libpointer('singlePtr', zeros(num_ld_r2, 1, 'single'));
+      calllib('bgmg', 'bgmg_retrieve_ld_r2_chr', obj.Context, chr_label, num_ld_r2, pBuffer_snp, pBuffer_tag, pBuffer_r2); obj.check();
+      snp = pBuffer_snp.Value; clear pBuffer_snp
+      tag = pBuffer_tag.Value; clear pBuffer_tag
+      r2 = pBuffer_r2.Value; clear pBuffer_r2
+    end
+
     % set option
     function set_option(obj, option, value)
         calllib('bgmg', 'bgmg_set_option', obj.Context, option, value); obj.check();

@@ -1538,3 +1538,54 @@ int64_t BgmgCalculator::retrieve_chrnumvec(int length, int* buffer) {
   return 0;
 }
 
+int64_t BgmgCalculator::num_ld_r2_snp(int snp_index) {
+  if (!ld_matrix_csr_.is_ready()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call num_ld_r2_snp before set_ld_r2_csr"));
+  CHECK_SNP_INDEX((*this), snp_index);
+  return ld_matrix_csr_.end(snp_index) - ld_matrix_csr_.begin(snp_index);
+}
+
+int64_t BgmgCalculator::retrieve_ld_r2_snp(int snp_index, int length, int* tag_index, float* r2) {
+  if (length != num_ld_r2_snp(snp_index)) BGMG_THROW_EXCEPTION(::std::runtime_error("length does not match num_ld_r2_snp"));
+  LOG << " retrieve_ld_r2_snp(snp_index=" << snp_index << ")";
+  
+  auto iter_end = ld_matrix_csr_.end(snp_index);
+  int r2_index = 0;
+  for (auto iter = ld_matrix_csr_.begin(snp_index); iter < iter_end; iter++) {
+    tag_index[r2_index] = iter.tag_index();
+    r2[r2_index] = iter.r2();
+    r2_index++;
+  }
+
+  return 0;
+}
+
+int64_t BgmgCalculator::num_ld_r2_chr(int chr_label) {
+  if (!ld_matrix_csr_.is_ready()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call num_ld_r2_chr before set_ld_r2_csr"));
+
+  int64_t retval = 0;
+  for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
+    if (chrnumvec_[snp_index] != chr_label) continue;
+    retval += num_ld_r2_snp(snp_index);
+  }
+
+  return retval;
+}
+
+int64_t BgmgCalculator::retrieve_ld_r2_chr(int chr_label, int length, int* snp_index, int* tag_index, float* r2) {
+  if (length != num_ld_r2_chr(chr_label)) BGMG_THROW_EXCEPTION(::std::runtime_error("length does not match num_ld_r2_chr"));
+  LOG << " retrieve_ld_r2_chr(chr_label=" << chr_label << ")";
+  
+  int r2_index = 0;
+  for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
+    if (chrnumvec_[causal_index] != chr_label) continue;
+    auto iter_end = ld_matrix_csr_.end(causal_index);
+    for (auto iter = ld_matrix_csr_.begin(causal_index); iter < iter_end; iter++) {
+      snp_index[r2_index] = causal_index;
+      tag_index[r2_index] = iter.tag_index();
+      r2[r2_index] = iter.r2();
+      r2_index++;
+    }
+  }
+
+  return 0;
+}

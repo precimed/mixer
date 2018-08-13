@@ -242,6 +242,11 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t set_ld_r2_coo(const std::string& filename);
   int64_t set_ld_r2_csr(int chr_label = -1);  // finalize
 
+  int64_t num_ld_r2_snp(int snp_index);
+  int64_t retrieve_ld_r2_snp(int snp_index, int length, int* tag_index, float* r2);
+  int64_t num_ld_r2_chr(int chr_label);
+  int64_t retrieve_ld_r2_chr(int chr_label, int length, int* snp_index, int* tag_index, float* r2);
+
   // must be called after set_ld_r2, as it adjusts r2 matrix
   // one value for each snp (tag and non-tag)
   int64_t set_mafvec(int length, float* values);

@@ -166,11 +166,16 @@ private:
   int64_t ld_index_;
   const LdMatrixCsrChunk* parent_;
   friend inline bool operator <(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs);
+  friend inline int operator -(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs);
 };
 
 inline bool operator <(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs)
 {
   return (lhs.parent_ == rhs.parent_) && (lhs.ld_index_ < rhs.ld_index_);
+}
+inline int operator -(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs)
+{
+  return lhs.ld_index_ - rhs.ld_index_;
 }
 
 // Class for sparse LD matrix stored in CSR format (Compressed Sparse Row Format)

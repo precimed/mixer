@@ -69,6 +69,12 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_set_ld_r2_coo_from_file(int context_id, const char* filename);
   DLL_PUBLIC int64_t bgmg_set_ld_r2_csr(int context_id, int chr_label);
 
+  // query LD structure of a given SNP or for a given chromosome
+  DLL_PUBLIC int64_t bgmg_num_ld_r2_snp(int context_id, int snp_index);
+  DLL_PUBLIC int64_t bgmg_retrieve_ld_r2_snp(int context_id, int snp_index, int length, int* tag_index, float* r2);
+  DLL_PUBLIC int64_t bgmg_num_ld_r2_chr(int context_id, int chr_label);
+  DLL_PUBLIC int64_t bgmg_retrieve_ld_r2_chr(int context_id, int chr_label, int length, int* snp_index, int* tag_index, float* r2);
+
   // Set weights, either explicitly or based on random pruning
   DLL_PUBLIC int64_t bgmg_set_weights(int context_id, int length, float* values);
   DLL_PUBLIC int64_t bgmg_set_weights_randprune(int context_id, int n, float r2);

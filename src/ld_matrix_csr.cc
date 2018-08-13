@@ -260,7 +260,7 @@ size_t LdMatrixCsr::log_diagnostics() {
   LOG << " diag: csr_ld_snp_index_.size()=" << csr_ld_snp_index_.size();
   mem_bytes = csr_ld_tag_index_.size() * sizeof(int); mem_bytes_total += mem_bytes;
   LOG << " diag: csr_ld_tag_index_.size()=" << csr_ld_tag_index_.size() << " (mem usage = " << mem_bytes << " bytes)";
-  mem_bytes = csr_ld_r2_.size() * sizeof(float); mem_bytes_total += mem_bytes;
+  mem_bytes = csr_ld_r2_.size() * sizeof(packed_r2_value); mem_bytes_total += mem_bytes;
   LOG << " diag: csr_ld_r2_.size()=" << csr_ld_r2_.size() << " (mem usage = " << mem_bytes << " bytes)";
 
   return mem_bytes_total;
@@ -268,7 +268,7 @@ size_t LdMatrixCsr::log_diagnostics() {
 
 size_t LdMatrixCsrChunk::log_diagnostics() {
   size_t mem_bytes = 0, mem_bytes_total = 0;
-  mem_bytes = coo_ld_.size() * (sizeof(float) + sizeof(int) + sizeof(int)); mem_bytes_total += mem_bytes;
+  mem_bytes = coo_ld_.size() * (sizeof(packed_r2_value) + sizeof(int) + sizeof(int)); mem_bytes_total += mem_bytes;
   LOG << " diag: coo_ld_.size()=" << coo_ld_.size() << " (mem usage = " << mem_bytes << " bytes)";
   return mem_bytes_total;
 }

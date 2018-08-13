@@ -126,7 +126,6 @@ TEST(LdTest, ValidateMultipleChromosomes) {
   calc.set_option("max_causals", num_snp);
   calc.set_option("kmax", kmax);
   calc.set_option("num_components", 1);
-  calc.set_option("cache_tag_r2sum", 1);
   calc.set_option("r2min", 0.15f);
 
   calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
@@ -138,6 +137,15 @@ TEST(LdTest, ValidateMultipleChromosomes) {
   calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
 
   calc.set_ld_r2_csr();  // finalize csr structure
+
+  // retrieve cached and non-cached LDr2 sum, and compare the result
+  calc.set_option("cache_tag_r2sum", 0);
+  std::vector<float> tag_r2_sum(num_tag*kmax, 0.0f);
+  calc.retrieve_tag_r2_sum(0, 1, num_tag*kmax, &tag_r2_sum[0]);
+  calc.set_option("cache_tag_r2sum", 1);
+  std::vector<float> tag_r2_sum_cached(num_tag*kmax, 0.0f);
+  calc.retrieve_tag_r2_sum(0, 1, num_tag*kmax, &tag_r2_sum_cached[0]);
+  for (int i = 0; i < num_tag*kmax; i++) ASSERT_FLOAT_EQ(tag_r2_sum[i], tag_r2_sum_cached[i]);
 }
 
 void UgmgTest_CalcLikelihood(float r2min, int trait_index) {

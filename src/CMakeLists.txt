@@ -64,6 +64,8 @@ set(SRC_LIST
 	bgmg_log.h
 	fmath.hpp
 	semt/semt/VectorExpr.cpp
+	streamvbyte.c
+	streamvbytedelta.c
 )
 
 add_library(bgmg SHARED ${SRC_LIST})
@@ -73,10 +75,13 @@ target_link_libraries(bgmg ${Boost_LIBRARIES})
 set(SRC_TEST_LIST
 	test/bgmg_main_unittest.cc
 	test/semt_test.cc
+	test/streamvbyte_test.cc
 	semt/semt/VectorExpr.cpp
 	bgmg_calculator.cc
 	ld_matrix_csr.cc
 	bgmg_log.cc
+	streamvbyte.c
+	streamvbytedelta.c
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )

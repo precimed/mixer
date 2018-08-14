@@ -19,7 +19,7 @@ void TurboPForVSimpleTest(int max_size) {
     std::vector<uint32_t> data;
     int numel = (16 + (rand() % 512));
     for (int i = 0; i < numel; i++)
-      data.push_back(1 + rand() % max_size);
+      data.push_back(rand() % max_size);
 
     size_t buflen = P4NENC_BOUND(data.size(), sizeof(uint32_t));
     std::vector<unsigned char> buffer(buflen, 0);

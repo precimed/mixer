@@ -64,8 +64,6 @@ set(SRC_LIST
 	bgmg_log.h
 	fmath.hpp
 	semt/semt/VectorExpr.cpp
-	streamvbyte.c
-	streamvbytedelta.c
 )
 
 add_library(bgmg SHARED ${SRC_LIST})
@@ -80,8 +78,6 @@ set(SRC_TEST_LIST
 	bgmg_calculator.cc
 	ld_matrix_csr.cc
 	bgmg_log.cc
-	streamvbyte.c
-	streamvbytedelta.c
 	TurboPFor/vsimple.c
 	TurboPFor/vint.c
 	TurboPFor/bitutil.c
@@ -99,6 +95,7 @@ target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/goo
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/semt)
+target_compile_definitions(bgmg-test PRIVATE USE_SSE)
 
 include(GenerateExportHeader)
 generate_export_header(bgmg

@@ -440,7 +440,7 @@ unsigned bitfm16(uint16_t *in, unsigned n, uint16_t *pmin) { uint16_t mi,mx; BIT
 unsigned bitfm32(uint32_t *in, unsigned n, uint32_t *pmin) { uint32_t mi,mx; BITFM(uint32_t, in, n); *pmin = mi; return bsr32(mx - mi); }
 unsigned bitfm64(uint64_t *in, unsigned n, uint64_t *pmin) { uint64_t mi,mx; BITFM(uint64_t, in, n); *pmin = mi; return bsr64(mx - mi); }
 
-
+/*
 //----------- Lossy floating point conversion: pad the trailing mantissa bits with zeros according to the error e (ex. 0.00001)  -----------------------------------
 static inline double efloat64(double d, double e, int lg2e) {
   uint64_t u, du = ctou64(&d);
@@ -463,4 +463,4 @@ static inline float efloat32(float d, float e, int lg2e) {
 }
 
 void padfloat32(float *in, size_t n, float *out, float e) { int lg2e = -log(e)/log(2.0); float *ip; for(ip = in; ip < in+n; ip++,out++) *out = efloat32(*ip, e, lg2e); }
-
+*/

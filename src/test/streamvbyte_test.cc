@@ -9,9 +9,11 @@ namespace {
 //  unsigned char *vsenc32(unsigned       *__restrict in, size_t n, unsigned char  *__restrict out);
 //  unsigned char *vsdec32(unsigned char  *__restrict in, size_t n, unsigned       *__restrict out);
 
-#define ROUND_UP(_n_, _a_) (((_n_) + ((_a_)-1)) & ~((_a_)-1))
-#define P4NENC_BOUND(n, size) ((n + 127) / 128 + (n + 32) * (size))
-#define P4NDEC_BOUND(n, size) (ROUND_UP(n, 32) * (size))
+// Very important to use correct sizes for output buffers.
+// There boundaries were suggested in https://github.com/powturbo/TurboPFor/issues/31
+#define VSENC_BOUND(n, size) ((n + 32) * ((size)+1) )
+#define VSDEC_BOUND(n, size) ((n + 32) * (size))
+#define VSDEC_NUMEL(n      ) (n + 32)
 
 void TurboPForVSimpleTest(int max_size) {
   printf("Max val: %i, ", max_size);
@@ -21,7 +23,7 @@ void TurboPForVSimpleTest(int max_size) {
     for (int i = 0; i < numel; i++)
       data.push_back(rand() % max_size);
 
-    size_t buflen = P4NENC_BOUND(data.size(), sizeof(uint32_t));
+    size_t buflen = VSENC_BOUND(data.size(), sizeof(uint32_t));
     std::vector<unsigned char> buffer(buflen, 0);
 
     uint32_t prev = 0;
@@ -29,7 +31,7 @@ void TurboPForVSimpleTest(int max_size) {
     size_t encoded_bytes = outptr - &buffer[0];
     ASSERT_LE(encoded_bytes, buflen);
 
-    std::vector<uint32_t> data2(32 + ROUND_UP(data.size(), 32), 0);
+    std::vector<uint32_t> data2(VSDEC_NUMEL(data.size()), 0);
     outptr = vsdec32(&buffer[0], data.size(), &data2[0]);
 
     size_t decoded_bytes = outptr - &buffer[0];

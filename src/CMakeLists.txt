@@ -82,6 +82,9 @@ set(SRC_TEST_LIST
 	bgmg_log.cc
 	streamvbyte.c
 	streamvbytedelta.c
+	TurboPFor/vsimple.c
+	TurboPFor/vint.c
+	TurboPFor/bitutil.c
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )

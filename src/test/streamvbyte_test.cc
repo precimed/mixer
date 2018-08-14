@@ -36,7 +36,7 @@ void TurboPForVSimpleTest(int max_size) {
     ASSERT_EQ(decoded_bytes, encoded_bytes);
 
     for (int i = 0; i < data.size(); i++) ASSERT_EQ(data[i], data2[i]);
-    printf("%i@%.1f%; ", data.size(), 100 * float(encoded_bytes) / (float)(data.size() * sizeof(uint32_t)));
+    printf("%i@%.1f%%; ", data.size(), 100 * float(encoded_bytes) / (float)(data.size() * sizeof(uint32_t)));
   }
   printf("\n");
 }

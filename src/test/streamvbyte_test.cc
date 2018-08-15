@@ -26,7 +26,6 @@ void TurboPForVSimpleTest(int max_size) {
     size_t buflen = VSENC_BOUND(data.size(), sizeof(uint32_t));
     std::vector<unsigned char> buffer(buflen, 0);
 
-    uint32_t prev = 0;
     unsigned char *outptr = vsenc32(&data[0], data.size(), &buffer[0]);
     size_t encoded_bytes = outptr - &buffer[0];
     ASSERT_LE(encoded_bytes, buflen);
@@ -43,10 +42,39 @@ void TurboPForVSimpleTest(int max_size) {
   printf("\n");
 }
 
+void TurboPForVSimpleTestVeryFewLargeValues(int numel) {
+  std::vector<uint32_t> data;
+  for (int i = 0; i < numel; i++)
+    data.push_back(rand() * RAND_MAX + rand());
+
+  size_t buflen = VSENC_BOUND(data.size(), sizeof(uint32_t));
+  std::vector<unsigned char> buffer(buflen, 0);
+
+  unsigned char *outptr = vsenc32(&data[0], data.size(), &buffer[0]);
+  size_t encoded_bytes = outptr - &buffer[0];
+  ASSERT_LE(encoded_bytes, buflen);
+
+  std::vector<uint32_t> data2(VSDEC_NUMEL(data.size()), 0);
+  outptr = vsdec32(&buffer[0], data.size(), &data2[0]);
+
+  size_t decoded_bytes = outptr - &buffer[0];
+  ASSERT_EQ(decoded_bytes, encoded_bytes);
+
+  for (int i = 0; i < data.size(); i++) ASSERT_EQ(data[i], data2[i]);
+  size_t orig_size = data.size() * sizeof(uint32_t);
+  printf("%i @ %.1fX (%i vs %i bytes)\n", numel, float(encoded_bytes) / (float)(orig_size), encoded_bytes, orig_size);
+}
+
 // bgmg-test.exe --gtest_filter=Compression.TurboPForVSimpleTest
 TEST(Compression, TurboPForVSimpleTest) {
   for (int i = 4; i <= 2048; i *= 2)
     TurboPForVSimpleTest(i);
+}
+
+TEST(Compression, TurboPForVSimpleVeryFewLargeValues) {
+  for (int i = 1; i < 10; i++) {
+    TurboPForVSimpleTestVeryFewLargeValues(i);
+  }
 }
 
 }  // namespace

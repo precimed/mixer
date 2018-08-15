@@ -135,8 +135,24 @@ class LdMatrixCsrChunk {
   std::vector<int64_t> csr_ld_snp_index_;
   std::vector<int> csr_ld_tag_index_;  // NB! This array can be very long. Indeed more than 2e9 !
   std::vector<packed_r2_value> csr_ld_r2_;
+  
+  int64_t ld_index_begin(int snp_index) const {
+    return csr_ld_snp_index_[snp_index - snp_index_from_inclusive_];
+  }
 
-  int64_t set_ld_r2_csr(int num_snp, int chr_label);
+  int64_t ld_index_end(int snp_index) const {
+    return csr_ld_snp_index_[snp_index - snp_index_from_inclusive_ + 1];
+  }
+
+  // indices where chunk starts (inclusive) and ends (exclusive)
+  // [snp_index_from_inclusive_, snp_index_to_exclusive_)
+  int snp_index_from_inclusive_;
+  int snp_index_to_exclusive_;
+  int chr_label_;
+  int num_snps_in_chunk() const { return snp_index_to_exclusive_ - snp_index_from_inclusive_; }
+  bool is_empty() const { return snp_index_to_exclusive_ == snp_index_from_inclusive_; }
+
+  int64_t set_ld_r2_csr();
   int64_t validate_ld_r2_csr(float r2_min, int chr_label, TagToSnpMapping& mapping);  // validate
   float find_and_retrieve_ld_r2(int snp_index, int tag_index);  // nan if doesn't exist.
 
@@ -193,12 +209,12 @@ class LdMatrixCsr {
 
    LdMatrixIterator begin(int snp_index) const {
      const int chr_label = mapping_.chrnumvec()[snp_index];
-     return LdMatrixIterator(chunks_[chr_label].csr_ld_snp_index_[snp_index], &chunks_[chr_label]);
+     return LdMatrixIterator(chunks_[chr_label].ld_index_begin(snp_index), &chunks_[chr_label]);
    }
 
    LdMatrixIterator end(int snp_index) const {
      const int chr_label = mapping_.chrnumvec()[snp_index];
-     return LdMatrixIterator(chunks_[chr_label].csr_ld_snp_index_[snp_index + 1], &chunks_[chr_label]);
+     return LdMatrixIterator(chunks_[chr_label].ld_index_end(snp_index), &chunks_[chr_label]);
    }
 
    const LdTagSum* ld_tag_sum_adjust_for_hvec() { return ld_tag_sum_adjust_for_hvec_.get(); }

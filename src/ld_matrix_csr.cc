@@ -22,6 +22,8 @@
 #include <algorithm>
 #include <numeric>
 
+#include "TurboPFor/vsimple.h"
+
 void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec) {
   const std::vector<float>& mafvec = mapping.mafvec();
   hvec->resize(mafvec.size(), 0.0f);
@@ -84,6 +86,19 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
     chunks_.resize(max_chr_label + 1);  // here we most likely create one useless LD structure for chr_label==0. But that's fine, it'll just stay empty.
     LOG << " highest chr label: " << max_chr_label;
 
+    // Find where each chunk starts and ends
+    std::vector<int> chunk_snp_count(max_chr_label + 1, 0);
+    for (int i = 0; i < mapping_.chrnumvec().size(); i++) {
+      int chr_label = mapping_.chrnumvec()[i];
+      chunk_snp_count[chr_label]++;
+    }
+    for (int chr_label = 0, snp_count_on_previous_chromosomes = 0; chr_label <= max_chr_label; chr_label++) {
+      chunks_[chr_label].snp_index_from_inclusive_ = snp_count_on_previous_chromosomes;
+      chunks_[chr_label].snp_index_to_exclusive_ = snp_count_on_previous_chromosomes + chunk_snp_count[chr_label];
+      chunks_[chr_label].chr_label_ = chr_label;
+      snp_count_on_previous_chromosomes += chunk_snp_count[chr_label];
+    }
+
     LOG << " set_ld_r2_coo adds " << mapping_.tag_to_snp().size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
     for (int i = 0; i < mapping_.tag_to_snp().size(); i++) {
       int snp_index = mapping_.tag_to_snp()[i];
@@ -118,15 +133,14 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
   return 0;
 }
 
-int64_t LdMatrixCsrChunk::set_ld_r2_csr(int num_snp, int chr_label) {
+int64_t LdMatrixCsrChunk::set_ld_r2_csr() {
+  if (!csr_ld_snp_index_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_csr twice"));
+  csr_ld_snp_index_.resize(num_snps_in_chunk() + 1, 0);
   if (coo_ld_.empty()) {
-    csr_ld_snp_index_.resize(num_snp + 1, coo_ld_.size());
     return 0;
   }
 
-  if (!csr_ld_snp_index_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_csr twice"));
-
-  LOG << ">set_ld_r2_csr(chr_label=" << chr_label << "); ";
+  LOG << ">set_ld_r2_csr(chr_label=" << chr_label_ << "); ";
 
   SimpleTimer timer(-1);
 
@@ -157,10 +171,11 @@ int64_t LdMatrixCsrChunk::set_ld_r2_csr(int num_snp, int chr_label) {
   }
 
   // find starting position for each snp
-  csr_ld_snp_index_.resize(num_snp + 1, coo_ld_.size());
+  std::fill(csr_ld_snp_index_.begin(), csr_ld_snp_index_.end(), coo_ld_.size());
   for (int64_t ld_index = coo_ld_.size() - 1; ld_index >= 0; ld_index--) {
     int snp_index = std::get<0>(coo_ld_[ld_index]);
-    csr_ld_snp_index_[snp_index] = ld_index;
+    if (snp_index < snp_index_from_inclusive_ || snp_index >= snp_index_to_exclusive_) BGMG_THROW_EXCEPTION(std::runtime_error("bgmglib internal error: snp_index < snp_index_from_inclusive_ || snp_index >= snp_index_to_exclusive_"));
+    csr_ld_snp_index_[snp_index - snp_index_from_inclusive_] = ld_index;
   }
 
   for (int i = (csr_ld_snp_index_.size() - 2); i >= 0; i--)
@@ -169,7 +184,7 @@ int64_t LdMatrixCsrChunk::set_ld_r2_csr(int num_snp, int chr_label) {
 
   coo_ld_.clear();
 
-  LOG << "<set_ld_r2_csr(chr_label=" << chr_label << "); elapsed time " << timer.elapsed_ms() << " ms";
+  LOG << "<set_ld_r2_csr(chr_label=" << chr_label_ << "); elapsed time " << timer.elapsed_ms() << " ms";
   return 0;
 }
 
@@ -177,7 +192,7 @@ int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min, int chr_label) {
   if (chr_label < 0) {
     for (int i = 0; i < chunks_.size(); i++) set_ld_r2_csr(r2_min, i);
   } else {  
-    chunks_[chr_label].set_ld_r2_csr(mapping_.num_snp(), chr_label);
+    chunks_[chr_label].set_ld_r2_csr();
     chunks_[chr_label].validate_ld_r2_csr(r2_min, chr_label, mapping_);
   }
   return 0;
@@ -190,7 +205,7 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToS
   if (csr_ld_r2_.empty()) return 0;  // allow empty chunks
   
   // Test correctness of sparse representation
-  if (csr_ld_snp_index_.size() != (mapping_.num_snp() + 1)) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.size() != (num_snp_ + 1))"));
+  if (csr_ld_snp_index_.size() != (num_snps_in_chunk() + 1)) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.size() != (num_snp_ + 1))"));
   for (int i = 0; i < csr_ld_snp_index_.size(); i++) if (csr_ld_snp_index_[i] < 0 || csr_ld_snp_index_[i] > csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_[i] < 0 || csr_ld_snp_index_[i] > csr_ld_r2_.size()"));
   for (int i = 1; i < csr_ld_snp_index_.size(); i++) if (csr_ld_snp_index_[i - 1] > csr_ld_snp_index_[i]) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_[i-1] > csr_ld_snp_index_[i]"));
   if (csr_ld_snp_index_.back() != csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.back() != csr_ld_r2_.size()"));
@@ -202,9 +217,9 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToS
   for (int64_t i = 0; i < csr_ld_r2_.size(); i++) if (!std::isfinite(csr_ld_r2_[i].get())) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(csr_ld_r2_[i])"));
 
   // Test that LDr2 does not have duplicates
-  for (int causal_index = 0; causal_index < mapping_.num_snp(); causal_index++) {
-    const int64_t r2_index_from = csr_ld_snp_index_[causal_index];
-    const int64_t r2_index_to = csr_ld_snp_index_[causal_index + 1];
+  for (int snp_index_in_chunk = 0; snp_index_in_chunk < num_snps_in_chunk(); snp_index_in_chunk++) {
+    const int64_t r2_index_from = csr_ld_snp_index_[snp_index_in_chunk];
+    const int64_t r2_index_to = csr_ld_snp_index_[snp_index_in_chunk + 1];
     for (int64_t r2_index = r2_index_from; r2_index < (r2_index_to - 1); r2_index++) {
       if (csr_ld_tag_index_[r2_index] == csr_ld_tag_index_[r2_index + 1])
         BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_[r2_index] == csr_ld_tag_index_[r2_index + 1]"));
@@ -213,13 +228,13 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToS
 
   // Test that LDr2 is symmetric (as long as both SNPs are tag)
   // Test that LDr2 contains the diagonal (as long as we looking at correct chr_label; remember that this validation is for a given LD chunk, e.i. for a given LD chromosome)
-  for (int causal_index = 0; causal_index < mapping_.num_snp(); causal_index++) {
+  for (int causal_index = snp_index_from_inclusive_; causal_index < snp_index_to_exclusive_; causal_index++) {
     if (!mapping_.is_tag()[causal_index]) continue;
     if (mapping_.chrnumvec()[causal_index] != chr_label) continue;
     const int tag_index_of_the_snp = mapping_.snp_to_tag()[causal_index];
 
-    const int64_t r2_index_from = csr_ld_snp_index_[causal_index];
-    const int64_t r2_index_to = csr_ld_snp_index_[causal_index + 1];
+    const int64_t r2_index_from = csr_ld_snp_index_[causal_index - snp_index_from_inclusive_];
+    const int64_t r2_index_to = csr_ld_snp_index_[causal_index - snp_index_from_inclusive_ + 1];
     bool ld_r2_contains_diagonal = false;
     for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
       const int tag_index = csr_ld_tag_index_[r2_index];
@@ -239,8 +254,8 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToS
 }
 
 float LdMatrixCsrChunk::find_and_retrieve_ld_r2(int snp_index, int tag_index) {
-  auto r2_iter_from = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index];
-  auto r2_iter_to = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index + 1];
+  auto r2_iter_from = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index - snp_index_from_inclusive_];
+  auto r2_iter_to = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index - snp_index_from_inclusive_ + 1];
   auto iter = std::lower_bound(r2_iter_from, r2_iter_to, tag_index);
   return (iter != r2_iter_to) ? csr_ld_r2_[iter - csr_ld_tag_index_.begin()].get() : NAN;
 }
@@ -248,7 +263,7 @@ float LdMatrixCsrChunk::find_and_retrieve_ld_r2(int snp_index, int tag_index) {
 size_t LdMatrixCsr::log_diagnostics() {
   size_t mem_bytes = 0, mem_bytes_total = 0;
   for (int i = 0; i < chunks_.size(); i++) {
-    LOG << " diag: LdMatrixCsr chunk " << i;
+    LOG << " diag: LdMatrixCsr chunk " << i << ", snp_index in ["<< chunks_[i].snp_index_from_inclusive_ << ", " << chunks_[i].snp_index_to_exclusive_ << ")";
     mem_bytes_total += chunks_[i].log_diagnostics();
   }
 

@@ -275,9 +275,13 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld
       const float r2 = csr_ld_r2_[r2_index].get();  // here we are interested in r2 (hvec is irrelevant)
 
       if (tag_index == tag_index_of_the_snp) ld_r2_contains_diagonal = true;
-      float r2symm = find_and_retrieve_ld_r2(mapping_.tag_to_snp()[tag_index], tag_index_of_the_snp, csr_ld_tag_index_);
-      if (!std::isfinite(r2symm)) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(r2symm)"));
-      if (r2symm != r2) BGMG_THROW_EXCEPTION(std::runtime_error("r2symm != r2"));
+      
+      // disable symmetry check for performance reasons
+      if (0) {
+        float r2symm = find_and_retrieve_ld_r2(mapping_.tag_to_snp()[tag_index], tag_index_of_the_snp, csr_ld_tag_index_);
+        if (!std::isfinite(r2symm)) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(r2symm)"));
+        if (r2symm != r2) BGMG_THROW_EXCEPTION(std::runtime_error("r2symm != r2"));
+      }
     }
 
     if (!ld_r2_contains_diagonal) BGMG_THROW_EXCEPTION(std::runtime_error("!ld_r2_contains_diagonal"));

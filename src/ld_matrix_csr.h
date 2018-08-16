@@ -133,9 +133,20 @@ class LdMatrixCsrChunk {
   // csr_ld_tag_index_ contains values from 0 to num_tag_-1
   // csr_ld_r2_ contains values from 0 to 1, indicating LD r2 between snp and tag variants
   std::vector<int64_t> csr_ld_snp_index_;
-  std::vector<int> csr_ld_tag_index_;  // NB! This array can be very long. Indeed more than 2e9 !
+  std::vector<uint64_t> csr_ld_tag_index_offset_;      // pointers to csr_ld_tag_index_packed_ (location where to decompress)
+                                                       // number of elements to decompress can be deduced from csr_ld_snp_index_
+  std::vector<unsigned char> csr_ld_tag_index_packed_;  // packed csr_ld_tag_index (delta-encoded, then compressed with TurboPFor vsenc32 algorithm).
+                                                        // The buffer has some extra capacity (as required by TurboPFor vsenc32/vdec32 algorithms).
   std::vector<packed_r2_value> csr_ld_r2_;
   
+  unsigned char* csr_ld_tag_index_packed(int snp_index) {
+    return &csr_ld_tag_index_packed_[csr_ld_tag_index_offset_[snp_index - snp_index_from_inclusive_]];
+  }
+
+  int64_t num_ld_r2(int snp_index) const {
+    return ld_index_end(snp_index) - ld_index_begin(snp_index);
+  }
+
   int64_t ld_index_begin(int snp_index) const {
     return csr_ld_snp_index_[snp_index - snp_index_from_inclusive_];
   }
@@ -152,9 +163,9 @@ class LdMatrixCsrChunk {
   int num_snps_in_chunk() const { return snp_index_to_exclusive_ - snp_index_from_inclusive_; }
   bool is_empty() const { return snp_index_to_exclusive_ == snp_index_from_inclusive_; }
 
-  int64_t set_ld_r2_csr();
-  int64_t validate_ld_r2_csr(float r2_min, int chr_label, TagToSnpMapping& mapping);  // validate
-  float find_and_retrieve_ld_r2(int snp_index, int tag_index);  // nan if doesn't exist.
+  int64_t set_ld_r2_csr(TagToSnpMapping& mapping);
+  int64_t validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_tag_index, TagToSnpMapping& mapping);  // validate
+  float find_and_retrieve_ld_r2(int snp_index, int tag_index, const std::vector<uint32_t>& csr_ld_tag_index);  // nan if doesn't exist.
 
   size_t log_diagnostics();
   void clear();

@@ -24,6 +24,12 @@
 
 #include "TurboPFor/vsimple.h"
 
+// Very important to use correct sizes for output buffers.
+// There boundaries were suggested in https://github.com/powturbo/TurboPFor/issues/31
+#define VSENC_BOUND(n, size) ((n + 32) * ((size)+1) )
+#define VSDEC_BOUND(n, size) ((n + 32) * (size))
+#define VSDEC_NUMEL(n      ) (n + 32)
+
 void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec) {
   const std::vector<float>& mafvec = mapping.mafvec();
   hvec->resize(mafvec.size(), 0.0f);
@@ -69,7 +75,7 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
       BGMG_THROW_EXCEPTION(::std::runtime_error("snp_index[i] == tag_index[i] --- unexpected for ld files created via plink"));
 
   for (int64_t i = 0; i < length; i++) {
-    if (!std::isfinite(r2[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
+    if (!std::isfinite(r2[i]) || r2[i] < 0.0 || r2[i] > 1.0f) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined, negative or above 1.0 values"));
   }
 
   SimpleTimer timer(-1);
@@ -133,7 +139,7 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
   return 0;
 }
 
-int64_t LdMatrixCsrChunk::set_ld_r2_csr() {
+int64_t LdMatrixCsrChunk::set_ld_r2_csr(TagToSnpMapping& mapping) {
   if (!csr_ld_snp_index_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_csr twice"));
   csr_ld_snp_index_.resize(num_snps_in_chunk() + 1, 0);
   if (coo_ld_.empty()) {
@@ -162,6 +168,7 @@ int64_t LdMatrixCsrChunk::set_ld_r2_csr() {
   if (first_call) { first_call = false; LOG << " To enable parallel sort within each chr label build bgmglib with compiler that supports OpenMP 3.0";}
 #endif
 
+  std::vector<uint32_t> csr_ld_tag_index_;
   csr_ld_tag_index_.reserve(coo_ld_.size());
   csr_ld_r2_.reserve(coo_ld_.size());
 
@@ -184,6 +191,38 @@ int64_t LdMatrixCsrChunk::set_ld_r2_csr() {
 
   coo_ld_.clear();
 
+  validate_ld_r2_csr(csr_ld_tag_index_, mapping);
+
+  {
+    LOG << ">pack_ld_r2_csr(); ";
+    SimpleTimer timer3(-1);
+    // pack LD structure
+    csr_ld_tag_index_offset_.reserve(csr_ld_snp_index_.size()); csr_ld_tag_index_offset_.push_back(0);
+    int64_t buffer_size = 0;
+    for (int snp_index_in_chunk = 0; snp_index_in_chunk < num_snps_in_chunk(); snp_index_in_chunk++) {
+      int64_t ld_index_from = csr_ld_snp_index_[snp_index_in_chunk];
+      int64_t ld_index_to = csr_ld_snp_index_[snp_index_in_chunk + 1];
+      int64_t num_ld_indices = ld_index_to - ld_index_from;
+
+      if (num_ld_indices > 0) {
+        // calculate deltas; TBD: use https://github.com/lemire/FastDifferentialCoding
+        for (int64_t ld_index = ld_index_to - 1; ld_index > ld_index_from; ld_index--)
+          csr_ld_tag_index_[ld_index] -= csr_ld_tag_index_[ld_index - 1];
+
+        const int growth_factor = 2;
+        csr_ld_tag_index_packed_.resize(growth_factor * buffer_size + VSENC_BOUND(num_ld_indices, sizeof(uint32_t)));
+        unsigned char *inptr = &csr_ld_tag_index_packed_[buffer_size];
+        unsigned char *outptr = vsenc32(&csr_ld_tag_index_[ld_index_from], num_ld_indices, inptr);
+        buffer_size += (outptr - inptr);
+      }
+
+      csr_ld_tag_index_offset_.push_back(buffer_size);
+    }
+    csr_ld_tag_index_packed_.resize(buffer_size);
+    csr_ld_tag_index_packed_.shrink_to_fit();
+    LOG << "<pack_ld_r2_csr(); elapsed time " << timer3.elapsed_ms() << " ms";
+  }
+
   LOG << "<set_ld_r2_csr(chr_label=" << chr_label_ << "); elapsed time " << timer.elapsed_ms() << " ms";
   return 0;
 }
@@ -192,13 +231,12 @@ int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min, int chr_label) {
   if (chr_label < 0) {
     for (int i = 0; i < chunks_.size(); i++) set_ld_r2_csr(r2_min, i);
   } else {  
-    chunks_[chr_label].set_ld_r2_csr();
-    chunks_[chr_label].validate_ld_r2_csr(r2_min, chr_label, mapping_);
+    chunks_[chr_label].set_ld_r2_csr(mapping_);
   }
   return 0;
 }
 
-int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToSnpMapping& mapping_) {
+int64_t LdMatrixCsrChunk::validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_tag_index_, TagToSnpMapping& mapping_) {
   LOG << ">validate_ld_r2_csr(); ";
   SimpleTimer timer(-1);
 
@@ -211,10 +249,6 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToS
   if (csr_ld_snp_index_.back() != csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_snp_index_.back() != csr_ld_r2_.size()"));
   if (csr_ld_tag_index_.size() != csr_ld_r2_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_.size() != csr_ld_r2_.size()"));
   for (int64_t i = 0; i < csr_ld_tag_index_.size(); i++) if (csr_ld_tag_index_[i] < 0 || csr_ld_tag_index_[i] >= mapping_.num_tag()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
-
-  // Test that all values are between zero and r2min
-  for (int64_t i = 0; i < csr_ld_r2_.size(); i++) if (csr_ld_r2_[i].get() < r2_min || csr_ld_r2_[i].get() > 1.0f) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_tag_index_ < 0 || csr_ld_tag_index_ >= num_tag_"));
-  for (int64_t i = 0; i < csr_ld_r2_.size(); i++) if (!std::isfinite(csr_ld_r2_[i].get())) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(csr_ld_r2_[i])"));
 
   // Test that LDr2 does not have duplicates
   for (int snp_index_in_chunk = 0; snp_index_in_chunk < num_snps_in_chunk(); snp_index_in_chunk++) {
@@ -230,7 +264,7 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToS
   // Test that LDr2 contains the diagonal (as long as we looking at correct chr_label; remember that this validation is for a given LD chunk, e.i. for a given LD chromosome)
   for (int causal_index = snp_index_from_inclusive_; causal_index < snp_index_to_exclusive_; causal_index++) {
     if (!mapping_.is_tag()[causal_index]) continue;
-    if (mapping_.chrnumvec()[causal_index] != chr_label) continue;
+    if (mapping_.chrnumvec()[causal_index] != chr_label_) continue;
     const int tag_index_of_the_snp = mapping_.snp_to_tag()[causal_index];
 
     const int64_t r2_index_from = csr_ld_snp_index_[causal_index - snp_index_from_inclusive_];
@@ -241,7 +275,7 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToS
       const float r2 = csr_ld_r2_[r2_index].get();  // here we are interested in r2 (hvec is irrelevant)
 
       if (tag_index == tag_index_of_the_snp) ld_r2_contains_diagonal = true;
-      float r2symm = find_and_retrieve_ld_r2(mapping_.tag_to_snp()[tag_index], tag_index_of_the_snp);
+      float r2symm = find_and_retrieve_ld_r2(mapping_.tag_to_snp()[tag_index], tag_index_of_the_snp, csr_ld_tag_index_);
       if (!std::isfinite(r2symm)) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(r2symm)"));
       if (r2symm != r2) BGMG_THROW_EXCEPTION(std::runtime_error("r2symm != r2"));
     }
@@ -253,7 +287,7 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(float r2_min, int chr_label, TagToS
   return 0;
 }
 
-float LdMatrixCsrChunk::find_and_retrieve_ld_r2(int snp_index, int tag_index) {
+float LdMatrixCsrChunk::find_and_retrieve_ld_r2(int snp_index, int tag_index, const std::vector<uint32_t>& csr_ld_tag_index_) {
   auto r2_iter_from = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index - snp_index_from_inclusive_];
   auto r2_iter_to = csr_ld_tag_index_.begin() + csr_ld_snp_index_[snp_index - snp_index_from_inclusive_ + 1];
   auto iter = std::lower_bound(r2_iter_from, r2_iter_to, tag_index);
@@ -263,6 +297,7 @@ float LdMatrixCsrChunk::find_and_retrieve_ld_r2(int snp_index, int tag_index) {
 size_t LdMatrixCsr::log_diagnostics() {
   size_t mem_bytes = 0, mem_bytes_total = 0;
   for (int i = 0; i < chunks_.size(); i++) {
+    if (chunks_[i].is_empty()) continue;
     LOG << " diag: LdMatrixCsr chunk " << i << ", snp_index in ["<< chunks_[i].snp_index_from_inclusive_ << ", " << chunks_[i].snp_index_to_exclusive_ << ")";
     mem_bytes_total += chunks_[i].log_diagnostics();
   }
@@ -275,8 +310,9 @@ size_t LdMatrixCsrChunk::log_diagnostics() {
   mem_bytes = coo_ld_.size() * (sizeof(packed_r2_value) + sizeof(int) + sizeof(int)); mem_bytes_total += mem_bytes;
   LOG << " diag: coo_ld_.size()=" << coo_ld_.size() << " (mem usage = " << mem_bytes << " bytes)";
   LOG << " diag: csr_ld_snp_index_.size()=" << csr_ld_snp_index_.size();
-  mem_bytes = csr_ld_tag_index_.size() * sizeof(int); mem_bytes_total += mem_bytes;
-  LOG << " diag: csr_ld_tag_index_.size()=" << csr_ld_tag_index_.size() << " (mem usage = " << mem_bytes << " bytes)";
+  LOG << " diag: csr_ld_tag_index_offset_.size()=" << csr_ld_tag_index_offset_.size();
+  mem_bytes = csr_ld_tag_index_packed_.size() * sizeof(unsigned char); mem_bytes_total += mem_bytes;
+  LOG << " diag: csr_ld_tag_index_packed_.size()=" << csr_ld_tag_index_packed_.size() << " (mem usage = " << mem_bytes << " bytes)";
   mem_bytes = csr_ld_r2_.size() * sizeof(packed_r2_value); mem_bytes_total += mem_bytes;
   LOG << " diag: csr_ld_r2_.size()=" << csr_ld_r2_.size() << " (mem usage = " << mem_bytes << " bytes)";
   return mem_bytes_total;
@@ -294,13 +330,23 @@ void LdMatrixCsrChunk::clear() {
 
 void LdMatrixCsr::extract_row(int snp_index, LdMatrixRow* row) {
   const int chr_label = mapping_.chrnumvec()[snp_index];
-  const LdMatrixCsrChunk& chunk = chunks_[chr_label];
+  LdMatrixCsrChunk& chunk = chunks_[chr_label];
+  const int64_t num_ld_r2 = chunk.num_ld_r2(snp_index);
+  row->tag_index_.reserve(VSDEC_NUMEL(num_ld_r2));
+  row->tag_index_.resize(num_ld_r2);  // std::vector.resize() never reduce capacity
+  row->r2_.resize(num_ld_r2);
+
+  // empty LD entry
+  if (num_ld_r2 == 0) return;
+
+  vsdec32(chunk.csr_ld_tag_index_packed(snp_index), num_ld_r2, reinterpret_cast<unsigned int*>(&row->tag_index_[0]));
+
+  // restore values from delta-encoding; TBD: use https://github.com/lemire/FastDifferentialCoding
+  for (int i = 1; i < num_ld_r2; i++) row->tag_index_[i] += row->tag_index_[i - 1];
+
   const int64_t ld_index_begin = chunk.ld_index_begin(snp_index);
   const int64_t ld_index_end = chunk.ld_index_end(snp_index);
-  row->tag_index_.resize(ld_index_end - ld_index_begin);  // std::vector.resize() never reduce capacity
-  row->r2_.resize(ld_index_end - ld_index_begin);
   for (int64_t ld_index = ld_index_begin; ld_index < ld_index_end; ld_index++) {
-    row->tag_index_.at(ld_index - ld_index_begin) = chunk.csr_ld_tag_index_[ld_index];
     row->r2_.at(ld_index - ld_index_begin) = chunk.csr_ld_r2_[ld_index];
   }
 }
@@ -308,9 +354,7 @@ void LdMatrixCsr::extract_row(int snp_index, LdMatrixRow* row) {
 int LdMatrixCsr::num_ld_r2(int snp_index) {
   const int chr_label = mapping_.chrnumvec()[snp_index];
   const LdMatrixCsrChunk& chunk = chunks_[chr_label];
-  const int64_t ld_index_begin = chunk.ld_index_begin(snp_index);
-  const int64_t ld_index_end = chunk.ld_index_end(snp_index);
-  return ld_index_end - ld_index_begin;
+  return chunk.num_ld_r2(snp_index);
 }
 
 int LdMatrixIterator::tag_index() const { return parent_->tag_index_[ld_index_]; }

@@ -31,7 +31,7 @@ filename = 'simu_h2=0.4_pi1u=0.001_rep=1';
 trait1_file = ['H:\GitHub\BGMG\' filename '.trait1.mat']; trait1_nvec=100000;
 
 kmax=1000; cache_tag_r2sum=true; r2min=0.05; SEED=123;
-out_folder = 'results_2018_08_11.kmax=1000';
+out_folder = 'results_2018_08_16';
 
 % QQ plots with true params
 out_file = fullfile(out_folder, [filename '.true']); 
@@ -120,7 +120,7 @@ if ~exist('UGMG_LOGLIKE_PLOT', 'var'), UGMG_LOGLIKE_PLOT = false; end;
 if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
-if ~exist('THREADS', 'var'), THREADS = nan; end;
+if ~exist('THREADS', 'var'), THREADS = -1; end;
 
 if POWER_PLOT, error('not yet implemented in c++ version'); end;
 
@@ -193,7 +193,6 @@ bgmglib.zvec1 = trait1_data.zvec(defvec);
 bgmglib.nvec1 = trait1_data.nvec(defvec);
 
 bgmglib.set_option('diag', 0);
-
 % Preparation is done, BGMG library is fully setup. Now we can use it to
 % calculate model QQ plots and univariate or bivariate cost function.
 

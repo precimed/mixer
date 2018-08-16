@@ -133,7 +133,11 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
   } else if (!strcmp(option, "fast_cost")) {
     use_fast_cost_calc_ = (value != 0); return 0;
   } else if (!strcmp(option, "threads")) {
-    omp_set_num_threads(static_cast<int>(value)); return 0;
+    if (value > 0) {
+      LOG << "omp_set_num_threads(" << static_cast<int>(value) << ")";
+      omp_set_num_threads(static_cast<int>(value));
+    }
+    return 0;
   } else if (!strcmp(option, "cache_tag_r2sum")) {
     cache_tag_r2sum_ = (value != 0);
     for (int component_id = 0; component_id < num_components_; component_id++) clear_tag_r2sum(component_id);

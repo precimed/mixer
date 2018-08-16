@@ -105,7 +105,7 @@ if ~exist('UGMG_LOGLIKE_PLOT', 'var'), UGMG_LOGLIKE_PLOT = false; end;
 if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
-if ~exist('THREADS', 'var'), THREADS = nan; end;
+if ~exist('THREADS', 'var'), THREADS = -1; end;
 
 if POWER_PLOT, error('not yet implemented in c++ version'); end;
 

@@ -160,12 +160,14 @@ class LdMatrixCsrChunk {
   void clear();
 };
 
+class LdMatrixRow; 
+
 class LdMatrixIterator {
 public:
-  LdMatrixIterator(int64_t ld_index, const LdMatrixCsrChunk* parent) : ld_index_(ld_index), parent_(parent) {}
+  LdMatrixIterator(int64_t ld_index, const LdMatrixRow* parent) : ld_index_(ld_index), parent_(parent) {}
 
-  int tag_index() const { return parent_->csr_ld_tag_index_[ld_index_]; }
-  float r2() const { return parent_->csr_ld_r2_[ld_index_].get(); }
+  int tag_index() const;
+  float r2() const;
 
   LdMatrixIterator& operator++ () {
     ld_index_++;
@@ -180,7 +182,7 @@ public:
 
 private:
   int64_t ld_index_;
-  const LdMatrixCsrChunk* parent_;
+  const LdMatrixRow* parent_;
   friend inline bool operator <(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs);
   friend inline int operator -(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs);
 };
@@ -193,6 +195,17 @@ inline int operator -(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs)
 {
   return lhs.ld_index_ - rhs.ld_index_;
 }
+
+class LdMatrixRow {
+public:
+  LdMatrixIterator begin() { return LdMatrixIterator(0, this); }
+  LdMatrixIterator end() { return LdMatrixIterator(tag_index_.size(), this); }
+private:
+  std::vector<int> tag_index_;
+  std::vector<packed_r2_value> r2_;
+  friend class LdMatrixIterator;
+  friend class LdMatrixCsr;
+};
 
 // Class for sparse LD matrix stored in CSR format (Compressed Sparse Row Format)
 class LdMatrixCsr {
@@ -207,15 +220,8 @@ class LdMatrixCsr {
    int64_t size() { return std::accumulate(chunks_.begin(), chunks_.end(), 0, [](int64_t sum, LdMatrixCsrChunk& chunk) {return sum + chunk.csr_ld_r2_.size(); }); }
    bool empty() { return (size() == 0); }
 
-   LdMatrixIterator begin(int snp_index) const {
-     const int chr_label = mapping_.chrnumvec()[snp_index];
-     return LdMatrixIterator(chunks_[chr_label].ld_index_begin(snp_index), &chunks_[chr_label]);
-   }
-
-   LdMatrixIterator end(int snp_index) const {
-     const int chr_label = mapping_.chrnumvec()[snp_index];
-     return LdMatrixIterator(chunks_[chr_label].ld_index_end(snp_index), &chunks_[chr_label]);
-   }
+   void extract_row(int snp_index, LdMatrixRow* row);  // retrieve all LD r2 entries for given snp_index
+   int num_ld_r2(int snp_index);  // how many LD r2 entries is there for snp_index
 
    const LdTagSum* ld_tag_sum_adjust_for_hvec() { return ld_tag_sum_adjust_for_hvec_.get(); }
    const LdTagSum* ld_tag_sum() { return ld_tag_sum_.get(); }

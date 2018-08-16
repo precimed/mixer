@@ -291,3 +291,27 @@ void LdMatrixCsr::clear() {
 void LdMatrixCsrChunk::clear() {
   coo_ld_.clear();
 }
+
+void LdMatrixCsr::extract_row(int snp_index, LdMatrixRow* row) {
+  const int chr_label = mapping_.chrnumvec()[snp_index];
+  const LdMatrixCsrChunk& chunk = chunks_[chr_label];
+  const int64_t ld_index_begin = chunk.ld_index_begin(snp_index);
+  const int64_t ld_index_end = chunk.ld_index_end(snp_index);
+  row->tag_index_.resize(ld_index_end - ld_index_begin);  // std::vector.resize() never reduce capacity
+  row->r2_.resize(ld_index_end - ld_index_begin);
+  for (int64_t ld_index = ld_index_begin; ld_index < ld_index_end; ld_index++) {
+    row->tag_index_.at(ld_index - ld_index_begin) = chunk.csr_ld_tag_index_[ld_index];
+    row->r2_.at(ld_index - ld_index_begin) = chunk.csr_ld_r2_[ld_index];
+  }
+}
+
+int LdMatrixCsr::num_ld_r2(int snp_index) {
+  const int chr_label = mapping_.chrnumvec()[snp_index];
+  const LdMatrixCsrChunk& chunk = chunks_[chr_label];
+  const int64_t ld_index_begin = chunk.ld_index_begin(snp_index);
+  const int64_t ld_index_end = chunk.ld_index_end(snp_index);
+  return ld_index_end - ld_index_begin;
+}
+
+int LdMatrixIterator::tag_index() const { return parent_->tag_index_[ld_index_]; }
+float LdMatrixIterator::r2() const { return parent_->r2_[ld_index_].get(); }

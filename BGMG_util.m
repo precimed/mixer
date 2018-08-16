@@ -575,7 +575,7 @@ classdef BGMG_util
         bgmglib=BGMG_cpp(1);
         bgmglib.dispose();
         bgmglib.defvec = defvec_tmp;
-        bgmglib.hvec = mafvec .* (1-mafvec) * 2;
+        bgmglib.mafvec = mafvec;
         for chr_index=1:length(chr_labels),
             bgmglib.set_ld_r2_coo_from_file(strrep(hardprune_plink_ld_bin,'@', sprintf('%i', chr_labels(chr_index))));
             bgmglib.set_ld_r2_csr(chr_labels(chr_index));

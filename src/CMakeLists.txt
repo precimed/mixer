@@ -67,6 +67,7 @@ set(SRC_LIST
 	TurboPFor/vsimple.c
 	TurboPFor/vint.c
 	TurboPFor/bitutil.c
+	FastDifferentialCoding/fastdelta.c
 )
 
 add_library(bgmg SHARED ${SRC_LIST})
@@ -84,6 +85,7 @@ set(SRC_TEST_LIST
 	TurboPFor/vsimple.c
 	TurboPFor/vint.c
 	TurboPFor/bitutil.c
+	FastDifferentialCoding/fastdelta.c
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )

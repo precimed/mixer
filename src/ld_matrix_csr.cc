@@ -23,6 +23,7 @@
 #include <numeric>
 
 #include "TurboPFor/vsimple.h"
+#include "FastDifferentialCoding/fastdelta.h"
 
 // Very important to use correct sizes for output buffers.
 // There boundaries were suggested in https://github.com/powturbo/TurboPFor/issues/31
@@ -205,9 +206,7 @@ int64_t LdMatrixCsrChunk::set_ld_r2_csr(TagToSnpMapping& mapping) {
       int64_t num_ld_indices = ld_index_to - ld_index_from;
 
       if (num_ld_indices > 0) {
-        // calculate deltas; TBD: use https://github.com/lemire/FastDifferentialCoding
-        for (int64_t ld_index = ld_index_to - 1; ld_index > ld_index_from; ld_index--)
-          csr_ld_tag_index_[ld_index] -= csr_ld_tag_index_[ld_index - 1];
+        compute_deltas_inplace(&csr_ld_tag_index_[ld_index_from], num_ld_indices, 0);
 
         const int growth_factor = 2;
         csr_ld_tag_index_packed_.resize(growth_factor * buffer_size + VSENC_BOUND(num_ld_indices, sizeof(uint32_t)));
@@ -345,8 +344,7 @@ void LdMatrixCsr::extract_row(int snp_index, LdMatrixRow* row) {
 
   vsdec32(chunk.csr_ld_tag_index_packed(snp_index), num_ld_r2, reinterpret_cast<unsigned int*>(&row->tag_index_[0]));
 
-  // restore values from delta-encoding; TBD: use https://github.com/lemire/FastDifferentialCoding
-  for (int i = 1; i < num_ld_r2; i++) row->tag_index_[i] += row->tag_index_[i - 1];
+  compute_prefix_sum_inplace(reinterpret_cast<uint32_t*>(&row->tag_index_[0]), num_ld_r2, 0);
 
   const int64_t ld_index_begin = chunk.ld_index_begin(snp_index);
   const int64_t ld_index_end = chunk.ld_index_end(snp_index);

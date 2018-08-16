@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 
 #include "TurboPFor/vsimple.h"
+#include "FastDifferentialCoding/fastdelta.h"
 
 #include <vector>
 
@@ -71,10 +72,30 @@ TEST(Compression, TurboPForVSimpleTest) {
     TurboPForVSimpleTest(i);
 }
 
+// bgmg-test.exe --gtest_filter=Compression.TurboPForVSimpleVeryFewLargeValues
 TEST(Compression, TurboPForVSimpleVeryFewLargeValues) {
   for (int i = 1; i < 10; i++) {
     TurboPForVSimpleTestVeryFewLargeValues(i);
   }
+}
+
+// bgmg-test.exe --gtest_filter=DeltaEncoding.Test
+TEST(DeltaEncoding, Test) {
+  std::vector<uint32_t> values;
+  int n = 1000;
+  uint32_t val = 0;
+  for (int i = 0; i < n; i++) values.push_back(val += rand());
+
+  uint32_t starting_point = 0;
+
+  std::vector<uint32_t> values2(values);
+  compute_deltas_inplace(&values2[0], values2.size(), starting_point);
+
+  ASSERT_EQ(values2[0], values[0] - starting_point);
+  for (int i = 1; i < n; i++) ASSERT_EQ(values2[i], values[i] - values[i - 1]);
+
+  compute_prefix_sum_inplace(&values2[0], values2.size(), starting_point);
+  for (int i = 0; i < n; i++) ASSERT_EQ(values2[i], values[i]);
 }
 
 }  // namespace

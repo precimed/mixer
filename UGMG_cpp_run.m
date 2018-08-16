@@ -158,7 +158,7 @@ addpath('PolyfitnTools');
 
 if isfinite(hardprune_r2)
     if ~exist('hardprune_plink_ld_bin', 'var'), error('hardprune_plink_ld_bin is required'); end;
-    defvec_tmp = BGMG_util.find_hardprune_indices(defvec_tmp, hardprune_r2, ref.mafvec, hardprune_plink_ld_bin, chr_labels);
+    defvec_tmp = BGMG_util.find_hardprune_indices(defvec_tmp, hardprune_r2, ref.mafvec, ref.chrnumvec, hardprune_plink_ld_bin, chr_labels);
 end
 
 % finalize defvec, from here it must not change.

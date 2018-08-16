@@ -566,7 +566,7 @@ classdef BGMG_util
         end
     end
     
-    function defvec_tmp = find_hardprune_indices(defvec_tmp, hardprune_r2, mafvec, hardprune_plink_ld_bin, chr_labels)
+    function defvec_tmp = find_hardprune_indices(defvec_tmp, hardprune_r2, mafvec, chrnumvec, hardprune_plink_ld_bin, chr_labels)
         % Use hard threshold to exlude sinonimous SNPs from fit. Just one
         % iteration of random pruning with very high r2 threshold. Non-selected
         % SNPs are excluded.
@@ -576,6 +576,7 @@ classdef BGMG_util
         bgmglib.dispose();
         bgmglib.defvec = defvec_tmp;
         bgmglib.mafvec = mafvec;
+        bgmglib.chrnumvec = chrnumvec;
         for chr_index=1:length(chr_labels),
             bgmglib.set_ld_r2_coo_from_file(strrep(hardprune_plink_ld_bin,'@', sprintf('%i', chr_labels(chr_index))));
             bgmglib.set_ld_r2_csr(chr_labels(chr_index));

@@ -23,6 +23,16 @@
 % 10. Save results to <out_file>.[mat, pdf, log]
 
 if 0
+plink_ld_bin   = 'H:\work\hapgen_ldmat2_plink\1000Genome_ldmat_p05_SNPwind50k_chr@.ld.bin'; chr_labels = 1; % 1:22;    % 1kG
+reference_file =  'H:\Dropbox\shared\BGMG\1kG_phase3_EUR_11015883_reference_p01_SNPwind50k_per_allele_4bins.mat';
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
+trait = 'PGC_AD_2018_biorxiv_feb'; %'IIBDGC_CD_2017_lift';
+trait1_file = ['H:\work\SUMSTAT_11M\', trait, '.mat'];trait1_nvec=nan;
+out_folder = ['H:\GitHub\BGMG\', trait]; mkdir(out_folder); outfile=fullfile(out_folder, '2017_08_21');
+max_causal_fraction=0.03;cache_tag_r2sum=0;kmax=1000;
+end
+
+if 0
 bgmg_shared_library = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
 plink_ld_bin = 'H:\work\hapgen_ldmat2_plink\bfile_merged_ldmat_p01_SNPwind50k_chr@.ld.bin'; chr_labels = 1:22;
@@ -137,6 +147,7 @@ end; clear('i');
 BGMG_cpp.log('Loading %s...', trait1_file); trait1_data = load(trait1_file); fprintf('OK.\n'); num_components = 1;
 if (length(trait1_data.zvec) ~= length(ref.chrnumvec)), error('trait1_file is incompatible with the reference'); end;
 if isfinite(trait1_nvec), trait1_data.nvec = ones(size(trait1_data.zvec)) * trait1_nvec; end;
+if isfield(trait1_data, 'NCASE') && isfield(trait1_data, 'NCONTROL'), trait1_data.nvec = 4./(1./trait1_data.NCASE + 1./trait1_data.NCONTROL); end;
 if ~isfield(trait1_data, 'nvec'), error('nvec is not available in trait1_file, and trait1_nvec parameter is not set'); end;
 cur_defvec.defvec = isfinite(trait1_data.zvec + trait1_data.nvec); defvec_tmp = defvec_tmp & cur_defvec.defvec;
 BGMG_cpp.log('Exclude %i variants (%i variants remain)\n', sum(~cur_defvec.defvec), sum(defvec_tmp));

@@ -62,6 +62,7 @@ function plot_data = BGMG_cpp_qq_plot(params, trait_index, options)
     plot_data.options = options;
     plot_data.options.calculate_z_cdf_weights='removed';
     plot_data.options.mafvec='removed';
+    plot_data.options.mask='removed';
     plot_data.pdf = pdf;
     plot_data.pdf_zgrid = zgrid;
 

@@ -522,7 +522,7 @@ int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float
 
   SimpleTimer timer(-1);
 
-  const float pi_k = 1. / static_cast<float>(k_max_);
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
 
 // omp reduction on std::vector ( https://stackoverflow.com/questions/43168661/openmp-and-reduction-on-stdvector ) - did not work for microsoft compiler
 // #pragma omp declare reduction(vec_double_plus : std::vector<double> : \
@@ -553,14 +553,15 @@ int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float
 
       for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
         if (weights_[tag_index] == 0) continue;
+        const double tag_weight = static_cast<double>(weights_[tag_index]);
 
         float tag_r2sum_value = tag_r2sum[tag_index];
         float sig2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta + sig2_zero;
         float s = sqrt(sig2eff);
 
         for (int z_index = 0; z_index < length; z_index++) {
-          FLOAT_TYPE pdf_tmp = pi_k * gaussian_pdf<FLOAT_TYPE>(zvec[z_index], s);
-          pdf_double_local[z_index] += static_cast<double>(pdf_tmp * weights_[tag_index]);
+          double pdf_tmp = static_cast<double>(gaussian_pdf<FLOAT_TYPE>(zvec[z_index], s));
+          pdf_double_local[z_index] += pi_k * pdf_tmp * tag_weight;
         }
       }
     }
@@ -602,7 +603,7 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
 
   SimpleTimer timer(-1);
 
-  const float pi_k = 1. / static_cast<float>(k_max_);
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
   
   double log_pdf_total = 0.0;
   int num_infinite = 0;
@@ -618,8 +619,8 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
       float sig2eff = tag_r2sum * nvec[tag_index] * sig2_beta + sig2_zero;
 
       float s = sqrt(sig2eff);
-      FLOAT_TYPE pdf = pi_k * gaussian_pdf<FLOAT_TYPE>(zvec[tag_index], s);
-      pdf_tag += static_cast<double>(pdf);
+      double pdf = static_cast<double>(gaussian_pdf<FLOAT_TYPE>(zvec[tag_index], s));
+      pdf_tag += pi_k * pdf;
     }
     double increment = -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
     if (!std::isfinite(increment)) num_infinite++;
@@ -747,7 +748,7 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
   
   SimpleTimer timer(-1);
 
-  const float pi_k = 1. / static_cast<float>(rhs.k_max_);
+  const double pi_k = 1.0 / static_cast<double>(rhs.k_max_);
 
   std::valarray<double> pdf_double(0.0, rhs.num_tag_);
 #pragma omp parallel
@@ -767,8 +768,8 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
           float sig2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta + sig2_zero;
 
           float s = sqrt(sig2eff);
-          T pdf = pi_k * gaussian_pdf<T>(zvec[tag_index], s);
-          pdf_double_local[tag_index] += static_cast<double>(pdf);
+          double pdf = static_cast<double>(gaussian_pdf<T>(zvec[tag_index], s));
+          pdf_double_local[tag_index] += pdf * pi_k;
         }
       }
 #pragma omp critical
@@ -856,7 +857,7 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
   const float b0 = sqrt(a0 * c0) * rho_zero;
 
   // pi_k is mixture weight
-  const float pi_k = 1. / static_cast<float>(k_max_);
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
 
   double log_pdf_total = 0.0;
   int num_infinite = 0;
@@ -890,8 +891,8 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
       const float a22 = C2 + C3 + c0;
       const float a12 =      B3 + b0;
 
-      const FLOAT_TYPE pdf = pi_k * gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11, a12, a22);
-      pdf_tag += static_cast<double>(pdf);
+      const double pdf = static_cast<double>(gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11, a12, a22));
+      pdf_tag += pi_k * pdf;
     }
 
     double increment = static_cast<double>(-std::log(pdf_tag) * weights_[tag_index]);
@@ -926,7 +927,7 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
   const float b0 = sqrt(a0 * c0) * rho_zero;
 
   // pi_k is mixture weight
-  const float pi_k = 1. / static_cast<float>(k_max_);
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
 
   std::valarray<double> pdf_double(0.0, num_tag_);
 #pragma omp parallel
@@ -971,8 +972,8 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
         const float a22 = C2 + C3 + c0;
         const float a12 = B3 + b0;
 
-        const FLOAT_TYPE pdf = pi_k * gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11, a12, a22);
-        pdf_double_local[tag_index] += static_cast<double>(pdf);
+        const double pdf = static_cast<double>(gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11, a12, a22));
+        pdf_double_local[tag_index] += pi_k * pdf;
       }
     }
 #pragma omp critical
@@ -1032,7 +1033,7 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
   const float b0 = sqrt(a0 * c0) * rho_zero;
 
   // pi_k is mixture weight
-  const float pi_k = 1. / static_cast<float>(k_max_);
+  const double pi_k = 1.0 / static_cast<double > (k_max_);
 
   std::valarray<double> pdf_double(0.0, length);
 
@@ -1059,6 +1060,7 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
 
       for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
         if (weights_[tag_index] == 0) continue;
+        double tag_weight = static_cast<double>(weights_[tag_index]);
 
         const float n1 = nvec1_[tag_index];
         const float n2 = nvec2_[tag_index];
@@ -1080,8 +1082,8 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
         const float a12 = B3 + b0;
         
         for (int z_index = 0; z_index < length; z_index++) {
-          FLOAT_TYPE pdf_tmp = pi_k * gaussian2_pdf<FLOAT_TYPE>(zvec1[z_index], zvec2[z_index], a11, a12, a22);
-          pdf_double_local[z_index] += static_cast<double>(pdf_tmp * weights_[tag_index]);
+          double pdf_tmp = static_cast<double>(gaussian2_pdf<FLOAT_TYPE>(zvec1[z_index], zvec2[z_index], a11, a12, a22));
+          pdf_double_local[z_index] += pi_k * pdf_tmp * tag_weight;
         }
       }
     }
@@ -1173,6 +1175,7 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec[tag_index])) continue;
+    double tag_weight = static_cast<double>(weights_[tag_index]);
     
     const float tag_r2 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2()[tag_index];
     const float tag_r4 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r4()[tag_index];
@@ -1184,16 +1187,16 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
     const float tag_chi = tag_r4 / tag_r2;
 
     const float tag_eta_factor = pi_vec * tag_r2 + (1.0f - pi_vec) * tag_chi;
-    const float tag_pi1 = pi_vec * tag_r2 / tag_eta_factor;
-    const float tag_pi0 = 1 - tag_pi1;
+    const double tag_pi1 = static_cast<double>(pi_vec * tag_r2 / tag_eta_factor);
+    const double tag_pi0 = 1.0 - tag_pi1;
     const float tag_sig2beta = sig2_beta * tag_eta_factor;
 
     const float tag_z = zvec[tag_index];
     const float tag_n = nvec[tag_index];
-    const FLOAT_TYPE tag_pdf0 = gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero));
-    const FLOAT_TYPE tag_pdf1 = gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero + tag_n *tag_sig2beta));
-    const FLOAT_TYPE tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
-    const double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
+    const double tag_pdf0 = static_cast<double>(gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero)));
+    const double tag_pdf1 = static_cast<double>(gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero + tag_n *tag_sig2beta)));
+    const double tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
+    const double increment = (-std::log(tag_pdf) * tag_weight);
     if (!std::isfinite(increment)) num_infinite++;
     log_pdf_total += increment;
   }
@@ -1275,7 +1278,7 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
       const float a11i = s0_a11 + f0[i] * a11[0] + f1[i] * a11[1] + f2[i] * a11[2];
       const float a22i = s0_a22 + f0[i] * a22[0] + f1[i] * a22[1] + f2[i] * a22[2];
       const float a12i = s0_a12 + f0[i] * a12[0] + f1[i] * a12[1] + f2[i] * a12[2];
-      tag_pdf += static_cast<double>((pi1*pi2*pi3) * gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11i, a12i, a22i));
+      tag_pdf += static_cast<double>(pi1*pi2*pi3) * static_cast<double>(gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11i, a12i, a22i));
     }
 
     if (tag_pdf <= 0)

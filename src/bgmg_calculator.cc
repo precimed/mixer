@@ -453,7 +453,7 @@ inline T gaussian_pdf(const T z, const T s) {
   static const T inv_sqrt_2pi = static_cast<T>(0.3989422804014327);
   const T a = z / s;
   const T pdf = inv_sqrt_2pi / s * std::exp(static_cast<T>(-0.5) * a * a);
-  return pdf;
+  return pdf + std::numeric_limits<T>::min();
 }
 
 /*
@@ -480,7 +480,7 @@ inline T gaussian2_pdf(const T z1, const T z2, const T a11, const T a12, const T
   const T log_dt = -0.5 * std::log(dt);
 
   const T pdf = std::exp(log_pi + log_dt + log_exp);
-  return pdf;
+  return pdf + std::numeric_limits<T>::min();
 }
 
 /*
@@ -496,7 +496,7 @@ inline float gaussian2_pdf(const float z1, const float z2, const float a11, cons
   const float log_exp = -0.5 * (a22*z1*z1 + a11*z2*z2 - 2.0*a12*z1*z2) / dt;
   const float log_dt = -0.5 * fmath::log(dt);
 
-  const float pdf = fmath::exp(log_pi + log_dt + log_exp);
+  const float pdf = fmath::exp(log_pi + log_dt + log_exp) + std::numeric_limits<float>::min();
   return pdf;
 }
 */
@@ -605,8 +605,9 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
   const float pi_k = 1. / static_cast<float>(k_max_);
   
   double log_pdf_total = 0.0;
+  int num_infinite = 0;
 
-#pragma omp parallel for schedule(static) reduction(+: log_pdf_total)
+#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec[tag_index])) continue;
@@ -620,8 +621,13 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
       FLOAT_TYPE pdf = pi_k * gaussian_pdf<FLOAT_TYPE>(zvec[tag_index], s);
       pdf_tag += static_cast<double>(pdf);
     }
-    log_pdf_total += -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
+    double increment = -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
+    if (!std::isfinite(increment)) num_infinite++;
+    log_pdf_total += increment;
   }
+
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   LOG << "<calc_univariate_cost(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
@@ -708,14 +714,20 @@ double BgmgCalculator::calc_univariate_cost_cache_deriv(int trait_index, float p
   double& pi_vec_io = deriv[0]; pi_vec_io = 0;
   double& sig2_zero_io = deriv[1]; sig2_zero_io = 0;
   double& sig2_beta_io = deriv[2]; sig2_beta_io = 0;
+  int num_infinite = 0;
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec[tag_index])) continue;
-    log_pdf_total += -std::log(pdf_double[tag_index]) * weights_[tag_index];
+    double increment = -std::log(pdf_double[tag_index]) * weights_[tag_index];
+    if (!std::isfinite(increment)) num_infinite++;
+    log_pdf_total += increment;
     pi_vec_io += (-pdf_deriv_pivec[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
     sig2_zero_io += (-pdf_deriv_sig2zero[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
     sig2_beta_io += (-pdf_deriv_sig2beta[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
   }
+
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   LOG << "<calc_univariate_cost_deriv(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
@@ -764,11 +776,17 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
   }
 
   double log_pdf_total = 0.0;
+  int num_infinite = 0;
   for (int tag_index = 0; tag_index < rhs.num_tag_; tag_index++) {
     if (rhs.weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec[tag_index])) continue;
-    log_pdf_total += -std::log(pdf_double[tag_index]) * rhs.weights_[tag_index];
+    double increment = -std::log(pdf_double[tag_index]) * rhs.weights_[tag_index];
+    if (!std::isfinite(increment)) num_infinite++;
+    log_pdf_total += increment;
   }
+
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   LOG << "<calc_univariate_cost_nocache(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
@@ -841,8 +859,9 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
   const float pi_k = 1. / static_cast<float>(k_max_);
 
   double log_pdf_total = 0.0;
+  int num_infinite = 0;
 
-#pragma omp parallel for schedule(static) reduction(+: log_pdf_total)
+#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec1_[tag_index])) continue;
@@ -875,8 +894,13 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
       pdf_tag += static_cast<double>(pdf);
     }
 
-    log_pdf_total += static_cast<double>(-std::log(pdf_tag) * weights_[tag_index]);
+    double increment = static_cast<double>(-std::log(pdf_tag) * weights_[tag_index]);
+    if (!std::isfinite(increment)) num_infinite++;
+    log_pdf_total += increment;
   }
+
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   LOG << "<calc_bivariate_cost(" << ss << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
@@ -956,12 +980,18 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
   }
 
   double log_pdf_total = 0.0;
+  int num_infinite = 0;
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec1_[tag_index])) continue;
     if (!std::isfinite(zvec2_[tag_index])) continue;
-    log_pdf_total += -std::log(pdf_double[tag_index]) * weights_[tag_index];
+    double increment = -std::log(pdf_double[tag_index]) * weights_[tag_index];
+    if (!std::isfinite(increment)) num_infinite++;
+    log_pdf_total += increment;
   }
+
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   LOG << "<calc_bivariate_cost_nocache(" << ss << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
@@ -1137,8 +1167,9 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
   SimpleTimer timer(-1);
 
   int num_zero_tag_r2 = 0;
+  int num_infinite = 0;
 
-#pragma omp parallel for schedule(static) reduction(+: log_pdf_total)
+#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec[tag_index])) continue;
@@ -1162,11 +1193,16 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
     const FLOAT_TYPE tag_pdf0 = gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero));
     const FLOAT_TYPE tag_pdf1 = gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero + tag_n *tag_sig2beta));
     const FLOAT_TYPE tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
-    log_pdf_total += static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
+    const double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
+    if (!std::isfinite(increment)) num_infinite++;
+    log_pdf_total += increment;
   }
 
   if (num_zero_tag_r2 > 0)
     LOG << " warning: zero tag_r2 encountered " << num_zero_tag_r2 << " times";
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
+
   LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
@@ -1179,12 +1215,13 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
   SimpleTimer timer(-1);
 
   int num_zero_tag_r2 = 0;
+  int num_infinite = 0;
 
   const float s0_a11 = sig2_zero[0];
   const float s0_a22 = sig2_zero[1];
   const float s0_a12 = sqrt(sig2_zero[0] * sig2_zero[1]) * rho_zero;
 
-#pragma omp parallel for schedule(static) reduction(+: log_pdf_total)
+#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
     if (!std::isfinite(zvec1_[tag_index])) continue;
@@ -1244,11 +1281,15 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
     if (tag_pdf <= 0)
       tag_pdf = 1e-100;
 
-    log_pdf_total += static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
+    double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
+    if (!std::isfinite(increment)) num_infinite++;
+    log_pdf_total += increment;
   }
 
   if (num_zero_tag_r2 > 0)
     LOG << " warning: zero tag_r2 encountered " << num_zero_tag_r2 << " times";
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   LOG << "<calc_bivariate_cost_fast(" << ss << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;

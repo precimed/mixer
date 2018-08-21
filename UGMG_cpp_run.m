@@ -26,7 +26,7 @@ if 0
 plink_ld_bin   = 'H:\work\hapgen_ldmat2_plink\1000Genome_ldmat_p05_SNPwind50k_chr@.ld.bin'; chr_labels = 1; % 1:22;    % 1kG
 reference_file =  'H:\Dropbox\shared\BGMG\1kG_phase3_EUR_11015883_reference_p01_SNPwind50k_per_allele_4bins.mat';
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_1kG_phase3_EUR.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
-trait = 'PGC_AD_2018_biorxiv_feb'; %'IIBDGC_CD_2017_lift';
+trait = 'GIANT_HEIGHT_2018_UKB'; % 'PGC_AD_2018_biorxiv_feb'; %'IIBDGC_CD_2017_lift';
 trait1_file = ['H:\work\SUMSTAT_11M\', trait, '.mat'];trait1_nvec=nan;
 out_folder = ['H:\GitHub\BGMG\', trait]; mkdir(out_folder); outfile=fullfile(out_folder, '2017_08_21');
 max_causal_fraction=0.03;cache_tag_r2sum=0;kmax=1000;

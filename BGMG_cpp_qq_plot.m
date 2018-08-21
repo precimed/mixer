@@ -40,7 +40,7 @@ function plot_data = BGMG_cpp_qq_plot(params, trait_index, options)
     data_logpvec = interp1(data_y(data_idx), data_x(data_idx), hv_logp);
 
     % Calculate model_logpvec
-    zgrid = single(0:0.05:15); 
+    zgrid = single(0:0.05:38.0); 
     pdf = bgmglib.calc_univariate_pdf(trait_index, params.pi_vec, params.sig2_zero, params.sig2_beta, zgrid);
     pdf = pdf / sum(model_weights);
     if (zgrid(1) == 0), zgrid = [-fliplr(zgrid(2:end)) zgrid];pdf = [fliplr(pdf(2:end)) pdf]; end
@@ -79,6 +79,7 @@ function plot_data = BGMG_cpp_qq_plot(params, trait_index, options)
     qq_options.lamGC_data = BGMG_util.lamGCfromQQ(data_logpvec, hv_logp);
     qq_options.lamGC_model = BGMG_util.lamGCfromQQ(model_logpvec, hv_logp);
     qq_options.n_snps = sum(options.mask);
+    qq_options.qqlimy = hv_logp(find(isfinite(data_logpvec), 1, 'last' ))*1.05;
 
     annotate_qq_plot(qq_options);
 end
@@ -106,17 +107,18 @@ function annotate_qq_plot(qq_options)
     yt = get(gca, 'YTick');set(gca, 'FontSize', qq_options.fontsize);
     set(gca, 'box','off');
 
-    loc = qq_options.qqlimy-2;
-    if has_opt('n_snps'), text(0.5,loc,sprintf('$$ n_{snps} = %i $$', qq_options.n_snps),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
+    loc_delta = 0.1 * qq_options.qqlimy;
+    loc = qq_options.qqlimy-loc_delta;
+    if has_opt('n_snps'), text(0.5,loc,sprintf('$$ n_{snps} = %i $$', qq_options.n_snps),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - loc_delta; end;
     if qq_options.full_annotation
-    if has_opt('sig2_zero'), text(0.5,loc,sprintf('$$ \\hat\\sigma_0^2 = %.3f $$', qq_options.sig2_zero),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
-    if has_opt('pi_vec'), text(0.5,loc,sprintf('$$ \\hat\\pi^u_1 = %s $$', vec2str(qq_options.pi_vec)),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
-    if has_opt('sig2_beta'), text(0.5,loc,sprintf('$$ \\hat\\sigma_{\\beta}^2 = %s $$', vec2str(qq_options.sig2_beta)),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
+    if has_opt('sig2_zero'), text(0.5,loc,sprintf('$$ \\hat\\sigma_0^2 = %.3f $$', qq_options.sig2_zero),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - loc_delta; end;
+    if has_opt('pi_vec'), text(0.5,loc,sprintf('$$ \\hat\\pi^u_1 = %s $$', vec2str(qq_options.pi_vec)),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - loc_delta; end;
+    if has_opt('sig2_beta'), text(0.5,loc,sprintf('$$ \\hat\\sigma_{\\beta}^2 = %s $$', vec2str(qq_options.sig2_beta)),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - loc_delta; end;
     h2vec = ''; if has_opt('h2vec'), h2vec = ['$$ \\; $$' vec2str(qq_options.h2vec, 3)]; end;
-    if has_opt('h2'), text(0.5,loc,sprintf('$$ \\hat h^2 = %.3f%s$$', qq_options.h2, h2vec),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
+    if has_opt('h2'), text(0.5,loc,sprintf('$$ \\hat h^2 = %.3f%s$$', qq_options.h2, h2vec),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - loc_delta; end;
     end
-    if has_opt('lamGC_model'), text(0.5,loc,sprintf('$$ \\hat\\lambda_{model} = %.3f $$', qq_options.lamGC_model),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
-    if has_opt('lamGC_data'), text(0.5,loc,sprintf('$$ \\hat\\lambda_{data} = %.3f $$', qq_options.lamGC_data),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - 2; end;
+    if has_opt('lamGC_model'), text(0.5,loc,sprintf('$$ \\hat\\lambda_{model} = %.3f $$', qq_options.lamGC_model),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - loc_delta; end;
+    if has_opt('lamGC_data'), text(0.5,loc,sprintf('$$ \\hat\\lambda_{data} = %.3f $$', qq_options.lamGC_data),'FontSize',qq_options.fontsize,'Interpreter','latex'); loc = loc - loc_delta; end;
 end
 
 function s = vec2str(vec, digits)

@@ -40,8 +40,8 @@ reference_file = 'H:\Dropbox\shared\BGMG\HAPGEN_EUR_100K_11015883_reference_bfil
 filename = 'simu_h2=0.4_pi1u=0.001_rep=1';
 trait1_file = ['H:\GitHub\BGMG\' filename '.trait1.mat']; trait1_nvec=100000;
 
-kmax=1000; cache_tag_r2sum=true; r2min=0.05; SEED=123;
-out_folder = 'results_2018_08_16';
+kmax=5000; cache_tag_r2sum=true; r2min=0.05; SEED=123;
+out_folder = 'results_2018_08_23'; mkdir(out_folder);
 
 % QQ plots with true params
 out_file = fullfile(out_folder, [filename '.true']); 
@@ -253,6 +253,7 @@ result = [];
 if DO_FIT_UGMG
     result.univariate{1} = BGMG_cpp_fit_univariate(1, params.univariate{1}, options);
     params.univariate{1} = result.univariate{1}.params;
+    bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);  % restore fast_cost flag as BGMG_cpp_fit_univariate may change it (CI intervals are based on fast cost function)
 end
 
 result.trait1_file = trait1_file;

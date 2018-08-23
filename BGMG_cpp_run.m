@@ -312,9 +312,11 @@ result = [];
 if DO_FIT_UGMG
     result.univariate{1} = BGMG_cpp_fit_univariate(1, params.univariate{1}, options);
     params.univariate{1} = result.univariate{1}.params;
+    bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);  % restore fast_cost flag as BGMG_cpp_fit_univariate may change it (CI intervals are based on fast cost function)
     if ~isempty(trait2_file),
         result.univariate{2} = BGMG_cpp_fit_univariate(2, params.univariate{2}, options);
         params.univariate{2} = result.univariate{2}.params;
+        bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);  % restore fast_cost flag as BGMG_cpp_fit_univariate may change it (CI intervals are based on fast cost function)
         
         % Update initial approximation for bivariate fit (sig2_zero, sig2_beta)
         params.bivariate.sig2_zero = [params.univariate{1}.sig2_zero; params.univariate{2}.sig2_zero];

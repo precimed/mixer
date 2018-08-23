@@ -28,7 +28,7 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
 
     % For the last parameter, fit quadradic curve and take the minimum
     % Decide what range to include (filter out points that are too far to fit the curve)
-    if 1
+    if options.fit_full_model
         bgmglib.clear_loglike_cache();
         x0 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(result.params);
         arg_index = 3;
@@ -66,8 +66,9 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
         BGMG_cpp.log('Uncertainty estimation\n');
         %ws=warning; warning('off', 'all'); 
         bgmglib.clear_loglike_cache();
+        bgmglib.set_option('fast_cost', 1);
         [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index), options.mapparams(result.params)); 
-        result.loglike_ci_trajectory = bgmglib.extract_univariate_loglike_trajectory();
+        %result.loglike_ci_trajectory = bgmglib.extract_univariate_loglike_trajectory();
         result.ci_hess = ci_hess;
         result.ci_hess_err = ci_hess_err;
         %warning(ws);

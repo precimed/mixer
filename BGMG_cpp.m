@@ -238,7 +238,7 @@ classdef BGMG_cpp
         clear pBuffer_pivec pBuffer_sig2_zero pBuffer_sig2_beta pBuffer_cost pBuffer_rho_beta pBuffer_rho_zero
     end
     
-    % cost functions
+    % cost, pdf and power functions
     function cost = calc_univariate_cost(obj, trait_index, pi_vec, sig2_zero, sig2_beta)
         cost = calllib('bgmg', 'bgmg_calc_univariate_cost', obj.Context, trait_index, pi_vec, sig2_zero, sig2_beta); obj.check();
     end
@@ -246,6 +246,11 @@ classdef BGMG_cpp
         pBuffer = libpointer('singlePtr', zeros(length(zgrid), 1, 'single'));
         calllib('bgmg', 'bgmg_calc_univariate_pdf', obj.Context, trait_index, pi_vec, sig2_zero, sig2_beta, length(zgrid), zgrid, pBuffer);  obj.check(); 
         pdf = pBuffer.Value'; clear pBuffer
+    end
+    function svec = calc_univariate_power(obj, trait_index, pi_vec, sig2_zero, sig2_beta, zthresh, ngrid)
+        pBuffer = libpointer('singlePtr', zeros(length(ngrid), 1, 'single'));
+        calllib('bgmg', 'bgmg_calc_univariate_power', obj.Context, trait_index, pi_vec, sig2_zero, sig2_beta, zthresh, length(ngrid), ngrid, pBuffer);  obj.check(); 
+        svec = pBuffer.Value'; clear pBuffer
     end
     function cost = calc_bivariate_cost(obj, pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero)
         cost = calllib('bgmg', 'bgmg_calc_bivariate_cost', obj.Context, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero); obj.check();

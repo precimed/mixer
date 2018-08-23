@@ -254,6 +254,14 @@ double bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, f
   } CATCH_EXCEPTIONS;
 }
 
+double bgmg_calc_univariate_power(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec) {
+  try {
+    set_last_error(std::string());
+    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta); check_is_positive(length); check_is_not_null(nvec); check_is_not_null(svec);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_power(trait_index, pi_vec, sig2_zero, sig2_beta, zthresh, length, nvec, svec);
+  } CATCH_EXCEPTIONS;
+}
+
 double bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
   try {
     set_last_error(std::string());

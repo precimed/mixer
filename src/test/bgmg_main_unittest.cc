@@ -218,6 +218,17 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
     ASSERT_NEAR(zvec_pdf[i], zvec_pdf_nocache[i], 2e-7);  // 4.93722e-05 vs 4.9372218e-05 due to approximation of float as uint16_t
   }
 
+  //int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec) {
+  std::vector<float> nvec;
+  for (int n = 10; n < 1000; n += 10) nvec.push_back(n);
+  std::vector<float> svec(nvec.size(), 0.0f);
+  float zthresh = 5.45f;
+
+  calc.calc_univariate_power(trait_index, 0.2, 1.2, 0.1, zthresh, nvec.size(), &nvec[0], &svec[0]);
+  for (int i = 1; i < svec.size(); i++) ASSERT_TRUE(svec[i] > svec[i-1]);
+  if (r2min != 0) { ASSERT_NEAR(svec.front(), 0.000107377324, 1e-6); ASSERT_NEAR(svec.back(), 0.815517604, 1e-6); }
+  else {            ASSERT_NEAR(svec.front(), 0.000107204585, 1e-6); ASSERT_NEAR(svec.back(), 0.814647913, 1e-6); }
+
   calc.set_option("fast_cost", 1);
   cost = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
   ASSERT_TRUE(std::isfinite(cost));

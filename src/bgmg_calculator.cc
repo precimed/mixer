@@ -574,6 +574,83 @@ int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float
   return 0;
 }
 
+int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec) {
+  // input buffer "nvec" contains a set of sample sizes (N) to calculate power
+  // output buffer svec(n), e.i. a fraction of heritability explained by genome-wide significant SNPs, aggregated across all SNPs with corresponding weights.
+  //
+  // NB! This function uses analytical formula for the following double integral:
+  // C(z) = E(\delta^2 | z) * P(z) = \int_{z : |z| > zt} \int_{delta} p(z|delta) p(delta) delta^2 d[delta] d[z]
+  // As long as we fix the set of causal variants p(delta) is just a normal distribution with zero mean variance "delta2eff" (see code below).
+  // In this case the integral can be taken analytically, and benefit from the fact that both numerator and denominator in S(N) formula are additive across
+  // tag SNPs and across resampling iterations (1..kmax).
+
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+
+  float num_causals = pi_vec * static_cast<float>(num_snp_);
+  if ((int)num_causals >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
+  const int component_id = 0;   // univariate is always component 0.
+
+  LOG << ">calc_univariate_power(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", zthresh=" << zthresh << ", length(nvec)=" << length << ")";
+
+  if (snp_order_.empty()) find_snp_order();
+  if (cache_tag_r2sum_) {
+    find_tag_r2sum(component_id, num_causals);
+  }
+
+  SimpleTimer timer(-1);
+
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
+
+  std::valarray<double> s_numerator_global(0.0, length);
+  std::valarray<double> s_denominator_global(0.0, length);
+
+#pragma omp parallel
+  {
+    std::valarray<double> s_numerator_local(0.0, length);
+    std::valarray<double> s_denominator_local(0.0, length);
+    std::vector<float> tag_r2sum(num_tag_, 0.0f);
+
+#pragma omp for schedule(static)
+    for (int k_index = 0; k_index < k_max_; k_index++) {
+
+      if (cache_tag_r2sum_) {
+        for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+          tag_r2sum[tag_index] = (*tag_r2sum_[0])(tag_index, k_index);
+        }
+      }
+      else {
+        find_tag_r2sum_no_cache(0, num_causals, k_index, &tag_r2sum);
+      }
+
+      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+        if (weights_[tag_index] == 0) continue;
+        const double tag_weight = static_cast<double>(weights_[tag_index]);
+
+        float tag_r2sum_value = tag_r2sum[tag_index];
+        for (int n_index = 0; n_index < length; n_index++) {
+          float delta2eff = tag_r2sum_value * nvec[n_index] * sig2_beta;
+          float sig2eff = delta2eff + sig2_zero;
+          float sqrt_sig2eff = sqrt(sig2eff);
+          static const float sqrt_2 = sqrtf(2.0);
+          float numerator1 = gaussian_pdf<FLOAT_TYPE>(zthresh, sqrt_sig2eff) * 2 * delta2eff * delta2eff * zthresh / sig2eff;
+          float numerator2 = std::erfcf(zthresh / (sqrt_2 * sqrt_sig2eff)) * delta2eff;
+          s_numerator_local[n_index] += numerator1 + numerator2;
+          s_denominator_local[n_index] += delta2eff;
+        }
+      }
+    }
+#pragma omp critical
+    {
+      s_numerator_global += s_numerator_local;
+      s_denominator_global += s_denominator_local;
+    }
+  }
+
+  for (int i = 0; i < length; i++) svec[i] = static_cast<float>(s_numerator_global[i] / s_denominator_global[i]);
+  LOG << ">calc_univariate_power(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", zthresh=" << zthresh << ", length(nvec)=" << length << "), elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}
+
 double BgmgCalculator::calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));

@@ -45,25 +45,25 @@ out_folder = 'results_2018_08_23'; mkdir(out_folder);
 
 % QQ plots with true params
 out_file = fullfile(out_folder, [filename '.true']); 
-defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'}; cache_tag_r2sum = false;
 simu_params_file = ['H:\GitHub\BGMG\' filename '.params.mat']; init_result_from_out_file='';
-DO_FIT_UGMG=false; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; QQ_PLOT_BINS=1; QQ_PLOT_BINS_DOWNSCALE = 1; UGMG_cpp_run;
+DO_FIT_UGMG=false; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; QQ_PLOT_BINS=1; QQ_PLOT_BINS_DOWNSCALE = 1; POWER_PLOT=1; UGMG_cpp_run;
 
 % Fit UGMG parameters
 out_file = fullfile(out_folder, [filename '.fit']);
 defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3_hardprune_p1.mat'};
-simu_params_file = ''; init_result_from_out_file = '';
+simu_params_file = ''; init_result_from_out_file = ''; cache_tag_r2sum = true;
 DO_FIT_UGMG=true; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; UGMG_cpp_run;
 
 % QQ plots with fitted params
 out_file = fullfile(out_folder, [filename '.fit.test']);
-defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'};
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat'}; cache_tag_r2sum = false;
 simu_params_file = ''; init_result_from_out_file = fullfile(out_folder, [filename '.fit.mat']);
 DO_FIT_UGMG=false; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10; UGMG_cpp_run
 
 % Test hardprune feature
 out_file = fullfile(out_folder, [filename '.hardprune']);
-defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'};
+defvec_files = {'H:\Dropbox\shared\BGMG\defvec_HAPGEN_EUR_100K.mat', 'H:\Dropbox\shared\BGMG\defvec_hapmap3.mat'}; cache_tag_r2sum = true;
 simu_params_file = ''; init_result_from_out_file = '';
 hardprune_r2 = 0.1; hardprune_plink_ld_bin = plink_ld_bin;
 DO_FIT_UGMG=false; QQ_PLOT=false; QQ_PLOT_DOWNSCALE = 10; UGMG_cpp_run
@@ -128,11 +128,10 @@ if ~exist('QQ_PLOT_BINS', 'var'), QQ_PLOT_BINS = false; end;   % make QQ plots
 if ~exist('QQ_PLOT_BINS_DOWNSCALE', 'var'), QQ_PLOT_BINS_DOWNSCALE = 10; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('UGMG_LOGLIKE_PLOT', 'var'), UGMG_LOGLIKE_PLOT = false; end;
 if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
+if ~exist('POWER_PLOT_DOWNSCALE', 'var'), POWER_PLOT_DOWNSCALE = 10; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
 if ~exist('THREADS', 'var'), THREADS = -1; end;
-
-if POWER_PLOT, error('not yet implemented in c++ version'); end;
 
 % reference file containing mafvec, chrnumvec and posvec for all SNPs to consider in this analysis. 
 if ~exist('reference_file', 'var'), error('reference_file is required'); end;
@@ -268,6 +267,15 @@ save([out_file '.preliminary.mat'], 'result');
 BGMG_cpp.log('Results saved to %s.preliminary.mat\n', out_file);
 
 bgmglib.set_option('diag', 0);
+
+% Produce power plots
+if POWER_PLOT
+    options.downscale = POWER_PLOT_DOWNSCALE;trait_index=1;
+    figures.tot = figure;
+    plot_data = BGMG_cpp_power_plot(params.univariate{trait_index}, trait_index, options);
+    result.univariate{trait_index}.power_plot_data = plot_data;
+    print(figures.tot, sprintf('%s.power.pdf', out_file), '-dpdf')
+end
 
 % Produce QQ plots
 if QQ_PLOT

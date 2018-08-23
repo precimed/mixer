@@ -290,6 +290,7 @@ class BgmgCalculator : public TagToSnpMapping {
   double calc_univariate_cost_nocache_float(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);  // for testing single vs double precision
   double calc_univariate_cost_nocache_double(int trait_index, float pi_vec, float sig2_zero, float sig2_beta); // for testing single vs double precision
   int64_t calc_univariate_pdf(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
+  int64_t calc_univariate_power(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec);
 
   double calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   double calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);

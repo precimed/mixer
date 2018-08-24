@@ -212,6 +212,7 @@ options.verbose = true;
 options.ci_alpha = CI_ALPHA;
 options.title = TITLE;
 options.fit_full_model = FIT_FULL_MODEL;
+options.trait1_nval = median(bgmglib.nvec1);
 
 disp(options)
 

@@ -23,6 +23,7 @@
 #ifndef NLOPT_H
 #define NLOPT_H
 
+#include <stdarg.h>             /* for va_list */
 #include <stddef.h>             /* for ptrdiff_t and size_t */
 
 #ifdef __cplusplus

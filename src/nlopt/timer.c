@@ -36,6 +36,8 @@
 #if defined(_WIN32) || defined(__WIN32__)
 #  include <windows.h>
 #  define THREADLOCAL __declspec( thread )
+#else
+#  define THREADLOCAL __thread
 #endif
 
 /* return time in seconds since some arbitrary point in the past */

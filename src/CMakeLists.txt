@@ -78,6 +78,7 @@ set(SRC_TEST_LIST
 	test/bgmg_main_unittest.cc
 	test/semt_test.cc
 	test/streamvbyte_test.cc
+	test/nlopt_test.cc
 	semt/semt/VectorExpr.cpp
 	bgmg_calculator.cc
 	ld_matrix_csr.cc
@@ -86,6 +87,12 @@ set(SRC_TEST_LIST
 	TurboPFor/vint.c
 	TurboPFor/bitutil.c
 	FastDifferentialCoding/fastdelta.c
+	nlopt/nldrmd.c
+	nlopt/sbplx.c
+	nlopt/redblack.c
+	nlopt/stop.c
+	nlopt/qsort_r.c
+	nlopt/timer.c
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )

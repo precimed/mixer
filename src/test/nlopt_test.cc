@@ -14,7 +14,7 @@ double myfunc(unsigned n, const double *x, double *grad, void *my_func_data)
   assert(grad == nullptr);
   auto sqr = [](double x) {return x*x; };
   double cost = 100.0 * sqr(x[1] - sqr(x[0])) + sqr(1 - x[0]);
-  printf("%i: f(%.3f, %.3f)=%.3f\n", ++nevals, x[0], x[1], cost);
+  // printf("%i: f(%.3f, %.3f)=%.3f\n", ++nevals, x[0], x[1], cost);
   return cost;
 }
 

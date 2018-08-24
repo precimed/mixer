@@ -1,0 +1,20 @@
+Third party libraries:
+
++ boost (https://www.boost.org/)
++ gtest (https://github.com/google/googletest)
++ TurboPFor (https://github.com/powturbo/TurboPFor)
++ FastDifferentialCoding (https://github.com/lemire/FastDifferentialCoding)
+
+? semt (https://github.com/st-gille/semt) - very cool library for symbolic differentiation in C++. Turned out that we don't actually need this.
+? https://github.com/dendisuhubdy/scythe - for hessian estimation. Best option I found so far...
+? http://quadpackpp.sourceforge.net/ - header-only library to perfrom integrations
++ nlopt (https://github.com/stevengj/nlopt/)
+
+- streamvbyte (https://github.com/lemire/streamvbyte) - tried, but end up using TurboPFor
+
+================================
+Legend:
+(+) in use 
+(?) not sure perhaps we'll use it, 
+(-) no longer in use
+================================

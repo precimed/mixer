@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sstream>
 #include <boost/program_options.hpp>
+#include <boost/noncopyable.hpp>
 
 #include "bgmg.h"   // VERSION is defined here
 

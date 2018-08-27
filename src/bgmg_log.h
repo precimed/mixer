@@ -2,7 +2,7 @@
 
 #include "boost/utility.hpp"
 #include "boost/date_time/posix_time/posix_time.hpp"
-
+#include "boost/algorithm/string.hpp"
 #include <fstream>
 #include <vector>
 #include <chrono>
@@ -120,6 +120,14 @@ public:
     return (LoggerImpl::singleton() << "\n" << now << "\t" << rhs);
   }
 
+  static std::vector<std::string> tokenize_message(std::string message) {
+    std::vector<std::string> tokens;
+    const std::string separators = "\n\r";
+    boost::trim_if(message, boost::is_any_of(separators));
+    boost::split(tokens, message, boost::is_any_of(separators), boost::token_compress_on);
+    return tokens;
+  }
+
 private:
   int log_count_;  // ideally this should be boost::atomic<int>, but it's not a big deal if we loose some counts due to threading issues
 
@@ -128,3 +136,4 @@ private:
 
   }
 };
+

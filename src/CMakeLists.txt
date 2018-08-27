@@ -112,11 +112,13 @@ set(SRC_TEST_LIST
 )
 
 add_executable(bgmg-cli bgmg_main.cc)
+target_include_directories(bgmg-cli PUBLIC ${CMAKE_BINARY_DIR})
+target_include_directories(bgmg-cli PUBLIC ${CMAKE_SOURCE_DIR})
 if (MSVC)
-	target_link_libraries(bgmg-cli ${Boost_LIBRARIES_STATIC_LIBS})
+	target_link_libraries(bgmg-cli bgmg ${Boost_LIBRARIES_STATIC_LIBS})
 else (MSVC)
 	set_target_properties(bgmg-cli PROPERTIES LINK_FLAGS "-static" )
-	target_link_libraries(bgmg-cli ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
+	target_link_libraries(bgmg-cli bgmg ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
 endif (MSVC)
 
 add_executable(bgmg-test ${SRC_TEST_LIST})

@@ -315,7 +315,9 @@ void bgmg_init_log(const char* file) {
 }
 
 void bgmg_log_message(const char* message) {
-  Logger::singleton() << "=" << message;
+  std::vector<std::string> tokens = Logger::tokenize_message(message);
+  for (auto token: tokens)
+    Logger::singleton() << "=" << token;
 }
 
 int64_t bgmg_clear_loglike_cache(int context_id) {

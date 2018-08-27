@@ -1,47 +1,75 @@
 % =========================== SIMULATIONS ===========================
-folder = 'H:\work\simu_ugmg120_run12a';
-files = dir([folder, '\*run12a.fit.test.mat']);
+folder = 'H:\work\simu_ugmg120_run16';
+files = dir([folder, '\*run16.fit.mat']);
 h2_vec={'0.1', '0.4', '0.7'};
 pi_vec = {'1e-05', '0.0001', '0.001', '0.01'};
 
-failed_count = 0; pi_thresh = 2.6e-02;
+
+DO_PLOT = 0;
+
+failed_count = 0; pi_thresh = 1.0; % 2.6e-02;
 
 
 results.pi_mat = cell(length(h2_vec), length(pi_vec));
 results.sig2_beta_mat = cell(length(h2_vec), length(pi_vec));
 results.sig2_zero_mat = cell(length(h2_vec), length(pi_vec));
 results.h2_mat = cell(length(h2_vec), length(pi_vec));
-figure(123);
+if DO_PLOT, figure(123);end;
 for h2_index = 1:length(h2_vec)
     for pi_index = 1:length(pi_vec)
         results.last_pi_vec = [];
         results.last_sig2_beta = [];
         results.last_sig2_zero = [];
         results.last_h2_vec = [];
-        subplot(3,4,4*(h2_index-1)+pi_index); hold on;
-        for repi=1:1  %10
+        if DO_PLOT, subplot(3,4,4*(h2_index-1)+pi_index); hold on; end;
+        for repi=1:10
+            if h2_index==1 && pi_index==4 && repi==6, continue; end; % ci estimation crashed 
+            if h2_index==1 && pi_index==4 && repi==9, continue; end; % ci estimation crashed 
             %continue
-            fname = sprintf('simu_h2=%s_pi1u=%s_rep=%i.run12a.fit.test.mat', h2_vec{h2_index}, pi_vec{pi_index}, repi);
+            fname = sprintf('simu_h2=%s_pi1u=%s_rep=%i.run16.fit.mat', h2_vec{h2_index}, pi_vec{pi_index}, repi);
             fprintf('%s...\n', fname);
             r = load(fullfile(folder, fname));
             params = r.result.params.univariate{1};
+            ci = r.result.univariate{1}.ci;
             results.last_pi_vec(end+1, 1) = params.pi_vec;
             results.last_sig2_beta(end+1, 1) = params.sig2_beta;
             results.last_sig2_zero(end+1, 1) = params.sig2_zero;
             results.last_h2_vec(end+1, 1) = params.sig2_beta * params.pi_vec * r.result.options.total_het;
             
-            pd = r.result.univariate{1}.qq_plot_data;
+            results.last_pi_vec(end+1, 1) = ci.pi_vec.se; % odd cells = point estimate; even cells = standard error (se)
+            results.last_sig2_beta(end+1, 1) = ci.sig2_beta.se;
+            results.last_sig2_zero(end+1, 1) = ci.sig2_zero.se;
+            results.last_h2_vec(end+1, 1) = ci.h2.se;
             
-            if params.pi_vec > pi_thresh || (h2_index == 2 && pi_index == 1 && repi == 9), continue; end
-            plot(pd.data_logpvec, pd.hv_logp, '-b', pd.model_logpvec, pd.hv_logp, '-r', 0:7, 0:7, '--k')
-            xlim([0 7]); ylim('auto');
+            if isfield(r.result.univariate{1}, 'qq_plot_data')
+                pd = r.result.univariate{1}.qq_plot_data;
+
+                % if params.pi_vec > pi_thresh || (h2_index == 2 && pi_index == 1 && repi == 9), continue; end
+                plot(pd.data_logpvec, pd.hv_logp, '-b', pd.model_logpvec, pd.hv_logp, '-r', 0:7, 0:7, '--k')
+                xlim([0 7]); ylim('auto');
+            end
         end
-        ylim auto
-        legend('data', 'model', 'null', 'Location', 'NorthWest');
+        if DO_PLOT, ylim auto; legend('data', 'model', 'null', 'Location', 'NorthWest'); end;
         results.pi_mat{h2_index, pi_index} = results.last_pi_vec;
         results.sig2_beta_mat{h2_index, pi_index} = results.last_sig2_beta;
         results.sig2_zero_mat{h2_index, pi_index} = results.last_sig2_zero;
         results.h2_mat{h2_index, pi_index} = results.last_h2_vec;
+    end
+end
+
+val_name={'pi', 'sig2_beta', 'sig2_zero', 'h2'};
+for val_index = 1:length(val_name)
+    val_field = [val_name{val_index}, '_mat'];
+    fprintf('\n%s:\n', val_name{val_index});
+    for h2_index = 1:length(h2_vec)
+        for pi_index = 1:length(pi_vec)
+            vals = results.(val_field); vals=vals{h2_index, pi_index};
+            mean_vals = mean(vals(1:2:end));
+            std_vals = std(vals(1:2:end));
+            mean_se = mean(vals(2:2:end));
+            overest_frac = mean_se / std_vals;
+            fprintf('h2=%s pi=%s mean(val_hat)=%.3e, std(val_hat)=%.3e, mean(se_hat)=%.3e, overestimate_fraction=%.3f, #runs=%i\n',  h2_vec{h2_index}, pi_vec{pi_index}, mean_vals, std_vals, mean_se, overest_frac, length(vals)/2);
+        end
     end
 end
 

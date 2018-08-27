@@ -68,7 +68,6 @@ if (OPENMP_FOUND)
 endif()
 
 set(SRC_LIST
-	source.cc
 	bgmg_calculator.cc
 	ld_matrix_csr.cc
 	bgmg.h
@@ -81,66 +80,50 @@ set(SRC_LIST
 	TurboPFor/vsimple.c
 	TurboPFor/vint.c
 	TurboPFor/bitutil.c
-	FastDifferentialCoding/fastdelta.c
-)
-
-add_library(bgmg SHARED ${SRC_LIST})
-target_link_libraries(bgmg ${Boost_LIBRARIES_STATIC_LIBS})
-
-add_library(bgmg-static STATIC ${SRC_LIST})
-set_target_properties(bgmg-static PROPERTIES LINK_FLAGS "-static" )
-
-set(SRC_TEST_LIST
-	test/bgmg_main_unittest.cc
-	test/semt_test.cc
-	test/streamvbyte_test.cc
-	test/nlopt_test.cc
-	semt/semt/VectorExpr.cpp
-	bgmg_calculator.cc
-	ld_matrix_csr.cc
-	bgmg_log.cc
-	TurboPFor/vsimple.c
-	TurboPFor/vint.c
-	TurboPFor/bitutil.c
-	FastDifferentialCoding/fastdelta.c
 	nlopt/nldrmd.c
 	nlopt/sbplx.c
 	nlopt/redblack.c
 	nlopt/stop.c
 	nlopt/qsort_r.c
 	nlopt/timer.c
-	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
-	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
+	FastDifferentialCoding/fastdelta.c
 )
 
-add_executable(bgmg-cli bgmg_main.cc)
-target_include_directories(bgmg-cli PUBLIC ${CMAKE_BINARY_DIR})
-target_include_directories(bgmg-cli PUBLIC ${CMAKE_SOURCE_DIR})
-if (MSVC)
-	target_link_libraries(bgmg-cli bgmg ${Boost_LIBRARIES_STATIC_LIBS})
-else (MSVC)
-	set_target_properties(bgmg-cli PROPERTIES LINK_FLAGS "-static" )
-	target_link_libraries(bgmg-cli bgmg-static ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
-endif (MSVC)
-
-add_executable(bgmg-test ${SRC_TEST_LIST})
-target_link_libraries(bgmg-test ${Boost_LIBRARIES_STATIC_LIBS}) 
-
-target_include_directories(bgmg PUBLIC ${CMAKE_BINARY_DIR})
-target_include_directories(bgmg PUBLIC ${CMAKE_SOURCE_DIR})
-target_include_directories(bgmg PUBLIC ${PROJECT_SOURCE_DIR}/semt)
-target_compile_definitions(bgmg PRIVATE USE_SSE)
-
+add_library(bgmg-static STATIC ${SRC_LIST})
+set_target_properties(bgmg-static PROPERTIES LINK_FLAGS "-static" )
 target_include_directories(bgmg-static PUBLIC ${CMAKE_BINARY_DIR})
 target_include_directories(bgmg-static PUBLIC ${CMAKE_SOURCE_DIR})
 target_include_directories(bgmg-static PUBLIC ${PROJECT_SOURCE_DIR}/semt)
 target_compile_definitions(bgmg-static PRIVATE USE_SSE)
 
+add_library(bgmg SHARED source.cc)
+target_link_libraries(bgmg bgmg-static ${Boost_LIBRARIES_STATIC_LIBS})
+
+add_executable(bgmg-cli source.cc bgmg_main.cc)
+if (MSVC)
+	target_link_libraries(bgmg-cli bgmg-static ${Boost_LIBRARIES_STATIC_LIBS})
+	target_compile_definitions(bgmg-cli PRIVATE BGMG_STATIC_DEFINE)
+else (MSVC)
+	set_target_properties(bgmg-cli PROPERTIES LINK_FLAGS "-static" )
+	target_link_libraries(bgmg-cli bgmg-static ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
+endif (MSVC)
+
+set(SRC_TEST_LIST
+	source.cc
+	test/bgmg_main_unittest.cc
+	test/semt_test.cc
+	test/streamvbyte_test.cc
+	test/nlopt_test.cc
+	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
+	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
+)
+add_executable(bgmg-test ${SRC_TEST_LIST})
+target_link_libraries(bgmg-test bgmg-static ${Boost_LIBRARIES_STATIC_LIBS}) 
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest/include)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR})
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/semt)
-target_compile_definitions(bgmg-test PRIVATE USE_SSE)
+target_compile_definitions(bgmg-test PRIVATE BGMG_STATIC_DEFINE)
 
 include(GenerateExportHeader)
 generate_export_header(bgmg

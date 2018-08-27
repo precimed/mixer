@@ -67,6 +67,13 @@ if (OPENMP_FOUND)
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
+if (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
+    ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+endif (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
+      ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
+
 set(SRC_LIST
 	bgmg_calculator.cc
 	ld_matrix_csr.cc

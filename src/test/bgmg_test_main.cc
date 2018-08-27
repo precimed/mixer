@@ -29,7 +29,7 @@
 //
 
 #include <stdio.h>
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 #include "bgmg_log.h"
 
 GTEST_API_ int main(int argc, char **argv) {

@@ -89,6 +89,7 @@ int64_t bgmg_set_weights(int context_id, int length, float* values) {
 
 int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_indices) {
   try {
+    if (!LoggerImpl::singleton().is_initialized()) LoggerImpl::singleton().init("bgmg.log");
     set_last_error(std::string());
     check_is_positive(num_snp); check_is_positive(num_tag); check_is_not_null(tag_indices);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_tag_indices(num_snp, num_tag, tag_indices);
@@ -315,6 +316,7 @@ void bgmg_init_log(const char* file) {
 }
 
 void bgmg_log_message(const char* message) {
+  if (!LoggerImpl::singleton().is_initialized()) LoggerImpl::singleton().init("bgmg.log");
   std::vector<std::string> tokens = Logger::tokenize_message(message);
   for (auto token: tokens)
     Logger::singleton() << "=" << token;

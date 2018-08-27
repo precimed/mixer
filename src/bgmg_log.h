@@ -35,7 +35,7 @@ private:
 class LoggerImpl : boost::noncopyable {
 public:
   static LoggerImpl& singleton() {
-    static LoggerImpl instance("bgmg.log");
+    static LoggerImpl instance;
     return instance;
   }
 
@@ -59,6 +59,10 @@ private:
   }
 
 public:
+  bool is_initialized() {
+    return log_file_.is_open();
+  }
+
   void init(std::string path) {
     if (log_file_.is_open()) {
       log_file_.close();

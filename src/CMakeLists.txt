@@ -121,7 +121,7 @@ set(SRC_TEST_LIST
 	test/semt_test.cc
 	test/streamvbyte_test.cc
 	test/nlopt_test.cc
-	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest_main.cc
+	test/bgmg_test_main.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )
 add_executable(bgmg-test ${SRC_TEST_LIST})

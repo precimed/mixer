@@ -26,6 +26,8 @@ DLL_PUBLIC void bgmg_init_log(const char* file);
 DLL_PUBLIC void bgmg_log_message(const char* message);
 DLL_PUBLIC int64_t bgmg_dispose(int context_id);
 DLL_PUBLIC const char* bgmg_status(int context_id);
+DLL_PUBLIC int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, const char* chr_labels, const char* trait1_file, const char* trait2_file);
+DLL_PUBLIC int64_t bgmg_convert_plink_ld(int context_id, const char* plink_ld_gz, const char* plink_ld_bin);
 DLL_PUBLIC int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_indices);
 DLL_PUBLIC int64_t bgmg_get_num_tag(int context_id);
 DLL_PUBLIC int64_t bgmg_get_num_snp(int context_id);

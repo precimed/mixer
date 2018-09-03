@@ -81,6 +81,8 @@ set(SRC_LIST
 	ld_matrix_csr.h
 	bgmg_log.cc
 	bgmg_log.h
+	bgmg_parse.cc
+	bgmg_parse.h
 	fmath.hpp
 	semt/semt/VectorExpr.cpp
 	TurboPFor/vsimple.c

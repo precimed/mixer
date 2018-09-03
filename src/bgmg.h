@@ -31,6 +31,20 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_dispose(int context_id);
   DLL_PUBLIC const char* bgmg_status(int context_id);
 
+  // Parse input files
+  // - bim - plink .bim files (can have chromosome label @)
+  // - frq - plink .frq files (can have chromosome label @)
+  // - chr_labels - list of chromosome labels (can be empty, default to 1:22)
+  // - trait1_file - summary stats (must have SNP, A1, A2, Z, N)
+  // - trait2_file
+  // Automatically calls the following:
+  // - set_tag_indices
+  // - set_chrnumvec
+  // - set_zvec, set_nvec (if trait1_file and/or trait2_file is available)
+  // - set_mafvec (if frq file is specified)
+  DLL_PUBLIC int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, const char* chr_labels, const char* trait1_file, const char* trait2_file);
+  DLL_PUBLIC int64_t bgmg_convert_plink_ld(int context_id, const char* plink_ld_gz, const char* plink_ld_bin);
+
   // API to work with "defvec". Here 
   // - num_snp is how many SNPs there is in the reference (particularly, in LD files and mafvec)
   // - num_tag is how many SNPs there is in the GWAS (zvec, nvec, weights)

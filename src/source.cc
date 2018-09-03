@@ -376,3 +376,24 @@ int64_t bgmg_retrieve_chrnumvec(int context_id, int length, int* buffer) {
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_chrnumvec(length, buffer);
   } CATCH_EXCEPTIONS;
 }
+
+int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, const char* chr_labels, const char* trait1_file, const char* trait2_file) {
+  try {
+    set_last_error(std::string());
+    check_is_not_null(bim_file);
+    check_is_not_null(frq_file);
+    check_is_not_null(chr_labels);
+    check_is_not_null(trait1_file);
+    check_is_not_null(trait2_file);
+    return BgmgCalculatorManager::singleton().Get(context_id)->init(bim_file, frq_file, chr_labels, trait1_file, trait2_file);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_convert_plink_ld(int context_id, const char* plink_ld_gz, const char* plink_ld_bin) {
+  try {
+    set_last_error(std::string());
+    check_is_not_null(plink_ld_gz);
+    check_is_not_null(plink_ld_bin);
+    return BgmgCalculatorManager::singleton().Get(context_id)->convert_plink_ld(plink_ld_gz, plink_ld_bin);
+  } CATCH_EXCEPTIONS;
+}

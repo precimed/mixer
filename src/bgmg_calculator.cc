@@ -39,6 +39,8 @@
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/filesystem.hpp>
 
 // Include namespace SEMT & global operators.
 #define SEMT_DISABLE_PRINT 0
@@ -47,6 +49,7 @@
 #include "semt/Shortcuts.h"
 
 #include "bgmg_log.h"
+#include "bgmg_parse.h"
 #include "fmath.hpp"
 
 #define FLOAT_TYPE float
@@ -1729,5 +1732,70 @@ int64_t BgmgCalculator::retrieve_ld_r2_chr(int chr_label, int length, int* snp_i
     }
   }
 
+  return 0;
+}
+
+int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::string chr_labels, std::string trait1_file, std::string trait2_file) {
+  std::vector<std::string> chr_labels_vector, bim_files, frq_files;
+
+  if (chr_labels.empty()) {
+    for (int i = 1; i <= 22; i++)
+      chr_labels_vector.push_back(boost::lexical_cast<std::string>(i));
+  } else {
+    const std::string separators = " ,;\t\n\r";
+    boost::trim_if(chr_labels, boost::is_any_of(separators));
+    boost::split(chr_labels_vector, chr_labels, boost::is_any_of(separators), boost::token_compress_on);
+  }
+
+  if (bim_file.find("@") != std::string::npos) {
+    for (auto chrlabel : chr_labels_vector) {
+      bim_files.push_back(bim_file);
+      boost::replace_all(bim_files.back(), "@", chrlabel);
+    }
+  }
+  else {
+    bim_files.push_back(bim_file);
+  }
+
+  if (frq_file.find("@") != std::string::npos) {
+    for (auto chrlabel : chr_labels_vector) {
+      frq_files.push_back(frq_file);
+      boost::replace_all(frq_files.back(), "@", chrlabel);
+    }
+  }
+  else if (!frq_file.empty()) {
+    frq_files.push_back(frq_file);
+  }
+
+  for (auto& bim_file : bim_files) {
+    if (!boost::filesystem::exists(bim_file)) {
+      std::stringstream ss; ss << "ERROR: input file " << bim_file << " does not exist";
+      BGMG_THROW_EXCEPTION(std::runtime_error(ss.str()));
+    }
+  }
+
+  for (auto& frq_file : frq_files) {
+    if (!boost::filesystem::exists(frq_file)) {
+      std::stringstream ss; ss << "ERROR: input file " << frq_file << " does not exist";
+      BGMG_THROW_EXCEPTION(std::runtime_error(ss.str()));
+    }
+  }
+
+  bim_file_.clear();
+  bim_file_.read(bim_files);
+  bim_file_.find_snp_to_index_map();
+
+  FrqFile frq_file_object(bim_file_, frq_files);
+  frq_file_object.align_to_reference(bim_file_);
+
+  SumstatFile trait1_file_object;
+  trait1_file_object.read(bim_file_, trait1_file);
+
+  return 0;
+}
+
+int64_t BgmgCalculator::convert_plink_ld(std::string plink_ld_gz, std::string plink_ld_bin) {
+  PlinkLdFile plink_ld_file(bim_file_, plink_ld_gz);
+  plink_ld_file.save_as_binary(plink_ld_bin);
   return 0;
 }

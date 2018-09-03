@@ -29,6 +29,7 @@
 #include "boost/utility.hpp"
 
 #include "bgmg_log.h"
+#include "bgmg_parse.h"
 #include "ld_matrix_csr.h"
 
 // Singleton class to manage a collection of objects, identifiable with some integer ID.
@@ -222,7 +223,10 @@ class BgmgCalculator : public TagToSnpMapping {
  public:
   BgmgCalculator();
   virtual ~BgmgCalculator() {}
-  
+
+  int64_t init(std::string bim_file, std::string frq_file, std::string chr_labels, std::string trait1_file, std::string trait2_file);
+  int64_t convert_plink_ld(std::string plink_ld_gz, std::string plink_ld_bin);  // require init() to be called first, e.i. doesn't work after set_tag_indices.
+
   // num_snp = total size of the reference (e.i. the total number of genotyped variants)
   // num_tag = number of tag variants to include in the inference (must be a subset of the reference)
   // indices = array of size num_tag, containing indices from 0 to num_snp-1
@@ -360,6 +364,8 @@ class BgmgCalculator : public TagToSnpMapping {
   void check_num_tag(int length);
   double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+
+  BimFile bim_file_;
 
   template<typename T>
   friend double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, BgmgCalculator& rhs);

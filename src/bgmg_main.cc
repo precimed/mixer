@@ -20,6 +20,8 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <boost/iostreams/stream.hpp>
+#include <boost/iostreams/filtering_stream.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 
 #include "bgmg.h"   // VERSION is defined here
 
@@ -128,116 +130,38 @@ void describe_bgmg_options(BgmgOptions& s) {
   if (!s.out.empty()) LOG << "\t--out " << s.out << " \\";
 }
 
-// Perform concurrent parsing of a single text file, keeping track of lines.
-// ResultT - result type
-// ParserT - type that implements the actual parsing, exposed as follows:
-//  void push(std::string& line);  - remember a line (don't parse it yet)
-//  void parse();                  - do the actual parsing
-//  void flush(ResultT* result, int first_line_index);   - append result to container
-// ParserT must be reusable (e.i. support multiple sequences of push()->parse()->flush()->push()->...
-// parse_input_in_parallel guaranties that each parse() will operate on a subsequent set of lines from the input file.
-// 0-based index of the first line per chunk is passed to flush() as first_line_index.
-template <typename ResultT, typename ParserT>
-void parse_input_in_parallel(std::string filename, int lines_per_chunk, ResultT* result) {
-  std::mutex read_access;
-  std::mutex write_access;
-
-  int global_line_no = 0;
-  ifstream_or_cin stream_or_cin(filename);
-  std::istream& infile = stream_or_cin.get_stream();
-
-  int num_threads;
-#pragma omp parallel
-#pragma omp master  
-  num_threads = omp_get_num_threads();
-
-  auto func = [&infile, &read_access, &write_access, &global_line_no, lines_per_chunk, filename, result]() {
-    int first_line_index = 0;
-    ParserT parser;
-    while (true) {
-      {
-        std::lock_guard<std::mutex> guard(read_access);
-        if (infile.eof()) break;
-        first_line_index = global_line_no;
-        for (int line_index = 0; line_index < lines_per_chunk; line_index++) {
-          std::string line;
-          std::getline(infile, line);
-          if (infile.eof()) break;
-          global_line_no++;
-          parser.push(line);
-        }
-      }
-
-      parser.parse();
-
-      {
-        std::lock_guard<std::mutex> guard(write_access);
-        parser.flush(result, first_line_index);
-      }
-    }
-  };
-
-  // The func may throw an exception if input file is malformed.
-  // This exception will be re-thrown on the main thread.
-  // http://stackoverflow.com/questions/14222899/exception-propagation-and-stdfuture
-  std::vector<std::shared_future<void>> tasks;
-  for (int i = 0; i < num_threads; i++) tasks.push_back(std::move(std::async(std::launch::async, func)));
-  for (int i = 0; i < num_threads; i++) tasks[i].get();
-}
-
-class BimFile;
-class BimFileParser {
-public:
-  void push(std::string& line) { lines_.push_back(line); }
-  void parse() {
-    const std::string separators = " \t\n\r";
-    std::vector<std::string> tokens;
-
-    chr_label_.resize(lines_.size());
-    snp_.resize(lines_.size());
-    gp_.resize(lines_.size());
-    bp_.resize(lines_.size());
-    a1_.resize(lines_.size());
-    a2_.resize(lines_.size());
-
-    for (int line_index = 0; line_index < lines_.size(); line_index++) {
-      boost::trim_if(lines_[line_index], boost::is_any_of(separators));
-      boost::split(tokens, lines_[line_index], boost::is_any_of(separators), boost::token_compress_on);
-
-      try {
-        chr_label_[line_index] = stoi(tokens[0]);  // must not use stream or boost::lexical_cast (result in some lock contention)
-        snp_[line_index] = tokens[1];
-        gp_[line_index] = stof(tokens[2]);
-        bp_[line_index] = stoi(tokens[3]);
-        a1_[line_index] = tokens[4];
-        a2_[line_index] = tokens[5];
-      }
-      catch (...) {
-        std::stringstream ss;
-        ss << "Error parsing line #" << (line_index + 1) << ": " << lines_[line_index];
-        if (line_index == 0) ss << "\nNB! bim files must not contain header line (that's the definition from plink).";
-        throw std::runtime_error(ss.str());
-      }
-    }
-  }
-  void flush(BimFile* bimfile, int line_start_index);
-
-private:
-  std::string filename_;
-  std::vector<std::string> lines_;
-  std::vector<int> chr_label_;
-  std::vector<std::string> snp_;
-  std::vector<float> gp_;
-  std::vector<int> bp_;
-  std::vector<std::string> a1_;
-  std::vector<std::string> a2_;
-};
-
 class BimFile {
 public:
   BimFile(std::string filename) {
     LOG << "Reading " << filename << "...";
-    parse_input_in_parallel<BimFile, BimFileParser>(filename, 100000, this);
+
+    std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);
+    std::stringstream ss;
+    int line_no = 0;
+    boost::iostreams::filtering_istream in;
+    if (boost::algorithm::ends_with(filename, ".gz")) in.push(boost::iostreams::gzip_decompressor());
+    in.push(file);
+    for (std::string str; std::getline(in, str); )
+    {
+      line_no++;
+      int chr_label, bp;
+      float gp;
+      std::string snp, a1, a2;
+      ss.str(str);
+      ss >> chr_label >> snp >> gp >> bp >> a1 >> a2; 
+      if (ss.fail()) {
+        std::stringstream error_str;
+        error_str << "Error parsing " << filename << ":" << line_no << " ('" << str << "')";
+        throw std::invalid_argument(error_str.str());
+      }
+      chr_label_.push_back(chr_label);
+      snp_.push_back(snp);
+      gp_.push_back(gp);
+      bp_.push_back(bp);
+      a1_.push_back(a1);
+      a2_.push_back(a2);
+    }
+
     LOG << "Found " << chr_label_.size() << " variants.\n";
   }
 
@@ -250,26 +174,6 @@ private:
   std::vector<std::string> a2_;
   friend class BimFileParser;
 };
-
-void BimFileParser::flush(BimFile* bimfile, int first_line_index) {
-  const int capacity = std::max(bimfile->chr_label_.size(), first_line_index + lines_.size());
-  bimfile->chr_label_.resize(capacity);
-  bimfile->snp_.resize(capacity);
-  bimfile->gp_.resize(capacity);
-  bimfile->bp_.resize(capacity);
-  bimfile->a1_.resize(capacity);
-  bimfile->a2_.resize(capacity);
-  for (int i = 0; i < lines_.size(); i++) {
-    bimfile->chr_label_[first_line_index + i] = chr_label_[i];
-    bimfile->snp_[first_line_index + i] = snp_[i];
-    bimfile->gp_[first_line_index + i] = gp_[i];
-    bimfile->bp_[first_line_index + i] = bp_[i];
-    bimfile->a1_[first_line_index + i] = a1_[i];
-    bimfile->a2_[first_line_index + i] = a2_[i];
-  }
-
-  lines_.resize(0); // never reduce the actual capacity
-}
 
 void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
   // Validate --bim option

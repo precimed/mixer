@@ -10,6 +10,7 @@
 #include <fstream>
 #include <future>
 #include <map>
+#include <limits>
 
 #include <boost/program_options.hpp>
 #include <boost/noncopyable.hpp>
@@ -29,39 +30,10 @@
 namespace po = boost::program_options;
 using boost::iostreams::mapped_file_source;
 
-// Copied from https://github.com/bigartm/bigartm/blob/master/src/artm/utility/ifstream_or_cin.h
-class ifstream_or_cin {
-public:
-  explicit ifstream_or_cin(const std::string& filename) {
-    if (filename == "-")  // read from std::cin
-      return;
-
-    if (!boost::filesystem::exists(filename))
-      throw std::runtime_error("File " + filename + " does not exist.");
-
-    if (boost::filesystem::exists(filename) && !boost::filesystem::is_regular_file(filename))
-      throw std::runtime_error("File " + filename + " is not regular (probably it's a directory).");
-
-    file_.open(filename);
-  }
-
-  std::istream& get_stream() { return file_.is_open() ? file_ : std::cin; }
-
-  size_t size() {
-    if (!file_.is_open()) {
-      return 0;
-    }
-
-    size_t pos = file_.tellg();
-    file_.seekg(0, std::ios::end);
-    size_t size = file_.tellg();
-    file_.seekg(pos, std::ios::beg);
-    return size;
-  }
-
-private:
-  boost::iostreams::stream<mapped_file_source> file_;
-};
+/*
+./bgmg_cli.exe --bim-chr H:/GitHub/BGMG/src/11M_bim/chr@.bim.gz --plink-ld H:/work/hapgen_ldmat2_plink/1000Genome_ldmat_p01_SNPwind50k_chr22.ld.gz
+./bgmg_cli.exe --bim-chr H:/GitHub/BGMG/src/11M_bim/chr@.bim.gz --frq-chr H:/GitHub/BGMG/src/11M_bim/chr@.frq
+*/
 
 class BgmgCpp {
 public:
@@ -123,7 +95,10 @@ void log_header(int argc, char *argv[]) {
 struct BgmgOptions {
   std::string bim;
   std::string bim_chr;
+  std::string frq;
+  std::string frq_chr;
   std::vector<std::string> bim_files;
+  std::vector<std::string> frq_files;
   std::vector<std::string> chr_labels;
   std::string out;
   std::string plink_ld;
@@ -133,6 +108,8 @@ void describe_bgmg_options(BgmgOptions& s) {
   LOG << "Options in effect (after applying default setting to non-specified parameters):";
   if (!s.bim.empty()) LOG << "\t--bim " << s.bim << " \\";
   if (!s.bim_chr.empty()) LOG << "\t--bim-chr " << s.bim_chr << " \\";
+  if (!s.frq.empty()) LOG << "\t--frq " << s.frq << " \\";
+  if (!s.frq_chr.empty()) LOG << "\t--frq-chr " << s.frq_chr << " \\";
   if (!s.out.empty()) LOG << "\t--out " << s.out << " \\";
   if (!s.plink_ld.empty()) LOG << "\t--plink-ld " << s.plink_ld << " \\";
 }
@@ -141,6 +118,25 @@ class BimFile {
 public:
   BimFile() {}
   BimFile(std::string filename) { read(filename); }
+
+  void find_snp_to_index_map() {
+    snp_to_index_.clear();
+    for (int i = 0; i < size(); i++) {
+      if (snp_to_index_.find(snp_[i]) != snp_to_index_.end()) {
+        std::stringstream error_str;
+        error_str << "Reference contains duplicated variant names (" << snp_[i] << ")";
+        throw std::invalid_argument(error_str.str());
+      }
+
+      snp_to_index_.insert(std::pair<std::string, int>(snp_[i], i));
+    }
+  }
+
+  int snp_index(const std::string& snp) const {
+    auto iter = snp_to_index_.find(snp);
+    if (iter == snp_to_index_.end()) return -1;
+    return iter->second;
+  }
 
   void read(std::string filename) {
     //LOG << "Reading " << filename << "...";
@@ -194,6 +190,15 @@ public:
     for (int i = 0; i < filenames.size(); i++)
       bim_files[i].read(filenames[i]);
 
+    size_t total_size = 0;
+    for (int i = 0; i < filenames.size(); i++) total_size += bim_files[i].size();
+    chr_label_.reserve(total_size);
+    snp_.reserve(total_size);
+    gp_.reserve(total_size);
+    bp_.reserve(total_size);
+    a1_.reserve(total_size);
+    a2_.reserve(total_size);
+
     for (int i = 0; i < filenames.size(); i++) {
       chr_label_.insert(chr_label_.end(), bim_files[i].chr_label_.begin(), bim_files[i].chr_label_.end());
       snp_.insert(snp_.end(), bim_files[i].snp_.begin(), bim_files[i].snp_.end());
@@ -221,16 +226,12 @@ private:
   std::vector<int> bp_;
   std::vector<std::string> a1_;
   std::vector<std::string> a2_;
+  std::map<std::string, int> snp_to_index_;
 };
 
 class PlinkLdFile {
 public:
   PlinkLdFile(const BimFile& bim, std::string filename) {
-    std::map<std::string, int> snp_to_index;
-    for (int i = 0; i < bim.size(); i++) {
-      snp_to_index.insert(std::pair<std::string, int>(bim.snp()[i], i));
-    }
-
     const std::string separators = " \t\n\r";
     std::vector<std::string> tokens;
 
@@ -266,15 +267,15 @@ public:
         throw std::invalid_argument(error_str.str());
       }
 
-      auto iter_a = snp_to_index.find(snp_a);
-      auto iter_b = snp_to_index.find(snp_b);
-      if (iter_a == snp_to_index.end() || iter_b == snp_to_index.end()) {
+      int snpA_index = bim.snp_index(snp_a);
+      int snpB_index = bim.snp_index(snp_b);
+      if (snpA_index < 0 || snpB_index < 0) {
         lines_not_match++;
         continue;
       }
 
-      snpA_index_.push_back(iter_a->second);
-      snpB_index_.push_back(iter_b->second);
+      snpA_index_.push_back(snpA_index);
+      snpB_index_.push_back(snpB_index);
       r2_.push_back(r2);
 
       if (line_no % 100000 == 0) {
@@ -303,6 +304,112 @@ private:
   std::vector<int> snpA_index_;
   std::vector<int> snpB_index_;
   std::vector<float> r2_;
+};
+
+class FrqFile {
+public:
+  FrqFile() {
+  }
+  FrqFile(const BimFile& bim, std::string filename) {
+    read(bim, filename);
+  }
+
+  void read(const BimFile& bim, std::string filename) {
+    const std::string separators = " \t\n\r";
+    std::vector<std::string> tokens;
+
+    std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);
+    int line_no = 0;
+    int lines_not_match = 0;
+    boost::iostreams::filtering_istream in;
+    if (boost::algorithm::ends_with(filename, ".gz")) in.push(boost::iostreams::gzip_decompressor());
+    in.push(file);
+    for (std::string str; std::getline(in, str); )
+    {
+      line_no++;
+
+      if (line_no == 1) continue;  // skip header
+
+                                   //  CHR           SNP   A1   A2          MAF  NCHROBS
+                                   // 1   rs376342519 CCGCCGTTGCAAAGGCGCGCCG    C     0.005964     1006
+
+      std::string snp;
+      float frq;
+
+      boost::trim_if(str, boost::is_any_of(separators));
+      boost::split(tokens, str, boost::is_any_of(separators), boost::token_compress_on);
+      try {
+        snp = snp = tokens[1];
+        frq = stof(tokens[4]);
+      }
+      catch (...) {
+        std::stringstream error_str;
+        error_str << "Error parsing " << filename << ":" << line_no << " ('" << str << "')";
+        throw std::invalid_argument(error_str.str());
+      }
+
+      int snp_index = bim.snp_index(snp);
+      if (snp_index < 0) {
+        lines_not_match++;
+        continue;
+      }
+
+      snp_index_.push_back(snp_index);
+      frq_.push_back(frq);
+    }
+
+    LOG << "Parsed " << frq_.size() << " frq values from " << filename;
+    if (lines_not_match) LOG << "[WARNING] " << lines_not_match << " lines ignored because SNP rs# were not found in the reference";
+  }
+
+  FrqFile(const BimFile& bim, std::vector<std::string> filenames) {
+    LOG << "Construct frq from " << filenames.size() << " files...";
+    std::vector<FrqFile> frq_files;
+    frq_files.resize(filenames.size());
+
+#pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < filenames.size(); i++)
+      frq_files[i].read(bim, filenames[i]);
+
+    size_t total_size = 0;
+    for (int i = 0; i < filenames.size(); i++) total_size += frq_files[i].frq_.size();
+    snp_index_.reserve(total_size);
+    frq_.reserve(total_size);
+
+    for (int i = 0; i < filenames.size(); i++) {
+      snp_index_.insert(snp_index_.end(), frq_files[i].snp_index_.begin(), frq_files[i].snp_index_.end());
+      frq_.insert(frq_.end(), frq_files[i].frq_.begin(), frq_files[i].frq_.end());
+    }
+
+    LOG << "Found " << snp_index_.size() << " frq values in total.";
+  }
+
+  void align_to_reference(const BimFile& bim) {
+    std::vector<float> new_frq(bim.size(), std::numeric_limits<float>::infinity());
+    for (int i = 0; i < frq_.size(); i++) {
+      new_frq[snp_index_[i]] = frq_[i];
+    }
+    frq_.swap(new_frq);
+    snp_index_.swap(std::vector<int>());
+
+    for (int i = 0; i < frq_.size(); i++) {
+      if (!std::isfinite(frq_[i])) {
+        std::stringstream error_str;
+        error_str << "Variant " << bim.snp()[i] << " is not present in .frq files";
+        throw std::runtime_error(error_str.str());
+      }
+    }
+  }
+
+private:
+  std::vector<int> snp_index_;
+  std::vector<float> frq_;
+};
+
+class SumstatsFile {
+  // N, Z, SNP, A1, A2
+ public:
+ private:
 };
 
 void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
@@ -335,14 +442,43 @@ void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
     throw std::runtime_error(ss.str());
   }
 
-  if (!bgmg_options.plink_ld.empty() && !boost::filesystem::exists(bgmg_options.plink_ld)) {
-    std::stringstream ss; ss << "ERROR: input file " << bgmg_options.plink_ld << " does not exist";
-    throw std::runtime_error(ss.str());
-  }
-
   // Validate --out option
   if (bgmg_options.out.empty())
     throw std::invalid_argument(std::string("ERROR: --out option must be specified"));
+
+  // Validate --plink-ld option, and stop further validation if plink_ld is enabled.
+  if (!bgmg_options.plink_ld.empty()) {
+    if (!boost::filesystem::exists(bgmg_options.plink_ld)) {
+      std::stringstream ss; ss << "ERROR: input file " << bgmg_options.plink_ld << " does not exist";
+      throw std::runtime_error(ss.str());
+    }
+
+    return;
+  }
+
+  // Validate --frq / --frq-chr option
+  if (bgmg_options.frq.empty() && bgmg_options.frq_chr.empty())
+    throw std::invalid_argument(std::string("ERROR: Either --frq or --frq-chr must be specified"));
+
+  if (!bgmg_options.frq_chr.empty()) {
+    if (!boost::contains(bgmg_options.frq_chr, "@"))
+      throw std::invalid_argument(std::string("ERROR: --frq-chr must have @ to indicate location of chr label"));
+
+    for (auto chrlabel : bgmg_options.chr_labels) {
+      bgmg_options.frq_files.push_back(bgmg_options.frq_chr);
+      boost::replace_all(bgmg_options.frq_files.back(), "@", chrlabel);
+    }
+  }
+  else {
+    bgmg_options.frq_files.push_back(bgmg_options.frq);
+  }
+
+  for (auto& frq_file : bgmg_options.frq_files) {
+    if (!boost::filesystem::exists(frq_file)) {
+      std::stringstream ss; ss << "ERROR: input file " << frq_file << " does not exist";
+      throw std::runtime_error(ss.str());
+    }
+  }
 }
 
 int main(int argc, char *argv[]) {
@@ -353,6 +489,8 @@ int main(int argc, char *argv[]) {
       ("help,h", "produce this help message")
       ("bim", po::value(&bgmg_options.bim), "Path to .bim file that defines the reference set of SNPs")
       ("bim-chr", po::value(&bgmg_options.bim_chr), "Path to .bim files, split per chromosome. Use @ symbol to indicate location of chromosome label.")
+      ("frq", po::value(&bgmg_options.frq), "Path to .frq file that defines the minor allele frequency for the reference set of SNPs")
+      ("frq-chr", po::value(&bgmg_options.frq_chr), "Path to .frq files, split per chromosome. Use @ symbol to indicate location of chromosome label.")
       ("plink-ld", po::value(&bgmg_options.plink_ld), "Path to plink .ld.gz file to convert into BGMG binary format.")
       ("chr-labels", po::value(&bgmg_options.chr_labels)->multitoken(), "Set of chromosome labels. Defaults to '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22'")
       ("out", po::value(&bgmg_options.out)->default_value("bgmg"),
@@ -382,16 +520,22 @@ int main(int argc, char *argv[]) {
       describe_bgmg_options(bgmg_options);
 
       BimFile bim_file(bgmg_options.bim_files);
+      bim_file.find_snp_to_index_map();
 
-      PlinkLdFile plink_ld_file(bim_file, bgmg_options.plink_ld);
-      plink_ld_file.save_as_binary(bgmg_options.out + ".ld.bin");
+      if (!bgmg_options.plink_ld.empty()) {
+        PlinkLdFile plink_ld_file(bim_file, bgmg_options.plink_ld);
+        plink_ld_file.save_as_binary(bgmg_options.out + ".ld.bin");
+      } else {
+        FrqFile frq_file(bim_file, bgmg_options.frq_files);
+        frq_file.align_to_reference(bim_file);
+      }
 
       auto analysis_finished = boost::posix_time::second_clock::local_time();
       LOG << "Analysis finished: " << analysis_finished;
       LOG << "Elapsed time: " << analysis_finished - analysis_started;
     }
     catch (std::exception& e) {
-      LOG << e.what();
+      LOG << "ERROR: " << e.what();
       return EXIT_FAILURE;
     }
   } catch (std::exception& e) {

@@ -9,6 +9,7 @@
 #include <vector>
 #include <fstream>
 #include <future>
+#include <map>
 
 #include <boost/program_options.hpp>
 #include <boost/noncopyable.hpp>
@@ -125,14 +126,15 @@ struct BgmgOptions {
   std::vector<std::string> bim_files;
   std::vector<std::string> chr_labels;
   std::string out;
-
+  std::string plink_ld;
 };
 
 void describe_bgmg_options(BgmgOptions& s) {
   LOG << "Options in effect (after applying default setting to non-specified parameters):";
   if (!s.bim.empty()) LOG << "\t--bim " << s.bim << " \\";
-  if (!s.bim.empty()) LOG << "\t--bim-chr " << s.bim_chr << " \\";
+  if (!s.bim_chr.empty()) LOG << "\t--bim-chr " << s.bim_chr << " \\";
   if (!s.out.empty()) LOG << "\t--out " << s.out << " \\";
+  if (!s.plink_ld.empty()) LOG << "\t--plink-ld " << s.plink_ld << " \\";
 }
 
 class BimFile {
@@ -204,6 +206,13 @@ public:
     LOG << "Found " << chr_label_.size() << " variants in total.";
   }
 
+  int size() const { return chr_label_.size(); }
+  const std::vector<int>& chr_label() const { return chr_label_; }
+  const std::vector<std::string>& snp() const { return snp_; }
+  const std::vector<float>& gp() const { return gp_; }
+  const std::vector<int>& bp() const { return bp_; }
+  const std::vector<std::string>& a1() const { return a1_; }
+  const std::vector<std::string>& a2() const { return a2_; }
 
 private:
   std::vector<int> chr_label_;
@@ -212,6 +221,88 @@ private:
   std::vector<int> bp_;
   std::vector<std::string> a1_;
   std::vector<std::string> a2_;
+};
+
+class PlinkLdFile {
+public:
+  PlinkLdFile(const BimFile& bim, std::string filename) {
+    std::map<std::string, int> snp_to_index;
+    for (int i = 0; i < bim.size(); i++) {
+      snp_to_index.insert(std::pair<std::string, int>(bim.snp()[i], i));
+    }
+
+    const std::string separators = " \t\n\r";
+    std::vector<std::string> tokens;
+
+    std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);
+    int line_no = 0;
+    int lines_not_match = 0;
+    boost::iostreams::filtering_istream in;
+    if (boost::algorithm::ends_with(filename, ".gz")) in.push(boost::iostreams::gzip_decompressor());
+    in.push(file);
+    for (std::string str; std::getline(in, str); )
+    {
+      line_no++;
+
+      if (line_no == 1) continue;  // skip header
+
+      //  CHR_A         BP_A        SNP_A  CHR_B         BP_B        SNP_B           R2
+      //    22     16051249   rs62224609     22     16052962  rs376238049     0.774859
+
+      // int chr_a, bp_a, chr_b, bp_b;
+      std::string snp_a, snp_b;
+      float r2;
+
+      boost::trim_if(str, boost::is_any_of(separators));
+      boost::split(tokens, str, boost::is_any_of(separators), boost::token_compress_on);
+      try {
+        snp_a = tokens[2];
+        snp_b = tokens[5];
+        r2 = stof(tokens[6]);
+      }
+      catch (...) {
+        std::stringstream error_str;
+        error_str << "Error parsing " << filename << ":" << line_no << " ('" << str << "')";
+        throw std::invalid_argument(error_str.str());
+      }
+
+      auto iter_a = snp_to_index.find(snp_a);
+      auto iter_b = snp_to_index.find(snp_b);
+      if (iter_a == snp_to_index.end() || iter_b == snp_to_index.end()) {
+        lines_not_match++;
+        continue;
+      }
+
+      snpA_index_.push_back(iter_a->second);
+      snpB_index_.push_back(iter_b->second);
+      r2_.push_back(r2);
+
+      if (line_no % 100000 == 0) {
+        LOG << "Processed " << line_no << " lines";
+      }
+    }
+
+    LOG << "Parsed " << r2_.size() << " r2 values from " << filename;
+    if (lines_not_match) LOG << "[WARNING] " << lines_not_match << " lines ignored because SNP rs# were not found in the reference";
+  }
+  void save_as_binary(std::string filename) {
+    std::ofstream os(filename, std::ofstream::binary);
+    if (!os) throw std::runtime_error(::std::runtime_error("can't open" + filename));
+    if (sizeof(int) != 4) throw std::runtime_error("sizeof(int) != 4, internal error in BGMG cpp"); // int -> int32_t
+
+    int64_t numel = r2_.size();
+    os.write(reinterpret_cast<const char*>(&numel), sizeof(int64_t));
+
+    LOG << "PlinkLdFile::save_as_binary(filename=" << filename << "), writing " << numel << " elements...";
+    os.write(reinterpret_cast<char*>(&snpA_index_[0]), numel * sizeof(int));
+    os.write(reinterpret_cast<char*>(&snpB_index_[0]), numel * sizeof(int));
+    os.write(reinterpret_cast<char*>(&r2_[0]), numel * sizeof(float));
+    os.close();
+  }
+private:
+  std::vector<int> snpA_index_;
+  std::vector<int> snpB_index_;
+  std::vector<float> r2_;
 };
 
 void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
@@ -244,6 +335,11 @@ void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
     throw std::runtime_error(ss.str());
   }
 
+  if (!bgmg_options.plink_ld.empty() && !boost::filesystem::exists(bgmg_options.plink_ld)) {
+    std::stringstream ss; ss << "ERROR: input file " << bgmg_options.plink_ld << " does not exist";
+    throw std::runtime_error(ss.str());
+  }
+
   // Validate --out option
   if (bgmg_options.out.empty())
     throw std::invalid_argument(std::string("ERROR: --out option must be specified"));
@@ -257,7 +353,8 @@ int main(int argc, char *argv[]) {
       ("help,h", "produce this help message")
       ("bim", po::value(&bgmg_options.bim), "Path to .bim file that defines the reference set of SNPs")
       ("bim-chr", po::value(&bgmg_options.bim_chr), "Path to .bim files, split per chromosome. Use @ symbol to indicate location of chromosome label.")
-      ("chr-labels", po::value(&bgmg_options.chr_labels), "List of chromosome labels. Default to 1-22.")
+      ("plink-ld", po::value(&bgmg_options.plink_ld), "Path to plink .ld.gz file to convert into BGMG binary format.")
+      ("chr-labels", po::value(&bgmg_options.chr_labels)->multitoken(), "Set of chromosome labels. Defaults to '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22'")
       ("out", po::value(&bgmg_options.out)->default_value("bgmg"),
         "prefix of the output files; "
         "See README.md file for detailed description of file formats.")
@@ -285,6 +382,9 @@ int main(int argc, char *argv[]) {
       describe_bgmg_options(bgmg_options);
 
       BimFile bim_file(bgmg_options.bim_files);
+
+      PlinkLdFile plink_ld_file(bim_file, bgmg_options.plink_ld);
+      plink_ld_file.save_as_binary(bgmg_options.out + ".ld.bin");
 
       auto analysis_finished = boost::posix_time::second_clock::local_time();
       LOG << "Analysis finished: " << analysis_finished;

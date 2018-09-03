@@ -1785,11 +1785,16 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
   bim_file_.read(bim_files);
   bim_file_.find_snp_to_index_map();
 
-  FrqFile frq_file_object(bim_file_, frq_files);
-  frq_file_object.align_to_reference(bim_file_);
+  FrqFile frq_file_object;
+  if (!frq_file.empty()) {
+    frq_file_object.read(bim_file_, frq_files);
+    frq_file_object.align_to_reference(bim_file_);
+  }
 
   SumstatFile trait1_file_object;
-  trait1_file_object.read(bim_file_, trait1_file);
+  if (!trait1_file.empty()) {
+    trait1_file_object.read(bim_file_, trait1_file);
+  }
 
   return 0;
 }

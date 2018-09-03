@@ -107,6 +107,8 @@ PlinkLdFile::PlinkLdFile(const BimFile& bim, std::string filename) {
   const std::string separators = " \t\n\r";
   std::vector<std::string> tokens;
 
+  LOG << " Reading " << filename << "...";
+
   std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);
   int line_no = 0;
   int lines_not_match = 0;

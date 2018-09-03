@@ -102,6 +102,7 @@ struct BgmgOptions {
   std::vector<std::string> chr_labels;
   std::string out;
   std::string plink_ld;
+  std::string trait1;
 };
 
 void describe_bgmg_options(BgmgOptions& s) {
@@ -112,6 +113,7 @@ void describe_bgmg_options(BgmgOptions& s) {
   if (!s.frq_chr.empty()) LOG << "\t--frq-chr " << s.frq_chr << " \\";
   if (!s.out.empty()) LOG << "\t--out " << s.out << " \\";
   if (!s.plink_ld.empty()) LOG << "\t--plink-ld " << s.plink_ld << " \\";
+  if (!s.trait1.empty()) LOG << "\t--trait1 " << s.trait1 << " \\";
 }
 
 class BimFile {
@@ -406,10 +408,191 @@ private:
   std::vector<float> frq_;
 };
 
-class SumstatsFile {
-  // N, Z, SNP, A1, A2
+class SumstatFile {
  public:
+  enum FLIP_STATUS {
+    FLIP_STATUS_ALIGNED,
+    FLIP_STATUS_FLIPPED,
+    FLIP_STATUS_AMBIGUOUS,
+    FLIP_STATUS_MISMATCH,
+  };
+
+  // Detect flip status
+  static FLIP_STATUS flip_strand(
+    const std::string& a1sumstat,
+    const std::string& a2sumstat,
+    const std::string& a1reference,
+    const std::string& a2reference) {
+
+    std::string a1 = boost::to_lower_copy(a1sumstat);
+    std::string a2 = boost::to_lower_copy(a2sumstat);
+    std::string a1ref = boost::to_lower_copy(a1reference);
+    std::string a2ref = boost::to_lower_copy(a2reference);
+
+    // validate that all charactars are A, T, C, G - nothing else
+    auto check_atcg = [](std::string val) {
+      for (int i = 0; i < val.size(); i++) { if (val[i] != 'a' && val[i] != 't' && val[i] != 'c' && val[i] != 'g') return false; }
+      return true;
+    };
+
+    auto atcg_complement = [](std::string val) {
+      std::string retval;
+      for (int i = 0; i < val.size(); i++) {
+        if (val[i] == 'a') retval += 't';
+        if (val[i] == 't') retval += 't';
+        if (val[i] == 'c') retval += 'g';
+        if (val[i] == 'g') retval += 'c';
+        return retval;
+      }
+    };
+
+    if (!check_atcg(a1 + a2 + a1ref + a2ref)) return FLIP_STATUS_MISMATCH;
+    if (atcg_complement(a1) == a2) return FLIP_STATUS_AMBIGUOUS;
+
+    if (a1 == a1ref && a2 == a2ref) return FLIP_STATUS_ALIGNED;
+    if (a1 == a2ref && a2 == a1ref) return FLIP_STATUS_FLIPPED;
+    if (atcg_complement(a1) == a1ref && atcg_complement(a2) == a2ref) return FLIP_STATUS_FLIPPED;
+    if (atcg_complement(a1) == a2ref && atcg_complement(a2) == a1ref) return FLIP_STATUS_ALIGNED;
+
+    return FLIP_STATUS_MISMATCH;
+  }
+
+ public:
+  // Read "N, Z, SNP, A1, A2" 
+  // Flip Z scores to align them with the reference
+  // SNP     A1      A2      Z       N
+  // rs1234567       T       C - 0.154  35217.000
+  SumstatFile(const BimFile& bim, std::string filename) {
+    std::vector<int> snp_index_;
+    const std::string separators = " \t\n\r";
+    std::vector<std::string> tokens;
+
+    std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);
+
+    // gather statistics
+    int line_no = 0;
+    int lines_incomplete = 0;
+    int snps_dont_match_reference = 0;
+    int snp_ambiguous = 0;
+    int mismatch_alleles = 0;
+    int flipped_alleles = 0;
+    int duplicates_ignored = 0;
+    
+    boost::iostreams::filtering_istream in;
+    if (boost::algorithm::ends_with(filename, ".gz")) in.push(boost::iostreams::gzip_decompressor());
+    in.push(file);
+
+    int snp_col = -1, a1_col = -1, a2_col = -1, z_col = -1, n_col = -1;
+    int num_cols_required;
+    for (std::string str; std::getline(in, str); )
+    {
+      line_no++;
+      boost::trim_if(str, boost::is_any_of(separators));
+      boost::to_lower(str);
+      boost::split(tokens, str, boost::is_any_of(separators), boost::token_compress_on);
+
+      if (line_no == 1) { // process header
+        for (int coli = 0; coli < tokens.size(); coli++) {
+          if (tokens[coli] == std::string("snp")) snp_col = coli;
+          if (tokens[coli] == std::string("a1")) a1_col = coli;
+          if (tokens[coli] == std::string("a2")) a2_col = coli;
+          if (tokens[coli] == std::string("n")) n_col = coli;
+          if (tokens[coli] == std::string("z")) z_col = coli;
+        }
+
+        if (snp_col == -1 || a1_col == -1 || a2_col == -1 || z_col == -1 || n_col == -1) {
+          std::stringstream error_str;
+          error_str << "Error parsing " << filename << ", unexpected header: " << str;
+          throw std::invalid_argument(error_str.str());
+        }
+
+        num_cols_required = 1 + std::max({ snp_col, a1_col, a2_col, n_col, z_col });
+
+        continue;  // finish processing header
+      }
+
+      if (tokens.size() < num_cols_required) {
+        lines_incomplete++;
+        continue;
+      }
+
+      std::string snp, a1, a2;
+      float sample_size, zscore;
+
+      try {
+        snp = tokens[snp_col];
+        a1 = tokens[a1_col];
+        a2 = tokens[a2_col];
+        zscore = stof(tokens[z_col]);
+        sample_size = stof(tokens[n_col]);
+      }
+      catch (...) {
+        std::stringstream error_str;
+        error_str << "Error parsing " << filename << ":" << line_no << " ('" << str << "')";
+        throw std::invalid_argument(error_str.str());
+      }
+
+      int snp_index = bim.snp_index(snp);
+      if (snp_index < 0) {
+        snps_dont_match_reference++;
+        continue;
+      }
+
+      FLIP_STATUS flip_status = flip_strand(a1, a2, bim.a1()[snp_index], bim.a2()[snp_index]);
+      if (flip_status == FLIP_STATUS_AMBIGUOUS) {
+        snp_ambiguous++;
+        continue;
+      }
+      if (flip_status == FLIP_STATUS_MISMATCH) {
+        mismatch_alleles++;
+        continue;
+      }
+
+      if (flip_status == FLIP_STATUS_FLIPPED) {
+        flipped_alleles++;
+        zscore *= -1.0f;
+      }
+
+      zscore_.push_back(zscore);
+      sample_size_.push_back(sample_size);
+      snp_index_.push_back(snp_index);
+    }
+
+    // align to reference
+    {
+      std::vector<float> new_zscore(bim.size(), std::numeric_limits<float>::infinity());
+      std::vector<float> new_sample_size(bim.size(), std::numeric_limits<float>::infinity());
+      for (int i = 0; i < snp_index_.size(); i++) {
+        if (std::isfinite(new_zscore[snp_index_[i]]) || std::isfinite(new_sample_size[snp_index_[i]])) {
+          duplicates_ignored++;
+          continue;
+        }
+
+        new_zscore[snp_index_[i]] = zscore_[i];
+        new_sample_size[snp_index_[i]] = sample_size_[i];
+      }
+      zscore_.swap(new_zscore);
+      sample_size_.swap(new_sample_size);
+
+      int num_def = 0;
+      for (int i = 0; i < zscore_.size(); i++) {
+        if (std::isfinite(zscore_[i]) && std::isfinite(sample_size_[i])) num_def++;
+      }
+
+      LOG << "Found " << num_def << " variants with well-defined Z and N in " << filename << ". Other statistics: ";
+      LOG << "\t" << line_no << " lines found (including header)";
+      if (lines_incomplete > 0) LOG << "\t" << lines_incomplete << " lines were ignored as there are incomplete (too few values).";
+      if (duplicates_ignored > 0) LOG << "\t" << duplicates_ignored << " lines were ignored as they contain duplicated RS#.";
+      if (snps_dont_match_reference > 0) LOG << "\t" << snps_dont_match_reference << " lines were ignored as RS# does not match reference file.";
+      if (mismatch_alleles > 0) LOG << "\t" << mismatch_alleles << " variants were ignored as they had A1/A2 alleles that do not match reference.";
+      if (snp_ambiguous > 0) LOG << "\t" << snp_ambiguous << " variants were ignored as they are strand-ambiguous.";
+      if (flipped_alleles > 0) LOG << "\t" << flipped_alleles << " variants had flipped A1/A2 alleles; sign of z-score was flipped.";
+    }
+  }
+
  private:
+   std::vector<float> zscore_;
+   std::vector<float> sample_size_;
 };
 
 void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
@@ -479,6 +662,10 @@ void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
       throw std::runtime_error(ss.str());
     }
   }
+
+  // Validate trait1 option
+  if (bgmg_options.trait1.empty() || !boost::filesystem::exists(bgmg_options.trait1))
+    throw std::invalid_argument(std::string("ERROR: Either --trait1 file does not exist: " + bgmg_options.trait1));
 }
 
 int main(int argc, char *argv[]) {
@@ -496,6 +683,7 @@ int main(int argc, char *argv[]) {
       ("out", po::value(&bgmg_options.out)->default_value("bgmg"),
         "prefix of the output files; "
         "See README.md file for detailed description of file formats.")
+      ("trait1", po::value(&bgmg_options.trait1), "Path to .sumstats.gz file for the trait to analyze")
     ;
 
     po::variables_map vm;
@@ -528,6 +716,10 @@ int main(int argc, char *argv[]) {
       } else {
         FrqFile frq_file(bim_file, bgmg_options.frq_files);
         frq_file.align_to_reference(bim_file);
+
+        SumstatFile trait1_file(bim_file, bgmg_options.trait1);
+
+        // ready to extract zvec, nvec, mafvec, chrnumvec, posvec (indexed as the reference, not as tag SNPs)
       }
 
       auto analysis_finished = boost::posix_time::second_clock::local_time();

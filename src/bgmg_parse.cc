@@ -255,7 +255,7 @@ void FrqFile::align_to_reference(const BimFile& bim) {
     new_frq[snp_index_[i]] = frq_[i];
   }
   frq_.swap(new_frq);
-  snp_index_.swap(std::vector<int>());
+  snp_index_.clear();
 
   for (int i = 0; i < frq_.size(); i++) {
     if (!std::isfinite(frq_[i])) {

@@ -110,7 +110,7 @@ target_include_directories(bgmg-static PUBLIC ${PROJECT_SOURCE_DIR}/zlib)
 target_compile_definitions(bgmg-static PRIVATE USE_SSE)
 
 add_library(bgmg SHARED source.cc)
-target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
+target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
 
 add_executable(bgmg-cli source.cc bgmg_main.cc)
 if (MSVC)

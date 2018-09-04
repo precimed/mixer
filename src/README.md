@@ -39,9 +39,9 @@ Errors like ``cluster/software/VERSIONS/matlab/R2017a/sys/os/glnxa64/libstdc++.s
 
 At MMIL servers we have quite old version of matlab ``matlab R2015b (8.6.0.267246)``, which cames with ``boost_1_49_0``, and ``GLIBCXX`` up to ``3.4.17``. This imply that we have to compile bgmglib.so with ``gcc 4.7.2`` or older. This compiler is not available at MMIL, so best way is to build this binary on Abel, and rsync to MMIL. So, the process is as follows:
 
-1. ``module purge && module load cmake && module load gcc/4.7.2 zlib/1.2.8``
+1. ``module purge && module load cmake && module load gcc/4.7.2``
 2. Download [boost 1.49.0](https://www.boost.org/doc/libs/1_49_0/more/getting_started/unix-variants.html) to abel (because this version is not available)
-3. Build boost: ``./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time,iostreams && ./b2 --j12``
+3. Build boost: ``./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --j12``
 4. ``cd ~/BGMG_mmil/src/build && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0``
 5. At mmil: ``rsync -avzP oleksanf@abel.uio.no:/usit/abel/u1/oleksanf/precimed/BGMG_mmil/src/build/lib /home/oleksandr/precimed/BGMG/src/build``
 

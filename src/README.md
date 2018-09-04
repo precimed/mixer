@@ -1,6 +1,15 @@
 Cost function for Univariate and Bivariate mixture model
 Written as a plain C interface. Implemented in C++. Require Boost libraries.
 
+**Clone or Pull this repo**
+
+This repository uses git submodules. To pull this repository including submodules se 
+```
+git clone --recurse-submodules -j8 git://github.com/precimed/bgmg.git
+```
+For more information about git submodules see
+https://stackoverflow.com/questions/3796927/how-to-git-clone-including-submodules
+https://stackoverflow.com/questions/1030169/easy-way-to-pull-latest-of-all-git-submodules
 
 **Build on Windows**
 - install MS VS 2015

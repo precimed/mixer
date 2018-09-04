@@ -103,20 +103,22 @@ set(SRC_LIST
 add_library(bgmg-static STATIC ${SRC_LIST})
 set_target_properties(bgmg-static PROPERTIES LINK_FLAGS "-static" )
 target_include_directories(bgmg-static PUBLIC ${CMAKE_BINARY_DIR})
+target_include_directories(bgmg-static PUBLIC ${CMAKE_BINARY_DIR}/zlib)
 target_include_directories(bgmg-static PUBLIC ${CMAKE_SOURCE_DIR})
 target_include_directories(bgmg-static PUBLIC ${PROJECT_SOURCE_DIR}/semt)
+target_include_directories(bgmg-static PUBLIC ${PROJECT_SOURCE_DIR}/zlib)
 target_compile_definitions(bgmg-static PRIVATE USE_SSE)
 
 add_library(bgmg SHARED source.cc)
-target_link_libraries(bgmg bgmg-static ${Boost_LIBRARIES_STATIC_LIBS})
+target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
 
 add_executable(bgmg-cli source.cc bgmg_main.cc)
 if (MSVC)
-	target_link_libraries(bgmg-cli bgmg-static ${Boost_LIBRARIES_STATIC_LIBS})
+	target_link_libraries(bgmg-cli bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
 	target_compile_definitions(bgmg-cli PRIVATE BGMG_STATIC_DEFINE)
 else (MSVC)
 	set_target_properties(bgmg-cli PROPERTIES LINK_FLAGS "-static" )
-	target_link_libraries(bgmg-cli bgmg-static ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
+	target_link_libraries(bgmg-cli bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
 endif (MSVC)
 
 set(SRC_TEST_LIST
@@ -129,7 +131,7 @@ set(SRC_TEST_LIST
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )
 add_executable(bgmg-test ${SRC_TEST_LIST})
-target_link_libraries(bgmg-test bgmg-static ${Boost_LIBRARIES_STATIC_LIBS}) 
+target_link_libraries(bgmg-test bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS}) 
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest/include)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR})

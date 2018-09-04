@@ -6,6 +6,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include "bgmg_log.h"
+#include "zstr.hpp"
 
 
 void BimFile::find_snp_to_index_map() {
@@ -27,13 +28,24 @@ int BimFile::snp_index(const std::string& snp) const {
   return iter->second;
 }
 
+std::shared_ptr<std::istream> open_file(std::string filename) {
+  if (boost::algorithm::ends_with(filename, ".gz")) {
+    return std::make_shared<zstr::ifstream>(filename, std::ios_base::in | std::ios_base::binary);
+  }
+  else {
+    return std::make_shared<std::ifstream>(filename, std::ios_base::in | std::ios_base::binary);
+  }
+}
+
 void BimFile::read(std::string filename) {
   //LOG << "Reading " << filename << "...";
 
   const std::string separators = " \t\n\r";
   std::vector<std::string> tokens;
 
-  std::ifstream in(filename, std::ios_base::in | std::ios_base::binary);
+  std::shared_ptr<std::istream> in_ptr = open_file(filename);
+  std::istream& in = *in_ptr;
+
   int line_no = 0;
   for (std::string str; std::getline(in, str); )
   {
@@ -104,7 +116,8 @@ PlinkLdFile::PlinkLdFile(const BimFile& bim, std::string filename) {
 
   LOG << " Reading " << filename << "...";
 
-  std::ifstream in(filename, std::ios_base::in | std::ios_base::binary);
+  std::shared_ptr<std::istream> in_ptr = open_file(filename);
+  std::istream& in = *in_ptr;
   int line_no = 0;
   int lines_not_match = 0;
   for (std::string str; std::getline(in, str); )
@@ -173,7 +186,8 @@ void FrqFile::read(const BimFile& bim, std::string filename) {
   const std::string separators = " \t\n\r";
   std::vector<std::string> tokens;
 
-  std::ifstream in(filename, std::ios_base::in | std::ios_base::binary);
+  std::shared_ptr<std::istream> in_ptr = open_file(filename);
+  std::istream& in = *in_ptr;
   int line_no = 0;
   int lines_not_match = 0;
   for (std::string str; std::getline(in, str); )
@@ -304,7 +318,8 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
   const std::string separators = " \t\n\r";
   std::vector<std::string> tokens;
 
-  std::ifstream in(filename, std::ios_base::in | std::ios_base::binary);
+  std::shared_ptr<std::istream> in_ptr = open_file(filename);
+  std::istream& in = *in_ptr;
 
   // gather statistics
   int line_no = 0;

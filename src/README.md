@@ -55,7 +55,7 @@ At MMIL servers we have quite old version of matlab ``matlab R2015b (8.6.0.26724
 5. At mmil: ``rsync -avzP oleksanf@abel.uio.no:/usit/abel/u1/oleksanf/precimed/BGMG_mmil/src/build/lib /home/oleksandr/precimed/BGMG/src/build``
 
 
-** Test that build succeeded **
+**Test that build succeeded**
 
 The build produces two important artifacts in your: <build>/bin/bgmg-cli and <build>/bin/libbgmg.so
 

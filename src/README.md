@@ -54,3 +54,8 @@ At MMIL servers we have quite old version of matlab ``matlab R2015b (8.6.0.26724
 4. ``cd ~/BGMG_mmil/src/build && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0``
 5. At mmil: ``rsync -avzP oleksanf@abel.uio.no:/usit/abel/u1/oleksanf/precimed/BGMG_mmil/src/build/lib /home/oleksandr/precimed/BGMG/src/build``
 
+
+* example commands
+
+./bgmg-cli --bim /work/users/oleksanf/bfile_merged/chr@.bim --frq /work/users/oleksanf/bfile_merged/chr@.frq --trait1 XXX_CRP_2009_noMHC.sumstats.gz  & tailf bgmg.bgmglib.log
+./bgmg-cli --bim /work/users/oleksanf/bfile_merged/chr@.bim --plink-ld bfile_merged_ldmat_p01_SNPwind50k_chr21.ld.gz --out bfile_merged_ldmat_p01_SNPwind50k_chr21.ld.bin & tailf bfile_merged_ldmat_p01_SNPwind50k_chr21.ld.bin.bgmglib.log

@@ -4,8 +4,6 @@
 #include <fstream>
 
 #include <boost/algorithm/string.hpp>
-#include <boost/iostreams/filtering_stream.hpp>
-#include <boost/iostreams/filter/gzip.hpp>
 
 #include "bgmg_log.h"
 
@@ -35,11 +33,8 @@ void BimFile::read(std::string filename) {
   const std::string separators = " \t\n\r";
   std::vector<std::string> tokens;
 
-  std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);
+  std::ifstream in(filename, std::ios_base::in | std::ios_base::binary);
   int line_no = 0;
-  boost::iostreams::filtering_istream in;
-  if (boost::algorithm::ends_with(filename, ".gz")) in.push(boost::iostreams::gzip_decompressor());
-  in.push(file);
   for (std::string str; std::getline(in, str); )
   {
     line_no++;
@@ -109,12 +104,9 @@ PlinkLdFile::PlinkLdFile(const BimFile& bim, std::string filename) {
 
   LOG << " Reading " << filename << "...";
 
-  std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);
+  std::ifstream in(filename, std::ios_base::in | std::ios_base::binary);
   int line_no = 0;
   int lines_not_match = 0;
-  boost::iostreams::filtering_istream in;
-  if (boost::algorithm::ends_with(filename, ".gz")) in.push(boost::iostreams::gzip_decompressor());
-  in.push(file);
   for (std::string str; std::getline(in, str); )
   {
     line_no++;
@@ -181,12 +173,9 @@ void FrqFile::read(const BimFile& bim, std::string filename) {
   const std::string separators = " \t\n\r";
   std::vector<std::string> tokens;
 
-  std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);
+  std::ifstream in(filename, std::ios_base::in | std::ios_base::binary);
   int line_no = 0;
   int lines_not_match = 0;
-  boost::iostreams::filtering_istream in;
-  if (boost::algorithm::ends_with(filename, ".gz")) in.push(boost::iostreams::gzip_decompressor());
-  in.push(file);
   for (std::string str; std::getline(in, str); )
   {
     line_no++;
@@ -315,7 +304,7 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
   const std::string separators = " \t\n\r";
   std::vector<std::string> tokens;
 
-  std::ifstream file(filename, std::ios_base::in | std::ios_base::binary);
+  std::ifstream in(filename, std::ios_base::in | std::ios_base::binary);
 
   // gather statistics
   int line_no = 0;
@@ -325,10 +314,6 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
   int mismatch_alleles = 0;
   int flipped_alleles = 0;
   int duplicates_ignored = 0;
-
-  boost::iostreams::filtering_istream in;
-  if (boost::algorithm::ends_with(filename, ".gz")) in.push(boost::iostreams::gzip_decompressor());
-  in.push(file);
 
   int snp_col = -1, a1_col = -1, a2_col = -1, z_col = -1, n_col = -1;
   int num_cols_required;

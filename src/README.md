@@ -57,16 +57,17 @@ At MMIL servers we have quite old version of matlab ``matlab R2015b (8.6.0.26724
 
 **Test that build succeeded**
 
-The build produces two important artifacts in your: <build>/bin/bgmg-cli and <build>/bin/libbgmg.so
+The build produces two important artifact: ``<build>/bin/bgmg-cli`` (executable) and ``<build>/lib/libbgmg.so`` (shared library).
 
-To test bgmg-cli:
+To test ``bgmg-cli``:
 
 ```
+./bgmg-cli --help
 ./bgmg-cli --bim /work/users/oleksanf/bfile_merged/chr@.bim --frq /work/users/oleksanf/bfile_merged/chr@.frq --trait1 XXX_CRP_2009_noMHC.sumstats.gz  & tailf bgmg.bgmglib.log
 ./bgmg-cli --bim /work/users/oleksanf/bfile_merged/chr@.bim --plink-ld bfile_merged_ldmat_p01_SNPwind50k_chr21.ld.gz --out bfile_merged_ldmat_p01_SNPwind50k_chr21.ld.bin & tailf bfile_merged_ldmat_p01_SNPwind50k_chr21.ld.bin.bgmglib.log
 ```
 
-To test bgmglib.so it may be loaded to matlab:
+To test ``bgmglib.so`` it may be loaded to matlab:
 
 ```
 bgmg_shared_library = '/usit/abel/u1/oleksanf/precimed/BGMG/src/build/lib/libbgmg.so';

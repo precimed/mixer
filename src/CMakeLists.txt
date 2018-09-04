@@ -22,6 +22,14 @@ else (COMPILER_SUPPORTS_CXX11)
   message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
 endif (COMPILER_SUPPORTS_CXX11)
 
+if (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
+    ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -mavx")
+   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -mavx")
+endif (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
+      ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
+
+
 #SET(BUILD_GMOCK OFF CACHE BOOL "Builds the googlemock subproject")
 #SET(BUILD_GTEST ON CACHE BOOL "Builds the googletest subproject")
 #add_subdirectory( googletest )
@@ -67,14 +75,6 @@ include_directories(${Boost_INCLUDE_DIRS})
 set(Boost_LIBRARIES_STATIC_LIBS ${Boost_LIBRARIES})
 message("-- Boost_LIBRARIES_STATIC_LIBS: ${Boost_LIBRARIES_STATIC_LIBS}")
 
-
-
-if (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
-    ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -mavx")
-   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -mavx")
-endif (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
-      ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
 
 set(SRC_LIST
 	bgmg_calculator.cc

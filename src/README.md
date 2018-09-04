@@ -61,16 +61,20 @@ The build produces two important artifacts in your: <build>/bin/bgmg-cli and <bu
 
 To test bgmg-cli:
 
+```
 ./bgmg-cli --bim /work/users/oleksanf/bfile_merged/chr@.bim --frq /work/users/oleksanf/bfile_merged/chr@.frq --trait1 XXX_CRP_2009_noMHC.sumstats.gz  & tailf bgmg.bgmglib.log
 ./bgmg-cli --bim /work/users/oleksanf/bfile_merged/chr@.bim --plink-ld bfile_merged_ldmat_p01_SNPwind50k_chr21.ld.gz --out bfile_merged_ldmat_p01_SNPwind50k_chr21.ld.bin & tailf bfile_merged_ldmat_p01_SNPwind50k_chr21.ld.bin.bgmglib.log
+```
 
 To test bgmglib.so it may be loaded to matlab:
 
+```
 bgmg_shared_library = '/usit/abel/u1/oleksanf/precimed/BGMG/src/build/lib/libbgmg.so';
 bgmg_shared_library_header = '/usit/abel/u1/oleksanf/precimed/BGMG/srcbgmg_matlab.h';
 logfile = 'BGMG_cpp_example.bgmglib.log';
 BGMG_cpp.unload(); 
 BGMG_cpp.load(bgmg_shared_library, bgmg_shared_library_header);
 BGMG_cpp.init_log(logfile);
-# inspect logfile to see that there is "a new session" string in it. BGMG_cpp is a matlab class defined in BGMG_cpp.m file in the root of precimed/BGMG repository.
+```
+Now inspect logfile to see that there is "a new session" string in it. BGMG_cpp is a matlab class defined in BGMG_cpp.m file in the root of precimed/BGMG repository.
  

@@ -34,6 +34,19 @@ private:
   std::map<std::string, int> snp_to_index_;
 };
 
+class SnpList {
+public:
+  SnpList() {}
+  explicit SnpList(std::string filename) { read(filename); }
+  void read(std::string filename);
+  const std::vector<std::string>& snp() const { return snp_; }
+  bool contains(const std::string& snp) const;
+
+private:
+  std::vector<std::string> snp_;
+  std::map<std::string, char> snp_set_;
+};
+
 class PlinkLdFile {
 public:
   PlinkLdFile(const BimFile& bim, std::string filename);

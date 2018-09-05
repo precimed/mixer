@@ -35,8 +35,8 @@ classdef BGMG_cpp
     end
     
     % init
-    function init(obj, bim_file, frq_file, chr_labels, trait1_file, trait2_file)
-        calllib('bgmg', 'bgmg_init', obj.Context, bim_file, frq_file, chr_labels, trait1_file, trait2_file); obj.check();
+    function init(obj, bim_file, frq_file, chr_labels, trait1_file, trait2_file, exclude, extract)
+        calllib('bgmg', 'bgmg_init', obj.Context, bim_file, frq_file, chr_labels, trait1_file, trait2_file, exclude, extract); obj.check();
     end
 
     % set/get defvec

@@ -377,7 +377,7 @@ int64_t bgmg_retrieve_chrnumvec(int context_id, int length, int* buffer) {
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, const char* chr_labels, const char* trait1_file, const char* trait2_file) {
+int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, const char* chr_labels, const char* trait1_file, const char* trait2_file, const char* exclude, const char* extract) {
   try {
     set_last_error(std::string());
     check_is_not_null(bim_file);
@@ -385,7 +385,9 @@ int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, co
     check_is_not_null(chr_labels);
     check_is_not_null(trait1_file);
     check_is_not_null(trait2_file);
-    return BgmgCalculatorManager::singleton().Get(context_id)->init(bim_file, frq_file, chr_labels, trait1_file, trait2_file);
+    check_is_not_null(exclude);
+    check_is_not_null(extract);
+    return BgmgCalculatorManager::singleton().Get(context_id)->init(bim_file, frq_file, chr_labels, trait1_file, trait2_file, exclude, extract);
   } CATCH_EXCEPTIONS;
 }
 

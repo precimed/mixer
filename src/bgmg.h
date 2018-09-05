@@ -37,12 +37,13 @@ extern "C" {
   // - chr_labels - list of chromosome labels (can be empty, default to 1:22)
   // - trait1_file - summary stats (must have SNP, A1, A2, Z, N)
   // - trait2_file
+  // - exclude, extract - list of SNPs (without header) to use for the analysis (see plink --exclude and --extract options)
   // Automatically calls the following:
   // - set_tag_indices
   // - set_chrnumvec
   // - set_zvec, set_nvec (if trait1_file and/or trait2_file is available)
   // - set_mafvec (if frq file is specified)
-  DLL_PUBLIC int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, const char* chr_labels, const char* trait1_file, const char* trait2_file);
+  DLL_PUBLIC int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, const char* chr_labels, const char* trait1_file, const char* trait2_file, const char* exclude, const char* extract);
   DLL_PUBLIC int64_t bgmg_convert_plink_ld(int context_id, const char* plink_ld_gz, const char* plink_ld_bin);
 
   // API to work with "defvec". Here 

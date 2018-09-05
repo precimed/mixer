@@ -47,6 +47,8 @@ QQ_PLOT_BINS=true; QQ_PLOT_BINS_DOWNSCALE=10; % enable/disable partitioned QQ pl
 POWER_PLOT=true; POWER_PLOT_DOWNSCALE=10;     % enable/disable power plots
 
 % Optional parameters
+exclude = '';                       % file containing SNP rs# to exclude from the anslysis
+extract = '';                       % file containing SNP rs# to include in the anslysis
 randprune_n=64; randprune_r2=0.1;   % random pruning options that define a weighting scheme on tag variants (avoid overcounting signal in large LD blocks)
 kmax=5000;                          % number of sampling interation in pdf(z|params) model. Larger values => more accurate inference, but longer runtime, and larger memory usage
 SEED=123;                           % seed for random number generator. Fix for reproducible results.
@@ -112,13 +114,15 @@ if ~exist('POWER_PLOT_DOWNSCALE', 'var'), POWER_PLOT_DOWNSCALE = 10; end;  % mak
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
 if ~exist('THREADS', 'var'), THREADS = -1; end;
+if ~exist('exclude', 'var'), exclude = ''; end;
+if ~exist('extract', 'var'), extract = ''; end;
 
 addpath('DERIVESTsuite');
 addpath('PolyfitnTools');
 
 bgmglib = BGMG_cpp();
 bgmglib.dispose();
-bgmglib.init(bim_file, frq_file, sprintf('%i ', chr_labels), trait1_file, '');
+bgmglib.init(bim_file, frq_file, sprintf('%i ', chr_labels), trait1_file, '', exclude, extract);
 
 bgmglib.set_option('r2min', r2min);
 bgmglib.set_option('kmax', kmax);

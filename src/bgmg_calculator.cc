@@ -36,6 +36,7 @@
 #include <sstream>
 #include <fstream>
 #include <set>
+#include <numeric>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/date_time/posix_time/posix_time_io.hpp>
@@ -1734,10 +1735,10 @@ int64_t BgmgCalculator::retrieve_ld_r2_chr(int chr_label, int length, int* snp_i
   return 0;
 }
 
-int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::string chr_labels, std::string trait1_file, std::string trait2_file) {
+int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::string chr_labels, std::string trait1_file, std::string trait2_file, std::string exclude, std::string extract) {
   if (!trait2_file.empty() && trait1_file.empty())
     BGMG_THROW_EXCEPTION(std::runtime_error("trait2_file can be provided only together with trait1_file"));
-  LOG << ">init(bim_file=" << bim_file << ", frq_file=" << frq_file << ", chr_labels=" << chr_labels << ", trait1_file=" << trait1_file << ", trait2_file=" << trait2_file << "); ";
+  LOG << ">init(bim_file=" << bim_file << ", frq_file=" << frq_file << ", chr_labels=" << chr_labels << ", trait1_file=" << trait1_file << ", trait2_file=" << trait2_file << ", exclude=" << exclude << ", extract=" << extract << "); ";
   SimpleTimer timer(-1);
 
   std::vector<std::string> chr_labels_vector, bim_files, frq_files;
@@ -1809,6 +1810,8 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
       if (!std::isfinite(trait1_file_object.zscore()[i])) defvec[i] = 0;
       if (!std::isfinite(trait1_file_object.sample_size()[i])) defvec[i] = 0;
     }
+
+    LOG << " constrain analysis to " << std::accumulate(defvec.begin(), defvec.end(), 0) << " tag variants (due to trait1_file='" << trait1_file << "')";
   }
 
   SumstatFile trait2_file_object;
@@ -1818,9 +1821,31 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
       if (!std::isfinite(trait2_file_object.zscore()[i])) defvec[i] = 0;
       if (!std::isfinite(trait2_file_object.sample_size()[i])) defvec[i] = 0;
     }
+
+    LOG << " constrain analysis to " << std::accumulate(defvec.begin(), defvec.end(), 0) << " tag variants (due to trait2_file='" << trait2_file << "')";
   }
 
-  // TBD: constrain defvec based on "extract" and "exclude" flags.
+  if (!extract.empty()) {
+    SnpList extract_object;
+    extract_object.read(extract);
+    for (int i = 0; i < bim_file_.size(); i++) {
+      if (!extract_object.contains(bim_file_.snp()[i]))
+        defvec[i] = 0;
+    }
+
+    LOG << " constrain analysis to " << std::accumulate(defvec.begin(), defvec.end(), 0) << " tag variants (due to extract='" << extract << "')";
+  }
+  
+  if (!exclude.empty()) {
+    SnpList exclude_object;
+    exclude_object.read(exclude);
+    for (int i = 0; i < bim_file_.size(); i++) {
+      if (exclude_object.contains(bim_file_.snp()[i]))
+        defvec[i] = 0;
+    }
+
+    LOG << " constrain analysis to " << std::accumulate(defvec.begin(), defvec.end(), 0) << " tag variants (due to exclude='" << exclude << "')";
+  }
 
   // Find tag indices
   std::vector<int> tag_indices;
@@ -1862,6 +1887,8 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
     ", chr_labels=" << chr_labels << 
     ", trait1_file=" << trait1_file << 
     ", trait2_file=" << trait2_file << 
+    ", exclude=" << exclude << 
+    ", extract=" << extract <<
     ");  elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }

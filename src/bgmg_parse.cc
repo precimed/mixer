@@ -447,3 +447,25 @@ void BimFile::clear() {
   a2_.clear();
   snp_to_index_.clear();
 }
+
+void SnpList::read(std::string filename) {
+  const std::string separators = " \t\n\r";
+  std::shared_ptr<std::istream> in_ptr = open_file(filename);
+  std::istream& in = *in_ptr;
+  std::stringstream buffer;
+  buffer << in.rdbuf();
+  std::string str = buffer.str();
+  boost::trim_if(str, boost::is_any_of(separators));
+  boost::split(snp_, str, boost::is_any_of(separators), boost::token_compress_on);
+
+  snp_set_.clear();
+  for (int i = 0; i < snp_.size(); i++) {
+    if (!snp_[i].empty()) {
+      snp_set_.insert(std::pair<std::string, char>(boost::to_lower_copy(snp_[i]), 1));
+    }
+  }
+}
+
+bool SnpList::contains(const std::string& snp) const { 
+  return snp_set_.find(boost::to_lower_copy(snp)) != snp_set_.end();
+}

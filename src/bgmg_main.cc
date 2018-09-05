@@ -42,8 +42,8 @@ public:
 
   BgmgCpp(int context_id) : context_id_(context_id) {}
 
-  void init(std::string bim_file, std::string frq_file, std::string chr_labels, std::string trait1_file, std::string trait2_file) {
-    handle_errror(bgmg_init(context_id_, bim_file.c_str(), frq_file.c_str(), chr_labels.c_str(), trait1_file.c_str(), trait2_file.c_str()));
+  void init(std::string bim_file, std::string frq_file, std::string chr_labels, std::string trait1_file, std::string trait2_file, std::string exclude, std::string extract) {
+    handle_errror(bgmg_init(context_id_, bim_file.c_str(), frq_file.c_str(), chr_labels.c_str(), trait1_file.c_str(), trait2_file.c_str(), exclude.c_str(), extract.c_str()));
   }
 
   void convert_plink_ld(std::string plink_ld_gz, std::string plink_ld_bin) {
@@ -108,6 +108,8 @@ struct BgmgOptions {
   std::string out;
   std::string plink_ld;
   std::string trait1;
+  std::string exclude;
+  std::string extract;
 };
 
 void describe_bgmg_options(BgmgOptions& s) {
@@ -117,6 +119,8 @@ void describe_bgmg_options(BgmgOptions& s) {
   if (!s.out.empty()) LOG << "\t--out " << s.out << " \\";
   if (!s.plink_ld.empty()) LOG << "\t--plink-ld " << s.plink_ld << " \\";
   if (!s.trait1.empty()) LOG << "\t--trait1 " << s.trait1 << " \\";
+  if (!s.exclude.empty()) LOG << "\t--exclude " << s.exclude << " \\";
+  if (!s.extract.empty()) LOG << "\t--extract " << s.extract << " \\";
 }
 
 void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
@@ -160,7 +164,9 @@ int main(int argc, char *argv[]) {
       ("out", po::value(&bgmg_options.out)->default_value("bgmg"),
         "prefix of the output files; "
         "See README.md file for detailed description of file formats.")
-      ("trait1", po::value(&bgmg_options.trait1), "Path to .sumstats.gz file for the trait to analyze")
+        ("trait1", po::value(&bgmg_options.trait1), "Path to .sumstats.gz file for the trait to analyze")
+      ("exclude", po::value(&bgmg_options.exclude)->default_value(""), "File with a set of SNP rs# to exclude from the analysis")
+      ("extract", po::value(&bgmg_options.extract)->default_value(""), "File with a set of SNP rs# to use in the analysis; this is optional, by default use all available markers")
     ;
 
     po::variables_map vm;
@@ -186,7 +192,7 @@ int main(int argc, char *argv[]) {
 
       const int context_id = 0;
       BgmgCpp bgmg_cpp_interface(context_id);
-      bgmg_cpp_interface.init(bgmg_options.bim, bgmg_options.frq, bgmg_options.chr_labels, bgmg_options.trait1, std::string());
+      bgmg_cpp_interface.init(bgmg_options.bim, bgmg_options.frq, bgmg_options.chr_labels, bgmg_options.trait1, std::string(), bgmg_options.exclude, bgmg_options.extract);
 
       if (!bgmg_options.plink_ld.empty()) {
         bgmg_cpp_interface.convert_plink_ld(bgmg_options.plink_ld, bgmg_options.out);

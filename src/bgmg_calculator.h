@@ -224,7 +224,7 @@ class BgmgCalculator : public TagToSnpMapping {
   BgmgCalculator();
   virtual ~BgmgCalculator() {}
 
-  int64_t init(std::string bim_file, std::string frq_file, std::string chr_labels, std::string trait1_file, std::string trait2_file);
+  int64_t init(std::string bim_file, std::string frq_file, std::string chr_labels, std::string trait1_file, std::string trait2_file, std::string exclude, std::string extract);
   int64_t convert_plink_ld(std::string plink_ld_gz, std::string plink_ld_bin);  // require init() to be called first, e.i. doesn't work after set_tag_indices.
 
   // num_snp = total size of the reference (e.i. the total number of genotyped variants)

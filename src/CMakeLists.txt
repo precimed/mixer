@@ -110,15 +110,15 @@ target_include_directories(bgmg-static PUBLIC ${PROJECT_SOURCE_DIR}/zlib)
 target_compile_definitions(bgmg-static PRIVATE USE_SSE)
 
 add_library(bgmg SHARED source.cc)
-target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
-
 add_executable(bgmg-cli source.cc bgmg_main.cc)
 if (MSVC)
 	target_link_libraries(bgmg-cli bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
+	target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
 	target_compile_definitions(bgmg-cli PRIVATE BGMG_STATIC_DEFINE)
 else (MSVC)
 	set_target_properties(bgmg-cli PROPERTIES LINK_FLAGS "-static" )
 	target_link_libraries(bgmg-cli bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
+	target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
 endif (MSVC)
 
 set(SRC_TEST_LIST

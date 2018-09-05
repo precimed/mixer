@@ -58,8 +58,8 @@ BGMG_cpp.log('out file: %s\n', out_file);
 if ~exist('plink_ld_bin', 'var'), error('plink_ld_bin is required'); end;
 if ~exist('chr_labels', 'var'), chr_labels = 1:22; end;
 
-if ~exist('randprune_n', 'var'), randprune_n = 10; end;
-if ~exist('randprune_r2', 'var'), randprune_r2 = 0.8; end;
+if ~exist('randprune_n', 'var'), randprune_n = 64; end;
+if ~exist('randprune_r2', 'var'), randprune_r2 = 0.1; end;
 if ~exist('kmax', 'var'), kmax = 1000; end;
 if ~exist('r2min', 'var'), r2min = 0.01; end;
 if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.03; end;
@@ -128,20 +128,6 @@ options.trait1_nval = median(bgmglib.nvec1);
 disp(options)
 
 params = [];
-% Load true params for simulated data. Do a quick fit to initialize sig2_zero 
-if ~isempty(simu_params_file),
-    tmp_params = load(simu_params_file);    trait_index = 1;
-    params.univariate{trait_index}.pi_vec = tmp_params.causal_pi;
-    params.univariate{trait_index}.sig2_beta = tmp_params.sigsq;
-
-    bgmglib.set_option('fast_cost', 1); % ~FIT_FULL_MODEL);   % <- shortcut, initialize sig2zero based on fast model
-    fitfunc = @(x0, mapparams)mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(mapparams(x), trait_index), mapparams(x0), struct('Display', 'on', 'TolX', TolX, 'TolFun', TolFun)));
-    fit_sig2_zero = fitfunc(struct('sig2_zero', 1), @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', params.univariate{trait_index}.pi_vec, 'sig2_beta', params.univariate{trait_index}.sig2_beta)));
-    params.univariate{trait_index}.sig2_zero = fit_sig2_zero.sig2_zero;
-    true_params = params;  % save, just in case
-
-    BGMG_cpp.log('Params loaded from intput file (synthetic data).\n');
-end;
 
 % Load params from previous runs.
 if ~isempty(init_result_from_out_file)
@@ -168,10 +154,10 @@ if DO_FIT_UGMG
 end
 
 result.trait1_file = trait1_file;
-result.reference_file = reference_file;
+result.bim_file = bim_file;
+result.frq_file = frq_file;
 result.options = options;
 result.params = params;
-if ~isempty(simu_params_file), result.true_params = true_params; end;
 
 % Save the result in .mat file
 % (this overrides previously saved file)

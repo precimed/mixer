@@ -1,43 +1,66 @@
-% This script can be run univariate mixture analysis from command line like this:
+% This script runs Univariate Causal Mixture for GWAS analysis. 
+% To start analysis from command line run:
 %
-%   matlab -nodisplay -nosplash -nodesktop -r "trait1_file='PGC_SCZ_2014.mat'; reference_file='1kG_phase3_EUR_11015883_reference_holland.mat'; BGMG_run; exit;"
+%   matlab -nodisplay -nosplash -nodesktop -r "bim_file='chr@.bim'; frq_file='chr@.frq'; trait1_file='PGC_SCZ_2014_noMHC.sumstats.gz'; ...; BGMG_run; exit;"
 %
-% You may use this script with one trait (univariate analysis).
-% The results are saved into a text file as well as into .mat file.
-% Currently you may need to modify this file to pass additional
-% parameters, later all parameters will be exposed as a text config file.
+% See below for the FULL LIST OF AVAILABLE PARAMETERS.
 %
 % Run flow:
-% 1. Load and initialize BGMG library (bgmglib)
-% 2. Load reference file (posvec, chrnumvec, mafvec)
-% 3. Load trait data (zvec, nvec)
-% 6. Load LD structure from binary files directly into bgmglib. Setup weights based on random pruning.
+% 1. Load and initialize BGMG library (bgmglib, native c++ plugin for Matlab)
+% 2. Load reference pannel (SNP/CHR/BP/A1/A2) from .bim file(s), plink format
+% 3. Load allele frequencies for reference pannel (FRQ) from .frq file(s) plink format
+% 4. Load trait data (zvec, nvec) from .sumstats.gz LDSR-formatted file
+%    (can be output of https://github.com/bulik/ldsc/munge_sumstats.py)
+% 5. Load LD structure from binary files
+%    (binary files should be produced from plink ***.ld.gz files using bgmg-cli converter)
+% 6. Setup weights based on random pruning.
 % 7. Setup params ('initial approximation'). Two options available
 %       - load params from previous run
 %       - fit params using gaussian approximation ('fit from scratch')
-% 8. [optional] fit UGMG model
+% 8. [optional] fit UGMG parameters using full model for GWAS z scores
 % 9. [optional] produce QQ plots
-% 10. Save results to <out_file>.[mat, pdf, log]
+% 10. [optional] produce partitioned QQ plots (bins of MAF and LD score)
+% 11. [optional] produce power curves (proportion of heritability explained as a function of GWAS sample size)
+% 12. Save results to <out_file>.[mat, pdf, log]
 
-if 0
-% example of the input
+% NB! you may uncomment the following lines (e.i. remove '%{' and '%}' symbold) if you wish to set parameters here in .m file, and not from command line.
+
+%{
+% FULL LIST OF AVAILABLE PARAMETERS
+
+% Full path to your libbgmg.so (linux), libbgmg.dylib (mac) or bgmg.dll (windows). See readme for how-to-build instructions.
 bgmg_shared_library        = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
 bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
-plink_ld_bin   = 'H:\work\hapgen_ldmat2_plink\1000Genome_ldmat_p05_SNPwind50k_chr@.ld.bin'; chr_labels = 1:22;
+
+% Input data
 bim_file       = 'H:\work\1000Genome\chr@.bim';
 frq_file       = 'H:\work\1000Genome\chr@.frq';
 trait1_file    = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR\LDSR_Data\PGC_SCZ_2014_EUR_qc_noMHC.sumstats.gz';
+plink_ld_bin   = 'H:\work\hapgen_ldmat2_plink\1000Genome_ldmat_p05_SNPwind50k_chr@.ld.bin'; 
+chr_labels     = 1:22;
 out_file       = 'PGC_SCZ_2014_EUR_qc_noMHC.ugmg';
-max_causal_fraction=0.01;
-cache_tag_r2sum=true;
-kmax=1000;
-SEED=123;
-r2min=0.05;
-DO_FIT_UGMG=true; QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10;
-end
+
+% Enable/disable features
+DO_FIT_UGMG=true; 
+QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10;         % enable/disable QQ plots
+QQ_PLOT_BINS=true; QQ_PLOT_BINS_DOWNSCALE=10; % enable/disable partitioned QQ plot (maf/ldscore bins)
+POWER_PLOT=true; POWER_PLOT_DOWNSCALE=10;     % enable/disable power plots
+
+% Optional parameters
+randprune_n=64; randprune_r2=0.1;   % random pruning options that define a weighting scheme on tag variants (avoid overcounting signal in large LD blocks)
+kmax=5000;                          % number of sampling interation in pdf(z|params) model. Larger values => more accurate inference, but longer runtime, and larger memory usage
+SEED=123;                           % seed for random number generator. Fix for reproducible results.
+cache_tag_r2sum=1;                  % performance optimization. Set to 0 if you run out of RAM memory (but the model will run slower)
+max_causal_fraction=0.03;           % upper threshold on polygenicity. This is required for technical reason - setting to 1.0 causes excesive memory usage.
+r2min=0.05;                         % lower threshold for LD r2 values.
+init_result_from_out_file='';       % path to .mat file with previous results. Use this together with DO_FIT_UGMG=false to make QQ plots on a larger set of variants, using previously fitted parameters.
+CI_ALPHA=0.05;                      % enable confidence interval estimation
+THREADS=-1;                         % specify how many threads to use (concurrency). "-1" means to use all available CPU power.
+TolX = 1e-2; TolFun = 1e-2;         % fminserach tolerance (stop criteria)
+
+%}
 
 if ~exist('out_file', 'var'), out_file = 'UGMG_result'; end;
-
 if ~exist('bim_file', 'var'), error('bim_file is required'); end;
 if ~exist('frq_file', 'var'), error('frq_file is required'); end;
 if ~exist('trait1_file', 'var'), error('trait1_file is required'); end;
@@ -84,7 +107,6 @@ if ~exist('QQ_PLOT', 'var'), QQ_PLOT = false; end;   % make QQ plots
 if ~exist('QQ_PLOT_DOWNSCALE', 'var'), QQ_PLOT_DOWNSCALE = 100; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('QQ_PLOT_BINS', 'var'), QQ_PLOT_BINS = false; end;   % make QQ plots
 if ~exist('QQ_PLOT_BINS_DOWNSCALE', 'var'), QQ_PLOT_BINS_DOWNSCALE = 10; end;     % downscale #snps in QQ plots (model prediction only)
-if ~exist('UGMG_LOGLIKE_PLOT', 'var'), UGMG_LOGLIKE_PLOT = false; end;
 if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
 if ~exist('POWER_PLOT_DOWNSCALE', 'var'), POWER_PLOT_DOWNSCALE = 10; end;  % make power plots with fitted parameters
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;

@@ -55,6 +55,8 @@ public:
   void align_to_reference(const BimFile& bim);
   void clear() { snp_index_.clear(); frq_.clear(); }
 
+  std::vector<float>& frq() { return frq_; }
+
 private:
   std::vector<int> snp_index_;
   std::vector<float> frq_;
@@ -75,6 +77,9 @@ public:
     const std::string& a2sumstat,
     const std::string& a1reference,
     const std::string& a2reference);
+
+  const std::vector<float>& zscore() { return zscore_; }
+  const std::vector<float>& sample_size() { return sample_size_; }
 
 public:
   // Read "N, Z, SNP, A1, A2" 

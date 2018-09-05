@@ -233,7 +233,7 @@ class BgmgCalculator : public TagToSnpMapping {
   // NB: all tag variants must have defined zvec, nvec, mafvec and weights.
   int64_t set_tag_indices(int num_snp, int num_tag, int* tag_indices);
   
-  int64_t set_chrnumvec(int num_snp, int* chrlabel);
+  int64_t set_chrnumvec(int num_snp, const int* chrlabel);
   int64_t retrieve_chrnumvec(int length, int* buffer);
 
   // consume input in plink format, e.i. lower triangular LD r2 matrix

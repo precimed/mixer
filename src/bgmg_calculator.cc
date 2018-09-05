@@ -1381,7 +1381,6 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
 void BgmgCalculator::clear_state() {
   LOG << " clear_state";
 
-  mafvec_.clear();
   ld_matrix_csr_.clear();
 
   // clear ordering of SNPs
@@ -1658,7 +1657,7 @@ int64_t LoglikeCache::get_entry(int entry_index, int pi_vec_len, float* pi_vec, 
   return 0;
 }
 
-int64_t BgmgCalculator::set_chrnumvec(int num_snp, int* chrlabel) {
+int64_t BgmgCalculator::set_chrnumvec(int num_snp, const int* chrlabel) {
   if (!chrnumvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can not set chrnumvec twice"));
   for (int i = 1; i < num_snp; i++) {
     if (chrlabel[i] < chrlabel[i - 1]) BGMG_THROW_EXCEPTION(::std::runtime_error("chrnumvec must be sorted"));
@@ -1736,6 +1735,11 @@ int64_t BgmgCalculator::retrieve_ld_r2_chr(int chr_label, int length, int* snp_i
 }
 
 int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::string chr_labels, std::string trait1_file, std::string trait2_file) {
+  if (!trait2_file.empty() && trait1_file.empty())
+    BGMG_THROW_EXCEPTION(std::runtime_error("trait2_file can be provided only together with trait1_file"));
+  LOG << ">init(bim_file=" << bim_file << ", frq_file=" << frq_file << ", chr_labels=" << chr_labels << ", trait1_file=" << trait1_file << ", trait2_file=" << trait2_file << "); ";
+  SimpleTimer timer(-1);
+
   std::vector<std::string> chr_labels_vector, bim_files, frq_files;
 
   if (chr_labels.empty()) {
@@ -1781,6 +1785,11 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
     }
   }
 
+  if (!trait1_file.empty() && !boost::filesystem::exists(trait1_file))
+    BGMG_THROW_EXCEPTION(std::runtime_error(trait1_file + " does not exist"));
+  if (!trait2_file.empty() && !boost::filesystem::exists(trait2_file))
+    BGMG_THROW_EXCEPTION(std::runtime_error(trait2_file + " does not exist"));
+
   bim_file_.clear();
   bim_file_.read(bim_files);
   bim_file_.find_snp_to_index_map();
@@ -1788,14 +1797,72 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
   FrqFile frq_file_object;
   if (!frq_file.empty()) {
     frq_file_object.read(bim_file_, frq_files);
-    frq_file_object.align_to_reference(bim_file_);
+    frq_file_object.align_to_reference(bim_file_);  // raise an error if any of reference variants is not present in frq files.
   }
+
+  std::vector<int> defvec(bim_file_.size(), 1);
 
   SumstatFile trait1_file_object;
   if (!trait1_file.empty()) {
     trait1_file_object.read(bim_file_, trait1_file);
+    for (int i = 0; i < bim_file_.size(); i++) {
+      if (!std::isfinite(trait1_file_object.zscore()[i])) defvec[i] = 0;
+      if (!std::isfinite(trait1_file_object.sample_size()[i])) defvec[i] = 0;
+    }
   }
 
+  SumstatFile trait2_file_object;
+  if (!trait2_file.empty()) {
+    trait2_file_object.read(bim_file_, trait2_file);
+    for (int i = 0; i < bim_file_.size(); i++) {
+      if (!std::isfinite(trait2_file_object.zscore()[i])) defvec[i] = 0;
+      if (!std::isfinite(trait2_file_object.sample_size()[i])) defvec[i] = 0;
+    }
+  }
+
+  // TBD: constrain defvec based on "extract" and "exclude" flags.
+
+  // Find tag indices
+  std::vector<int> tag_indices;
+  for (int i = 0; i < bim_file_.size(); i++)
+    if (defvec[i]) tag_indices.push_back(i);
+
+  // Initialize bgmg_calculator, e.i.
+  // - set_tag_indices
+  // - set_chrnumvec
+  // - set_mafvec (if frq file is available)
+  // - set_zvec, set_nvec (for each trait, if they are available)
+  set_tag_indices(defvec.size(), tag_indices.size(), &tag_indices[0]);
+  set_chrnumvec(bim_file_.size(), &bim_file_.chr_label()[0]);
+  if (!frq_file.empty())
+    set_mafvec(bim_file_.size(), &frq_file_object.frq()[0]);
+
+  if (!trait1_file.empty()) {
+    std::vector<float> zvec(tag_indices.size(), 0), nvec(tag_indices.size(), 0);
+    for (int i = 0; i < tag_indices.size(); i++) {
+      zvec[i] = trait1_file_object.zscore()[tag_indices[i]];
+      nvec[i] = trait1_file_object.sample_size()[tag_indices[i]];
+    }
+    set_zvec(1, tag_indices.size(), &zvec[0]);
+    set_nvec(1, tag_indices.size(), &nvec[0]);
+  }
+
+  if (!trait2_file.empty()) {
+    std::vector<float> zvec(tag_indices.size(), 0), nvec(tag_indices.size(), 0);
+    for (int i = 0; i < tag_indices.size(); i++) {
+      zvec[i] = trait2_file_object.zscore()[tag_indices[i]];
+      nvec[i] = trait2_file_object.sample_size()[tag_indices[i]];
+    }
+    set_zvec(2, tag_indices.size(), &zvec[0]);
+    set_nvec(2, tag_indices.size(), &nvec[0]);
+  }
+
+  LOG << "<init(bim_file=" << bim_file << 
+    ", frq_file=" << frq_file << 
+    ", chr_labels=" << chr_labels << 
+    ", trait1_file=" << trait1_file << 
+    ", trait2_file=" << trait2_file << 
+    ");  elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 

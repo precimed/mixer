@@ -117,7 +117,7 @@ if (MSVC)
 	target_compile_definitions(bgmg-cli PRIVATE BGMG_STATIC_DEFINE)
 else (MSVC)
 	set_target_properties(bgmg-cli PROPERTIES LINK_FLAGS "-static" )
-	target_link_libraries(bgmg-cli bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
+	target_link_libraries(bgmg-cli bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
 	target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
 endif (MSVC)
 

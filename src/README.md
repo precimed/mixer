@@ -54,7 +54,6 @@ At MMIL servers we have quite old version of matlab ``matlab R2015b (8.6.0.26724
 4. ``cd ~/BGMG_mmil/src/build && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0``
 5. At mmil: ``rsync -avzP oleksanf@abel.uio.no:/usit/abel/u1/oleksanf/precimed/BGMG_mmil/src/build/lib /home/oleksandr/precimed/BGMG/src/build``
 
-
 **Test that build succeeded**
 
 The build produces two important artifact: ``<build>/bin/bgmg-cli`` (executable) and ``<build>/lib/libbgmg.so`` (shared library).
@@ -78,4 +77,23 @@ BGMG_cpp.load(bgmg_shared_library, bgmg_shared_library_header);
 BGMG_cpp.init_log(logfile);
 ```
 Now inspect logfile to see that there is "a new session" string in it. BGMG_cpp is a matlab class defined in BGMG_cpp.m file in the root of precimed/BGMG repository.
- 
+
+
+** Build on lisa.surfsara.nl
+
+```
+module purge
+module load gcc/5.4.0
+module load cmake/3.5.1
+
+cd ~ && wget http://sourceforge.net/projects/boost/files/boost/1.49.0/boost_1_49_0.tar.gz && tar -xzvf boost_1_49_0.tar.gz && rm boost_1_49_0.tar.gz
+./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time i
+./b2 cxxflags=-fPIC cflags=-fPIC variant=release threading=multi runtime-link=shared link=shared -j12
+./b2 cxxflags=-fPIC cflags=-fPIC variant=release threading=multi runtime-link=static link=static -j12
+mkdir ~/GitHub/precimed && cd ~/GitHub/precimed
+git clone --recurse-submodules git@github.com:precimed/BGMG.git && cd BGMG/src
+mkdir build && cd build
+cmake .. -DBOOST_ROOT=/home/oleksand/boost_1_49_0
+make -j12
+
+```

@@ -33,7 +33,7 @@ function result = BGMG_cpp_fit_bivariate(params, options)
     result.loglike_fit_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
 
     % Adjust based on smooth approximation
-    if 1
+    if options.fit_full_model
         bgmglib.clear_loglike_cache();
         x0 = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(result.params);
         arg_index=9;
@@ -73,32 +73,34 @@ function result = BGMG_cpp_fit_bivariate(params, options)
     % Step3. Uncertainty estimation. 
     if ~isnan(options.ci_alpha)
         BGMG_cpp.log('Trait 1,2: uncertainty estimation\n');
-        %ws=warning; warning('off', 'all');
-        bgmglib.clear_loglike_cache();
-        [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(result.params));
-        result.loglike_ci_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
-        result.ci_hess = ci_hess;
-        result.ci_hess_err = ci_hess_err;
-        %warning(ws);
-
+        
+        % Compined ci sample: 3 columns for trait 1 params, 3 columns for trait3 params, finally 3 columns for bivariate params
+        ci_sample = nan(options.ci_sample, 9);
         ci_params = [];
-        try
-            % Some elements in hessian might be misscalculated
-            % due to various reasons:
-            % - derivest library may return some hessian elements as NaN,
-            %   for example due to very small values in the the pivec
-            % - derivest library may return too high error bars
-            % Below we detect which variables in hessian appear to be
-            % miscalculated, save the list in nanidx, and ignore
-            % such hessian elements in the code below.
-            ci_hess(diag(any(abs(inv(ci_hess)) > 1e10))) = +Inf;
+        bgmglib.set_option('fast_cost', 1);
 
-            ci_sample = mvnrnd(mapparams(result.params), inv(ci_hess), options.ci_sample);
+        try
+            % find uncertainty from univariate optimization
+            ugmg_mapparams = @(x)BGMG_util.UGMG_mapparams1_decorrelated_parametrization(x);
+            for trait_index=1:2
+                params_ugmg = struct('pi_vec', sum(result.params.pi_vec([trait_index 3])), 'sig2_zero',params.sig2_zero(trait_index), 'sig2_beta', params.sig2_beta(trait_index, 3));
+                [ci_hess, ~] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(ugmg_mapparams(x), trait_index), ugmg_mapparams(params_ugmg)); 
+                ci_hess(diag(any(abs(inv(ci_hess)) > 1e10))) = +Inf;
+                if any(~isfinite(ci_hess(:))), BGMG_cpp.log('Warning: unable to estimate hessian for confidence intervals'); end;
+                ci_sample(:, (1:3) + 3*(trait_index-1)) = mvnrnd(ugmg_mapparams(params_ugmg), inv(ci_hess), options.ci_sample);
+            end
+
+            % find uncertainty from bivariate optimization
+            [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(result.params));
+            result.ci_hess = ci_hess; result.ci_hess_err = ci_hess_err;
+            ci_hess(diag(any(abs(inv(ci_hess)) > 1e10))) = +Inf;
+            if any(~isfinite(ci_hess(:))), BGMG_cpp.log('Warning: unable to estimate hessian for confidence intervals'); end;
+            ci_sample(:, 7:9) = mvnrnd(mapparams(result.params), inv(ci_hess), options.ci_sample);
 
             ci_params = cell(options.ci_sample, 1);
-            for i=1:options.ci_sample, ci_params{i} = mapparams(ci_sample(i, :)); end;
+            for i=1:options.ci_sample, ci_params{i} = BGMG_util.BGMG_mapparams3_decorrelated_parametrization_9arguments(ci_sample(i, :)); end;
         catch err
-            BGMG_cpp.log('Error, %s\n', err.message);
+            BGMG_cpp.log('Error in BGMG uncertainty estimation, %s\n', err.message);
         end
 
         result.ci_params = ci_params;

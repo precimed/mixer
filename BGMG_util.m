@@ -266,6 +266,7 @@ classdef BGMG_util
         bivariate_ci_funcs.pi12_minus_pi1u_times_pi2u = @(params)(params.pi_vec(3) - sum(params.pi_vec([1 3])) * sum(params.pi_vec([2 3])));
         bivariate_ci_funcs.pi12_over_pi1u     = @(params)(params.pi_vec(3) / sum(params.pi_vec([1 3])));
         bivariate_ci_funcs.pi12_over_pi2u     = @(params)(params.pi_vec(3) / sum(params.pi_vec([2 3])));
+        bivariate_ci_funcs.pi12_over_min_piXu = @(params)(params.pi_vec(3) / min(sum(params.pi_vec([1 3])), sum(params.pi_vec([2 3]))));
         bivariate_ci_funcs.pi1_over_pi1u      = @(params)(params.pi_vec(1) / sum(params.pi_vec([1 3])));
         bivariate_ci_funcs.pi2_over_pi2u      = @(params)(params.pi_vec(2) / sum(params.pi_vec([2 3])));
         bivariate_ci_funcs.pi1u_over_pi2u     = @(params)(sum(params.pi_vec([1 3])) / sum(params.pi_vec([2 3])));
@@ -530,6 +531,15 @@ classdef BGMG_util
         end
     end
     
+    function ov = BGMG_mapparams3_decorrelated_parametrization_9arguments(iv)
+        % for ci computation (used only to unpack 9-component vector into param struct)
+        p1 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(iv(1:3));
+        p2 = BGMG_util.UGMG_mapparams1_decorrelated_parametrization(iv(4:6));
+        ov = BGMG_util.BGMG_mapparams3_rho_and_pifrac(iv(7:9), struct(...
+            'pi_vec', [p1.pi_vec, p2.pi_vec], ...
+            'sig2_beta', [p1.sig2_beta, p2.sig2_beta], ...
+            'sig2_zero', [p1.sig2_zero, p2.sig2_zero]));
+    end
     
 
     function ov = BGMG_mapparams3(iv, options)

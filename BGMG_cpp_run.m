@@ -35,7 +35,8 @@ QQ_PLOT=false;STRATIFIED_QQ_PLOT=false;BGMG_LOGLIKE_PLOT=false;
 cache_tag_r2sum=false;
 MAF_THRESH=0.01;
 r2min=0.05;
-out_file = ['results_2018_08_09/' filename];
+CI_ALPHA=0.05;
+out_file = ['results_2018_09_06/' filename];
 end
 
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
@@ -106,8 +107,6 @@ if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots wit
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = nan; end;
 if ~exist('THREADS', 'var'), THREADS = -1; end;
-
-if POWER_PLOT, error('not yet implemented in c++ version'); end;
 
 % reference file containing mafvec, chrnumvec and posvec for all SNPs to consider in this analysis. 
 if ~exist('reference_file', 'var'), error('reference_file is required'); end;

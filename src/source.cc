@@ -35,6 +35,14 @@ catch (const std::runtime_error& e) {                                          \
   LOG << " runtime_error:  " << std::string(e.what());                         \
   set_last_error("runtime_error:  " + std::string(e.what()));                  \
   return -1;                                                                   \
+} catch (const std::invalid_argument& e) {                                     \
+  LOG << " invalid_argument:  " << std::string(e.what());                      \
+  set_last_error("invalid_argument:  " + std::string(e.what()));               \
+  return -1;                                                                   \
+} catch (const std::exception& e) {                                            \
+  LOG << " exception:  " << std::string(e.what());                             \
+  set_last_error("exception:  " + std::string(e.what()));                      \
+  return -1;                                                                   \
 } catch (...) {                                                                \
   LOG << " unknown critical error";                                            \
   set_last_error("unknown critical error");                                    \

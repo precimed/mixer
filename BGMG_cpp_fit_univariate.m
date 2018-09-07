@@ -62,21 +62,15 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
         %subplot(1,2,2); plot(xgrid, [result.loglike_adj_trajectory.cost, curve3(xgrid)], '.-'); hold on; plot(x0opt, curve3(x0opt), '*k');
     end
     
-    if ~isnan(options.ci_alpha)  % not implemented
+    if ~isnan(options.ci_alpha)
         BGMG_cpp.log('Uncertainty estimation\n');
-        %ws=warning; warning('off', 'all'); 
         bgmglib.clear_loglike_cache();
         bgmglib.set_option('fast_cost', 1);
-        [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index), options.mapparams(result.params)); 
-        %result.loglike_ci_trajectory = bgmglib.extract_univariate_loglike_trajectory();
-        result.ci_hess = ci_hess;
-        result.ci_hess_err = ci_hess_err;
-        %warning(ws);
         result.ci_params = [];
         try
-            result.ci_hess(diag(any(abs(inv(result.ci_hess)) > 1e10))) = +Inf;
-            if any(~isfinite(result.ci_hess(:))), BGMG_cpp.log('Warning: unable to estimate hessian for confidence intervals'); end;
-            result.ci_sample = mvnrnd(options.mapparams(result.params), inv(result.ci_hess), options.ci_sample);
+            [ci_hess, ci_hess_info] = BGMG_util.hessian_robust(@(x)BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index), options.mapparams(result.params)); 
+            result.ci_hess = ci_hess; result.ci_hess_info = ci_hess_info;
+            result.ci_sample = mvnrnd(options.mapparams(result.params), inv(ci_hess), options.ci_sample);
             result.ci_params = cell(options.ci_sample, 1);
             for i=1:options.ci_sample, result.ci_params{i} = options.mapparams(result.ci_sample(i, :)); end;
         catch err

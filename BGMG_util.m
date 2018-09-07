@@ -541,6 +541,23 @@ classdef BGMG_util
             'sig2_zero', [p1.sig2_zero, p2.sig2_zero]));
     end
     
+    function [hess, info] = hessian_robust(fun, x0)
+        [hess_full, hess_full_err] = hessian(fun,x0);
+        [hess_diag, hess_diag_err] = hessdiag(fun,x0);
+        
+        info.hess_full = hess_full;
+        info.hess_full_errr = hess_full_err;
+        info.hess_diag = hess_diag;
+        info.hess_diag_err = hess_diag_err;
+        
+        if all(isfinite(hess_full(:))) && all(all(isfinite(inv(hess_full)))) && all(eig(inv(hess_full)) > 0)
+            % well estimated positive definite hessian
+            hess = hess_full;
+        else 
+            % something goes wrong.. fall back to diagonal
+            hess = diag(hess_diag);
+        end
+    end
 
     function ov = BGMG_mapparams3(iv, options)
         % mapparams for saturated bivaraite mixture with a three causal component

@@ -85,23 +85,18 @@ function result = BGMG_cpp_fit_bivariate(params, options)
             ugmg_mapparams = @(x)BGMG_util.UGMG_mapparams1_decorrelated_parametrization(x);
             for trait_index=1:2
                 params_ugmg = struct('pi_vec', sum(result.params.pi_vec([trait_index 3])), 'sig2_zero',params.sig2_zero(trait_index), 'sig2_beta', params.sig2_beta(trait_index, 3));
-                [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(ugmg_mapparams(x), trait_index), ugmg_mapparams(params_ugmg)); 
+                [ci_hess, ci_hess_info] = BGMG_util.hessian_robust(@(x)BGMG_util.UGMG_fminsearch_cost(ugmg_mapparams(x), trait_index), ugmg_mapparams(params_ugmg)); 
                 result.ci_hess_ugmg{trait_index} = ci_hess;
-                result.ci_hess_err_ugmg{trait_index} = ci_hess_err;
-                ci_hess(diag(any(abs(inv(ci_hess)) > 1e10))) = +Inf;
-                if any(~isfinite(ci_hess(:))), BGMG_cpp.log('Warning: unable to estimate hessian for confidence intervals'); end;
+                result.ci_hess_info_ugmg{trait_index} = ci_hess_info;
                 result.ci_sample(:, (1:3) + 3*(trait_index-1)) = mvnrnd(ugmg_mapparams(params_ugmg), inv(ci_hess), options.ci_sample);
             end
 
             % find uncertainty from bivariate optimization
             mapparams = @(x)mapparams_generic(x, result.params);
-            [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(result.params));
-            result.ci_hess = ci_hess;
-            result.ci_hess_err = ci_hess_err;
-            ci_hess(diag(any(abs(inv(ci_hess)) > 1e10))) = +Inf;
-            if any(~isfinite(ci_hess(:))), BGMG_cpp.log('Warning: unable to estimate hessian for confidence intervals'); end;
+            [ci_hess, ci_hess_info] = BGMG_util.hessian_robust(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(result.params));
+            result.ci_hess_bgmg = ci_hess;
+            result.ci_hess_info_bgmg = ci_hess_info;
             result.ci_sample(:, 7:9) = mvnrnd(mapparams(result.params), inv(ci_hess), options.ci_sample);
-
             ci_params = cell(options.ci_sample, 1);
             for i=1:options.ci_sample, ci_params{i} = BGMG_util.BGMG_mapparams3_decorrelated_parametrization_9arguments(result.ci_sample(i, :)); end;
         catch err

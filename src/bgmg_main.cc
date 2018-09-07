@@ -203,6 +203,7 @@ int main(int argc, char *argv[]) {
       LOG << "Elapsed time: " << analysis_finished - analysis_started;
     }
     catch (std::exception& e) {
+      std::cerr << "Exception  : " << e.what() << "\n";
       LOG << "ERROR: " << e.what();
       return EXIT_FAILURE;
     }

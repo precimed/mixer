@@ -20,11 +20,12 @@ function result = BGMG_cpp_fit_bivariate(params, options)
     if ~isnan(options.TolX), fminsearch_options.MaxFunEvals=options.TolX; end;
     if ~isnan(options.TolFun), fminsearch_options.MaxFunEvals=options.TolFun; end;
 
-    mapparams = @(x)BGMG_util.BGMG_mapparams3_rho_and_pifrac(x, struct(...
+    mapparams_generic = @(x)BGMG_util.BGMG_mapparams3_rho_and_pifrac(x, struct(...
         'sig2_zero', params.sig2_zero, ...
         'sig2_beta', params.sig2_beta(:, end), ...
         'pi_vec', [sum(params.pi_vec([1, 3])), sum(params.pi_vec([2, 3]))]));
-
+    mapparams = @(x)mapparams_generic(x, params);
+    
     fitfunc = @(x0)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
 
     % Step2. Final unconstrained optimization (jointly on all parameters), using fast cost function
@@ -75,7 +76,7 @@ function result = BGMG_cpp_fit_bivariate(params, options)
         BGMG_cpp.log('Trait 1,2: uncertainty estimation\n');
         
         % Compined ci sample: 3 columns for trait 1 params, 3 columns for trait3 params, finally 3 columns for bivariate params
-        ci_sample = nan(options.ci_sample, 9);
+        result.ci_sample = nan(options.ci_sample, 9);
         ci_params = [];
         bgmglib.set_option('fast_cost', 1);
 
@@ -84,23 +85,29 @@ function result = BGMG_cpp_fit_bivariate(params, options)
             ugmg_mapparams = @(x)BGMG_util.UGMG_mapparams1_decorrelated_parametrization(x);
             for trait_index=1:2
                 params_ugmg = struct('pi_vec', sum(result.params.pi_vec([trait_index 3])), 'sig2_zero',params.sig2_zero(trait_index), 'sig2_beta', params.sig2_beta(trait_index, 3));
-                [ci_hess, ~] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(ugmg_mapparams(x), trait_index), ugmg_mapparams(params_ugmg)); 
+                [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.UGMG_fminsearch_cost(ugmg_mapparams(x), trait_index), ugmg_mapparams(params_ugmg)); 
+                result.ci_hess_ugmg{trait_index} = ci_hess;
+                result.ci_hess_err_ugmg{trait_index} = ci_hess_err;
                 ci_hess(diag(any(abs(inv(ci_hess)) > 1e10))) = +Inf;
                 if any(~isfinite(ci_hess(:))), BGMG_cpp.log('Warning: unable to estimate hessian for confidence intervals'); end;
-                ci_sample(:, (1:3) + 3*(trait_index-1)) = mvnrnd(ugmg_mapparams(params_ugmg), inv(ci_hess), options.ci_sample);
+                result.ci_sample(:, (1:3) + 3*(trait_index-1)) = mvnrnd(ugmg_mapparams(params_ugmg), inv(ci_hess), options.ci_sample);
             end
 
             % find uncertainty from bivariate optimization
+            mapparams = @(x)mapparams_generic(x, result.params);
             [ci_hess, ci_hess_err] = hessian(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(result.params));
-            result.ci_hess = ci_hess; result.ci_hess_err = ci_hess_err;
+            result.ci_hess = ci_hess;
+            result.ci_hess_err = ci_hess_err;
             ci_hess(diag(any(abs(inv(ci_hess)) > 1e10))) = +Inf;
             if any(~isfinite(ci_hess(:))), BGMG_cpp.log('Warning: unable to estimate hessian for confidence intervals'); end;
-            ci_sample(:, 7:9) = mvnrnd(mapparams(result.params), inv(ci_hess), options.ci_sample);
+            result.ci_sample(:, 7:9) = mvnrnd(mapparams(result.params), inv(ci_hess), options.ci_sample);
 
             ci_params = cell(options.ci_sample, 1);
-            for i=1:options.ci_sample, ci_params{i} = BGMG_util.BGMG_mapparams3_decorrelated_parametrization_9arguments(ci_sample(i, :)); end;
+            for i=1:options.ci_sample, ci_params{i} = BGMG_util.BGMG_mapparams3_decorrelated_parametrization_9arguments(result.ci_sample(i, :)); end;
         catch err
+            result.ci_err = err;
             BGMG_cpp.log('Error in BGMG uncertainty estimation, %s\n', err.message);
+			for i=1:length(err.stack), BGMG_cpp.log('%s:%i %s\n', err.stack(i).file, err.stack(i).line, err.stack(i).name); end
         end
 
         result.ci_params = ci_params;

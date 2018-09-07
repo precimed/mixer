@@ -76,11 +76,13 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
         try
             result.ci_hess(diag(any(abs(inv(result.ci_hess)) > 1e10))) = +Inf;
             if any(~isfinite(result.ci_hess(:))), BGMG_cpp.log('Warning: unable to estimate hessian for confidence intervals'); end;
-            ci_sample = mvnrnd(options.mapparams(result.params), inv(result.ci_hess), options.ci_sample);
+            result.ci_sample = mvnrnd(options.mapparams(result.params), inv(result.ci_hess), options.ci_sample);
             result.ci_params = cell(options.ci_sample, 1);
-            for i=1:options.ci_sample, result.ci_params{i} = options.mapparams(ci_sample(i, :)); end;
+            for i=1:options.ci_sample, result.ci_params{i} = options.mapparams(result.ci_sample(i, :)); end;
         catch err
+			result.ci_err = err;
             BGMG_cpp.log('Error, %s\n', err.message);
+			for i=1:length(err.stack), BGMG_cpp.log('%s:%i %s\n', err.stack(i).file, err.stack(i).line, err.stack(i).name); end
         end
 
         [ci_univariate_funcs, ~] = BGMG_util.find_extract_funcs(options);

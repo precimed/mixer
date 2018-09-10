@@ -1,29 +1,4 @@
-% This script runs Univariate Causal Mixture for GWAS analysis. 
-% To start analysis from command line run:
-%
-%   matlab -nodisplay -nosplash -nodesktop -r "bim_file='chr@.bim'; frq_file='chr@.frq'; trait1_file='PGC_SCZ_2014_noMHC.sumstats.gz'; ...; BGMG_run; exit;"
-%
-% See below for the FULL LIST OF AVAILABLE PARAMETERS.
-%
-% Run flow:
-% 1. Load and initialize BGMG library (bgmglib, native c++ plugin for Matlab)
-% 2. Load reference pannel (SNP/CHR/BP/A1/A2) from .bim file(s), plink format
-% 3. Load allele frequencies for reference pannel (FRQ) from .frq file(s) plink format
-% 4. Load trait data (zvec, nvec) from .sumstats.gz LDSR-formatted file
-%    (can be output of https://github.com/bulik/ldsc/munge_sumstats.py)
-% 5. Load LD structure from binary files
-%    (binary files should be produced from plink ***.ld.gz files using bgmg-cli converter)
-% 6. Setup weights based on random pruning.
-% 7. Setup params ('initial approximation'). Two options available
-%       - load params from previous run
-%       - fit params using gaussian approximation ('fit from scratch')
-% 8. [optional] fit UGMG parameters using full model for GWAS z scores
-% 9. [optional] produce QQ plots
-% 10. [optional] produce partitioned QQ plots (bins of MAF and LD score)
-% 11. [optional] produce power curves (proportion of heritability explained as a function of GWAS sample size)
-% 12. Save results to <out_file>.[mat, pdf, log]
-
-% NB! you may uncomment the following lines (e.i. remove '%{' and '%}' symbold) if you wish to set parameters here in .m file, and not from command line.
+% This script runs Bivariate Causal Mixture for GWAS analysis. 
 
 %{
 % FULL LIST OF AVAILABLE PARAMETERS
@@ -39,16 +14,14 @@ plink_ld_bin   = 'H:\GitHub\BGMG\LDSR\1000G_EUR_Phase3_plink\1000G.EUR.QC.@.p05_
 chr_labels     = 1:22;
 
 trait1_file    = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR\LDSR_Data\PGC_SCZ_2014_EUR_qc_noMHC.sumstats.gz';
-out_file       = 'H:\GitHub\BGMG\LDSR\BGMG_results\PGC_SCZ_2014_EUR_qc_noMHC.ugmg';
-
-trait1_file    = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR\LDSR_Data\PGC_BIP_2016_qc_noMHC.sumstats.gz';
-out_file       = 'H:\GitHub\BGMG\LDSR\BGMG_results\PGC_BIP_2016_qc_noMHC.ugmg';
+trait2_file    = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR\LDSR_Data\PGC_BIP_2016_qc_noMHC.sumstats.gz';
+trait1_params_file       = 'H:\GitHub\BGMG\LDSR\BGMG_results\PGC_SCZ_2014_EUR_qc_noMHC.ugmg.params.mat';
+trait2_params_file       = 'H:\GitHub\BGMG\LDSR\BGMG_results\PGC_BIP_2016_qc_noMHC.ugmg.params.mat';
+out_file                 = 'H:\GitHub\BGMG\LDSR\BGMG_results\PGC_SCZ_2014_EUR_qc_noMHC_vs_PGC_BIP_2016_qc_noMHC';
 
 % Enable/disable features
-DO_FIT_UGMG=true; 
-QQ_PLOT=true; QQ_PLOT_DOWNSCALE = 10;         % enable/disable QQ plots
-QQ_PLOT_BINS=true; QQ_PLOT_BINS_DOWNSCALE=10; % enable/disable partitioned QQ plot (maf/ldscore bins)
-POWER_PLOT=true; POWER_PLOT_DOWNSCALE=10;     % enable/disable power plots
+DO_FIT_BGMG=true; 
+STRATIFIED_QQ_PLOT=true; STRATIFIED_QQ_PLOT_DOWNSCALE=10; % enable/disable stratified QQ plot
 
 % Optional parameters
 exclude = '';                       % file containing SNP rs# to exclude from the anslysis
@@ -66,10 +39,11 @@ TolX = 1e-2; TolFun = 1e-2;         % fminserach tolerance (stop criteria)
 
 %}
 
-if ~exist('out_file', 'var'), out_file = 'UGMG_result'; end;
+if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
 if ~exist('bim_file', 'var'), error('bim_file is required'); end;
 if ~exist('frq_file', 'var'), error('frq_file is required'); end;
 if ~exist('trait1_file', 'var'), error('trait1_file is required'); end;
+if ~exist('trait2_file', 'var'), error('trait2_file is required'); end;
 
 % full path to bgmg shared library
 if ~exist('bgmg_shared_library', 'var'), error('bgmg_shared_library is required'); end;
@@ -94,27 +68,37 @@ if ~exist('r2min', 'var'), r2min = 0.01; end;
 if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.03; end;
 if ~exist('cache_tag_r2sum', 'var'), cache_tag_r2sum = 1; end;
 if ~exist('SEED', 'var'), seed = nan; end;
-num_components = 1;  % univariate
+num_components = 3;  % bivariate
 
-% The following three options control how to get univariate & bivariate params
+% The following three options control how to get bivariate params
 % BGMG_cpp_run can take previous results file, and enhance it with
 % additional features. Typical example would be to take a file produced
 % after DO_FIT, and use it to produce QQ plots, etc.
-% Allows to fir BGMG with already fitted univaraite estimates
-if ~exist('DO_FIT_UGMG', 'var'), DO_FIT_UGMG = true; end;               % perform univariate fit
+if ~exist('DO_FIT_BGMG', 'var'), DO_FIT_BGMG = true; end;               % perform bivariate fit
 if ~exist('init_from_params_file', 'var'), init_from_params_file = ''; end;
+
+if isempty(init_from_params_file)
+    if ~exist('trait1_params_file', 'var'), error('trait1_params is required'); end;
+    if ~exist('trait2_params_file', 'var'), error('trait2_params is required'); end;
+
+    trait1_params = load(trait1_params_file);
+    if ~isfield(trait1_params, 'sig2_zero'), error('%s does not contain sig2_zero param', trait1_params_file); end;
+    if ~isfield(trait1_params, 'sig2_beta'), error('%s does not contain sig2_beta param', trait1_params_file); end;
+    if ~isfield(trait1_params, 'pi_vec'), error('%s does not contain pi_vec param', trait1_params_file); end;
+
+    trait2_params = load(trait2_params_file);
+    if ~isfield(trait2_params, 'sig2_zero'), error('%s does not contain sig2_zero param', trait2_params_file); end;
+    if ~isfield(trait2_params, 'sig2_beta'), error('%s does not contain sig2_beta param', trait2_params_file); end;
+    if ~isfield(trait2_params, 'pi_vec'), error('%s does not contain pi_vec param', trait2_params_file); end;
+end
 
 % Setup tolerance for fminsearch
 if ~exist('TolX', 'var'), TolX = 1e-2; end;
 if ~exist('TolFun', 'var'), TolFun = 1e-2; end;
 
 if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                % use full model (when false, use gaussian approximation)
-if ~exist('QQ_PLOT', 'var'), QQ_PLOT = false; end;   % make QQ plots
-if ~exist('QQ_PLOT_DOWNSCALE', 'var'), QQ_PLOT_DOWNSCALE = 100; end;     % downscale #snps in QQ plots (model prediction only)
-if ~exist('QQ_PLOT_BINS', 'var'), QQ_PLOT_BINS = false; end;   % make QQ plots
-if ~exist('QQ_PLOT_BINS_DOWNSCALE', 'var'), QQ_PLOT_BINS_DOWNSCALE = 10; end;     % downscale #snps in QQ plots (model prediction only)
-if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
-if ~exist('POWER_PLOT_DOWNSCALE', 'var'), POWER_PLOT_DOWNSCALE = 10; end;  % make power plots with fitted parameters
+if ~exist('STRATIFIED_QQ_PLOT', 'var'), STRATIFIED_QQ_PLOT = false; end;
+if ~exist('STRATIFIED_QQ_PLOT_DOWNSCALE', 'var'), STRATIFIED_QQ_PLOT_DOWNSCALE = 1000; end;     % downscale #snps in stratified QQ plots (model prediction only)
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = 0.05; end;
 if ~exist('THREADS', 'var'), THREADS = -1; end;
@@ -126,7 +110,7 @@ addpath('PolyfitnTools');
 
 bgmglib = BGMG_cpp();
 bgmglib.dispose();
-bgmglib.init(bim_file, frq_file, sprintf('%i ', chr_labels), trait1_file, '', exclude, extract);
+bgmglib.init(bim_file, frq_file, sprintf('%i ', chr_labels), trait1_file, trait2_file, exclude, extract);
 
 bgmglib.set_option('r2min', r2min);
 bgmglib.set_option('kmax', kmax);
@@ -154,82 +138,49 @@ options.ci_alpha = CI_ALPHA;
 options.title = TITLE;
 options.fit_full_model = FIT_FULL_MODEL;
 options.trait1_nval = median(bgmglib.nvec1);
+options.trait2_nval = median(bgmglib.nvec2);
 
 disp(options)
 
-% Load params from previous runs.
 if ~isempty(init_from_params_file)
     BGMG_cpp.log('Loading params from %s...\n', init_from_params_file);
-    trait1_params = load(init_from_params_file);
-    BGMG_cpp.log('Univariate params load from initial file');
+    trait12_params = load(init_from_params_file);
+    BGMG_cpp.log('Univariate and bivariate params load from initial file');
     clear('tmp');
 else
-    % If there is no initial approximation, setup it from fast model
-    trait1_params = BGMG_cpp_fit_univariate_fast(1);
+    % if there is no initial approximation, setup it from fast model
+    trait12_params = BGMG_cpp_fit_bivariate_fast(trait1_params, trait2_params);
 end
 
 % Fit bivariate or univariate model to the data
 bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);
 
 result = [];
-if DO_FIT_UGMG
-    result.univariate{1} = BGMG_cpp_fit_univariate(1, trait1_params, options);
-    trait1_params = result.univariate{1}.params;
+if DO_FIT_BGMG
+    result.bivariate = BGMG_cpp_fit_bivariate(trait12_params, options);
+    trait12_params = result.bivariate.params;
     bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);  % restore fast_cost flag as BGMG_cpp_fit_univariate may change it (CI intervals are based on fast cost function)
 end
 
 result.trait1_file = trait1_file;
+result.trait2_file = trait2_file;
 result.bim_file = bim_file;
 result.frq_file = frq_file;
 result.options = options;
-result.params = trait1_params;
+result.params = trait12_params;
 
 % Save the result in .mat file
 % (this overrides previously saved file)
-save([out_file '.params.mat'], '-struct', 'trait1_params');
+save([out_file '.params.mat'], '-struct', 'trait12_params');
 BGMG_cpp.log('Params saved to %s.params.mat\n', out_file);
 
 bgmglib.set_option('diag', 0);
 
-% Produce power plots
-if POWER_PLOT
-    options.downscale = POWER_PLOT_DOWNSCALE;trait_index=1;
-    figures.tot = figure;
-    plot_data = BGMG_cpp_power_plot(trait1_params, trait_index, options);
-    result.univariate{trait_index}.power_plot_data = plot_data;
-    print(figures.tot, sprintf('%s.power.pdf', out_file), '-dpdf')
-end
-
-% Produce QQ plots
-if QQ_PLOT
-    options.downscale = QQ_PLOT_DOWNSCALE;trait_index=1;
-    figures.tot = figure;
-    plot_data = BGMG_cpp_qq_plot(trait1_params, trait_index, options);
-
-    % To reproduce the same curve: plot(plot_data.data_logpvec, plot_data.hv_logp, plot_data.model_logpvec, plot_data.hv_logp)
-    result.univariate{trait_index}.qq_plot_data = plot_data;
-    print(figures.tot, sprintf('%s.qq.pdf', out_file), '-dpdf')
-end
-
-if QQ_PLOT_BINS
-    options.downscale = QQ_PLOT_BINS_DOWNSCALE;trait_index=1;
-    mafvec = bgmglib.mafvec(bgmglib.defvec);
-    ldscore = bgmglib.ld_tag_r2_sum;
-    maf_bins = [-inf quantile(mafvec, 2) inf];
-    tld_bins = [-inf quantile(ldscore, 2) inf];
-    total_fig = figure;set(gcf, 'Position', get(0, 'Screensize'));
-    options.full_annotation = false;
-    for i=1:3
-        for j=1:3
-            subplot(3,3,(i-1)*3+j);
-            options.title = sprintf('$$ maf \\in [%.3f,%.3f) $$ \n $$ L \\in [%.3f,%.3f) $$', maf_bins(i), maf_bins(i+1), tld_bins(j), tld_bins(j+1));
-            options.mask = (mafvec > maf_bins(i)) & (mafvec <= maf_bins(i+1)) & (ldscore > tld_bins(j)) & (ldscore <= tld_bins(j+1));
-            plot_data = BGMG_cpp_qq_plot(trait1_params, trait_index, options);
-            result.univariate{trait_index}.qq_plot_bins_data{i,j} = plot_data;
-        end
-    end
-    set(total_fig,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
-    print(total_fig, sprintf('%s.qq.bins.pdf', out_file), '-dpdf')
+if STRATIFIED_QQ_PLOT
+    options.downscale = STRATIFIED_QQ_PLOT_DOWNSCALE;
+    [figures, plot_data] = BGMG_cpp_stratified_qq_plot(trait12_params, options);
+    result.bivariate.stratified_qq_plot_fit_data = plot_data;
+    print(figures.tot, sprintf('%s.stratqq.pdf', out_file), '-dpdf')
 end
 
 bgmglib.set_option('diag', 0);

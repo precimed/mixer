@@ -96,7 +96,6 @@ if ~exist('TolX', 'var'), TolX = 1e-2; end;
 if ~exist('TolFun', 'var'), TolFun = 1e-2; end;
 
 if ~exist('FIT_FULL_MODEL', 'var'), FIT_FULL_MODEL = true; end;                % use full model (when false, use gaussian approximation)
-if ~exist('FIT_WITH_CONSTRAINS', 'var'), FIT_WITH_CONSTRAINS = true; end;      % fit bivariate model with univariate constrains
 if ~exist('QQ_PLOT', 'var'), QQ_PLOT = false; end;   % make QQ plots
 if ~exist('QQ_PLOT_DOWNSCALE', 'var'), QQ_PLOT_DOWNSCALE = 100; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('STRATIFIED_QQ_PLOT', 'var'), STRATIFIED_QQ_PLOT = false; end;
@@ -208,7 +207,6 @@ options.verbose = true;
 options.ci_alpha = CI_ALPHA;
 options.title = TITLE;
 options.fit_full_model = FIT_FULL_MODEL;
-options.fit_with_constrains = FIT_WITH_CONSTRAINS;
 
 disp(options)
 

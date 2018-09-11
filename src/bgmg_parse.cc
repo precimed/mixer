@@ -329,6 +329,7 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
   int mismatch_alleles = 0;
   int flipped_alleles = 0;
   int duplicates_ignored = 0;
+  int undefined_z_or_n = 0;
 
   int snp_col = -1, a1_col = -1, a2_col = -1, z_col = -1, n_col = -1;
   int num_cols_required;
@@ -361,6 +362,11 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
 
     if (tokens.size() < num_cols_required) {
       lines_incomplete++;
+      continue;
+    }
+
+    if ((tokens[z_col] == "na") || (tokens[n_col] == "na")) {
+      undefined_z_or_n++;
       continue;
     }
 
@@ -430,6 +436,7 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
     LOG << " Found " << num_def << " variants with well-defined Z and N in " << filename << ". Other statistics: ";
     LOG << " \t" << line_no << " lines found (including header)";
     if (lines_incomplete > 0) LOG << " \t" << lines_incomplete << " lines were ignored as there are incomplete (too few values).";
+    if (undefined_z_or_n > 0) LOG << " \t" << undefined_z_or_n << " lines were ignored as Z or N value was not define ('na' or similar).";
     if (duplicates_ignored > 0) LOG << " \t" << duplicates_ignored << " lines were ignored as they contain duplicated RS#.";
     if (snps_dont_match_reference > 0) LOG << " \t" << snps_dont_match_reference << " lines were ignored as RS# does not match reference file.";
     if (mismatch_alleles > 0) LOG << " \t" << mismatch_alleles << " variants were ignored as they had A1/A2 alleles that do not match reference.";

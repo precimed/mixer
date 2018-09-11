@@ -125,3 +125,4 @@ matlab -nodisplay -nosplash -nodesktop -r "
 ```
 The argument to matlab call has to be in one string; or, start matlab and enter all commands that set parameters, followed by `UGMG_cpp_run_simple` to trigger the actual run.
 
+To update access: ``setfacl -R -m u:<user>:rx /home/oleksand/GitHub/precimed``.

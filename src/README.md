@@ -54,6 +54,13 @@ At MMIL servers we have quite old version of matlab ``matlab R2015b (8.6.0.26724
 4. ``cd ~/BGMG_mmil/src/build && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0``
 5. At mmil: ``rsync -avzP oleksanf@abel.uio.no:/usit/abel/u1/oleksanf/precimed/BGMG_mmil/src/build/lib /home/oleksandr/precimed/BGMG/src/build``
 
+UPDATE: for some reason I have to also rsync boost libraries, and put  them in LD_LIBRARY_PATH before starting matlba.
+```
+rsync -avzP oleksanf@abel.uio.no:/usit/abel/u1/oleksanf/boost_1_49_0/stage/lib
+export "LD_LIBRARY_PATH=/home/oleksandr/precimed/BGMG/src/build/lib:$LD_LIBRARY_PATH"
+```
+
+
 **Test that build succeeded**
 
 The build produces two important artifact: ``<build>/bin/bgmg-cli`` (executable) and ``<build>/lib/libbgmg.so`` (shared library).
@@ -97,3 +104,4 @@ cmake .. -DBOOST_ROOT=/home/oleksand/boost_1_49_0
 make -j12
 
 ```
+

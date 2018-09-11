@@ -369,10 +369,24 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
         (*tag_r2sum_[component_id])(tag_index, k_index) += (scan_weight * r2 * hval);
       }
     }
-    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-      (*tag_r2sum_[component_id])(tag_index, k_index) += (pival_delta * tag_sum_r2_below_r2min[tag_index]);
+  }
+}
+
+{
+  SimpleTimer timer2(-1);
+  int num_tag_inf_adjusted = 0;  // number of snps adjusted according to infinitesimal model
+#pragma omp parallel for schedule(static) reduction(+: num_tag_inf_adjusted)
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    float inf_adj = pival_delta * tag_sum_r2_below_r2min[tag_index];
+    if (inf_adj != 0) {
+      num_tag_inf_adjusted++;
+      for (int k_index = 0; k_index < k_max_; k_index++) {
+        (*tag_r2sum_[component_id])(tag_index, k_index) += inf_adj;
+      }
     }
   }
+  if (num_tag_inf_adjusted > 0)
+    LOG << " apply infinitesimal model to " << num_tag_inf_adjusted << " tag SNPs, to adjust tag_r2sum for all r2 that are below r2min, elapsed time " << timer2.elapsed_ms() << "ms";
 }
 
   LOG << "<find_tag_r2sum(component_id=" << component_id << ", num_causals=" << num_causals_original << ", last_num_causals=" << last_num_causals << "), elapsed time " << timer.elapsed_ms() << "ms";

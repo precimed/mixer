@@ -78,8 +78,8 @@ if ~exist('DO_FIT_BGMG', 'var'), DO_FIT_BGMG = true; end;               % perfor
 if ~exist('init_from_params_file', 'var'), init_from_params_file = ''; end;
 
 if isempty(init_from_params_file)
-    if ~exist('trait1_params_file', 'var'), error('trait1_params is required'); end;
-    if ~exist('trait2_params_file', 'var'), error('trait2_params is required'); end;
+    if ~exist('trait1_params_file', 'var'), error('trait1_params_file is required'); end;
+    if ~exist('trait2_params_file', 'var'), error('trait2_params_file is required'); end;
 
     trait1_params = load(trait1_params_file);
     if ~isfield(trait1_params, 'sig2_zero'), error('%s does not contain sig2_zero param', trait1_params_file); end;
@@ -146,6 +146,7 @@ if ~isempty(init_from_params_file)
     BGMG_cpp.log('Loading params from %s...\n', init_from_params_file);
     trait12_params = load(init_from_params_file);
     BGMG_cpp.log('Univariate and bivariate params load from initial file');
+    trait12_params = BGMG_cpp_fit_bivariate_fast_constrained(trait12_params)
     clear('tmp');
 else
     % if there is no initial approximation, setup it from fast model

@@ -161,6 +161,7 @@ disp(options)
 if ~isempty(init_from_params_file)
     BGMG_cpp.log('Loading params from %s...\n', init_from_params_file);
     trait1_params = load(init_from_params_file);
+    trait1_params = BGMG_cpp_fit_univariate_fast_constrained(1, trait1_params);
     BGMG_cpp.log('Univariate params load from initial file');
     clear('tmp');
 else

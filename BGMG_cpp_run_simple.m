@@ -68,6 +68,7 @@ if ~exist('r2min', 'var'), r2min = 0.01; end;
 if ~exist('max_causal_fraction', 'var'), max_causal_fraction = 0.03; end;
 if ~exist('cache_tag_r2sum', 'var'), cache_tag_r2sum = 1; end;
 if ~exist('SEED', 'var'), seed = nan; end;
+if ~exist('chisq_max', 'var'), chisq_max = nan; end;  % 30 to remove GWS hits
 num_components = 3;  % bivariate
 
 % The following three options control how to get bivariate params
@@ -126,6 +127,17 @@ for chr_index=1:length(chr_labels),
 end;
 
 bgmglib.set_weights_randprune(randprune_n, randprune_r2);
+
+if isfinite(chisq_max)  % do filtering after set_weights_randprune to avoid "plato" on QQ plots
+    weights = bgmglib.weights;
+    mask1 = (bgmglib.zvec1 .^2 > chisq_max);
+    mask2 = (bgmglib.zvec2 .^2 > chisq_max);
+    mask12= mask1 | mask2;
+    BGMG_cpp.log('exclude %i SNPs with z1.^2 exceeding %.3f', sum(mask1), chisq_max);
+    BGMG_cpp.log('exclude %i SNPs with z2.^2 exceeding %.3f', sum(mask2), chisq_max);
+    bgmglib.weights(mask12) = 0;
+    BGMG_cpp.log('%i SNPs remain', sum(bgmglib.weights > 0));
+end
 
 bgmglib.set_option('diag', 0);
 % Preparation is done, BGMG library is fully setup. Now we can use it to

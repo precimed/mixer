@@ -38,7 +38,7 @@ function result = BGMG_cpp_fit_bivariate(params, options)
         bgmglib.clear_loglike_cache();
         x0 = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(result.params);
         arg_index=9;
-        xgrid = linspace(x0(arg_index) - 2, x0(arg_index) + 2, 30)';
+        xgrid = linspace(-5, 5, 50)';
         for xi = 1:length(xgrid)
             x=x0; x(arg_index)=xgrid(xi);
             BGMG_util.BGMG_fminsearch_cost(BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x));

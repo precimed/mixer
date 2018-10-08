@@ -35,6 +35,25 @@ module load cmake
 module load boost/1.55.0
 ```
 
+Build:
+``
+mkdir build && cd build && cmake .. && make -j12
+``
+
+To run from matlab:
+```
+ trait1_file='/work/users/oleksanf/LDSR/LDSR_Data/PGC_SCZ_2014_noMHC.sumstats.gz';
+ bim_file='/work/users/oleksanf/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim';
+ frq_file='/work/users/oleksanf/LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq';
+ plink_ld_bin='/work/users/oleksanf/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin'; chr_labels = 1:22;
+ out_file='/usit/abel/u1/dennisva/BGMG_results/PGC_SCZ_2014';
+ bgmg_shared_library='src/build/lib/libbgmg.so'; bgmg_shared_library_header='src/bgmg_matlab.h';
+ kmax=5000; max_causal_fraction=0.03; cache_tag_r2sum=0; SEED=123; randprune_r2=0.1; randprune_n=64; CI_ALPHA=0.05; r2min=0.0;
+ DO_FIT_UGMG=1; FIT_FULL_MODEL=1; POWER_PLOT=1; POWER_PLOT_DOWNSCALE=100; QQ_PLOT=1; QQ_PLOT_DOWNSCALE=100; QQ_PLOT_BINS=1; QQ_PLOT_BINS_DOWNSCALE=50;
+ UGMG_cpp_run_simple; 
+```
+
+
 Most important is to use boost/1.55.0, which cames with gcc/4.9.0. This will be compatible with matlab/R2017a which uses boost/1.56. 
 Useful tricks to investigate versions:
 

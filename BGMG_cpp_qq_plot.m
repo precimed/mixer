@@ -58,6 +58,8 @@ function plot_data = BGMG_cpp_qq_plot(params, trait_index, options)
     plot_data.hv_logp = hv_logp;
     plot_data.data_logpvec = data_logpvec;
     plot_data.model_logpvec = model_logpvec;
+    plot_data.data_x = data_x;
+    plot_data.data_y = data_y;
     plot_data.params = params;
     plot_data.options = options;
     plot_data.options.calculate_z_cdf_weights='removed';
@@ -65,6 +67,8 @@ function plot_data = BGMG_cpp_qq_plot(params, trait_index, options)
     plot_data.options.mask='removed';
     plot_data.pdf = pdf;
     plot_data.pdf_zgrid = zgrid;
+    plot_data.data_pval = -log10(2*normcdf(-abs(zvec(mask_modified))));
+    plot_data.data_weights = data_weights;
 
     qq_options = params; % must be on the top of other lines, otherwise this assigment overwrites all qq_options
     qq_options.title = options.title;
@@ -80,6 +84,8 @@ function plot_data = BGMG_cpp_qq_plot(params, trait_index, options)
     qq_options.lamGC_model = BGMG_util.lamGCfromQQ(model_logpvec, hv_logp);
     qq_options.n_snps = sum(options.mask);
     qq_options.qqlimy = hv_logp(find(isfinite(data_logpvec), 1, 'last' ))*1.05;
+
+    plot_data.qq_options = qq_options;
 
     annotate_qq_plot(qq_options);
 end

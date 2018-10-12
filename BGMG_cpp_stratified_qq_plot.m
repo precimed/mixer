@@ -3,7 +3,7 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
 
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
     if ~isfield(options, 'downscale'), options.downscale = 10; end;
-    plot_data = {}; figures.tot = figure; hold on;
+    plot_data = {}; figures.tot{1} = figure; figures.tot{2} = figure; hold on;
 
     bgmglib = BGMG_cpp();
     weights_bgmg = bgmglib.weights;
@@ -38,12 +38,20 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
     hv_z = linspace(0, min(max(abs(zgrid)), 38.0), 10000);
     hv_logp = -log10(2*normcdf(-hv_z));
 
+    for conditional_trait=1:2
+    
+    figure(figures.tot{conditional_trait});
     zthresh_vec = -norminv([1 0.1 0.01 0.001]/2);   %  [0    1.6449    2.5758    3.2905]
     for zthresh_index = 1:length(zthresh_vec)
         zthresh = zthresh_vec(zthresh_index);
         % Calculate data_logpvec
-        zvec1 = zmat(:, 2);
-        zvec2 = zmat(:, 1);
+        if conditional_trait==1
+            zvec1 = zmat(:, 2);
+            zvec2 = zmat(:, 1); 
+        else
+            zvec1 = zmat(:, 1);
+            zvec2 = zmat(:, 2);
+        end
         zvec = zvec1(abs(zvec2)>=zthresh);
         weights = data_weights(abs(zvec2)>=zthresh); weights = weights ./ sum(weights);
         [data_y, si] = sort(-log10(2*normcdf(-abs(zvec))));
@@ -63,15 +71,15 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
         ax = gca;ax.ColorOrderIndex = zthresh_index;
         hModel = plot(model_logpvec,hv_logp, '-.', 'LineWidth',1); hold on;
         
-        plot_data{zthresh_index}.hv_logp = hv_logp;
-        plot_data{zthresh_index}.data_logpvec = data_logpvec;
-        plot_data{zthresh_index}.model_logpvec = model_logpvec;
-        plot_data{zthresh_index}.params = params;
-        plot_data{zthresh_index}.zthresh = zthresh;
-        plot_data{zthresh_index}.pdf = pdf;
-        plot_data{zthresh_index}.pdf_zgrid = zgrid;
+        plot_data{conditional_trait, zthresh_index}.hv_logp = hv_logp;
+        plot_data{conditional_trait, zthresh_index}.data_logpvec = data_logpvec;
+        plot_data{conditional_trait, zthresh_index}.model_logpvec = model_logpvec;
+        plot_data{conditional_trait, zthresh_index}.params = params;
+        plot_data{conditional_trait, zthresh_index}.zthresh = zthresh;
+        plot_data{conditional_trait, zthresh_index}.pdf = pdf;
+        plot_data{conditional_trait, zthresh_index}.pdf_zgrid = zgrid;
     end  
-    
+
     qq_options=[];
     qq_options.pi_vec = params.pi_vec;
     qq_options.sig2_zero = params.sig2_zero;
@@ -81,6 +89,9 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
     qq_options.title = options.title;
 
     annotate_qq_plot(qq_options);
+    
+    pdf = pdf';  % flip PDF 
+    end
 end
 
 function annotate_qq_plot(qq_options)
@@ -96,7 +107,7 @@ function annotate_qq_plot(qq_options)
 
     plot([0 qq_options.qqlimy],[0 qq_options.qqlimy], 'k--');
     xlim([0 qq_options.qqlimx]); ylim([0 qq_options.qqlimy]);
-    if has_opt('legend') && qq_options.legend, lgd=legend('Data(z_1)', 'Model(z_1)', 'Data(z_1 : |z_2| \geq 1)', 'Model(z_1 : |z_2| \geq 1)', 'Data(z_1 : |z_2| \geq 2)', 'Model(z_1 : |z_2| \geq 2)', 'Data(z_1 : |z_2| \geq 3)', 'Model(z_1 : |z_2| \geq 3)', 'Expected', 'Location', 'SouthEast'); lgd.FontSize = qq_options.fontsize/2; end;
+    if has_opt('legend') && qq_options.legend, lgd=legend('Data(p_1)', 'Model(p_1)', 'Data(p_1 : |p_2| \leq 0.1)', 'Model(p_1 : |p_2| \leq 0.1)', 'Data(p_1 : |p_2| \leq 0.01)', 'Model(p_1 : |p_2| \leq 0.01)', 'Data(p_1 : |p_2| \leq 0.001)', 'Model(p_1 : |p_2| \leq 0.001)', 'Expected', 'Location', 'SouthEast'); lgd.FontSize = qq_options.fontsize/2; end;
     if has_opt('xlabel') && qq_options.xlabel, xlabel('Empirical -log 10(q)','fontsize',qq_options.fontsize); end;
     if has_opt('ylabel') && qq_options.ylabel, ylabel('Nominal -log 10(p)','fontsize',qq_options.fontsize); end;
     if has_opt('title'), title(qq_options.title,'fontsize',qq_options.fontsize,'Interpreter','latex'); end;

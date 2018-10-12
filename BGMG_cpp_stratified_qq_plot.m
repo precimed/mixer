@@ -38,7 +38,7 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
     hv_z = linspace(0, min(max(abs(zgrid)), 38.0), 10000);
     hv_logp = -log10(2*normcdf(-hv_z));
 
-    zthresh_vec = [0 1 2 3];
+    zthresh_vec = -norminv([1 0.1 0.01 0.001]/2);   %  [0    1.6449    2.5758    3.2905]
     for zthresh_index = 1:length(zthresh_vec)
         zthresh = zthresh_vec(zthresh_index);
         % Calculate data_logpvec

@@ -556,7 +556,7 @@ classdef BGMG_util
         else 
             % something goes wrong.. fall back to diagonal
             hess = diag(hess_diag);
-            hess(hess<0) = 1e-05;  % put small value on the diagonal to ensure positive definite matrix
+            hess(hess<0) = 1e15;
         end
     end
 

@@ -42,8 +42,8 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
     for zthresh_index = 1:length(zthresh_vec)
         zthresh = zthresh_vec(zthresh_index);
         % Calculate data_logpvec
-        zvec1 = zmat(:, 1);        
-        zvec2 = zmat(:, 2);
+        zvec1 = zmat(:, 2);
+        zvec2 = zmat(:, 1);
         zvec = zvec1(abs(zvec2)>=zthresh);
         weights = data_weights(abs(zvec2)>=zthresh); weights = weights ./ sum(weights);
         [data_y, si] = sort(-log10(2*normcdf(-abs(zvec))));

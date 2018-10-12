@@ -48,19 +48,36 @@ function result = BGMG_cpp_fit_bivariate(params, options)
         def = isfinite(xgrid+result.loglike_adj_trajectory.cost);
         x = xgrid(def);
         y = result.loglike_adj_trajectory.cost(def);
-        try
-            curve3 = fit(x, y, 'poly3');
-            x0opt = fminsearch(@(x)curve3(x), x0(arg_index));
-        catch
-            x0opt=nan;
+        
+        technique = '';
+        adjust_poly3 = 0;
+        adjust_1d = 1;
+        x0opt = nan;
+        
+        if adjust_1d && ~isempty(y)
+            technique = '1-D lookup (optimize pifrac)';
+            [~, id] = min(y);
+            x0opt = x(id);
         end
         
-        if isfinite(x0opt) && (x0opt > quantile(xgrid(def), 0.2)) && (x0opt < quantile(xgrid(def), 0.8))
-            BGMG_cpp.log('Change BGMG solution (%.3f -> %.3f) based on smooth curve3 fit\n', x0(arg_index), x0opt);
+        if adjust_poly3 && ~isempty(y)
+            try
+                technique = 'smooth curve3 fit';
+                curve3 = fit(x, y, 'poly3'); 
+                x0opt = fminsearch(@(x)curve3(x), x0(arg_index)); 
+                if x0opt <= quantile(xgrid(def), 0.2) || x0opt >= quantile(xgrid(def), 0.8)
+                    x0opt = nan;
+                end
+            catch
+            end
+        end
+        
+        if isfinite(x0opt)
+            BGMG_cpp.log('Adjust BGMG solution (%.3f -> %.3f) based on %s\n', x0(arg_index), x0opt, technique);
             x0(arg_index) = x0opt;
             result.params = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x0);
         else
-            BGMG_cpp.log('Refuse to change BGMG solution (%.3f -> %.3f) based on smooth curve3 fit\n', x0(arg_index), x0opt);
+            BGMG_cpp.log('Refuse to change BGMG solution (%.3f -> %.3f) %s\n', x0(arg_index), x0opt, technique);
         end
 
         if 0

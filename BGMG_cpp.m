@@ -292,6 +292,16 @@ classdef BGMG_cpp
         fprintf(varargin{:});
         if libisloaded('bgmg'), calllib('bgmg', 'bgmg_log_message', regexprep(sprintf(varargin{:}),'[\n\r]+', '\t')); end;
     end
+
+    function log_error(err)
+        % Usage:
+        % try
+        % catch err
+        %     BGMG_cpp.log_error(err)
+        % end
+        BGMG_cpp.log('ERROR: %s\n', err.message);
+        for i=1:length(err.stack), BGMG_cpp.log('%s:%i %s\n', err.stack(i).file, err.stack(i).line, err.stack(i).name); end
+    end
   end
 end
 

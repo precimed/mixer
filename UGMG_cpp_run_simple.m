@@ -202,6 +202,7 @@ BGMG_cpp.log('Params saved to %s.params.mat\n', out_file);
 bgmglib.set_option('diag', 0);
 
 % Produce power plots
+try
 if POWER_PLOT
     options.downscale = POWER_PLOT_DOWNSCALE;trait_index=1;
     figures.tot = figure;
@@ -209,8 +210,13 @@ if POWER_PLOT
     result.univariate{trait_index}.power_plot_data = plot_data;
     print(figures.tot, sprintf('%s.power.pdf', out_file), '-dpdf')
 end
+catch err
+    BGMG_cpp.log_error(err)
+    result.univariate{trait_index}.power_plot_data_error = err;
+end
 
 % Produce QQ plots
+try
 if QQ_PLOT
     options.downscale = QQ_PLOT_DOWNSCALE;trait_index=1;
     figures.tot = figure;
@@ -220,7 +226,12 @@ if QQ_PLOT
     result.univariate{trait_index}.qq_plot_data = plot_data;
     print(figures.tot, sprintf('%s.qq.pdf', out_file), '-dpdf')
 end
+catch err
+    BGMG_cpp.log_error(err)
+    result.univariate{trait_index}.qq_plot_data_error = err;
+end
 
+try
 if QQ_PLOT_BINS
     options.downscale = QQ_PLOT_BINS_DOWNSCALE;trait_index=1;
     mafvec = bgmglib.mafvec(bgmglib.defvec);
@@ -240,6 +251,10 @@ if QQ_PLOT_BINS
     end
     set(total_fig,'PaperOrientation','landscape','PaperPositionMode','auto','PaperType','a3'); % https://se.mathworks.com/help/matlab/ref/matlab.ui.figure-properties.html
     print(total_fig, sprintf('%s.qq.bins.pdf', out_file), '-dpdf')
+end
+catch err
+    BGMG_cpp.log_error(err)
+    result.univariate{trait_index}.qq_plot_bins_data_error = err;
 end
 
 bgmglib.set_option('diag', 0);

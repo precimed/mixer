@@ -189,6 +189,7 @@ BGMG_cpp.log('Params saved to %s.params.mat\n', out_file);
 
 bgmglib.set_option('diag', 0);
 
+try
 if STRATIFIED_QQ_PLOT
     options.downscale = STRATIFIED_QQ_PLOT_DOWNSCALE;
     [figures, plot_data] = BGMG_cpp_stratified_qq_plot(trait12_params, options);
@@ -196,6 +197,10 @@ if STRATIFIED_QQ_PLOT
     result.bivariate.stratified_qq_plot_fit_data.trait2 = plot_data(2, :);
     %print(figures.tot{1}, sprintf('%s.trait1.stratqq.pdf', out_file), '-dpdf')
     %print(figures.tot{2}, sprintf('%s.trait2.stratqq.pdf', out_file), '-dpdf')
+end
+catch err
+    BGMG_cpp.log_error(err)
+    result.bivariate.stratified_qq_plot_fit_data_error = err;
 end
 
 bgmglib.set_option('diag', 0);

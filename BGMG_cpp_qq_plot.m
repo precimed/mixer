@@ -67,7 +67,7 @@ function plot_data = BGMG_cpp_qq_plot(params, trait_index, options)
     plot_data.options.mask='removed';
     plot_data.pdf = pdf;
     plot_data.pdf_zgrid = zgrid;
-    plot_data.data_pval = -log10(2*normcdf(-abs(zvec(mask_modified))));
+    plot_data.data_pval = -log10(2*normcdf(-abs(zvec(options.mask))));
     plot_data.data_weights = data_weights;
 
     qq_options = params; % must be on the top of other lines, otherwise this assigment overwrites all qq_options

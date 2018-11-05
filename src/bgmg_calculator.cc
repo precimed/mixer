@@ -1,4 +1,4 @@
-/*
+/*ma
   bgmg - tool to calculate log likelihood of BGMG and UGMG mixture models
   Copyright (C) 2018 Oleksandr Frei 
 
@@ -51,6 +51,7 @@
 
 #include "bgmg_log.h"
 #include "bgmg_parse.h"
+#include "bgmg_math.h"
 #include "fmath.hpp"
 
 #define FLOAT_TYPE float
@@ -65,7 +66,7 @@ std::vector<float>* BgmgCalculator::get_nvec(int trait_index) {
   return (trait_index == 1) ? &nvec1_ : &nvec2_;
 }
 
-BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), r2_min_(0.0), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false), ld_matrix_csr_(*this) {
+BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), r2_min_(0.0), z1max_(1e10), z2max_(1e10), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false), ld_matrix_csr_(*this) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
   seed_ = (boost::posix_time::microsec_clock::local_time() - time_epoch).ticks();
 }
@@ -134,6 +135,14 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
     clear_state(); num_components_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "seed")) {
     seed_ = static_cast<int64_t>(value); return 0;
+  } else if (!strcmp(option, "fast_cost")) {
+    use_fast_cost_calc_ = (value != 0); return 0;
+  } else if (!strcmp(option, "z1max")) {
+    if (value <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("zmax must be positive"));
+    z1max_ = value; return 0;
+  } else if (!strcmp(option, "z2max")) {
+    if (value <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("zmax must be positive"));
+    z2max_ = value; return 0;
   } else if (!strcmp(option, "fast_cost")) {
     use_fast_cost_calc_ = (value != 0); return 0;
   } else if (!strcmp(option, "threads")) {
@@ -474,6 +483,17 @@ inline T gaussian_pdf(const T z, const T s) {
   return pdf + std::numeric_limits<T>::min();
 }
 
+// censored_cdf gives cumulated probability of |z|>zmax, where z is normal random variable
+// http://www.public.iastate.edu/~stat415/meeker/ml_estimation_chapter.pdf
+// Principles of Maximum Likelihood Estimation and The Analysis of Censored Data
+template<typename T>
+inline T censored_cdf(const T z, const T s) {
+  assert(z >= 0);
+  static const T inv_sqrt_2 = static_cast<T>(0.7071067811865475);
+  return std::erfc((z / s) * inv_sqrt_2);
+}
+
+
 /*
 // partial specification for float, to use fmath::exp instead of std::exp
 template<>
@@ -713,8 +733,11 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
       float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
       float sig2eff = tag_r2sum * nvec[tag_index] * sig2_beta + sig2_zero;
 
+      const float tag_z = zvec[tag_index];
       float s = sqrt(sig2eff);
-      double pdf = static_cast<double>(gaussian_pdf<FLOAT_TYPE>(zvec[tag_index], s));
+      const bool censoring = std::abs(tag_z) > z1max_;
+
+      double pdf = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s) : gaussian_pdf<FLOAT_TYPE>(tag_z, s));
       pdf_tag += pi_k * pdf;
     }
     double increment = -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
@@ -743,6 +766,7 @@ SEMT::Expr<SEMT::Literal<inv_sqrt_2pi_struct>> inv_sqrt_2pi_value;
 
 
 double BgmgCalculator::calc_univariate_cost_cache_deriv(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int deriv_length, double* deriv) {
+  // NB! censoring is not implemented in calc_univariate_cost_cache_deriv
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));
 
@@ -862,8 +886,10 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
           float tag_r2sum_value = tag_r2sum[tag_index];
           float sig2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta + sig2_zero;
 
+          const float tag_z = zvec[tag_index];
           float s = sqrt(sig2eff);
-          double pdf = static_cast<double>(gaussian_pdf<T>(zvec[tag_index], s));
+          const bool censoring = std::abs(tag_z) > rhs.z1max_;
+          double pdf = static_cast<double>(censoring ? censored_cdf<T>(rhs.z1max_, s) : gaussian_pdf<T>(tag_z, s));
           pdf_double_local[tag_index] += pdf * pi_k;
         }
       }
@@ -986,7 +1012,8 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
       const float a22 = C2 + C3 + c0;
       const float a12 =      B3 + b0;
 
-      const double pdf = static_cast<double>(gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11, a12, a22));
+      const bool censoring = (std::abs(z1) > z1max_) || (std::abs(z2) > z2max_);
+      const double pdf = static_cast<double>(censoring ? censored2_cdf<FLOAT_TYPE>(z1max_, z2max_, a11, a12, a22) : gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11, a12, a22));
       pdf_tag += pi_k * pdf;
     }
 
@@ -1067,7 +1094,8 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
         const float a22 = C2 + C3 + c0;
         const float a12 = B3 + b0;
 
-        const double pdf = static_cast<double>(gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11, a12, a22));
+        const bool censoring = (std::abs(z1) > z1max_) || (std::abs(z2) > z2max_);
+        const double pdf = static_cast<double>(censoring ? censored2_cdf<FLOAT_TYPE>(z1max_, z2max_, a11, a12, a22) : gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11, a12, a22));
         pdf_double_local[tag_index] += pi_k * pdf;
       }
     }
@@ -1243,6 +1271,8 @@ void BgmgCalculator::log_diagnostics() {
   LOG << " diag: options.max_causals_=" << max_causals_;
   LOG << " diag: options.num_components_=" << num_components_;
   LOG << " diag: options.r2_min_=" << r2_min_;
+  LOG << " diag: options.z1max_=" << z1max_;
+  LOG << " diag: options.z2max_=" << z2max_;
   LOG << " diag: options.use_fast_cost_calc_=" << (use_fast_cost_calc_ ? "yes" : "no");
   LOG << " diag: options.cache_tag_r2sum_=" << (cache_tag_r2sum_ ? "yes" : "no");
   LOG << " diag: options.seed_=" << (seed_);
@@ -1288,8 +1318,13 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
 
     const float tag_z = zvec[tag_index];
     const float tag_n = nvec[tag_index];
-    const double tag_pdf0 = static_cast<double>(gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero)));
-    const double tag_pdf1 = static_cast<double>(gaussian_pdf<FLOAT_TYPE>(tag_z, sqrt(sig2_zero + tag_n *tag_sig2beta)));
+
+    const bool censoring = std::abs(tag_z) > z1max_;
+    const float s1 = sqrt(sig2_zero);
+    const float s2 = sqrt(sig2_zero + tag_n *tag_sig2beta);
+
+    const double tag_pdf0 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s1) : gaussian_pdf<FLOAT_TYPE>(tag_z, s1));
+    const double tag_pdf1 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s2) : gaussian_pdf<FLOAT_TYPE>(tag_z, s2));
     const double tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
     const double increment = (-std::log(tag_pdf) * tag_weight);
     if (!std::isfinite(increment)) num_infinite++;
@@ -1365,6 +1400,8 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
     const float f1[8] = { 0,0,1,1,0,0,1,1 };
     const float f2[8] = { 0,1,0,1,0,1,0,1 };
 
+    const bool censoring = (std::abs(z1) > z1max_) || (std::abs(z2) > z2max_);
+
     FLOAT_TYPE tag_pdf = 0.0f;
     for (int i = 0; i < 8; i++) {
       const float pi1 = (f0[i] ? tag_pi1[0] : tag_pi0[0]);
@@ -1373,7 +1410,7 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
       const float a11i = s0_a11 + f0[i] * a11[0] + f1[i] * a11[1] + f2[i] * a11[2];
       const float a22i = s0_a22 + f0[i] * a22[0] + f1[i] * a22[1] + f2[i] * a22[2];
       const float a12i = s0_a12 + f0[i] * a12[0] + f1[i] * a12[1] + f2[i] * a12[2];
-      tag_pdf += static_cast<double>(pi1*pi2*pi3) * static_cast<double>(gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11i, a12i, a22i));
+      tag_pdf += static_cast<double>(pi1*pi2*pi3) * static_cast<double>(censoring ? censored2_cdf<FLOAT_TYPE>(z1max_, z2max_, a11i, a12i, a22i) : gaussian2_pdf<FLOAT_TYPE>(z1, z2, a11i, a12i, a22i));
     }
 
     if (tag_pdf <= 0)

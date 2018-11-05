@@ -358,6 +358,9 @@ class BgmgCalculator : public TagToSnpMapping {
   int num_components_;
   int64_t seed_;
   float r2_min_;
+  float z1max_;
+  float z2max_;
+  float max_chisq_trait2_;
   bool use_fast_cost_calc_;
   bool cache_tag_r2sum_;
   void check_num_snp(int length);

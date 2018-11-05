@@ -23,7 +23,7 @@ void BgmgMath_binormal_cdf_test() {
       for (int ir = 0; ir < rho.size(); ir++) {
         float b = binormal_cdf(v[i1], v[i2], rho[ir]);
         if (fabs(b - expected[i]) > 1e-7) {
-          ASSERT_TRUE(false, "ERROR");
+          ASSERT_TRUE(false);
           printf("%.1f, %.1f, %.2f, %.8e, %.8e\n", v[i1], v[i2], rho[ir], b, expected[i]);
         }
         i++;

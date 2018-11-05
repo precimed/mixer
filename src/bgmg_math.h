@@ -30,9 +30,9 @@ inline T censored2_cdf(T z1max, T z2max, T a11, T a12, T a22) {
   const T z2norm = z2max / sqrt_a22;
 
   // return area OUTSIDE the rectangle [-z1norm, -z2norm] x [z1norm, z2norm]
-  return 1.0
+  return std::max(std::numeric_limits<T>::min(), 1.0
     + binormal_cdf(-z1norm, z2norm, rho)
     + binormal_cdf(z1norm, -z2norm, rho)
     - binormal_cdf(z1norm, z2norm, rho)
-    - binormal_cdf(-z1norm, -z2norm, rho);
+    - binormal_cdf(-z1norm, -z2norm, rho));
 }

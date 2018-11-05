@@ -490,7 +490,7 @@ template<typename T>
 inline T censored_cdf(const T z, const T s) {
   assert(z >= 0);
   static const T inv_sqrt_2 = static_cast<T>(0.7071067811865475);
-  return std::erfc((z / s) * inv_sqrt_2);
+  return std::erfc((z / s) * inv_sqrt_2) + std::numeric_limits<T>::min();
 }
 
 

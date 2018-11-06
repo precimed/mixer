@@ -36,6 +36,8 @@ init_result_from_out_file='';       % path to .mat file with previous results. U
 CI_ALPHA=0.05;                      % enable confidence interval estimation
 THREADS=-1;                         % specify how many threads to use (concurrency). "-1" means to use all available CPU power.
 TolX = 1e-2; TolFun = 1e-2;         % fminserach tolerance (stop criteria)
+z1max = nan; z2max = nan;           % enable right-censoring for z scores above certain threshold
+qq_zgrid_lim = 38; qq_zgrid_step=0.25;  % control internal grid of z scores in stratified QQ plots
 
 %}
 
@@ -70,6 +72,9 @@ if ~exist('cache_tag_r2sum', 'var'), cache_tag_r2sum = 1; end;
 if ~exist('SEED', 'var'), seed = nan; end;
 if ~exist('z1max', 'var'), z1max = nan; end;  % 5.45 to remove GWS hits
 if ~exist('z2max', 'var'), z2max = nan; end;
+if ~exist('qq_zgrid_lim', 'var'), qq_zgrid_lim = 38; end;
+if ~exist('qq_zgrid_step', 'var'), qq_zgrid_step = 0.25; end;
+
 num_components = 3;  % bivariate
 
 % The following three options control how to get bivariate params
@@ -184,6 +189,9 @@ bgmglib.set_option('diag', 0);
 try
 if STRATIFIED_QQ_PLOT
     options.downscale = STRATIFIED_QQ_PLOT_DOWNSCALE;
+	if isfinite(qq_zgrid_lim), options.qq_zgrid_lim = qq_zgrid_lim; end;
+	if isfinite(qq_zgrid_step), options.qq_zgrid_step = qq_zgrid_step; end;
+
     [figures, plot_data] = BGMG_cpp_stratified_qq_plot(trait12_params, options);
     result.bivariate.stratified_qq_plot_fit_data.trait1 = plot_data(1, :);
     result.bivariate.stratified_qq_plot_fit_data.trait2 = plot_data(2, :);

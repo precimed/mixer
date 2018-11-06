@@ -3,6 +3,8 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
 
     if ~isfield(options, 'title'), options.title = 'UNKNOWN TRAIT'; end;
     if ~isfield(options, 'downscale'), options.downscale = 10; end;
+	if ~isfield(options, 'qq_zgrid_lim'), options.qq_zgrid_lim = 38; end;
+	if ~isfield(options, 'qq_zgrid_step'), options.qq_zgrid_step = 0.25; end;
     plot_data = {}; figures.tot{1} = figure; figures.tot{2} = figure; hold on;
 
     bgmglib = BGMG_cpp();
@@ -23,7 +25,7 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
     data_weights = weights_bgmg / sum(weights_bgmg);
 
     % Calculate bivariate pdf on a regular 2D grid (z1, z2)
-    zgrid = single(-38:0.25:38);
+    zgrid = single(-options.qq_zgrid_lim:options.qq_zgrid_step:options.qq_zgrid_lim);
     [zgrid1, zgrid2] = meshgrid(zgrid, zgrid);
     zgrid1 = zgrid1(zgrid >= 0, :); zgrid2 = zgrid2(zgrid >= 0, :);  % taking symmetry into account to speedup by a factor of 2
     pdf = bgmglib.calc_bivariate_pdf(params.pi_vec, params.sig2_beta(:, end),  params.rho_beta(end), params.sig2_zero, params.rho_zero, zgrid1(:), zgrid2(:));

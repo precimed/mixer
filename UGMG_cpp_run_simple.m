@@ -63,6 +63,7 @@ init_result_from_out_file='';       % path to .mat file with previous results. U
 CI_ALPHA=0.05;                      % enable confidence interval estimation
 THREADS=-1;                         % specify how many threads to use (concurrency). "-1" means to use all available CPU power.
 TolX = 1e-2; TolFun = 1e-2;         % fminserach tolerance (stop criteria)
+z1max = nan;                        % enable right-censoring for z scores above certain threshold
 
 %}
 

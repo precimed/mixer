@@ -78,8 +78,10 @@ function [figures, plot_data] = BGMG_cpp_stratified_qq_plot(params, options)
         plot_data{conditional_trait, zthresh_index}.model_logpvec = model_logpvec;
         plot_data{conditional_trait, zthresh_index}.params = params;
         plot_data{conditional_trait, zthresh_index}.zthresh = zthresh;
-        plot_data{conditional_trait, zthresh_index}.pdf = pdf;
-        plot_data{conditional_trait, zthresh_index}.pdf_zgrid = zgrid;
+        if (conditional_trait==1) && (zthresh_index == 1)
+            plot_data{conditional_trait, zthresh_index}.pdf = pdf;
+            plot_data{conditional_trait, zthresh_index}.pdf_zgrid = zgrid;
+        end
     end  
 
     qq_options=[];

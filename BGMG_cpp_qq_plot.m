@@ -83,6 +83,7 @@ function plot_data = BGMG_cpp_qq_plot(params, trait_index, options)
     qq_options.lamGC_data = BGMG_util.lamGCfromQQ(data_logpvec, hv_logp);
     qq_options.lamGC_model = BGMG_util.lamGCfromQQ(model_logpvec, hv_logp);
     qq_options.n_snps = sum(options.mask);
+    qq_options.sum_data_weights = sum(weights_bgmg(options.mask))
     qq_options.qqlimy = hv_logp(find(isfinite(data_logpvec), 1, 'last' ))*1.05;
 
     plot_data.qq_options = qq_options;

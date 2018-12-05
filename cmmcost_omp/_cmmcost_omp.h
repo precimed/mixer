@@ -1,0 +1,32 @@
+// gcc -I/home/alexeas/.local/include -L/home/alexeas/.local/lib -Wall -O2 -ffast-math -fopenmp -lgsl -lgslcblas -lm -o _cmmcost_omp _cmmcost_omp.c
+// time ./_cmmcost_omp
+// gcc on Abel:
+// gcc -I/cluster/software/VERSIONS/gsl-1.16/include -L/cluster/software/VERSIONS/gsl-1.16/lib -Wall -O2 -ffast-math -fopenmp -lgsl -lgslcblas -lm -o _cmmcost_omp_gcc _cmmcost_omp.c
+// time ./_cmmcost_omp_gcc
+// icc on Abel (https://software.intel.com/en-us/articles/step-by-step-optimizing-with-intel-c-compiler):
+// icc _cmmcost_omp.c -o _cmmcost_omp_icc -L/cluster/software/VERSIONS/gsl-2.2/lib -I/cluster/software/VERSIONS/gsl-2.2/include -std=c99 -O2 -no-prec-div -qopenmp -lgsl -lgslcblas -lm
+#ifndef _CMMCOST_OMP
+#define _CMMCOST_OMP
+
+#include <stdio.h>
+#include <stdbool.h>
+#include <math.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_rng.h>
+#include <omp.h>
+
+typedef struct Parameters {
+    double * p;
+    double * s2;
+    size_t n;
+    double s02;
+    double omega;
+} Parameters;
+
+double iff(double x, void * params);
+
+double costdirect(double * z, _Bool * z2use, size_t nz, float * s2,
+    unsigned long long int * is2, double * p, double  * sb2, double s02,
+    unsigned char * annot);
+
+#endif

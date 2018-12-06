@@ -1,3 +1,9 @@
+If you use MiXeR software for your research publication, please cite the following paper(s):
+O.Frei et al., Bivariate causal mixture model quantifies polygenic overlap between complex traits beyond genetic correlation, bioXriv, doi: https://doi.org/10.1101/240275
+
+The MiXeR software may not be used for commercial purpose.
+We encourage all users to familiarize themselves with US patent https://www.google.no/patents/US20150356243 "Systems and methods for identifying polymorphisms".
+
 # UGMG and BGMG - Univariate and Bivariate Gaussian Mixtures for GWAS summary statistics - `v1.0`
 
 `UGMG` model allows you to estimate polygenicity (e.i. proportion of causal variants) of a complex trait given GWAS summary statistics. 

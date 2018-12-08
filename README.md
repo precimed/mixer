@@ -57,6 +57,10 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
     20181208 20:16:56.281717	============= new session =============
     20181208 20:16:56.281717	=mixer plugin setup success
     ```
+  * If ``test_mixer_plugin`` crashes your matlab instance, try to run the following command before starting MATLAB:
+    ```
+    export "LD_LIBRARY_PATH=$MIXER_ROOT/lib:$LD_LIBRARY_PATH"
+    ```
 	
 ### Install on Windows using pre-built binaries
 
@@ -75,21 +79,42 @@ Preliminary notes are available in [src/README.md](src/README.md).
 
 ## Data downloads
 
-* Download reference data from [this URL](https://data.broadinstitute.org/alkesgroup/LDSCORE/)
-  ```
-  wget https://data.broadinstitute.org/alkesgroup/LDSCORE/1000G_Phase3_frq.tgz
-  wget https://data.broadinstitute.org/alkesgroup/LDSCORE/1000G_Phase3_plinkfiles.tgz
-  wget https://data.broadinstitute.org/alkesgroup/LDSCORE/w_hm3.snplist.bz2
-  ```
-  
 * Summary statistics, for example
   * Schizophrenia GWAS by Ripke at al. (2014) (search for *Download 49 EUR samples* [here](https://www.med.unc.edu/pgc/results-and-downloads))
   * Educational Attainment GWAS by Lee et al. (2018) (search for *GWAS_EA_excl23andMe.txt* [here](https://www.thessgac.org/data))
 
+* Download reference data from [this URL](https://data.broadinstitute.org/alkesgroup/LDSCORE/)
+  ```
+  wget https://data.broadinstitute.org/alkesgroup/LDSCORE/1000G_Phase3_plinkfiles.tgz
+  wget https://data.broadinstitute.org/alkesgroup/LDSCORE/w_hm3.snplist.bz2
+  ```
+
 ## Data preparation
 
-	Step1. Generate LD r2 correlations using plink
-	Step2. Convert LD r2 correlations into binary MiXeR format
+* Summary statistics
+  * MiXeR recognizes summary statistics in LDSC format as described [here](https://github.com/bulik/ldsc/wiki/Summary-Statistics-File-Format). In brief, each trait must be represented as a single table containing columns SNP, N, Z, A1, A2. 
+  * We recommend to use ``munge_sumstats.py`` script as described [here](https://github.com/bulik/ldsc/wiki/Partitioned-Heritability#step-1-download-the-data).
+  * We note that for case/control ``munge_sumstats.py`` generate sample size as a sum ``n = ncase + ncontrol``. We recommend to use ``neff = 4 / (1/ncase + 1/ncontrol)`` to account for imbalanced classes.
+
+* Reference pannel
+  * Run ``plink`` to calculate allele frequencies and pairwise LD r2 for each chromosome
+    ```
+    plink \
+       --freq --threads 1 --memory 1024 \
+       --bfile LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label> \
+       --out LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.<chr_label>
+    plink --r2 gz --ld-window-kb 1000000 --ld-window 50000 --ld-window-r2 0.05 --threads 24 \
+       --bfile LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label> \
+       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k
+    ```
+  * Run ``bgmg-cli`` to convert plink output into a binary format. The following command must be run once for each chromosome. 
+    Note that ``--bim`` argument must be the same, i.e. point to ``1000G.EUR.QC.@.bim`` regardless of the actual chromosome that you use in ``--plink-ld`` and ``--out``.
+    ```
+    bin/bgmg-cli \
+       --bim LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
+       --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.gz \
+       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin
+    ``
 
 ## Run MiXeR
 

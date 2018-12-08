@@ -2,7 +2,7 @@
 
 Mixer code is generally implemented in Matlab, but some routines were coded in native C or C++ language to give better performance. Therefore, to run MiXeR one needs to either compile C/C++ code, or install per-built binaries which MiXeR depends on. Further details are available in [Install MiXeR](#install-mixer) section.
 
-Input data for MiXeR consists of summary statistics from a GWAS, and a reference panel. MiXeR format for summary statistics is compatible with LD Score Regression (``sumstats.gz`` files), and for those users who are already familiar with ``munge_sumstats.py`` we recommend to use LD Score Regression pipeline to prepare summary statistics. At the same time, we encourage everyone to take a look [our own pipeline](https://github.com/precimed/python_convert/) for processing summary statistics. For the reference panel we recommend to use 1000 Genomes Phase3 data, pre-processed according to LD Score Regression pipeline, and available for download from LDSC website. Further details are given in "Data downloads" and "Data preparation" sections.
+Input data for MiXeR consists of summary statistics from a GWAS, and a reference panel. MiXeR format for summary statistics is compatible with LD Score Regression (i.e. the ``sumstats.gz`` files), and for those users who are already familiar with ``munge_sumstats.py`` script we recommend to use LD Score Regression pipeline to prepare summary statistics. At the same time, we encourage everyone to take a look [our own pipeline](https://github.com/precimed/python_convert/) for processing summary statistics. For the reference panel we recommend to use 1000 Genomes Phase3 data, pre-processed according to LD Score Regression pipeline, and available for download from LDSC website. Further details are given in [Data downloads](#data-downloads) and [Data preparation](#data-preparation) sections.
 
 Once you have all input data in MiXeR-compatible format you may proceed with running univariate analysis ([UGMG_cpp_run_simple.m](UGMG_cpp_run_simple.m) script) and cross-trait analysis ([BGMG_cpp_run_simple.m](BGMG_cpp_run_simple.m) script). The results will be saved as ``.json`` files. To visualize the results we provide a script in python, but we encourage users to write their own scripts that process the results. Further details are given in [Run MiXeR](#run-mixer) and [Visualize MiXeR results](#visualize-mixer-results) sections.
 
@@ -37,7 +37,7 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
 ### Install on Linux using pre-built binaries
 
 * Download "Linux_x64.tar.gz" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
-* Extract "Linux_x64.tar.gz" to a new folder. Below we refeer to this folder as ``MIXER_ROOT``.
+* Extract "Linux_x64.tar.gz" to a new folder. Below we refer to this folder as ``MIXER_ROOT``.
 * Test that MiXeR executable runs smoothly:
   * Start new command line
   * Change active folder to ``MIXER_ROOT``
@@ -65,7 +65,7 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
 ### Install on Windows using pre-built binaries
 
 * Download "Windows_x64.7z" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
-* Extract "Windows_x64.7z" to a new folder. Below we refeer to this folder as ``MIXER_ROOT``.
+* Extract "Windows_x64.7z" to a new folder. Below we refer to this folder as ``MIXER_ROOT``.
 * Test that MiXeR executable runs smoothly, as described in [Install on Linux using pre-built binaries](#install-on-linux-using-pre-built-binaries) section
 * Test that MiXeR C++ plugin is loaded correctly, as described in [Install on Linux using pre-built binaries](#install-on-linux-using-pre-built-binaries) section
 

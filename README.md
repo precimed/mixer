@@ -260,3 +260,146 @@ TBD.
 * Dominic Holland (Center for Multimodal Imaging and Genetics, University of California at San Diego)
 * Oleksandr Frei (NORMENT, University of Oslo)
 * Anders M. Dale (Center for Multimodal Imaging and Genetics, University of California at San Diego)
+
+## Legacy instructinos on how to create a reference
+
+Format of the reference file
+----------------------------
+
+***
+TBD: include hvec variable in the reference. Discuss implications of GCTA maf model (LDAK alpha=-1) vs BGMG maf model (LDAK alpha=0).
+***
+
+[This](https://www.dropbox.com/s/7trec3ma6u1m6uy/HAPGEN_EUR_100K_11015883_reference_holland.mat?dl=0) 
+is an example of a reference file, compatible with UGMG and BGMG model.
+Reference file is based on certain genotype reference (for example from 1000 genomes project).
+
+Reference file contains the following variables.
+* `chrnumvec` - chromosome labels, integer column vector, one value for each variant in the reference, coded from 1 to 22
+* `posvec` - base pair positions, integer column vector, one value for each variant in the reference, unity-based (as ENSEMBL)
+* `mafvec` - minor allele frequencies, double-precision column vector, one value for each variant in the reference.
+* `total_het` - double-precision scalar value. The value depends on MAF model; for GCTA model (LDAK alpha = -1) total_het must be equal to the number of genotyped SNPs. For BGMG model (LDAK alpha = 0) total heterozigosity must be calculated as a sum of `2*maf*(1-maf)` across all genotyped variants.
+* `hvec` - double-precision column vector, one value for each variant in the reference. The value depends on MAF model; for GCTA model (LDAK alpha = -1) all hvec values must must equal to 1. For BGMG model (LDAK alpha = 0) ``hvec=2*mafvec.*(2-mafvec)``.
+* `w_ld` - LD score, double-precision column vector, one value for each variant in the reference. LD scores must be calculated towards variants within the reference.
+* `sum_r2` - LD scores, double-precision matrix, rows correspond to variants in the reference, columns correspond to bins of allelic correlation (for example 0.05 to 0.25, 0.25 to 0.50, 0.50 to 0.75, and 0.75 to 1.00). 
+* `sum_r2_biased` - same format as `sum_r2`, but based on allelic correlation that was not corrected for bias
+* `sum_r4_biased` - same format as `sum_r2`, but based on 4-th power of allelic correlation that was not corrected for bias
+
+Note that `sum_r2`, `sum_r2_biased`, `sum_r4_biased` depend on MAF model. For BGMG model (LDAK alpha = 0) one should use ``--per-allele`` flag in ``ldsc.py --ld``; otherwise, for GCTA model (LDAK alpha = -1), there calculation must run without ``--per-allele``.
+
+`posvec` and `chrnumvec` are optional, but we recommend to include them to keep track of what variants are used in the analysis.
+We don't recommend to save list of variant IDs, such as RS numbers, because of performance limitations in matlab (saving long cell arrays is too slow).
+
+Tools required to gather reference file
+---------------------------------------
+
+1. Modified version of LDSC software:
+```
+git clone https://github.com/ofrei/ldsc.git
+```
+2. `sumstats.py` script:
+```
+git clone https://github.com/precimed/python_convert.git
+```
+3. [plink](https://www.cog-genomics.org/plink2), to calculate allele frequencies and, optionally, gather pairwise LD correlations
+4. You also need reference genotypes, split per chromosome. We recommend to download [these](https://www.dropbox.com/s/sgzhmc1q1me6zji/1kG_phase3_EUR_11015883.tar.gz?dl=0) data, derived from 1kG phase 3.
+
+Scripts
+-------
+Change ``LDSC_PY``, ``SUMSTATS_PY``, ``BFILE``, ``REF``, ``OUT_FOLDER`` to match your path.
+Optionally, set ``PYTHON`` and ``PLINK`` to the full path to your python and plink executables.
+Step *calculate LD structure* may take considerably long time,
+and if you have access to an HPC cluster we recommend to submit commands from ``commands.txt`` and them all of them in parallel.
+```
+# [BASH] Setup code and data location 
+SUMSTATS_PY=/mnt/h/GitHub/python_convert/sumstats.py
+LDSC_PY=/mnt/h/GitHub/ldsc/ldsc.py
+PYTHON=python
+PLINK=plink
+BFILE="/mnt/h/NORSTORE/oleksanf/1kG_phase3_EUR_11015883"
+REF=/mnt/h/Dropbox/shared/BGMG/all_chromosomes.ref.gz
+OUT_FOLDER="/mnt/h/NORSTORE/oleksanf/1kG_phase3_EUR_11015883_reference"
+
+
+R2_BINS_MIN="0.05 0.25 0.50 0.75"
+R2_BINS_MAX="0.25 0.50 0.75 1.00"
+LD_WIND_SNPS=50000
+
+# [PYTHON] Create ref file (e.i. combined bim file with header) from chromosome-split genotypes using python script:
+import pandas as pd
+import os
+df = pd.concat([pd.read_table('/mnt/h/NORSTORE/oleksanf/1kG_phase3_EUR_11015883/chr{}.bim'.format(chri), header=None, names=['CHR', 'SNP', 'GP', 'BP', 'A1', 'A2']) for chri in range(1, 23)]).to_csv('all_chromosomes.ref.gz', sep='\t', compression='gzip', index=False)
+
+# [BASH] calculate allele frequencies and convert them to matlab
+for CHR in {1..22}; do $PLINK --bfile $BFILE/chr$CHR --freq --out $OUT_FOLDER/chr$CHR; done
+$PYTHON $SUMSTATS_PY frq-to-mat --ref $REF --force --frq $OUT_FOLDER/chr@.frq --out $OUT_FOLDER/mafvec.mat
+
+# [BASH] load reference file into matlab
+$PYTHON $SUMSTATS_PY ref-to-mat --ref $REF --out $OUT_FOLDER/all_chromosomes.mat --force --numeric-only
+
+# [BASH] calculate LD structure
+rm commands.txt
+for CHR in {1..22} ; do echo "$PYTHON $LDSC_PY --l2           --ld-wind-snps $LD_WIND_SNPS --bfile $BFILE/chr$CHR                                              --out $OUT_FOLDER/w_ld_chr$CHR" >> commands.txt; done
+for CHR in {1..22} ; do echo "$PYTHON $LDSC_PY --l2           --ld-wind-snps $LD_WIND_SNPS --bfile $BFILE/chr$CHR --r2-min $R2_BINS_MIN --r2-max $R2_BINS_MAX  --out $OUT_FOLDER/ref_ld_r2_unbias_chr"$CHR >> commands.txt; done
+for CHR in {1..22} ; do echo "$PYTHON $LDSC_PY --l2 --bias-r2 --ld-wind-snps $LD_WIND_SNPS --bfile $BFILE/chr$CHR --r2-min $R2_BINS_MIN --r2-max $R2_BINS_MAX  --out $OUT_FOLDER/ref_ld_r2_biased_chr"$CHR >> commands.txt; done
+for CHR in {1..22} ; do echo "$PYTHON $LDSC_PY --l4 --bias-r2 --ld-wind-snps $LD_WIND_SNPS --bfile $BFILE/chr$CHR --r2-min $R2_BINS_MIN --r2-max $R2_BINS_MAX  --out $OUT_FOLDER/ref_ld_r4_biased_chr"$CHR >> commands.txt; done
+cat commands.txt | parallel -j12
+
+$PYTHON $SUMSTATS_PY ldsc-to-mat --ref $REF --force --ldscore $OUT_FOLDER/w_ld_chr@.l2.ldscore.gz --out $OUT_FOLDER/w_ld.l2.mat
+for R2BIN in {1..4} ; do $PYTHON $SUMSTATS_PY ldsc-to-mat --ref $REF --force --ldscore $OUT_FOLDER/ref_ld_r2_unbias_chr@-r2bin-$R2BIN.l2.ldscore.gz --out $OUT_FOLDER/ref_ld_r2_unbias-r2bin-$R2BIN.l2.mat ; done
+for R2BIN in {1..4} ; do $PYTHON $SUMSTATS_PY ldsc-to-mat --ref $REF --force --ldscore $OUT_FOLDER/ref_ld_r2_biased_chr@-r2bin-$R2BIN.l2.ldscore.gz --out $OUT_FOLDER/ref_ld_r2_biased-r2bin-$R2BIN.l2.mat ; done
+for R2BIN in {1..4} ; do $PYTHON $SUMSTATS_PY ldsc-to-mat --ref $REF --force --ldscore $OUT_FOLDER/ref_ld_r4_biased_chr@-r2bin-$R2BIN.l4.ldscore.gz --out $OUT_FOLDER/ref_ld_r4_biased-r2bin-$R2BIN.l4.mat ; done
+
+# [MATLAB] Combine all files together into a single mat file.
+cd $OUT_FOLDER
+load all_chromosomes.mat; posvec = BP; chrnumvec=CHR;
+load mafvec.mat; total_het=sum(2*mafvec.*(1-mafvec));
+load w_ld.l2.mat; w_ld = annomat;
+num_r2bins=4;sum_r2=nan(length(mafvec), num_r2bins); sum_r2_biased = sum_r2; sum_r4_biased = sum_r2;
+for r2bin=1:num_r2bins
+data=load(sprintf('ref_ld_r2_unbias-r2bin-%i.l2.mat', r2bin)); sum_r2(:, r2bin) = data.annomat;
+data=load(sprintf('ref_ld_r2_biased-r2bin-%i.l2.mat', r2bin)); sum_r2_biased(:, r2bin) = data.annomat;
+data=load(sprintf('ref_ld_r4_biased-r2bin-%i.l4.mat', r2bin)); sum_r4_biased(:, r2bin) = data.annomat;
+end
+save('reference.mat', 'posvec', 'chrnumvec', 'total_het', 'mafvec', 'w_ld', 'sum_r2', 'sum_r2_biased', 'sum_r4_biased');
+```
+
+Remark about genotyped variants, and variants in the reference 
+--------------------------------------------------------------
+Generally, reference file might represent a subset of the genotyped variants (for example HapMap3 variants as opposite to 1kG phase3 genotypes). You reduce you reference to a subset of genotyped variants. In this case is important to keep in mind that:
+* ``w_ld`` must be calculated within the reference, e.i. ignore genotype variants not in the reference
+* All ``ref_ld`` (biased_r2, biased_r4, unbias_r2) must be calculated towards all genotyped variants
+* ``total_het`` must be calculated across all genotyped variants
+
+[Optional] Binary pairwise LD matrix for random pruning
+-------------------------------------------------------
+
+This step is optional, and provides an alternative to weighting SNPs by inverse ``w_ld`` score.
+The alternative is based on *random pruning* technique, 
+which randomly selects a subsets of pseudo-independent variants
+(*pseudo* means that their pairwise LD r2 will be below certain threshold).
+
+To calculate pairwise LD matrix:
+```
+[BASH] Use plink to calculate pairwise LD
+seq 1 22 | parallel -j12 "$PLINK --memory 10240 --threads 2 --bfile $BFILE/chr{} --r2 gz --ld-window-kb 10000 --ld-window 999999 --ld-window-r2 0.8 --out $OUT_FOLDER/ldmat_p8_BPwind10M_n503_chr{}"
+
+[BASH] Load plink results into matlab
+MAKE_LD_MATRIX_PY=/mnt/h/GitHub/python_convert/make_ld_matrix/make_ld_matrix.py
+seq 1 22 | parallel -j12 "$PYTHON $MAKE_LD_MATRIX_PY --ldfile $OUT_FOLDER/ldmat_p8_BPwind10M_n503_chr{}.ld.gz --ref $REF --savemat $OUT_FOLDER/ldmat_p8_BPwind10M_n503_chr{}.mat"
+
+[MATLAB] Merge files together
+cd $OUT_FOLDER
+outname = 'ldmat_p8_BPwind10M_n503.mat';
+for chri=1:22, fprintf('%i…\n', chri);
+    df = load(sprintf('ldmat_p8_BPwind10M_n503_chr%i.mat', chri), 'id1', 'id2', 'nsnp');
+    if chri==1, id1=df.id1; id2=df.id2; nsnp=df.nsnp; else id1 = [id1; df.id1]; id2 = [id2; df.id2]; end;
+end;
+LDmat = sparse(double(id1),double(id2),true,double(nsnp),double(nsnp));
+LDmat = LDmat | speye(double(nsnp));LDmat = LDmat | (LDmat - LDmat');
+save(outname, 'LDmat', '-v7.3');clear;
+```
+The resulting matrix can be passed to ``BGMG_run.m`` via ``LDmat_file='ldmat_p8_BPwind10M_n503.mat'; LDmat_file_variable='LDmat';`` flags. In this case ``w_ld`` data from the reference file will not be used.
+
+
+

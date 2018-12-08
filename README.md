@@ -83,8 +83,8 @@ Preliminary notes are available in [src/README.md](src/README.md).
   ```
   
 * Summary statistics, for example
-  * Schizophrenia GWAS from Psychiatric Genomics Consortium (search for *Download 49 EUR samples* [here](https://www.med.unc.edu/pgc/results-and-downloads)
-  * Educational Attainment GWAS from Social Science Genetic Association Consortium (search for *GWAS_EA_excl23andMe.txt* [here](https://www.thessgac.org/data)
+  * Schizophrenia GWAS by Ripke at al. (2014) (search for *Download 49 EUR samples* [here](https://www.med.unc.edu/pgc/results-and-downloads))
+  * Educational Attainment GWAS by Lee et al. (2018) (search for *GWAS_EA_excl23andMe.txt* [here](https://www.thessgac.org/data))
 
 ## Data preparation
 

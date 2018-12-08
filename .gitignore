@@ -1,5 +1,2 @@
-*.mat
 *.asv
 *.log
-*.pdf
-!reference_data/*

@@ -20,9 +20,8 @@ We encourage all users to familiarize themselves with US patent https://www.goog
 
 ### Prerequisites
 
-* MiXeR was tested on Linux (TBD: abel version, lisa version) and Windows 10 operating systems (TBD: build)
-* Matlab (TBD version) (for Windows 10); Matlab (TBD version) (for Linux).
-  Other versions may work as well, but are not guarantied to be compatible with pre-built MiXeR binaries (C/C++ code).
+* MiXeR was tested on Linux (CentOS release 6.9) and Windows 10 (build 10.0.17134) operating systems
+* Matlab (Release R2017a). Other versions of the Matlab may work as well, but as of today they are not guarantied to be compatible with pre-built MiXeR binaries (C/C++ code).
 * Python 2.7 (for LD score regression)
 * Python 3.5 (for MiXeR results visualization)
 
@@ -33,17 +32,45 @@ Minimal memory requirement is to have 61.5 GB of RAM available to MiXeR.
 MiXeR efficiently uses multiple CPUs. We recommend to run MiXeR on a system with 16 physical cores.
 When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR run.
 
-### Install on Linux (use pre-built binaries)
+### Install on Linux using pre-built binaries
 
-* Download MiXeR software from github (either 'git clone' from command line, or using the 'download' button on the webpage). You need .m scrits in the root of the repository, and ``DERIVESTsuite`` folder. We refer to this folder as ``MIXER_ROOT``.
-* Download pre-built binaries for Linux (see github releases)
-* Open command line and  ``cd MIXER_ROOT``. Test that MiXeR C++ plugin is loaded correctly.
-* Test that MiXeR binary runs smoothly.
+* Download "Linux_x64.tar.gz" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
+* Extract "Linux_x64.tar.gz" to a new folder. Below we refeer to this folder as ``MIXER_ROOT``.
+* Test that MiXeR C++ plugin is loaded correctly:
+* Test that MiXeR executable runs smoothly:
 	
-### Install on Windows (use pre-built binaries)
+### Install on Windows using pre-built binaries
 
-* Download MiXeR software from github (either 'git clone' from command line, or using the 'download' button on the webpage). You need .m scrits in the root of the repository, and ``DERIVESTsuite`` folder.
-* Download pre-built binaries for Windows (see github releases)
+* Download "Windows_x64.7z" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
+* Extract "Windows_x64.7z" to a new folder. Below we refeer to this folder as ``MIXER_ROOT``.
+* Test that MiXeR executable runs smoothly:
+  * Start new command line
+  * Change active folder to ``MIXER_ROOT``
+  * Run ``bin/bgmg-cli`` command, and validate that it produces output:
+    ```
+    bin/bgmg-cli.exe --help
+    BGMG v0.9.0 - Univariate and Bivariate causal mixture models for GWAS:
+      -h [ --help ]         produce this help message
+      ...
+    ```
+* Test that MiXeR C++ plugin is loaded correctly
+  * open a new instance matlab
+  * change active folder to ``MIXER_ROOT``
+  * execute ``test_mixer_plugin`` command, and check that it did not crash
+  * check that ``test_mixer_plugin`` have created a new file named ``test_mixer_plugin.bgmglib.log`` containing the following lines:
+    ```
+    20181208 20:16:56.281717	============= new session =============
+    20181208 20:16:56.281717	=mixer plugin setup success
+    ```
+
+
+
+* Test that MiXeR executable runs smoothly.
+```
+C:\BGMG_windows\bin>bgmg-cli.exe --help
+BGMG v0.9.0 - Univariate and Bivariate causal mixture models for GWAS:
+  -h [ --help ]         produce this help message
+```
 
 ### Build from source - Linux
 

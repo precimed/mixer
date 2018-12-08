@@ -143,7 +143,7 @@ POWER_PLOT=1; POWER_PLOT_DOWNSCALE=100;
 QQ_PLOT=1; QQ_PLOT_DOWNSCALE=100;
 QQ_PLOT_BINS=1; QQ_PLOT_BINS_DOWNSCALE=50;
 ```
-The results will be saved to files named according to ``out_file`` parameter.
+The results will be saved ``<out_file>.json`` file.
 
 The above parameters imply that the model is fitted on HapMap3 SNPs, as specified by ``extract='w_hm3.justrs'``.
 To  test fitted  parameters on the entire set of SNPs one may change parameters as follows:
@@ -175,7 +175,7 @@ DO_FIT_BGMG=1; FIT_FULL_MODEL=1; CI_ALPHA=0.05; SEED=123;
 STRATIFIED_QQ_PLOT=0;STRATIFIED_QQ_PLOT_DOWNSCALE=100;qq_zgrid_lim=25;qq_zgrid_step=0.05;
 ```
 Note that these parameters point to the results of univariate analysis for both traits, so those must be generated first.
-The results will be saved to files named according to ``out_file`` parameter.
+The results will be saved ``<out_file>.json`` file.
 
 To test fitted  parameters on the entire set of SNPs one may change parameters as follows:
 ```
@@ -185,6 +185,8 @@ out_file='PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test';
 ```
 
 ## Visualize MiXeR results
+
+Preliminary visualization scripts are available in [vis.py](vis.py) script.
 
 # (legacy stuff) UGMG and BGMG - Univariate and Bivariate Gaussian Mixtures for GWAS summary statistics
 

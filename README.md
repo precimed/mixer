@@ -1,10 +1,87 @@
-If you use MiXeR software for your research publication, please cite the following paper(s):
-O.Frei et al., Bivariate causal mixture model quantifies polygenic overlap between complex traits beyond genetic correlation, bioXriv, doi: https://doi.org/10.1101/240275
+Introduction
+============
 
-The MiXeR software may not be used for commercial purpose.
+Mixer code is generally implemented in Matlab, but some routines were coded in native C or C++ language to give better performance. Therefore, to run MiXeR one needs to either compile C/C++ code, or install per-built binaries which MiXeR depends on. Further details are available in "Install MiXeR" section.
+
+Input data for MiXeR consists of summary statistics from a GWAS, and a reference panel. We generally recommend to use LD Score Regression pipeline to prepare summary statistics. For the reference panel we recommend to use 1000 Genomes Phase3 data, pre-processed according to LD Score Regression pipeline, and available for download from LDSC website. Further details are given in "Data downloads" and "Data preparation" sections.
+
+Once you have all input data in MiXeR-compatible format you may proceed with running univariate analysis (``UGMG_cpp_run_simple.m`` script) and cross-trait analysis (``BGMG_cpp_run_simple.m`` script). The results will be saved as ``.json`` files. To visualize the results we provide a script in python, but we encourage users to write their own scripts that process the results. Further details are given in "Run MiXeR" and "Visualize MiXeR results" sections.
+
+If you encounter an issue, or have further questions, please create a new issue ticket on github.com/precimed/mixer .
+
+If you use MiXeR software for your research publication, please cite the following paper(s):
+
+* for univariate analysis: D. Holland et al., [Estimating phenotypic polygenicity and causal effect size variance from GWAS summary statistics while accounting for inflation due to cryptic relatedness](https://www.biorxiv.org/content/early/2017/06/23/133132) 
+* for cross-trait analysis: O.Frei et al., Bivariate causal mixture model quantifies polygenic overlap between complex traits beyond genetic correlation, bioXriv, doi: https://doi.org/10.1101/240275 
+
+The MiXeR software may not be used for commercial purpose or in medical applications.
 We encourage all users to familiarize themselves with US patent https://www.google.no/patents/US20150356243 "Systems and methods for identifying polymorphisms".
 
-# UGMG and BGMG - Univariate and Bivariate Gaussian Mixtures for GWAS summary statistics - `v1.0`
+Install MiXeR
+=============
+
+Prerequisites
+-------------
+
+* MiXeR was tested on Linux (TBD: abel version, lisa version) and Windows 10 operating systems (TBD: build)
+* Matlab (TBD version) (for Windows 10); Matlab (TBD version) (for Linux).
+  Other versions may work as well, but are not guarantied to be compatible with pre-built MiXeR binaries (C/C++ code).
+* Python 2.7 (for LD score regression)
+* Python 3.5 (for MiXeR results visualization)
+
+Hardware requirements
+---------------------
+
+MiXeR software is very CPU and memory intensive. 
+Minimal memory requirement is to have 61.5 GB of RAM available to MiXeR.
+MiXeR efficiently uses multiple CPUs. We recommend to run MiXeR on a system with 16 physical cores.
+When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR run.
+
+Install on Linux (use pre-built binaries)
+-----------------------------------------
+
+* Download MiXeR software from github (either 'git clone' from command line, or using the 'download' button on the webpage). You need .m scrits in the root of the repository, and ``DERIVESTsuite`` folder. We refer to this folder as ``MIXER_ROOT``.
+* Download pre-built binaries for Linux (see github releases)
+* Open command line and  ``cd MIXER_ROOT``. Test that MiXeR C++ plugin is loaded correctly.
+* Test that MiXeR binary runs smoothly.
+	
+Install on Windows (use pre-built binaries)
+-------------------------------------------
+
+* Download MiXeR software from github (either 'git clone' from command line, or using the 'download' button on the webpage). You need .m scrits in the root of the repository, and ``DERIVESTsuite`` folder.
+* Download pre-built binaries for Windows (see github releases)
+
+Build from source - Linux
+-------------------------
+
+TBD. Preliminary notes are available in src/README.md.
+		
+Build from source - Windows
+---------------------------
+
+TBD. Preliminary notes are available in src/README.md.
+
+
+Data downloads
+==============
+
+- LDSR data
+- Summary statistics
+
+Data preparation
+================
+
+	Step1. Generate LD r2 correlations using plink
+	Step2. Convert LD r2 correlations into binary MiXeR format
+
+Run MiXeR
+=========
+
+Visualize MiXeR results
+=======================
+
+
+# UGMG and BGMG - Univariate and Bivariate Gaussian Mixtures for GWAS summary statistics
 
 `UGMG` model allows you to estimate polygenicity (e.i. proportion of causal variants) of a complex trait given GWAS summary statistics. 
 `BGMG` model allows you to quantify polygenic overlap (e.i. proportion of causal variants shared between two complex traits) given GWAS summary statistics. As of today both methods published on biorxiv:

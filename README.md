@@ -24,6 +24,8 @@ We encourage all users to familiarize themselves with US patent https://www.goog
 * Matlab (Release R2017a). Other versions of the Matlab may work as well, but as of today they are not guarantied to be compatible with pre-built MiXeR binaries (C/C++ code).
 * Python 2.7 (for LD score regression)
 * Python 3.5 (for MiXeR results visualization)
+* [plink 1.9](https://www.cog-genomics.org/plink2) for LD structure estimation
+* ``munge_sumstats.py`` script from [LDSC](https://github.com/bulik/ldsc) to process summary statistics
 
 ### Hardware requirements
 
@@ -73,8 +75,16 @@ Preliminary notes are available in [src/README.md](src/README.md).
 
 ## Data downloads
 
-- LDSR data
-- Summary statistics
+* Download reference data from [this URL](https://data.broadinstitute.org/alkesgroup/LDSCORE/)
+  ```
+  wget https://data.broadinstitute.org/alkesgroup/LDSCORE/1000G_Phase3_frq.tgz
+  wget https://data.broadinstitute.org/alkesgroup/LDSCORE/1000G_Phase3_plinkfiles.tgz
+  wget https://data.broadinstitute.org/alkesgroup/LDSCORE/w_hm3.snplist.bz2
+  ```
+  
+* Summary statistics, for example
+  * Schizophrenia GWAS from Psychiatric Genomics Consortium (search for *Download 49 EUR samples* [here](https://www.med.unc.edu/pgc/results-and-downloads)
+  * Educational Attainment GWAS from Social Science Genetic Association Consortium (search for *GWAS_EA_excl23andMe.txt* [here](https://www.thessgac.org/data)
 
 ## Data preparation
 

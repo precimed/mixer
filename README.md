@@ -36,19 +36,12 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
 
 * Download "Linux_x64.tar.gz" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
 * Extract "Linux_x64.tar.gz" to a new folder. Below we refeer to this folder as ``MIXER_ROOT``.
-* Test that MiXeR C++ plugin is loaded correctly:
-* Test that MiXeR executable runs smoothly:
-	
-### Install on Windows using pre-built binaries
-
-* Download "Windows_x64.7z" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
-* Extract "Windows_x64.7z" to a new folder. Below we refeer to this folder as ``MIXER_ROOT``.
 * Test that MiXeR executable runs smoothly:
   * Start new command line
   * Change active folder to ``MIXER_ROOT``
   * Run ``bin/bgmg-cli`` command, and validate that it produces output:
     ```
-    bin/bgmg-cli.exe --help
+    >bin/bgmg-cli --help
     BGMG v0.9.0 - Univariate and Bivariate causal mixture models for GWAS:
       -h [ --help ]         produce this help message
       ...
@@ -62,6 +55,13 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
     20181208 20:16:56.281717	============= new session =============
     20181208 20:16:56.281717	=mixer plugin setup success
     ```
+	
+### Install on Windows using pre-built binaries
+
+* Download "Windows_x64.7z" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
+* Extract "Windows_x64.7z" to a new folder. Below we refeer to this folder as ``MIXER_ROOT``.
+* Test that MiXeR executable runs smoothly, as described in [Install on Linux using pre-built binaries](#install-on-linux-using-pre-built-binaries) section
+* Test that MiXeR C++ plugin is loaded correctly, as described in [Install on Linux using pre-built binaries](#install-on-linux-using-pre-built-binaries) section
 
 ### Build from source - Linux
 

@@ -114,7 +114,7 @@ Preliminary notes are available in [src/README.md](src/README.md).
        --bim LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
        --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.gz \
        --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin
-    ``
+    ```
 
 ## Run MiXeR
 

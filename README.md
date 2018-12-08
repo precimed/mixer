@@ -115,8 +115,43 @@ Preliminary notes are available in [src/README.md](src/README.md).
        --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.gz \
        --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin
     ```
+  * Save the list of dbSNP rs# into a separate file called ``w_hm3.justrs``:
+    ```
+    cut -f1 w_hm3.snplist | tail -n +2 > w_hm3.justrs
+    ```
 
 ## Run MiXeR
+
+### Univariate analysis
+
+To start univariate analysis one should start matlab, configure parameters as listed below, and execute ``UGMG_cpp_run_simple`` script.
+The recommended way is to call ``cd $MIXER_ROOT && matlab -nodisplay -nosplash -nodesktop -r "MIXER_params; UGMG_cpp_run_simple; exit;``, where ``UGMG_params_fit.m`` is a file that may look as follows:
+```
+trait1_file='SSGAC_EDU_2018_no23andMe_noMHC.sumstats.gz';
+out_file='SSGAC_EDU_2018_no23andMe_noMHC.fit';
+bim_file='LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim';
+frq_file='1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq';
+plink_ld_bin='LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin'; chr_labels = 1:22;
+init_from_params_file=''; extract='w_hm3.justrs';
+bgmg_shared_library='lib/libbgmg.so';
+bgmg_shared_library_header='bgmg_matlab.h';
+kmax=20000; max_causal_fraction=0.03; z1max=nan; z2max=nan;
+cache_tag_r2sum=0; r2min=0.0;
+randprune_r2=0.1; randprune_n=64;
+DO_FIT_UGMG=1; FIT_FULL_MODEL=1; CI_ALPHA=0.05; SEED=123;
+POWER_PLOT=1; POWER_PLOT_DOWNSCALE=100;
+QQ_PLOT=1; QQ_PLOT_DOWNSCALE=100;
+QQ_PLOT_BINS=1; QQ_PLOT_BINS_DOWNSCALE=50;
+```
+The above parameters imply that the model is fitted on HapMap3 SNPs, as specified by ``extract='w_hm3.justrs'``.
+To  test fitted  parameters on the entire set of SNPs one may change parameters as follows:
+```
+DO_FIT_UGMG=0; kmax=100; extract=''; 
+init_from_params_file='SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat'
+out_file='SSGAC_EDU_2018_no23andMe_noMHC.test';
+```
+
+### Bivariate analysis
 
 ## Visualize MiXeR results
 

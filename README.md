@@ -1,3 +1,12 @@
+## Contents
+
+* [Introduction](#introduction)
+* [Install MiXeR](#install-mixer)
+* [Data downloads](#data-downloads)
+* [Data preparation](#data-preparation)
+* [Run MiXeR](#run-mixer)
+* [Visualize MiXeR results](#visualize-mixer-results)
+
 ## Introduction
 
 Mixer code is generally implemented in Matlab, but some routines were coded in native C or C++ language to give better performance. Therefore, to run MiXeR one needs to either compile C/C++ code, or install per-built binaries which MiXeR depends on. Further details are available in [Install MiXeR](#install-mixer) section.

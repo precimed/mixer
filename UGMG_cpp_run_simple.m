@@ -124,7 +124,6 @@ if ~exist('exclude', 'var'), exclude = ''; end;
 if ~exist('extract', 'var'), extract = ''; end;
 
 addpath('DERIVESTsuite');
-addpath('PolyfitnTools');
 
 bgmglib = BGMG_cpp();
 bgmglib.dispose();

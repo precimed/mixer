@@ -1,7 +1,6 @@
-Introduction
-============
+## Introduction
 
-Mixer code is generally implemented in Matlab, but some routines were coded in native C or C++ language to give better performance. Therefore, to run MiXeR one needs to either compile C/C++ code, or install per-built binaries which MiXeR depends on. Further details are available in "Install MiXeR" section.
+Mixer code is generally implemented in Matlab, but some routines were coded in native C or C++ language to give better performance. Therefore, to run MiXeR one needs to either compile C/C++ code, or install per-built binaries which MiXeR depends on. Further details are available in [Install MiXeR](#install-mixer) section.
 
 Input data for MiXeR consists of summary statistics from a GWAS, and a reference panel. We generally recommend to use LD Score Regression pipeline to prepare summary statistics. For the reference panel we recommend to use 1000 Genomes Phase3 data, pre-processed according to LD Score Regression pipeline, and available for download from LDSC website. Further details are given in "Data downloads" and "Data preparation" sections.
 
@@ -17,8 +16,7 @@ If you use MiXeR software for your research publication, please cite the followi
 The MiXeR software may not be used for commercial purpose or in medical applications.
 We encourage all users to familiarize themselves with US patent https://www.google.no/patents/US20150356243 "Systems and methods for identifying polymorphisms".
 
-Install MiXeR
-=============
+## Install MiXeR
 
 Prerequisites
 -------------

@@ -4,7 +4,7 @@ Mixer code is generally implemented in Matlab, but some routines were coded in n
 
 Input data for MiXeR consists of summary statistics from a GWAS, and a reference panel. We generally recommend to use LD Score Regression pipeline to prepare summary statistics. For the reference panel we recommend to use 1000 Genomes Phase3 data, pre-processed according to LD Score Regression pipeline, and available for download from LDSC website. Further details are given in "Data downloads" and "Data preparation" sections.
 
-Once you have all input data in MiXeR-compatible format you may proceed with running univariate analysis (``UGMG_cpp_run_simple.m`` script) and cross-trait analysis (``BGMG_cpp_run_simple.m`` script). The results will be saved as ``.json`` files. To visualize the results we provide a script in python, but we encourage users to write their own scripts that process the results. Further details are given in "Run MiXeR" and "Visualize MiXeR results" sections.
+Once you have all input data in MiXeR-compatible format you may proceed with running univariate analysis ([UGMG_cpp_run_simple.m](UGMG_cpp_run_simple.m) script) and cross-trait analysis ([BGMG_cpp_run_simple.m](BGMG_cpp_run_simple.m) script). The results will be saved as ``.json`` files. To visualize the results we provide a script in python, but we encourage users to write their own scripts that process the results. Further details are given in [Run MiXeR](#run-mixer) and [Visualize MiXeR results](#visualize-mixer-results) sections.
 
 If you encounter an issue, or have further questions, please create a new issue ticket on github.com/precimed/mixer .
 

@@ -63,15 +63,6 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
     20181208 20:16:56.281717	=mixer plugin setup success
     ```
 
-
-
-* Test that MiXeR executable runs smoothly.
-```
-C:\BGMG_windows\bin>bgmg-cli.exe --help
-BGMG v0.9.0 - Univariate and Bivariate causal mixture models for GWAS:
-  -h [ --help ]         produce this help message
-```
-
 ### Build from source - Linux
 
 Preliminary notes are available in [src/README.md](src/README.md).

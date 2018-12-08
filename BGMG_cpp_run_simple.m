@@ -208,3 +208,13 @@ bgmglib.set_option('diag', 0);
 % (this overrides previously saved file)
 save([out_file '.mat'], 'result');
 BGMG_cpp.log('Results saved to %s.mat\n', out_file);
+
+if exist('jsonencode')
+    str=jsonencode(result);
+    fileID = fopen([out_file '.json'] , 'w');
+    fprintf(fileID, str);
+    fclose(fileID);
+    BGMG_cpp.log('Results saved to %s.json\n', out_file);
+else
+    warning('jsonencode does not exist, cannot convert resulting mat files to json')
+end

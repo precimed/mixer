@@ -18,8 +18,7 @@ We encourage all users to familiarize themselves with US patent https://www.goog
 
 ## Install MiXeR
 
-Prerequisites
--------------
+### Prerequisites
 
 * MiXeR was tested on Linux (TBD: abel version, lisa version) and Windows 10 operating systems (TBD: build)
 * Matlab (TBD version) (for Windows 10); Matlab (TBD version) (for Linux).
@@ -27,59 +26,48 @@ Prerequisites
 * Python 2.7 (for LD score regression)
 * Python 3.5 (for MiXeR results visualization)
 
-Hardware requirements
----------------------
+### Hardware requirements
 
 MiXeR software is very CPU and memory intensive. 
 Minimal memory requirement is to have 61.5 GB of RAM available to MiXeR.
 MiXeR efficiently uses multiple CPUs. We recommend to run MiXeR on a system with 16 physical cores.
 When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR run.
 
-Install on Linux (use pre-built binaries)
------------------------------------------
+### Install on Linux (use pre-built binaries)
 
 * Download MiXeR software from github (either 'git clone' from command line, or using the 'download' button on the webpage). You need .m scrits in the root of the repository, and ``DERIVESTsuite`` folder. We refer to this folder as ``MIXER_ROOT``.
 * Download pre-built binaries for Linux (see github releases)
 * Open command line and  ``cd MIXER_ROOT``. Test that MiXeR C++ plugin is loaded correctly.
 * Test that MiXeR binary runs smoothly.
 	
-Install on Windows (use pre-built binaries)
--------------------------------------------
+### Install on Windows (use pre-built binaries)
 
 * Download MiXeR software from github (either 'git clone' from command line, or using the 'download' button on the webpage). You need .m scrits in the root of the repository, and ``DERIVESTsuite`` folder.
 * Download pre-built binaries for Windows (see github releases)
 
-Build from source - Linux
--------------------------
+### Build from source - Linux
 
-TBD. Preliminary notes are available in src/README.md.
+Preliminary notes are available in [src/README.md](src/README.md).
 		
-Build from source - Windows
----------------------------
+### Build from source - Windows
 
-TBD. Preliminary notes are available in src/README.md.
+Preliminary notes are available in [src/README.md](src/README.md).
 
-
-Data downloads
-==============
+## Data downloads
 
 - LDSR data
 - Summary statistics
 
-Data preparation
-================
+## Data preparation
 
 	Step1. Generate LD r2 correlations using plink
 	Step2. Convert LD r2 correlations into binary MiXeR format
 
-Run MiXeR
-=========
+## Run MiXeR
 
-Visualize MiXeR results
-=======================
+## Visualize MiXeR results
 
-
-# UGMG and BGMG - Univariate and Bivariate Gaussian Mixtures for GWAS summary statistics
+# (legacy stuff) UGMG and BGMG - Univariate and Bivariate Gaussian Mixtures for GWAS summary statistics
 
 `UGMG` model allows you to estimate polygenicity (e.i. proportion of causal variants) of a complex trait given GWAS summary statistics. 
 `BGMG` model allows you to quantify polygenic overlap (e.i. proportion of causal variants shared between two complex traits) given GWAS summary statistics. As of today both methods published on biorxiv:

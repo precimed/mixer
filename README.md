@@ -5,6 +5,7 @@
 * [Data downloads](#data-downloads)
 * [Data preparation](#data-preparation)
 * [Run MiXeR](#run-mixer)
+* [MiXeR options](#mixer-options)
 * [Visualize MiXeR results](#visualize-mixer-results)
 
 ## Introduction
@@ -13,7 +14,7 @@ Mixer code is generally implemented in Matlab, but some routines were coded in n
 
 Input data for MiXeR consists of summary statistics from a GWAS, and a reference panel. MiXeR format for summary statistics is compatible with LD Score Regression (i.e. the ``sumstats.gz`` files), and for those users who are already familiar with ``munge_sumstats.py`` script we recommend to use LD Score Regression pipeline to prepare summary statistics. At the same time, we encourage everyone to take a look [our own pipeline](https://github.com/precimed/python_convert/) for processing summary statistics. For the reference panel we recommend to use 1000 Genomes Phase3 data, pre-processed according to LD Score Regression pipeline, and available for download from LDSC website. Further details are given in [Data downloads](#data-downloads) and [Data preparation](#data-preparation) sections.
 
-Once you have all input data in MiXeR-compatible format you may proceed with running univariate analysis ([UGMG_cpp_run_simple.m](UGMG_cpp_run_simple.m) script) and cross-trait analysis ([BGMG_cpp_run_simple.m](BGMG_cpp_run_simple.m) script). The results will be saved as ``.json`` files. To visualize the results we provide a script in python, but we encourage users to write their own scripts that process the results. Further details are given in [Run MiXeR](#run-mixer) and [Visualize MiXeR results](#visualize-mixer-results) sections.
+Once you have all input data in MiXeR-compatible format you may proceed with running univariate analysis ([UGMG_cpp_run_simple.m](UGMG_cpp_run_simple.m) script) and cross-trait analysis ([BGMG_cpp_run_simple.m](BGMG_cpp_run_simple.m) script). The results will be saved as ``.json`` files. To visualize the results we provide a script in python, but we encourage users to write their own scripts that process the results. Further details are given in [Run MiXeR](#run-mixer), [MiXeR options](#mixer-options) and [Visualize MiXeR results](#visualize-mixer-results) sections.
 
 If you encounter an issue, or have further questions, please create a [new issue ticket](https://github.com/precimed/mixer/issues/new).
 
@@ -215,7 +216,7 @@ those specific to cross-trait analysis - with [BGMG] tag, and common operations 
 * [BGMG] produce stratified QQ plots
 * [BOTH] Save results to <out_file>.[json, mat, pdf, log]
 
-### List of all MiXeR options
+## MiXeR options
 
 Options specific to univariate analysis are marked with [UGMG] tag, 
 those specific to cross-trait analysis - with [BGMG] tag, 
@@ -296,3 +297,21 @@ Memory usage of MiXeR largely consists of the following components:
 ## Visualize MiXeR results
 
 Preliminary visualization scripts are available in [vis.py](vis.py) script.
+
+### MiXeR results format
+
+All MiXeR results are stored in a single ``.json`` file.
+
+Results of univariate analysis:
+* ``['univariate'][0]['params'][<parameter>]`` - point estimates of model parameters. Here ``<parameter>`` can be one of the following: ``pi_vec`` (polygenicity), ``sig2_beta`` (variance of causal effect sizes), ``sig2_zero`` (variance distortion)
+* ``['univariate'][0]['ci'][<parameter>][<measure>]`` - uncertainty of parameter estimates. Here ``<parameter>`` can be one of the following: ``h2`` (heritability), ``pi_vec``, ``sig2_beta``, ``sig2_zero`` -  as described above; ``<measure>`` can be one of the following: ``point_estimate`` (point estimate),  ``se`` (standard error), ``lower`` and ``upper`` (lower and upper bound of confidence interval, at significance level defined by ``CI_ALPHA`` option);
+* ``['univariate'][0]['power_plot_data']['power_nvec']`` and ``['univariate'][0]['power_plot_data']['power_svec']`` - power plot; ``power_svec`` gives fraction of heritability explain for a given sample size (``power_nvec``).
+* ``['univariate'][0]['qq_plot_data'][<variable>]`` - data and model QQ plots. ``<variable>`` can be one of the following: 
+``hv_logp`` - observed log(p-values), ``data_logpvec`` -- expected log(p-values) for the data; ``model_logpvec`` -- expected log(p-values) for the model;
+* ``['univariate'][0]['qq_plot_bins_data'][<index>]`` - a 3x3 matrix of QQ plots, partitioned by MAF and LD score; ``<index>`` can take values 0 to 8; each QQ plot follows the format defined above; the ranges of MAF and LD score for each bin is specified in ``['univariate'][0]['qq_plot_bins_data'][<index>]['title']``.
+
+Results of bivariate analysis:
+* ``['bivariate']['params'][<parameter>]`` - point estimates of model parameters. Here ``<parameter>`` can be one of the following: ``pi_vec`` - polygenicty of each component (fraction of variants specific to the first trait, specific to the second trait, and shared across traits); ``rho_beta`` - correlation of effect sizes within each component (first two values are zeros); ``rho_zero`` - correlation of residuals; ``sig2_beta`` - 2x3 matrix, variance of effect sizes for each trait and within each component; ``sig2_zero`` - variance distortion in each trait. 
+* ``['bivariate']['ci'][<parameter>][<measure>]`` - uncertainty of parameter estimates. Here ``<parameter>`` can be one of the following: ``h2_T1``, ``h2_T2`` - heritability of the first and the second traits; ``pi1u``, ``pi2u`` total polygenicity of the first and of the second trait; ``pi_vec_C1``, ``pi_vec_C2``, ``pi_vec_C3`` - polygenicity of the three components in the model; ``rg`` - genetic correlation; ``rho_beta`` - correlation of effect sizes within shared polygenic component; ``rho_zero`` - correlation of residuals; ``sig2_beta_T1``, ``sig2_beta_T2`` - variance of effect sizes in the first and in the second trait; ``sig2_zero_T1``, ``sig2_zero_T1`` - variance distortion in the first and in the second trait.)
+* ``['bivariate']['stratified_qq_plot_fit_data'][<trait>][<index>]`` - data for stratified QQ plots. Here ``<trait>`` can be either ``'trait1'`` or ``'trait2'``; ``<index>`` can be ``0``, ``1``, ``2`` or ``3``. Stratified QQ plots are made both ways (i.e. ``trait1|trait2``, and ``trait2||trait1``; hense the ``<trait>`` defines which trait is primary (so that stratified QQ plots are conditioned on the other trait. ``<index>`` equal to ``0`` means a stratum of all SNPs, ``1``, ``2`` and ``3`` are increased levels of association on the secondary trait. Each QQ plot has format defined above (see results of univariate analysis).
+

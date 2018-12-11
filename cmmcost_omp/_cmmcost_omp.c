@@ -88,6 +88,24 @@ double costdirect(double * z, _Bool * z2use, size_t nz, float * s2,
 } 
 
 
+double costsampling(double * z, _Bool * z2use, size_t nz, float * s2,
+    unsigned long long int * is2, double * p, double * sb2, double s02,
+    unsigned char * annot, int n_samples) {
+
+    size_t nthreads = omp_get_max_threads();
+    printf("Max number of threads = %zu\n", nthreads);
+
+    size_t i, j, k, tid;
+
+    gsl_rng ** rngs = (gsl_rng **) malloc(nthreads * sizeof(gsl_rng *));
+    for (i=0; i<nthreads; i++) {
+        ww[i] = gsl_integration_workspace_alloc(1000);
+        pars[i].s02 = s02; // this parameter is always the same
+        FF[i].function = &iff;
+        FF[i].params = &pars[i];
+    }
+}
+
 
 int main() {
     

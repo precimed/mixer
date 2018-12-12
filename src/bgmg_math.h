@@ -2,7 +2,7 @@
 #include <numeric>
 #include <algorithm>
 #include <boost/math/constants/constants.hpp>
-#include <boost/math/special_functions/owens_t.hpp>
+// #include <boost/math/special_functions/owens_t.hpp>
 
 // This file contains two implementations of bivariate cumulative density function
 // One is copied from STAN library, another from BVNcdf package for matlab (see links below).
@@ -17,6 +17,8 @@
 // P(Z1>=z1 && Z2 >=z2)
 template<typename T>
 inline T binormal_cdf_stan(T z1, T z2, T rho) {
+  return 0;  // disable because boost 1.49.0 does not support owens_t
+  /*
   static const T inv_sqrt_2 = static_cast<T>(0.7071067811865475);
   if (z1 != 0 || z2 != 0) {
     T denom = std::abs(rho) < 1.0 ? sqrt((1 + rho) * (1 - rho)) : NAN;
@@ -29,6 +31,7 @@ inline T binormal_cdf_stan(T z1, T z2, T rho) {
     return 0.5 * (Phi_z1 + Phi_z2 - delta) - boost::math::owens_t(z1, a1) - boost::math::owens_t(z2, a2);
   }
   return 0.25 + std::asin(rho) / (2.0 * pi);
+  */
 }
 
 
@@ -208,5 +211,5 @@ inline T censored2_cdf_BVN(T z1max, T z2max, T a11, T a12, T a22) {
 // going for STAN because it looks simpler.
 template<typename T>
 inline T censored2_cdf(T z1max, T z2max, T a11, T a12, T a22) {
-  return censored2_cdf_stan<T>(z1max, z2max, a11, a12, a22);
+  return censored2_cdf_BVN<T>(z1max, z2max, a11, a12, a22);
 }

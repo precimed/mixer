@@ -59,19 +59,33 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
       ...
     ```
 * Test that MiXeR C++ plugin is loaded correctly
-  * open a new instance matlab
   * change active folder to ``MIXER_ROOT``
-  * execute ``test_mixer_plugin`` command, and check that it did not crash
+  * add ``$MIXER_ROOT/lib`` to ``LD_LIBRARY_PATH`` (so that matlab can find boost libraries from MiXeR distribution package):
+    ```
+    export "LD_LIBRARY_PATH=`pwd`/lib:$LD_LIBRARY_PATH"
+    ```
+  * start matlab and execute ``test_mixer_plugin`` command:
+    ```
+    matlab -nodisplay -nosplash -nodesktop -r "test_mixer_plugin; exit;"
+    ```
+    
   * check that ``test_mixer_plugin`` have created a new file named ``test_mixer_plugin.bgmglib.log`` containing the following lines:
     ```
     20181208 20:16:56.281717	============= new session =============
     20181208 20:16:56.281717	=mixer plugin setup success
     ```
-  * If ``test_mixer_plugin`` crashes your matlab instance, try to run the following command before starting MATLAB:
-    ```
-    export "LD_LIBRARY_PATH=$MIXER_ROOT/lib:$LD_LIBRARY_PATH"
-    ```
-	
+    
+This procedure was tested on
+  * ``CentOS release 6.10`` (on UCSD Comet cluster):
+    * ``Matlab R2018a (9.4.0.813654) 64-bit (glnxa64)`` - all OK
+  * ``CentOS release 6.9`` (on UiO Abel cluster):
+    * ``Matlab R2018a (9.4.0.813654) 64-bit (glnxa64)`` - all OK
+    * ``Matlab R2017a (9.2.0.556344) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
+    * ``Matlab R2016a (9.0.0.341360) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
+  * ``Debian GNU/Linux 9`` (on LISA supercomputer at SURFsara)
+    * ``Matlab R2017b (9.3.0.713579) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
+    * ``Matlab R2016b (9.1.0.441655) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
+
 ### Install on Windows using pre-built binaries
 
 * Download "Windows_x64.7z" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
@@ -135,7 +149,7 @@ Preliminary notes are available in [src/README.md](src/README.md).
 ### Univariate analysis
 
 To start univariate analysis one should start matlab, configure parameters as listed below, and execute [UGMG_cpp_run_simple](UGMG_cpp_run_simple.m) script.
-The recommended way is to call ``cd $MIXER_ROOT && matlab -nodisplay -nosplash -nodesktop -r "UGMG_params_fit; UGMG_cpp_run_simple; exit;``, where ``UGMG_params_fit.m`` is a file that looks as follows:
+The recommended way is to call ``cd $MIXER_ROOT && matlab -nodisplay -nosplash -nodesktop -r "UGMG_params_fit; UGMG_cpp_run_simple; exit;"``, where ``UGMG_params_fit.m`` is a file that looks as follows:
 ```
 trait1_file='SSGAC_EDU_2018_no23andMe_noMHC.sumstats.gz';
 out_file='SSGAC_EDU_2018_no23andMe_noMHC.fit';

@@ -14,6 +14,7 @@
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_rng.h>
 #include <gsl/gsl_randist.h>
+#include <gsl/gsl_cdf.h>
 #include <omp.h>
 
 typedef struct Parameters {

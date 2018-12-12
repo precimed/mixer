@@ -13,6 +13,7 @@
 #include <math.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
 #include <omp.h>
 
 typedef struct Parameters {
@@ -28,5 +29,13 @@ double iff(double x, void * params);
 double costdirect(double * z, _Bool * z2use, size_t nz, float * s2,
     unsigned long long int * is2, double * p, double  * sb2, double s02,
     unsigned char * annot);
+
+double costsampling(double * z, _Bool * z2use, size_t nz, float * s2,
+    unsigned long long int * is2, double * p, double * sb2, double s02,
+    unsigned char * annot, int n_samples);
+
+void get_s2sample(double * s2sample, int n_s2sample, double * p, double * sb2,
+    double s02, float * s2_block, unsigned char * annot_block, int block_size,
+    gsl_rng * r);
 
 #endif

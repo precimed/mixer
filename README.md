@@ -95,7 +95,23 @@ This procedure was tested on
 
 ### Build from source - Linux
 
-Preliminary notes are available in [src/README.md](src/README.md).
+We build release package on Abel supercomputer.
+
+1. Download [boost/1_49_0](https://www.boost.org/doc/libs/1_49_0/more/getting_started/unix-variants.html), and compile it
+   ```
+   module load gcc/4.7.2
+   ./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --j12
+   ```
+2. Clone MiXeR repository, and compile it
+   ```
+   git clone --recurse-submodules -j8 git://github.com/precimed/mixer.git && cd mixer/src
+   module load cmake/3.7.1 gcc/4.7.2
+   mkdir build && cd build && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0
+   make -j12
+   ```
+
+The specific combination of ``gcc`` and ``boost`` versions is important - it turned out to be compatible with matlab.
+Further notes are available in [src/README.md](src/README.md).
 		
 ### Build from source - Windows
 

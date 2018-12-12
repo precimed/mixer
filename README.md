@@ -127,6 +127,8 @@ Preliminary notes are available in [src/README.md](src/README.md).
   ```
   wget https://data.broadinstitute.org/alkesgroup/LDSCORE/1000G_Phase3_plinkfiles.tgz
   wget https://data.broadinstitute.org/alkesgroup/LDSCORE/w_hm3.snplist.bz2
+  tar -xzvf 1000G_Phase3_plinkfiles.tgz
+  bzip2 -d w_hm3.snplist.bz2
   ```
 
 ## Data preparation

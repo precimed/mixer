@@ -225,6 +225,8 @@ init_from_params_file='SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat'
 out_file='SSGAC_EDU_2018_no23andMe_noMHC.test';
 ```
 
+Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.sumstats.gz``).
+
 ### Bivariate (cross-trait) analysis
 
 To start cross-trait analysis one should start matlab, configure parameters as listed below, and execute [BGMG_cpp_run_simple](BGMG_cpp_run_simple.m) script. The recommended way is to call ``cd $MIXER_ROOT && matlab -nodisplay -nosplash -nodesktop -r "BGMG_params_fit; BGMG_cpp_run_simple; exit;``, where ``BGMG_params_fit.m`` is a file that looks as follows:

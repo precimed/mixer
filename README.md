@@ -210,9 +210,9 @@ kmax=20000; max_causal_fraction=0.03; z1max=nan; z2max=nan;
 cache_tag_r2sum=0; r2min=0.0;
 randprune_r2=0.1; randprune_n=64;
 DO_FIT_UGMG=1; FIT_FULL_MODEL=1; CI_ALPHA=0.05; SEED=123;
-POWER_PLOT=1; POWER_PLOT_DOWNSCALE=100;
-QQ_PLOT=1; QQ_PLOT_DOWNSCALE=100;
-QQ_PLOT_BINS=1; QQ_PLOT_BINS_DOWNSCALE=50;
+POWER_PLOT=0; POWER_PLOT_DOWNSCALE=100;
+QQ_PLOT=0; QQ_PLOT_DOWNSCALE=100;
+QQ_PLOT_BINS=0; QQ_PLOT_BINS_DOWNSCALE=50;
 ```
 The results will be saved ``<out_file>.json`` file.
 
@@ -220,6 +220,7 @@ The above parameters imply that the model is fitted on HapMap3 SNPs, as specifie
 To produce QQ plots on the entire set of SNPs one may change parameters as follows:
 ```
 DO_FIT_UGMG=0; kmax=100; extract=''; 
+POWER_PLOT=1; QQ_PLOT=1; QQ_PLOT_BINS=1;
 init_from_params_file='SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat'
 out_file='SSGAC_EDU_2018_no23andMe_noMHC.test';
 ```
@@ -251,6 +252,7 @@ The results will be saved ``<out_file>.json`` file.
 To produce QQ plots on the entire set of SNPs one may change parameters as follows:
 ```
 DO_FIT_BGMG=0; kmax=100; extract='';
+STRATIFIED_QQ_PLOT=1;
 init_from_params_file='PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat';
 out_file='PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test';
 ```

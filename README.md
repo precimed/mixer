@@ -154,7 +154,7 @@ Preliminary notes are available in [src/README.md](src/README.md).
        --out LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.<chr_label>
     plink --r2 gz --ld-window-kb 1000000 --ld-window 50000 --ld-window-r2 0.05 --threads 24 \
        --bfile LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label> \
-       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k
+       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k
     ```
     This step takes about 1 hour (here and below all times are measured on a server with 24 physical cores).
   * Run ``bgmg-cli`` to convert plink output into a binary format. The following command must be run once for each chromosome. 
@@ -162,8 +162,8 @@ Preliminary notes are available in [src/README.md](src/README.md).
     ```
     bin/bgmg-cli \
        --bim LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-       --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.gz \
-       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin
+       --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.gz \
+       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.bin
     ```
     The conversion is single-threaded, and takes about 10 minutes for the longest chromosome.
     The output is written to ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin`` file,
@@ -179,11 +179,11 @@ Preliminary notes are available in [src/README.md](src/README.md).
     20181213 02:18:48.939690        >set_chrnumvec(9997231);
     20181213 02:18:48.953602        <set_chrnumvec(9997231);
     20181213 02:18:48.953646        <init(bim_file=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim, frq_file=, chr_labels=, trait1_file=, trait2_file=, exclude=, extract=);  elapsed time 28098ms
-    20181213 02:18:48.953918         Reading LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p01_SNPwind50k.ld.gz...
+    20181213 02:18:48.953918         Reading LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p05_SNPwind50k.ld.gz...
     20181213 02:18:49.433315         Processed 100000 lines
     ...
-    20181213 02:20:01.654392         Parsed 18495973 r2 values from LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p01_SNPwind50k.ld.gz
-    20181213 02:20:01.657704         PlinkLdFile::save_as_binary(filename=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p01_SNPwind50k.ld.bin), writing 18495973 elements...
+    20181213 02:20:01.654392         Parsed 18495973 r2 values from LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p05_SNPwind50k.ld.gz
+    20181213 02:20:01.657704         PlinkLdFile::save_as_binary(filename=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p05_SNPwind50k.ld.bin), writing 18495973 elements...
     ```
     ```
   * Save the list of dbSNP rs# into a separate file called ``w_hm3.justrs``:
@@ -201,7 +201,7 @@ The recommended way is to call ``cd $MIXER_ROOT && matlab -nodisplay -nosplash -
 trait1_file='SSGAC_EDU_2018_no23andMe_noMHC.sumstats.gz';
 out_file='SSGAC_EDU_2018_no23andMe_noMHC.fit';
 bim_file='LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim';
-frq_file='1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq';
+frq_file='LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq';
 plink_ld_bin='LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin'; chr_labels = 1:22;
 init_from_params_file=''; extract='w_hm3.justrs';
 bgmg_shared_library='lib/libbgmg.so';

@@ -217,7 +217,7 @@ QQ_PLOT_BINS=1; QQ_PLOT_BINS_DOWNSCALE=50;
 The results will be saved ``<out_file>.json`` file.
 
 The above parameters imply that the model is fitted on HapMap3 SNPs, as specified by ``extract='w_hm3.justrs'``.
-To  test fitted  parameters on the entire set of SNPs one may change parameters as follows:
+To produce QQ plots on the entire set of SNPs one may change parameters as follows:
 ```
 DO_FIT_UGMG=0; kmax=100; extract=''; 
 init_from_params_file='SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat'
@@ -248,7 +248,7 @@ STRATIFIED_QQ_PLOT=0;STRATIFIED_QQ_PLOT_DOWNSCALE=100;qq_zgrid_lim=25;qq_zgrid_s
 Note that these parameters point to the results of univariate analysis for both traits, so those must be generated first.
 The results will be saved ``<out_file>.json`` file.
 
-To test fitted  parameters on the entire set of SNPs one may change parameters as follows:
+To produce QQ plots on the entire set of SNPs one may change parameters as follows:
 ```
 DO_FIT_BGMG=0; kmax=100; extract='';
 init_from_params_file='PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat';

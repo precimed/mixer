@@ -166,8 +166,8 @@ Preliminary notes are available in [src/README.md](src/README.md).
        --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.bin
     ```
     The conversion is single-threaded, and takes about 10 minutes for the longest chromosome.
-    The output is written to ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin`` file,
-    and log details into ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin.bgmglib.log`` file:
+    The output is written to ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.bin`` file,
+    and log details into ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.bin.bgmglib.log`` file:
     ```
     20181213 02:18:20.854727         Create new context (id=0)
     20181213 02:18:20.854751        >init(bim_file=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim, frq_file=, chr_labels=, trait1_file=, trait2_file=, exclude=, extract=);

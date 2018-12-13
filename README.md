@@ -105,9 +105,16 @@ We build release package on Abel supercomputer.
 2. Clone MiXeR repository, and compile it
    ```
    git clone --recurse-submodules -j8 git://github.com/precimed/mixer.git && cd mixer/src
-   module load cmake/3.7.1 gcc/4.7.2
-   mkdir build && cd build && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0
-   make -j12
+   module purge && module load cmake/3.7.1 gcc/4.7.2  #  cmake/3.7.1 gcc/4.7.2
+   mkdir build && cd build && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0  
+   make -j12 && cd ..
+   ```
+3. Compile ``bgmg-cli`` separately (usenother combination of modules)
+   ```
+   module purge
+   module load cmake/3.7.1 gcc/4.9.0 openmpi.gnu/1.8.1 icu/49.1.2
+   mkdir build2 && cd build2 && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0
+   make -j12 && cd ..
    ```
 
 The specific combination of ``gcc`` and ``boost`` versions is important - it turned out to be compatible with matlab.

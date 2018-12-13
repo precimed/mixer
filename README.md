@@ -164,6 +164,26 @@ Preliminary notes are available in [src/README.md](src/README.md).
        --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.gz \
        --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin
     ```
+    This creates ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin`` file,
+    and log details into ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin.bgmglib.log`` file:
+    ```
+    20181213 02:18:20.854727         Create new context (id=0)
+    20181213 02:18:20.854751        >init(bim_file=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim, frq_file=, chr_labels=, trait1_file=, trait2_file=, exclude=, extract=);
+    20181213 02:18:20.857294         Construct reference from 22 files...
+    20181213 02:18:22.110188         Found 141123 variants in LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.22.bim
+    ...
+    20181213 02:18:25.890214         Found 9997231 variants in total.
+    20181213 02:18:48.881013         set_tag_indices(num_snp=9997231, num_tag=9997231);
+    20181213 02:18:48.939690        >set_chrnumvec(9997231);
+    20181213 02:18:48.953602        <set_chrnumvec(9997231);
+    20181213 02:18:48.953646        <init(bim_file=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim, frq_file=, chr_labels=, trait1_file=, trait2_file=, exclude=, extract=);  elapsed time 28098ms
+    20181213 02:18:48.953918         Reading LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p01_SNPwind50k.ld.gz...
+    20181213 02:18:49.433315         Processed 100000 lines
+    ...
+    20181213 02:20:01.654392         Parsed 18495973 r2 values from LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p01_SNPwind50k.ld.gz
+    20181213 02:20:01.657704         PlinkLdFile::save_as_binary(filename=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p01_SNPwind50k.ld.bin), writing 18495973 elements...
+    ```
+    ```
   * Save the list of dbSNP rs# into a separate file called ``w_hm3.justrs``:
     ```
     cut -f1 w_hm3.snplist | tail -n +2 > w_hm3.justrs

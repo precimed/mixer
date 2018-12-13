@@ -59,19 +59,33 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
       ...
     ```
 * Test that MiXeR C++ plugin is loaded correctly
-  * open a new instance matlab
   * change active folder to ``MIXER_ROOT``
-  * execute ``test_mixer_plugin`` command, and check that it did not crash
+  * add ``$MIXER_ROOT/lib`` to ``LD_LIBRARY_PATH`` (so that matlab can find boost libraries from MiXeR distribution package):
+    ```
+    export "LD_LIBRARY_PATH=`pwd`/lib:$LD_LIBRARY_PATH"
+    ```
+  * start matlab and execute ``test_mixer_plugin`` command:
+    ```
+    matlab -nodisplay -nosplash -nodesktop -r "test_mixer_plugin; exit;"
+    ```
+    
   * check that ``test_mixer_plugin`` have created a new file named ``test_mixer_plugin.bgmglib.log`` containing the following lines:
     ```
     20181208 20:16:56.281717	============= new session =============
     20181208 20:16:56.281717	=mixer plugin setup success
     ```
-  * If ``test_mixer_plugin`` crashes your matlab instance, try to run the following command before starting MATLAB:
-    ```
-    export "LD_LIBRARY_PATH=$MIXER_ROOT/lib:$LD_LIBRARY_PATH"
-    ```
-	
+    
+This procedure was tested on
+  * ``CentOS release 6.10`` (on UCSD Comet cluster):
+    * ``Matlab R2018a (9.4.0.813654) 64-bit (glnxa64)`` - all OK
+  * ``CentOS release 6.9`` (on UiO Abel cluster):
+    * ``Matlab R2018a (9.4.0.813654) 64-bit (glnxa64)`` - all OK
+    * ``Matlab R2017a (9.2.0.556344) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
+    * ``Matlab R2016a (9.0.0.341360) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
+  * ``Debian GNU/Linux 9`` (on LISA supercomputer at SURFsara)
+    * ``Matlab R2017b (9.3.0.713579) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
+    * ``Matlab R2016b (9.1.0.441655) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
+
 ### Install on Windows using pre-built binaries
 
 * Download "Windows_x64.7z" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
@@ -81,7 +95,30 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
 
 ### Build from source - Linux
 
-Preliminary notes are available in [src/README.md](src/README.md).
+We build release package on Abel supercomputer.
+
+1. Download [boost/1_49_0](https://www.boost.org/doc/libs/1_49_0/more/getting_started/unix-variants.html), and compile it
+   ```
+   module load gcc/4.7.2
+   ./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --j12
+   ```
+2. Clone MiXeR repository, and compile it
+   ```
+   git clone --recurse-submodules -j8 git://github.com/precimed/mixer.git && cd mixer/src
+   module purge && module load cmake/3.7.1 gcc/4.7.2  #  cmake/3.7.1 gcc/4.7.2
+   mkdir build && cd build && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0  
+   make -j12 && cd ..
+   ```
+3. Compile ``bgmg-cli`` separately (usenother combination of modules)
+   ```
+   module purge
+   module load cmake/3.7.1 gcc/4.9.0 openmpi.gnu/1.8.1 icu/49.1.2
+   mkdir build2 && cd build2 && cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_49_0
+   make -j12 && cd ..
+   ```
+
+The specific combination of ``gcc`` and ``boost`` versions is important - it turned out to be compatible with matlab.
+Further notes are available in [src/README.md](src/README.md).
 		
 ### Build from source - Windows
 
@@ -97,6 +134,8 @@ Preliminary notes are available in [src/README.md](src/README.md).
   ```
   wget https://data.broadinstitute.org/alkesgroup/LDSCORE/1000G_Phase3_plinkfiles.tgz
   wget https://data.broadinstitute.org/alkesgroup/LDSCORE/w_hm3.snplist.bz2
+  tar -xzvf 1000G_Phase3_plinkfiles.tgz
+  bzip2 -d w_hm3.snplist.bz2
   ```
 
 ## Data preparation
@@ -115,15 +154,37 @@ Preliminary notes are available in [src/README.md](src/README.md).
        --out LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.<chr_label>
     plink --r2 gz --ld-window-kb 1000000 --ld-window 50000 --ld-window-r2 0.05 --threads 24 \
        --bfile LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label> \
-       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k
+       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k
     ```
+    This step takes about 1 hour (here and below all times are measured on a server with 24 physical cores).
   * Run ``bgmg-cli`` to convert plink output into a binary format. The following command must be run once for each chromosome. 
     Note that ``--bim`` argument must be the same, i.e. point to ``1000G.EUR.QC.@.bim`` regardless of the actual chromosome that you use in ``--plink-ld`` and ``--out``.
     ```
     bin/bgmg-cli \
        --bim LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-       --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.gz \
-       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin
+       --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.gz \
+       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.bin
+    ```
+    The conversion is single-threaded, and takes about 10 minutes for the longest chromosome.
+    The output is written to ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.bin`` file,
+    and log details into ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.bin.bgmglib.log`` file:
+    ```
+    20181213 02:18:20.854727         Create new context (id=0)
+    20181213 02:18:20.854751        >init(bim_file=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim, frq_file=, chr_labels=, trait1_file=, trait2_file=, exclude=, extract=);
+    20181213 02:18:20.857294         Construct reference from 22 files...
+    20181213 02:18:22.110188         Found 141123 variants in LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.22.bim
+    ...
+    20181213 02:18:25.890214         Found 9997231 variants in total.
+    20181213 02:18:48.881013         set_tag_indices(num_snp=9997231, num_tag=9997231);
+    20181213 02:18:48.939690        >set_chrnumvec(9997231);
+    20181213 02:18:48.953602        <set_chrnumvec(9997231);
+    20181213 02:18:48.953646        <init(bim_file=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim, frq_file=, chr_labels=, trait1_file=, trait2_file=, exclude=, extract=);  elapsed time 28098ms
+    20181213 02:18:48.953918         Reading LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p05_SNPwind50k.ld.gz...
+    20181213 02:18:49.433315         Processed 100000 lines
+    ...
+    20181213 02:20:01.654392         Parsed 18495973 r2 values from LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p05_SNPwind50k.ld.gz
+    20181213 02:20:01.657704         PlinkLdFile::save_as_binary(filename=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p05_SNPwind50k.ld.bin), writing 18495973 elements...
+    ```
     ```
   * Save the list of dbSNP rs# into a separate file called ``w_hm3.justrs``:
     ```
@@ -135,33 +196,36 @@ Preliminary notes are available in [src/README.md](src/README.md).
 ### Univariate analysis
 
 To start univariate analysis one should start matlab, configure parameters as listed below, and execute [UGMG_cpp_run_simple](UGMG_cpp_run_simple.m) script.
-The recommended way is to call ``cd $MIXER_ROOT && matlab -nodisplay -nosplash -nodesktop -r "UGMG_params_fit; UGMG_cpp_run_simple; exit;``, where ``UGMG_params_fit.m`` is a file that looks as follows:
+The recommended way is to call ``cd $MIXER_ROOT && matlab -nodisplay -nosplash -nodesktop -r "UGMG_params_fit; UGMG_cpp_run_simple; exit;"``, where ``UGMG_params_fit.m`` is a file that looks as follows:
 ```
 trait1_file='SSGAC_EDU_2018_no23andMe_noMHC.sumstats.gz';
 out_file='SSGAC_EDU_2018_no23andMe_noMHC.fit';
 bim_file='LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim';
-frq_file='1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq';
+frq_file='LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq';
 plink_ld_bin='LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin'; chr_labels = 1:22;
-init_from_params_file=''; extract='w_hm3.justrs';
+init_from_params_file=''; extract='LDSR/w_hm3.justrs';
 bgmg_shared_library='lib/libbgmg.so';
 bgmg_shared_library_header='bgmg_matlab.h';
 kmax=20000; max_causal_fraction=0.03; z1max=nan; z2max=nan;
 cache_tag_r2sum=0; r2min=0.0;
 randprune_r2=0.1; randprune_n=64;
 DO_FIT_UGMG=1; FIT_FULL_MODEL=1; CI_ALPHA=0.05; SEED=123;
-POWER_PLOT=1; POWER_PLOT_DOWNSCALE=100;
-QQ_PLOT=1; QQ_PLOT_DOWNSCALE=100;
-QQ_PLOT_BINS=1; QQ_PLOT_BINS_DOWNSCALE=50;
+POWER_PLOT=0; POWER_PLOT_DOWNSCALE=100;
+QQ_PLOT=0; QQ_PLOT_DOWNSCALE=100;
+QQ_PLOT_BINS=0; QQ_PLOT_BINS_DOWNSCALE=50;
 ```
 The results will be saved ``<out_file>.json`` file.
 
 The above parameters imply that the model is fitted on HapMap3 SNPs, as specified by ``extract='w_hm3.justrs'``.
-To  test fitted  parameters on the entire set of SNPs one may change parameters as follows:
+To produce QQ plots on the entire set of SNPs one may change parameters as follows:
 ```
 DO_FIT_UGMG=0; kmax=100; extract=''; 
+POWER_PLOT=1; QQ_PLOT=1; QQ_PLOT_BINS=1;
 init_from_params_file='SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat'
 out_file='SSGAC_EDU_2018_no23andMe_noMHC.test';
 ```
+
+Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.sumstats.gz``).
 
 ### Bivariate (cross-trait) analysis
 
@@ -175,7 +239,7 @@ trait2_params_file='SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat';
 bim_file='LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim';
 frq_file='LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq';
 plink_ld_bin='LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin'; chr_labels = 1:22;
-init_from_params_file=''; extract='w_hm3.justrs';
+init_from_params_file=''; extract='LDSR/w_hm3.justrs';
 bgmg_shared_library='lib/libbgmg.so';
 bgmg_shared_library_header='bgmg_matlab.h';
 kmax=20000; max_causal_fraction=0.02; z1max=nan; z2max=nan;
@@ -187,9 +251,10 @@ STRATIFIED_QQ_PLOT=0;STRATIFIED_QQ_PLOT_DOWNSCALE=100;qq_zgrid_lim=25;qq_zgrid_s
 Note that these parameters point to the results of univariate analysis for both traits, so those must be generated first.
 The results will be saved ``<out_file>.json`` file.
 
-To test fitted  parameters on the entire set of SNPs one may change parameters as follows:
+To produce QQ plots on the entire set of SNPs one may change parameters as follows:
 ```
 DO_FIT_BGMG=0; kmax=100; extract='';
+STRATIFIED_QQ_PLOT=1;
 init_from_params_file='PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat';
 out_file='PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test';
 ```

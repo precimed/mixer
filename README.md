@@ -156,6 +156,7 @@ Preliminary notes are available in [src/README.md](src/README.md).
        --bfile LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label> \
        --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k
     ```
+    This step takes about 1 hour (here and below all times are measured on a server with 24 physical cores).
   * Run ``bgmg-cli`` to convert plink output into a binary format. The following command must be run once for each chromosome. 
     Note that ``--bim`` argument must be the same, i.e. point to ``1000G.EUR.QC.@.bim`` regardless of the actual chromosome that you use in ``--plink-ld`` and ``--out``.
     ```
@@ -164,7 +165,8 @@ Preliminary notes are available in [src/README.md](src/README.md).
        --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.gz \
        --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin
     ```
-    This creates ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin`` file,
+    The conversion is single-threaded, and takes about 10 minutes for the longest chromosome.
+    The output is written to ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin`` file,
     and log details into ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p01_SNPwind50k.ld.bin.bgmglib.log`` file:
     ```
     20181213 02:18:20.854727         Create new context (id=0)

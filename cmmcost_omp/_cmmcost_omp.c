@@ -80,9 +80,8 @@ double costdirect(double * z, _Bool * z2use, size_t nz, float * s2,
         }
     }
 
-    for (i=0; i<nthreads; i++) {
+    for (i=0; i<nthreads; i++)
         gsl_integration_workspace_free(ww[i]);
-    }
     free(ww);
 
     return cost/(double)nnz;
@@ -114,7 +113,7 @@ void get_s2sample(double * s2sample, int n_s2sample, double * p, double * sb2,
 
 double costsampling(double * z, _Bool * z2use, size_t nz, float * s2,
     unsigned long long int * is2, double * p, double * sb2, double s02,
-    unsigned char * annot, int n_samples) {
+    unsigned char * annot, size_t n_samples) {
 
     size_t nthreads = omp_get_max_threads();
     // printf("Max number of threads in costsampling = %zu\n", nthreads);
@@ -122,14 +121,14 @@ double costsampling(double * z, _Bool * z2use, size_t nz, float * s2,
     size_t i, j, tid;
     double cost = 0.;
     size_t nnz = 0;
+    // s2sample_t [nthreads * n_samples] 1D array
+    double *s2sample_t;
+    // rngs [nthreads] 1D array
+    gsl_rng ** rngs;
 
-    // s2sample_t [nthreads x n_samples] 2D array
-    double **s2sample_t = (double **)malloc(nthreads * sizeof(double *)); 
-    gsl_rng ** rngs = (gsl_rng **) malloc(nthreads * sizeof(gsl_rng *));
+    s2sample_t = (double *) malloc(nthreads*n_samples*sizeof(double*));
+    rngs = (gsl_rng **) malloc(nthreads * sizeof(gsl_rng *));
     for (i=0; i<nthreads; i++) {
-
-        s2sample_t[i] = (double *)malloc(n_samples * sizeof(double)); 
-
         gsl_rng * r = gsl_rng_alloc(gsl_rng_taus);
         // 0 seed sets to default seed, which is the same as 1 for gsl_rng_taus, so should start seeding with 1
         gsl_rng_set(r, i+1);
@@ -144,12 +143,12 @@ double costsampling(double * z, _Bool * z2use, size_t nz, float * s2,
             int block_size = is2[i+1] - is2[i];
             double mix_pdf = 0;
 
-            get_s2sample(s2sample_t[tid], n_samples, p, sb2, s02, &s2[is2[i]],
-                &annot[is2[i]], block_size, rngs[tid]);
+            get_s2sample(&s2sample_t[tid*n_samples], n_samples, p, sb2, s02,
+                &s2[is2[i]], &annot[is2[i]], block_size, rngs[tid]);
 
             for (j=0; j<n_samples; j++) {
-                // if (s2sample_t[tid][j] > 0) - this should not be the case since s20 is always > 0
-                mix_pdf += gsl_ran_gaussian_pdf(z[i], sqrt(s2sample_t[tid][j]));
+                // if (s2sample_t[tid*n_samples + j] > 0) - this should not be the case since s20 is always > 0
+                mix_pdf += gsl_ran_gaussian_pdf(z[i], sqrt(s2sample_t[tid*n_samples + j]));
             }
             mix_pdf /= (double)n_samples;
             
@@ -163,10 +162,8 @@ double costsampling(double * z, _Bool * z2use, size_t nz, float * s2,
     }
 
     // free memory
-    for(i=0; i<nthreads; i++) {
-        free(s2sample_t[i]);
+    for(i=0; i<nthreads; i++)
         free(rngs[i]);
-    }
     free(rngs);
     free(s2sample_t);
 
@@ -175,43 +172,54 @@ double costsampling(double * z, _Bool * z2use, size_t nz, float * s2,
 
 
 
-void get_cdfsampling(double * zcdf, double ** zcdf_qq_annot, double * zgrid,
+void cdfsampling(double * zcdf, double * zcdf_qq_annot, double * zgrid,
     _Bool * z2use, size_t nz, size_t n_zgrid, size_t n_qq_annot, float * s2,
     unsigned long long int * is2, double * p, double * sb2, double s02,
-    unsigned char * annot, _Bool ** qq_template_annot, int n_samples) {
-
-    // zgrid [n_zgrid] 1D array
-    // zcdf [n_zgrid] 1D array
-    // zcdf_qq_annot [n_zgrid x n_qq_annot] 2D array
-    // z2use [nz] 1D array
-    // qq_template_annot [nz x n_qq_annot] 2D array
-
+    unsigned char * annot, _Bool * qq_template_annot, size_t n_samples) {
+    /*
+    Estimates model CDF on zgrid for all SNPs (zcdf) and subsets of SNPs given
+    by qq_template_annot array (zcdf_qq_annot).
+    Args:
+        zcdf              [n_zgrid]              1D arr
+        zcdf_qq_annot     [n_zgrid * n_qq_annot] 1D arr
+        zgrid             [n_zgrid]              1D arr
+        z2use             [nz]                   1D arr
+        s2                [is2[-1]]              1D arr
+        is2               [nz+1]                 1D arr
+        p                 [n_annot]              1D arr, n_annot = len(unique(annot))
+        sb2               [n_annot]              1D arr
+        s02
+        annot             [is2[-1]]              1D arr
+        qq_template_annot [nz * n_qq_annot]      1D arr
+        n_samples
+    Return:
+        Nothing
+    Modify:
+        zcdf and zcdf_qq_annot arrays
+    */
     size_t nthreads = omp_get_max_threads();
-    printf("Max number of threads in get_cdfsampling = %zu\n", nthreads);
+    //printf("Max number of threads in get_cdfsampling = %zu\n", nthreads);
+    size_t i, j, k, tid, nnz = 0;
+    // annot_nnz [n_qq_annot] 1D array
+    size_t *annot_nnz;
+    // s2sample_t [nthreads * n_samples] 1D array
+    // zcdf_t [nthreads * n_zgrid] 1D array
+    // zcdf_qq_annot_t [threads * n_zgrid * n_qq_annot] 1D array
+    double *zcdf_t, *s2sample_t, *zcdf_qq_annot_t;
+    // rngs [nthreads] 1D array
+    gsl_rng ** rngs;
 
-    size_t i, j, k, tid;
-    size_t nnz = 0;
-    size_t * annot_nnz = (size_t *)malloc(n_qq_annot * sizeof(size_t));
-    for (i=0; i<n_qq_annot; i++)
-        annot_nnz[i] = 0;
+    // calloc automatically initializes array with zeros (in contrast to malloc)
+    annot_nnz = calloc(n_qq_annot, sizeof(size_t));
+    zcdf_t = calloc(nthreads*n_zgrid, sizeof(double));
+    zcdf_qq_annot_t = calloc(nthreads*n_zgrid*n_qq_annot, sizeof(double));
+    // fill zcdf and zcdf_qq_annot with zeros
+    memset(zcdf, 0, n_zgrid*sizeof(double));
+    memset(zcdf_qq_annot, 0, n_zgrid*n_qq_annot*sizeof(double));
 
-    gsl_rng ** rngs = (gsl_rng **) malloc(nthreads * sizeof(gsl_rng *));
-    // s2sample_t [nthreads x n_samples] 2D array
-    double ** s2sample_t = (double **)malloc(nthreads * sizeof(double *));
-    // zcdf_t [nthreads x n_zgrid] 2D array
-    double ** zcdf_t = (double **)malloc(nthreads * sizeof(double *));
-    // zcdf_qq_annot_t (nthreads x n_zgrid x n_qq_annot) 3D array
-    double *** zcdf_qq_annot_t = (double ***)malloc(sizeof(double **) * nthreads);
+    s2sample_t = (double *) malloc(nthreads*n_samples*sizeof(double*));
+    rngs = (gsl_rng **) malloc(nthreads*sizeof(gsl_rng *));
     for (i=0; i<nthreads; i++) {
-        s2sample_t[i] = (double *)malloc(n_samples * sizeof(double));
-        zcdf_t[i] = (double *)malloc(n_zgrid * sizeof(double));
-        zcdf_qq_annot_t[i] = (double **)malloc(n_zgrid * sizeof(double *));
-        for (j=0; j<n_zgrid; j++) {
-            zcdf_t[i][j] = 0.;
-            zcdf_qq_annot_t[i][j] = (double *)malloc(n_qq_annot * sizeof(double));
-            for (k=0; k<n_qq_annot; k++)
-                zcdf_qq_annot_t[i][j][k] = 0.;
-            }
         gsl_rng * r = gsl_rng_alloc(gsl_rng_taus);
         // 0 seed sets to default seed, which is the same as 1 for gsl_rng_taus, so should start seeding with 1
         gsl_rng_set(r, i+1);
@@ -225,26 +233,24 @@ void get_cdfsampling(double * zcdf, double ** zcdf_qq_annot, double * zgrid,
             nnz++;
             double sigmasq;
             int block_size = is2[i+1] - is2[i];
-            double * mix_cdf = (double *)malloc(n_zgrid * sizeof(double));
-            for (j=0; j<n_zgrid; j++)
-                mix_cdf[j] = 0;
+            double * mix_cdf = calloc(n_zgrid, sizeof(double));
 
-            get_s2sample(s2sample_t[tid], n_samples, p, sb2, s02, &s2[is2[i]],
-                &annot[is2[i]], block_size, rngs[tid]);
+            get_s2sample(&s2sample_t[tid*n_samples], n_samples, p, sb2, s02,
+                &s2[is2[i]], &annot[is2[i]], block_size, rngs[tid]);
 
 
             for (j=0; j<n_samples; j++) {
-                sigmasq = sqrt(s2sample_t[tid][j]);
+                sigmasq = sqrt(s2sample_t[tid*n_samples + j]);
                 for (k=0; k<n_zgrid; k++)
                     mix_cdf[k] += gsl_cdf_gaussian_P(zgrid[k], sigmasq);
             }
 
             for (j=0; j<n_zgrid; j++) {
                 mix_cdf[j] /= ((double)n_samples);
-                zcdf_t[tid][j] += mix_cdf[j];
+                zcdf_t[tid*n_zgrid + j] += mix_cdf[j];
                 for (k=0; k<n_qq_annot; k++) {
-                    if ( qq_template_annot[i][k] )
-                        zcdf_qq_annot_t[tid][j][k] += mix_cdf[j];
+                    if ( qq_template_annot[i*n_qq_annot + k] )
+                        zcdf_qq_annot_t[tid*n_zgrid*n_qq_annot + j*n_qq_annot + k] += mix_cdf[j];
                 }
             }
             free(mix_cdf);
@@ -255,23 +261,18 @@ void get_cdfsampling(double * zcdf, double ** zcdf_qq_annot, double * zgrid,
     for (i=0; i<nz; i++) {
         if ( z2use[i] ) {
             for (j=0; j<n_qq_annot; j++) {
-                printf("qq_template_annot[%zu][%zu] = %d\n", i, j, qq_template_annot[i][j]);
-                if ( qq_template_annot[i][j] )
+                if ( qq_template_annot[i*n_qq_annot + j] )
                     annot_nnz[j] += 1;
             }
         }
     }
 
-    for (j=0; j<n_qq_annot; j++) {
-        printf("nnz annot[%zu] : %zu\n", j, annot_nnz[j]);
-    }
-
-    // make reduction
+    // make reduction across nthreads dimention
     for (i=0; i<nthreads; i++) {
         for (j=0; j<n_zgrid; j++) {
-            zcdf[j] += zcdf_t[i][j];
+            zcdf[j] += zcdf_t[i*n_zgrid + j];
             for (k=0; k<n_qq_annot; k++)
-                zcdf_qq_annot[j][k] += zcdf_qq_annot_t[i][j][k];
+                zcdf_qq_annot[j*n_qq_annot + k] += zcdf_qq_annot_t[i*n_zgrid*n_qq_annot + j*n_qq_annot + k];
         }
     }
 
@@ -279,19 +280,12 @@ void get_cdfsampling(double * zcdf, double ** zcdf_qq_annot, double * zgrid,
     for (j=0; j<n_zgrid; j++) {
         zcdf[j] *= 2./((double)nnz);
         for (k=0; k<n_qq_annot; k++)
-            zcdf_qq_annot[j][k] *= 2./((double)(annot_nnz[k]));
+            zcdf_qq_annot[j*n_qq_annot + k] *= 2./((double)(annot_nnz[k]));
     }
-
 
     // free memory
-    for(i=0; i<nthreads; i++) {
-        for (j = 0; j < n_zgrid; j++)
-            free(zcdf_qq_annot_t[i][j]);
-        free(zcdf_qq_annot_t[i]);
-        free(s2sample_t[i]);
-        free(zcdf_t[i]);
+    for(i=0; i<nthreads; i++)
         free(rngs[i]);
-    }
     free(zcdf_qq_annot_t);
     free(s2sample_t);
     free(zcdf_t);
@@ -301,77 +295,120 @@ void get_cdfsampling(double * zcdf, double ** zcdf_qq_annot, double * zgrid,
 
 
 
-void test_cdf(double * z, _Bool * z2use, size_t nz, float * s2,
-    unsigned long long int * is2, double * p, double * sb2, double s02,
-    unsigned char * annot, int n_samples) {
-
-    size_t i, j, n_zgrid = 4, n_qq_annot = 3;
-
-    double * zgrid = (double *)malloc(n_zgrid * sizeof(double));
-    double * zcdf = (double *)malloc(n_zgrid * sizeof(double));
-
-    double **zcdf_qq_annot = (double **)malloc(n_zgrid * sizeof(double *));
-    for (i=0; i<n_zgrid; i++) {
-        zcdf_qq_annot[i] = (double *)malloc(n_qq_annot * sizeof(double));
-    }
-
-    _Bool **qq_template_annot = (_Bool **)malloc(nz * sizeof(_Bool *));
-    for (i=0; i<nz; i++) {
-        qq_template_annot[i] = (_Bool *)malloc(n_qq_annot * sizeof(_Bool));
-        for (j=0; j<n_qq_annot; j++) {
-            // qq_template_annot[i][j] = true;
-            if (i <= j)
-                qq_template_annot[i][j] = true;
-            else
-                qq_template_annot[i][j] = false;
-            printf("qq_template_annot[%zu][%zu] = %d\n", i, j, qq_template_annot[i][j]);
-        }
-    }
-
-    for (i=0; i<n_zgrid; i++)
-        zgrid[i] = -((double)i)/5.;
-
-
-    get_cdfsampling(zcdf, zcdf_qq_annot, zgrid, z2use, nz, n_zgrid, n_qq_annot, s2,
-        is2, p, sb2, s02, annot,  qq_template_annot, n_samples);
-
-    for (i=0; i<n_zgrid; i++) {
-        printf("zgrid[%zu] = %f\n", i, zgrid[i]);
-        printf("zcdf[%zu] = %f\n", i, zcdf[i]);
-        for (j=0; j<n_qq_annot; j++)
-            printf("zcdf_qq_annot[%zu,%zu] = %f\n", i, j, zcdf_qq_annot[i][j]);
-    }
-
-}
-
-
-
-
 int main() {
-    
-    double z[3] = {1.275, -0.496, 2.983};
-    _Bool z2use[3] = {true, true, true}; // {true, true, false} cost = 1.917154
+    size_t i, j;
+
+    // which tests to run
+    _Bool test_cost = true;
+    _Bool test_cdf = true;
+
+    // parameters for costdirect and costsampling functions
+    #define nz    3
+    // size_t nz = 3;
+    double z[nz] = {1.275, -0.496, 2.983};
+    _Bool z2use[nz] = {true, true, true}; // {true, true, false} cost = 1.917154
                                          // {true, true, true} cost = 2.121391
-    size_t nz = 3;
     float s2[9] = {1.593, 0.934, 2.463, 0.719, 1.847, 3.012, 1.927, 0.896, 1.401}; // 3 2 4
     unsigned long long int is2[4] = {0, 3, 5, 9};
     double p[3] = {1., 1., 1.};
     double sb2[3] = {1.17, 2.03, 0.954};
     double s02 = 1.03;
     unsigned char annot[9] = {0,1,0,2,1,1,0,0,2};
-    int n_samples = 1000;
+    size_t n_samples = 1000;
     double cost;
+
+    /*
+    SNP   S2_eff
+    0     1.593*1.17 + 0.934*2.03 + 2.463*1.17 + 1.03 = 7.671539999999999
+    1     0.719*0.954 + 1.847*2.03 + 1.03 = 5.465336
+    2     3.012*2.03 + 1.927*1.17 + 0.896*1.17 + 1.401*0.954 + 1.03 = 11.783824
+    */
+
+    // additional parameters for cdfsampling function
+    #define n_zgrid   4
+    #define n_qq_annot   3
+    double zgrid[n_zgrid] = {0.0, -0.1, -0.01, -0.001};
+    // qq_template_annot [nz x n_qq_annot] 2D arr
+    _Bool qq_template_annot_tmp[nz][n_qq_annot] = { {true,  true,  true},
+                                                    {false, true,  true},
+                                                    {false,  false, true} };
+    _Bool * qq_template_annot = (_Bool *)malloc(nz*n_qq_annot * sizeof(_Bool));
+    for (i=0; i<nz; i++) {
+        for (j=0; j<n_qq_annot; j++)
+            qq_template_annot[i*n_qq_annot + j] = qq_template_annot_tmp[i][j];
+    }
+    
+
+    // allocate empty arrays for cdfsampling function
+    double * zcdf = (double *) malloc(n_zgrid * sizeof(double));
+    double * zcdf_qq_annot = (double *) malloc(n_zgrid*n_qq_annot * sizeof(double));
+
+    /*
+    z2use = {true, true, true}
+    qq_template_annot = { {true,  true,  true}, {false, true,  true}, {false,  false, true} }
+    zgrid = {0.0, -0.1, -0.01, -0.001}
+    zcdf = {1.0, 0.9712800037085961, 0.9971273420458443, 0.999712733546111}
+    zcdf_qq_annot = { 1.0                 1.0                 1.0
+                      0.971199207323047   0.9685399893037775  0.9712800037085961
+                      0.9971193012706704  0.9968531741508169  0.9971273420458443
+                      0.9997119295074843  0.9996853165901003  0.999712733546111 }
+
+    z2use = {true, true, false}
+    qq_template_annot = { {true,  true,  true}, {false, true,  true}, {false,  false, true} }
+    zgrid = {0.0, -0.1, -0.01, -0.001}
+    zcdf = {1.0, 0.9685399893037775, 0.9968531741508169, 0.9996853165901003}
+    zcdf_qq_annot = { 1.0                 1.0                 1.0
+                      0.971199207323047   0.9685399893037775  0.9685399893037775
+                      0.9971193012706704  0.9968531741508169  0.9968531741508169
+                      0.9997119295074843  0.9996853165901003  0.9996853165901003 }
+    */
+
 
     size_t nthreads = omp_get_max_threads();
     printf("Max number of threads = %zu\n", nthreads);
 
-    test_cdf(z, z2use, nz, s2, is2, p, sb2, s02, annot, n_samples);
+    printf("\n");
+    printf("z2use = [%d", z2use[0]);
+    for (i=1; i<nz; i++)
+        printf("  %d", z2use[i]);
+    printf("]\n");
+    printf("\n");
 
-    // cost = costsampling(z, z2use, nz, s2, is2, p, sb2, s02, annot, n_samples);
-    // printf("sampling cost: %f\n", cost);
+    if ( test_cost ) {
+        printf("Test cost functions\n");
+        cost = costsampling(z, z2use, nz, s2, is2, p, sb2, s02, annot, n_samples);
+        printf("sampling cost: %f\n", cost);
+        cost =  costdirect(z, z2use, nz, s2, is2, p, sb2, s02, annot);
+        printf("direct cost: %f\n", cost);
+    }
 
-    // cost =  costdirect(z, z2use, nz, s2, is2, p, sb2, s02, annot);
-    // printf("direct cost: %f\n", cost);
+    printf("\n");
+
+    if ( test_cdf ) {
+        printf("Test cdf function\n");
+        cdfsampling(zcdf, zcdf_qq_annot, zgrid, z2use, nz, n_zgrid, n_qq_annot, s2,
+            is2, p, sb2, s02, annot,  qq_template_annot, n_samples);
+
+        printf("zgrid = [%f", zgrid[0]);
+        for (i=1; i<n_zgrid; i++)
+            printf("  %f", zgrid[i]);
+        printf("]\n");
+
+        printf("zcdf = [%f", zcdf[0]);
+        for (i=1; i<n_zgrid; i++)
+            printf("  %f", zcdf[i]);
+        printf("]\n");
+
+        printf("zcdf_qq_annot = [%f", zcdf_qq_annot[0]);
+        for (i=0; i<n_zgrid; i++) {
+            for (j=1; j<n_qq_annot; j++)
+                printf("  %f", zcdf_qq_annot[i*n_qq_annot + j]);
+            if (i < n_zgrid-1)
+                printf("\n                 %f", zcdf_qq_annot[(i+1)*n_qq_annot]);
+        }
+        printf("]\n");
+    }
+
 
     return 0;
 }

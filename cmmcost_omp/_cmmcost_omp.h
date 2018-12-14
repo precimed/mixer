@@ -9,6 +9,7 @@
 #define _CMMCOST_OMP
 
 #include <stdio.h>
+#include <string.h>
 #include <stdbool.h>
 #include <math.h>
 #include <gsl/gsl_integration.h>
@@ -33,10 +34,15 @@ double costdirect(double * z, _Bool * z2use, size_t nz, float * s2,
 
 double costsampling(double * z, _Bool * z2use, size_t nz, float * s2,
     unsigned long long int * is2, double * p, double * sb2, double s02,
-    unsigned char * annot, int n_samples);
+    unsigned char * annot, size_t n_samples);
 
 void get_s2sample(double * s2sample, int n_s2sample, double * p, double * sb2,
     double s02, float * s2_block, unsigned char * annot_block, int block_size,
     gsl_rng * r);
+
+void cdfsampling(double * zcdf, double * zcdf_qq_annot, double * zgrid,
+    _Bool * z2use, size_t nz, size_t n_zgrid, size_t n_qq_annot, float * s2,
+    unsigned long long int * is2, double * p, double * sb2, double s02,
+    unsigned char * annot, _Bool * qq_template_annot, size_t n_samples);
 
 #endif

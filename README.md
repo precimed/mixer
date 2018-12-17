@@ -141,9 +141,21 @@ Preliminary notes are available in [src/README.md](src/README.md).
 ## Data preparation
 
 * Summary statistics
-  * MiXeR recognizes summary statistics in LDSC format as described [here](https://github.com/bulik/ldsc/wiki/Summary-Statistics-File-Format). In brief, each trait must be represented as a single table containing columns SNP, N, Z, A1, A2. 
-  * We recommend to use ``munge_sumstats.py`` script as described [here](https://github.com/bulik/ldsc/wiki/Partitioned-Heritability#step-1-download-the-data).
-  * We note that for case/control ``munge_sumstats.py`` generate sample size as a sum ``n = ncase + ncontrol``. We recommend to use ``neff = 4 / (1/ncase + 1/ncontrol)`` to account for imbalanced classes.
+  * MiXeR recognizes summary statistics in LDSC format as described [here](https://github.com/bulik/ldsc/wiki/Summary-Statistics-File-Format). In brief, each trait must be represented as a single table containing columns SNP, N, Z, A1, A2. Thus, it is possible to use ``munge_sumstats.py`` script as described [here](https://github.com/bulik/ldsc/wiki/Partitioned-Heritability#step-1-download-the-data). This might be convenient for users who are already familiar with LDSR functionality.
+  * However, we recommed to use our own scripts to pre-process summary statistcs (clone from [here](https://github.com/precimed/python_convert)):
+    ```
+    python sumstats.py csv --sumstats daner_PGC_SCZ49.sh2_mds10_1000G-frq_2.gz --out PGC_SCZ_2014_EUR.csv --force --auto --head 5 --ncase-val 33640 --ncontrol-val 43456 
+    python sumstats.py zscore --sumstats PGC_SCZ_2014_EUR.csv | \
+    python sumstats.py qc --exclude-ranges 6:26000000-34000000 --max-or 1e37 | \
+    python sumstats.py neff --drop --factor 4 --out PGC_SCZ_2014_EUR_qc_noMHC.csv --force 
+    gzip PGC_SCZ_2014_EUR_qc_noMHC.csv
+
+    python sumstats.py csv --sumstats GWAS_EA_excl23andMe.txt.gz --out SSGAC_EDU_2018_no23andMe.csv --force --auto --head 5 --n-val 766345
+    python sumstats.py zscore --sumstats SSGAC_EDU_2018_no23andMe.csv | \
+    python sumstats.py qc --exclude-ranges 6:26000000-34000000 --out SSGAC_EDU_2018_no23andMe_noMHC.csv --force
+    gzip SSGAC_EDU_2018_no23andMe_noMHC.csv  
+    ```
+  * We note that for case/control ``munge_sumstats.py`` generate sample size as a sum ``n = ncase + ncontrol``. We recommend to use ``neff = 4 / (1/ncase + 1/ncontrol)`` to account for imbalanced classes. Additionaly, we recommend to keep summary statistics for the entire set of SNPs available in GWAS, without filtering by HapMap3 SNPs). HapMap3 constraint can be applied later during fit procedure.
 
 * Reference panel
   * Run ``plink`` to calculate allele frequencies and pairwise LD r2 for each chromosome
@@ -198,7 +210,7 @@ Preliminary notes are available in [src/README.md](src/README.md).
 To start univariate analysis one should start matlab, configure parameters as listed below, and execute [UGMG_cpp_run_simple](UGMG_cpp_run_simple.m) script.
 The recommended way is to call ``cd $MIXER_ROOT && matlab -nodisplay -nosplash -nodesktop -r "UGMG_params_fit; UGMG_cpp_run_simple; exit;"``, where ``UGMG_params_fit.m`` is a file that looks as follows:
 ```
-trait1_file='SSGAC_EDU_2018_no23andMe_noMHC.sumstats.gz';
+trait1_file='SSGAC_EDU_2018_no23andMe_noMHC.csv.gz';
 out_file='SSGAC_EDU_2018_no23andMe_noMHC.fit';
 bim_file='LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim';
 frq_file='LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq';
@@ -225,14 +237,14 @@ init_from_params_file='SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat'
 out_file='SSGAC_EDU_2018_no23andMe_noMHC.test';
 ```
 
-Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.sumstats.gz``).
+Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.csv.gz``).
 
 ### Bivariate (cross-trait) analysis
 
 To start cross-trait analysis one should start matlab, configure parameters as listed below, and execute [BGMG_cpp_run_simple](BGMG_cpp_run_simple.m) script. The recommended way is to call ``cd $MIXER_ROOT && matlab -nodisplay -nosplash -nodesktop -r "BGMG_params_fit; BGMG_cpp_run_simple; exit;``, where ``BGMG_params_fit.m`` is a file that looks as follows:
 ```
-trait1_file='PGC_SCZ_2014_EUR_qc_noMHC.sumstats.gz';
-trait2_file='SSGAC_EDU_2018_no23andMe_noMHC.sumstats.gz';
+trait1_file='PGC_SCZ_2014_EUR_qc_noMHC.csv.gz';
+trait2_file='SSGAC_EDU_2018_no23andMe_noMHC.csv.gz';
 out_file='PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit';
 trait1_params_file='PGC_SCZ_2014_EUR_qc_noMHC.fit.params.mat';
 trait2_params_file='SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat';
@@ -268,7 +280,7 @@ those specific to cross-trait analysis - with [BGMG] tag, and common operations 
 * [BOTH] Load and initialize ``bgmglib`` (native c/c++ plugin), 3rd party components (``DERIVESTsuite``), s
 * [BOTH] Load reference set of SNPs (SNP/CHR/BP/A1/A2) from .bim file(s), plink format
 * [BOTH] Load allele frequencies for the reference panel from .frq file(s), plink format
-* [BOTH] Load trait(s) data (z-scores, and per-snp sample size) from .sumstats.gz LDSR-formatted file
+* [BOTH] Load trait(s) data (z-scores, and per-snp sample size) LDSR-formatted file
 * [BOTH] Load LD structure from mixer-formatted ``.ld.bin`` files (derived from plink ``.ld.gz`` using ``bgmg-cli``)
 * [BOTH] Generate weights for all SNPs defined across trait(s) based on random pruning
 * [BGMG] load univariate parameters for each trait, to constrain bivariate optimization
@@ -288,7 +300,7 @@ those specific to cross-trait analysis - with [BGMG] tag,
 common operations - with [BOTH] tag.
 
 * input data files (all paths could be absolute or relative)
-  * [BOTH] ``trait1_file``, required -- path to ``.sumstats.gz`` file with summary statistics in LDSR format
+  * [BOTH] ``trait1_file``, required -- path to summary statistics file in LDSR format
   * [BGMG] ``trait2_file``, required -- second trait for bivariate analysis
   * [BGMG] ``trait1_params_file``, required -- path to ``<out_tag>.params.mat`` file from an existing univariate analysis of the first trait
   * [BGMG] ``trait2_params_file``, required -- same as ``trait1_params_file`` but for the second trait

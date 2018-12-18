@@ -11,6 +11,10 @@ from scipy.optimize import minimize
 import scipy.stats as sstats
 
 
+def load_data(bim_files, frq_files, ld_pkl_files, sumstats_f, annot_f):
+    pass
+
+
 def process_input(sumstats_f, annot_f, template_dir):
     """
     Args:
@@ -291,14 +295,14 @@ def process_idump(dump_input_file):
     print(f"Loading dumped imnput from {dump_input_file}")
     idump = np.load(dump_input_file)
     template_snp = idump.get("template_snp") 
-    z = idump.get("z")
-    z2use = idump.get("z2use")
+    template_z = idump.get("template_z")
+    template_snp_in_sumstats = idump.get("template_snp_in_sumstats")
     template_annot = idump.get("template_annot")
     s2 = idump.get("s2")
     is2 = idump.get("is2")
     annot_s2 = idump.get("annot_s2")
     annot_categories = idump.get("annot_categories")
-    return template_snp, z, z2use, template_annot, s2, is2, annot_s2, annot_categories
+    return template_snp, template_z, template_snp_in_sumstats, template_annot, s2, is2, annot_s2, annot_categories
 
 
 def logistic(x):
@@ -449,7 +453,6 @@ if __name__ == "__main__":
     dump_input = cfg["dump"].getboolean("dump_input")
     dump_input_file = cfg["dump"].get("dump_input_file")
     if load_idump:
-        print(f"Loading dumped input from {dump_input_file}")
         template_snp, template_z, template_snp_in_sumstats, template_annot, s2, is2, annot_s2, annot_categories = process_idump(dump_input_file)
     else:
         template_snp, template_z, template_snp_in_sumstats, template_annot, s2, is2, annot_s2, annot_categories = process_input(sumstats_f, annot_f, template_dir)
@@ -503,8 +506,11 @@ if __name__ == "__main__":
 
         # qq plot should be only for the SNPs which present in sumstats data, i.e. template_snp_in_sumstats
         # TODO: allow taking only a subset of SNPs for the qq plot. This subset must be used both for modeled and experemental plot.
-        z_cdf_total, z_cdf_annot = get_z_cdf_2tails(z_grid, template_snp_in_sumstats, n_samples,
-            p, sb2, s02, s2, is2, annot_s2, qq_template_annot)
+        # z_cdf_total, z_cdf_annot = get_z_cdf_2tails(z_grid, template_snp_in_sumstats, n_samples,
+        #     p, sb2, s02, s2, is2, annot_s2, qq_template_annot)
+
+        z_cdf_total, z_cdf_annot = cmmcost_omp.get_cdfsampling(z_grid, template_snp_in_sumstats, s2, is2, p,
+                sb2, s02, annot_s2, qq_template_annot, n_samples)
 
         model_total_x = -np.log10(z_cdf_total)
         model_annot_x = -np.log10(z_cdf_annot)
@@ -515,13 +521,13 @@ if __name__ == "__main__":
         data_annot_x = []
         data_annot_y = []
         for i in range(len(annot_names)):
-            annot_i = qq_template_annot[:,i]
+            annot_i = qq_template_annot[:,i].astype('bool')
             p_experimental_annot = p_experimental[annot_i]
             annot_x, annot_y = get_xy_from_p(p_experimental_annot)
             data_annot_x.append(annot_x)
             data_annot_y.append(annot_y)
         data_annot_x = np.array(data_annot_x)
-        data_annot_y = np.array(data_annot_y)
+        data_annot_y = np.array(data_annot_y)        
 
         # save results
         np.savez(modelqq_out_file, annot_names=annot_names, data_total_x=data_total_x,

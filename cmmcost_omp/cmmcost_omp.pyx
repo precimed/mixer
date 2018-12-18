@@ -59,23 +59,25 @@ def get_cdfsampling( double[::1]                 zgrid,
                      double[::1]                 sb2,
                      double                      s02,
                      unsigned char[::1]          annot,
-                     bool[:,::1]                 qq_template_annot,
+                                                 qq_template_annot,
                      unsigned int                n_samples ):
 
     # for arr in [zgrid, z2use, s2, is2, p, sb2, annot, qq_template_annot]:
-    #     if not arr.flags['C_CONTIGUOUS']:
-    #         raise ValueError("in get_cdfsampling: all input arrays must be C-contiguous")
+    if not qq_template_annot.flags['C_CONTIGUOUS']:
+        qq_template_annot = np.ascontiguousarray(qq_template_annot)
+    cdef bool[:,::1] qq_template_annot_memview = qq_template_annot
 
     cdef size_t nz = z2use.shape[0]
     cdef size_t n_zgrid = zgrid.shape[0]
     cdef size_t n_qq_annot = qq_template_annot.shape[1]
+    cdef size_t nz = n_samples
 
     cdef double[::1] zcdf = np.empty(n_zgrid, order='C')
     cdef double[:,::1] zcdf_qq_annot = np.empty((n_zgrid, n_qq_annot), order='C')
 
     cdfsampling(&zcdf[0], &zcdf_qq_annot[0,0], &zgrid[0], &z2use[0], nz,
             n_zgrid, n_qq_annot, &s2[0], &is2[0], &p[0], &sb2[0], s02,
-            &annot[0], &qq_template_annot[0,0],n_samples)
+            &annot[0], &qq_template_annot_memview[0,0],n_samples)
 
     return np.asarray(zcdf), np.asarray(zcdf_qq_annot)
 

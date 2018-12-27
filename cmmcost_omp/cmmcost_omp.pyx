@@ -70,7 +70,6 @@ def get_cdfsampling( double[::1]                 zgrid,
     cdef size_t nz = z2use.shape[0]
     cdef size_t n_zgrid = zgrid.shape[0]
     cdef size_t n_qq_annot = qq_template_annot.shape[1]
-    cdef size_t nz = n_samples
 
     cdef double[::1] zcdf = np.empty(n_zgrid, order='C')
     cdef double[:,::1] zcdf_qq_annot = np.empty((n_zgrid, n_qq_annot), order='C')

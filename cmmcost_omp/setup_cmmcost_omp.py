@@ -3,9 +3,10 @@
 from distutils.core import setup
 from Cython.Build import cythonize
 from distutils.extension import Extension
+import numpy
 
 srcfiles = ["cmmcost_omp.pyx", "_cmmcost_omp.c"]
-includedirs = ["/home/alexeas/.local/include"] # path to GSL include dir
+includedirs = ["/home/alexeas/.local/include", numpy.get_include()] # path to GSL include dir
 libraries = ["gsl","gslcblas","m"]
 libdirs = ["/home/alexeas/.local/lib"]
 compile_args = ["-O2", "-ffast-math", "-fopenmp"]

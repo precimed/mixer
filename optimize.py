@@ -517,11 +517,16 @@ if __name__ == "__main__":
         model_y =  -np.log10(p_grid)
 
         # get experimental data
-        data_total_x, data_total_y = get_xy_from_p(p_experimental)
+        data_total_x, data_total_y = get_xy_from_p(p_experimental[template_snp_in_sumstats.astype('bool')])
+        # take only SNPs which are in sumstats
+        data_total_x = data_total_x
+        data_total_y = data_total_y
         data_annot_x = []
         data_annot_y = []
         for i in range(len(annot_names)):
             annot_i = qq_template_annot[:,i].astype('bool')
+            # take only SNPs which are in sumstats
+            annot_i &= template_snp_in_sumstats.astype('bool')
             p_experimental_annot = p_experimental[annot_i]
             annot_x, annot_y = get_xy_from_p(p_experimental_annot)
             data_annot_x.append(annot_x)

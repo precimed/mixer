@@ -510,7 +510,7 @@ if __name__ == "__main__":
         #     p, sb2, s02, s2, is2, annot_s2, qq_template_annot)
 
         z_cdf_total, z_cdf_annot = cmmcost_omp.get_cdfsampling(z_grid, template_snp_in_sumstats, s2, is2, p,
-                sb2, s02, annot_s2, qq_template_annot, n_samples)
+                sb2, s02, annot_s2, qq_template_annot.astype('u1'), n_samples)
 
         model_total_x = -np.log10(z_cdf_total)
         model_annot_x = -np.log10(z_cdf_annot)

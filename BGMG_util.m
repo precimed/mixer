@@ -616,6 +616,38 @@ classdef BGMG_util
         defvec_tmp(tag_indices_tmp(weights_bgmg==0)) = false;
         BGMG_cpp.log('Exclude %i variants after hard pruning at %.3f threshold (%i variants remain)\n', sum(weights_bgmg == 0), hardprune_r2, sum(defvec_tmp));
     end
+    
+    function cost = apply_costfunc_to_struct_or_vector(costfunc, mapparams, x)
+        if ~isstruct(x), x = mapparams(x); end;
+        cost = costfunc(x);
+    end
+
+    function x = fit_mixer_model(x0, mapparams, costfunc, fminsearch_options)
+        % perform fitting of mixer model
+        % Input: 
+        %   x0 - initial approximation (structure with model parameters)
+        %   mapparams - a method that maps parameters into vector of values, 
+        %               and vector of values back to parameters
+        %   costfunc - univariate or bivariate cost function,
+        %              accepting a structure of parameters and returning cost
+        %   fminsearch_options - options to pass to fminsearch
+        % Output:
+        %   structure with fitted parameters, enhanced with 'cost' field 
+        %   containing the final cost function
+        %
+
+        x = fminsearch(...
+                @(x)BGMG_util.apply_costfunc_to_struct_or_vector(costfunc, mapparams, x), ...
+                mapparams(x0), ...
+                fminsearch_options );
+        df = length(x); % number of free parameters optimized by fminserach
+        x = mapparams(x);
+        x.cost = costfunc(x);
+        x.cost_df = df;
+        
+        bgmglib = BGMG_cpp();
+        x.cost_n = sum(bgmglib.weights);
+    end
   end
 end
 

@@ -65,6 +65,7 @@ THREADS=-1;                         % specify how many threads to use (concurren
 TolX = 1e-2; TolFun = 1e-2;         % fminserach tolerance (stop criteria)
 z1max = nan;                        % enable right-censoring for z scores above certain threshold
 
+init_from_params_file = 'H:\GitHub\mixer\comet\PGC_SCZ_2014_EUR_qc_noMHC.fit.params.mat'
 %}
 
 if ~exist('out_file', 'var'), out_file = 'UGMG_result'; end;
@@ -180,6 +181,8 @@ if DO_FIT_UGMG
     trait1_params = result.univariate{1}.params;
     bgmglib.set_option('fast_cost', ~FIT_FULL_MODEL);  % restore fast_cost flag as BGMG_cpp_fit_univariate may change it (CI intervals are based on fast cost function)
 end
+
+%BIC = @(x) log(x.cost_n)*x.cost_df + 2 * x.cost   % lower is better
 
 result.trait1_file = trait1_file;
 result.bim_file = bim_file;

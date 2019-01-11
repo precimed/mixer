@@ -19,11 +19,14 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
     if ~isnan(options.TolX), fminsearch_options.MaxFunEvals=options.TolX; end;
     if ~isnan(options.TolFun), fminsearch_options.MaxFunEvals=options.TolFun; end;
 
-    fitfunc = @(x0)options.mapparams(fminsearch(@(x)BGMG_util.UGMG_fminsearch_cost(options.mapparams(x), trait_index), options.mapparams(x0), fminsearch_options));
-
     BGMG_cpp.log('Final unconstrained optimization\n');
     bgmglib.clear_loglike_cache();
-    result.params = fitfunc(params0);
+    result.params = BGMG_util.fit_mixer_model( ...
+        params0, ... % x0
+        options.mapparams, ... % mapparams
+        @(x)BGMG_util.UGMG_fminsearch_cost(x, trait_index), ... % costfunc
+        fminsearch_options ... % fminsearch options
+    );
     result.loglike_fit_trajectory = bgmglib.extract_univariate_loglike_trajectory();
 
     % For the last parameter, fit quadradic curve and take the minimum
@@ -52,7 +55,12 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
         if isfinite(x0opt) && (x0opt > quantile(xgrid(def), 0.2)) && (x0opt < quantile(xgrid(def), 0.8))
             BGMG_cpp.log('Change UGMG solution (%.3f -> %.3f) based on smooth curve3 fit\n', x0(arg_index), x0opt);
             x0(arg_index) = x0opt;
+            
+            params_with_cost = result.params;
             result.params = options.mapparams(x0);
+            result.params.cost = BGMG_util.UGMG_fminsearch_cost(result.params, trait_index);
+            result.params.cost_df = params_with_cost.cost_df;  % preserve cost_df and cost_n from full fminsearch
+            result.params.cost_n = params_with_cost.cost_n;
         else
             BGMG_cpp.log('Refuse to change BGMG solution (%.3f -> %.3f) based on smooth curve3 fit\n', x0(arg_index), x0opt);
         end
@@ -60,6 +68,17 @@ function [result, options] = BGMG_cpp_fit_univariate(trait_index, params0, optio
         %figure;
         %subplot(1,2,1); plot(result.loglike_adj_trajectory.pivec, [result.loglike_adj_trajectory.cost, curve3(xgrid)], '.-');
         %subplot(1,2,2); plot(xgrid, [result.loglike_adj_trajectory.cost, curve3(xgrid)], '.-'); hold on; plot(x0opt, curve3(x0opt), '*k');
+    end
+    
+    if 1
+        BGMG_cpp.log('Calculate BIC w.r.t. infinitesimal model (fast cost function)\n');
+        bgmglib.set_option('fast_cost', 1);
+        result.params_inft = BGMG_util.fit_mixer_model( ...
+            struct('sig2_zero', result.params.sig2_zero,  'sig2_beta', result.params.pi_vec * result.params.sig2_beta), ... % x0
+            @(x)BGMG_util.UGMG_mapparams1(x, struct('pi_vec', 1.0)), ... % mapparams
+            @(x)BGMG_util.UGMG_fminsearch_cost(x, 1), ... % costfunc; here 1 is 'trait_index'
+            struct('Display', 'on') ... % fminsearch options
+        );
     end
     
     if ~isnan(options.ci_alpha)

@@ -689,6 +689,92 @@ int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, flo
   return 0;
 }
 
+int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* c0, float* c1, float* c2) {
+  // c0 = c(0), c1=c(1), c2=c(2), where c(q) = \int_\delta \delta^q P(z|delta) P(delta)
+  // c(q) is define so that:
+  //  E(\delta^2|z_j) = c2[j]/c0[j];
+  //  E(\delta  |z_j) = c1[j]/c0[j];
+
+  if ((length == 0) || (length != num_tag_)) BGMG_THROW_EXCEPTION(::std::runtime_error("length != num_tag_"));
+
+  float num_causals = pi_vec * static_cast<float>(num_snp_);
+  if ((int)num_causals >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
+  const int component_id = 0;   // univariate is always component 0.
+
+  std::vector<float>& zvec(*get_zvec(trait_index));
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  if (zvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec is not set"));
+  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
+
+  LOG << ">calc_univariate_delta_posterior(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(nvec)=" << length << ")";
+
+  if (snp_order_.empty()) find_snp_order();
+  if (cache_tag_r2sum_) {
+    find_tag_r2sum(component_id, num_causals);
+  }
+
+  SimpleTimer timer(-1);
+
+  std::valarray<double> c0_global(0.0f, num_tag_);
+  std::valarray<double> c1_global(0.0f, num_tag_);
+  std::valarray<double> c2_global(0.0f, num_tag_);
+
+#pragma omp parallel
+  {
+    std::vector<float> tag_r2sum(num_tag_, 0.0f);
+    std::valarray<double> c0_local(0.0f, num_tag_);
+    std::valarray<double> c1_local(0.0f, num_tag_);
+    std::valarray<double> c2_local(0.0f, num_tag_);
+
+#pragma omp for schedule(static)
+    for (int k_index = 0; k_index < k_max_; k_index++) {
+      if (cache_tag_r2sum_) {
+        for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+          tag_r2sum[tag_index] = (*tag_r2sum_[0])(tag_index, k_index);
+        }
+      }
+      else {
+        find_tag_r2sum_no_cache(0, num_causals, k_index, &tag_r2sum);
+      }
+    }
+
+    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+      const float tag_r2sum_value = tag_r2sum[tag_index];
+      const float delta2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta;  // S^2_kj
+      const float sig2eff = delta2eff + sig2_zero;
+      const float sig2eff_1_2 = sqrt(sig2eff);
+      const float sig2eff_3_2 = sig2eff_1_2 * sig2eff;
+      const float sig2eff_5_2 = sig2eff_3_2 * sig2eff;
+
+      const float z = zvec[tag_index];
+      const float exp_common = exp(-0.5f*z*z / sig2eff);
+
+      c0_local[tag_index] += (exp_common / sig2eff_1_2);
+      c1_local[tag_index] += (exp_common / sig2eff_3_2) * z * delta2eff;
+      c2_local[tag_index] += (exp_common / sig2eff_5_2) *     delta2eff * (sig2_zero*sig2_zero + sig2_zero*delta2eff + z*z*delta2eff);
+    }
+
+#pragma omp critical
+    {
+      c0_global += c0_local;
+      c1_global += c1_local;
+      c2_global += c2_local;
+    }
+  }
+
+  // save results to output buffers
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
+  static const double inv_sqrt_2pi = 0.3989422804014327;
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    c0[tag_index] = pi_k * inv_sqrt_2pi * c0_global[tag_index];
+    c1[tag_index] = pi_k * inv_sqrt_2pi * c1_global[tag_index];
+    c2[tag_index] = pi_k * inv_sqrt_2pi * c2_global[tag_index];
+  }
+
+
+  LOG << ">calc_univariate_delta_posterior(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(nvec)=" << length << "), elapsed time " << timer.elapsed_ms() << "ms";
+}
+
 double BgmgCalculator::calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));

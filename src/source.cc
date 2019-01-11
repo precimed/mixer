@@ -255,7 +255,7 @@ double bgmg_calc_univariate_cost(int context_id, int trait_index, double pi_vec,
   } CATCH_EXCEPTIONS;
 }
 
-double bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
+int64_t bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
   try {
     set_last_error(std::string());
     check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta); check_is_positive(length); check_is_not_null(zvec); check_is_not_null(pdf);
@@ -263,11 +263,19 @@ double bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, f
   } CATCH_EXCEPTIONS;
 }
 
-double bgmg_calc_univariate_power(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec) {
+int64_t bgmg_calc_univariate_power(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec) {
   try {
     set_last_error(std::string());
     check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta); check_is_positive(length); check_is_not_null(nvec); check_is_not_null(svec);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_power(trait_index, pi_vec, sig2_zero, sig2_beta, zthresh, length, nvec, svec);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_calc_univariate_delta_posterior(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* c0, float* c1, float* c2) {
+  try {
+    set_last_error(std::string());
+    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta); check_is_positive(length); check_is_not_null(c1); check_is_not_null(c1); check_is_not_null(c2);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_delta_posterior(trait_index, pi_vec, sig2_zero, sig2_beta, length, c0, c1, c2);
   } CATCH_EXCEPTIONS;
 }
 

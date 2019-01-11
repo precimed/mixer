@@ -265,6 +265,15 @@ classdef BGMG_cpp
         calllib('bgmg', 'bgmg_calc_bivariate_pdf', obj.Context, length(pi_vec), pi_vec, length(sig2_beta), sig2_beta, rho_beta, length(sig2_zero), sig2_zero, rho_zero, length(zgrid1), zgrid1, zgrid2, pBuffer); obj.check(); 
         pdf = reshape(pBuffer.Value', size(zgrid1)); clear pBuffer
     end
+    function [c0, c1, c2] = calc_univariate_delta_posterior(obj, trait_index, pi_vec, sig2_zero, sig2_beta)
+        pBuffer0 = libpointer('singlePtr', zeros(obj.num_tag, 1, 'single'));
+        pBuffer1 = libpointer('singlePtr', zeros(obj.num_tag, 1, 'single'));
+        pBuffer2 = libpointer('singlePtr', zeros(obj.num_tag, 1, 'single'));
+        calllib('bgmg', 'bgmg_calc_univariate_delta_posterior', obj.Context, trait_index, pi_vec, sig2_zero, sig2_beta, obj.num_tag, pBuffer0, pBuffer1, pBuffer2);  obj.check(); 
+        c0 = nan(obj.num_snp, 1); c0(obj.defvec) = pBuffer0.Value'; clear pBuffer0
+        c1 = nan(obj.num_snp, 1); c1(obj.defvec) = pBuffer1.Value'; clear pBuffer1
+        c2 = nan(obj.num_snp, 1); c2(obj.defvec) = pBuffer2.Value'; clear pBuffer2
+    end
   end
   
   methods(Static)

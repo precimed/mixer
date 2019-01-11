@@ -229,6 +229,14 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
   if (r2min != 0) { ASSERT_NEAR(svec.front(), 0.000107377324, 1e-6); ASSERT_NEAR(svec.back(), 0.815517604, 1e-6); }
   else {            ASSERT_NEAR(svec.front(), 0.000107204585, 1e-6); ASSERT_NEAR(svec.back(), 0.814647913, 1e-6); }
 
+  std::vector<float> c0(num_tag, 0.0), c1(num_tag, 0.0), c2(num_tag, 0.0);
+  calc.calc_univariate_delta_posterior(trait_index, 0.2, 1.2, 0.1, num_tag, &c0[0], &c1[0], &c2[0]);
+  for (int i = 0; i < num_tag; i++) {
+    ASSERT_TRUE(c0[i] > 0);
+    ASSERT_TRUE(c1[i] != 0);
+    ASSERT_TRUE(c2[i] > 0);
+  }
+
   calc.set_option("fast_cost", 1);
   cost = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
   ASSERT_TRUE(std::isfinite(cost));

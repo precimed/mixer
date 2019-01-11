@@ -29,8 +29,8 @@
 % FULL LIST OF AVAILABLE PARAMETERS
 
 % Full path to your libbgmg.so (linux), libbgmg.dylib (mac) or bgmg.dll (windows). See readme for how-to-build instructions.
-bgmg_shared_library        = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
-bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
+bgmg_shared_library        = 'H:\GitHub\mixer\src\build_win\bin\RelWithDebInfo\bgmg.dll';
+bgmg_shared_library_header = 'H:\GitHub\mixer\src\bgmg_matlab.h';
 
 % Input data
 bim_file       = 'H:\GitHub\BGMG\LDSR\1000G_EUR_Phase3_plink\1000G.EUR.QC.@.bim';
@@ -118,6 +118,7 @@ if ~exist('QQ_PLOT_BINS', 'var'), QQ_PLOT_BINS = false; end;   % make QQ plots
 if ~exist('QQ_PLOT_BINS_DOWNSCALE', 'var'), QQ_PLOT_BINS_DOWNSCALE = 10; end;     % downscale #snps in QQ plots (model prediction only)
 if ~exist('POWER_PLOT', 'var'), POWER_PLOT = false; end;  % make power plots with fitted parameters
 if ~exist('POWER_PLOT_DOWNSCALE', 'var'), POWER_PLOT_DOWNSCALE = 10; end;  % make power plots with fitted parameters
+if ~exist('DELTA_POSTERIOR', 'var'), DELTA_POSTERIOR = false; end;   % calculate delta posterior distribution
 if ~exist('TITLE', 'var'), TITLE = 'title'; end;
 if ~exist('CI_ALPHA', 'var'), CI_ALPHA = 0.05; end;
 if ~exist('THREADS', 'var'), THREADS = -1; end;
@@ -251,6 +252,19 @@ end
 catch err
     BGMG_cpp.log_error(err)
     result.univariate{trait_index}.qq_plot_bins_data_error = err;
+end
+
+try
+if DELTA_POSTERIOR
+    trait_index=1;
+    [c0, c1, c2] = bgmglib.calc_univariate_delta_posterior(trait_index, trait1_params.pi_vec, trait1_params.sig2_zero, trait1_params.sig2_beta);
+    result.univariate{trait_index}.delta_posterior.c0 = c0;
+    result.univariate{trait_index}.delta_posterior.c1 = c1;
+    result.univariate{trait_index}.delta_posterior.c2 = c2;
+end
+catch err
+    BGMG_cpp.log_error(err)
+    result.univariate{trait_index}.delta_posterior_error = err;
 end
 
 bgmglib.set_option('diag', 0);

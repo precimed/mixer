@@ -2,6 +2,9 @@
 
 #include "bgmg_math.h"
 
+// disable because "boost 1.49.0 does not support owens_t" (see binormal_cdf_stan in bgmg_math.h)
+#define PRINT_ERRORS 0
+
 namespace {
 
 void BgmgMath_binormal_cdf_test() {
@@ -26,13 +29,13 @@ void BgmgMath_binormal_cdf_test() {
         float b = binormal_cdf_stan(v[i1], v[i2], rho[ir]);
         double d = BVNcdf(v[i1], v[i2], rho[ir]);
         if ((fabs(b - expected[i]) > 1e-7) || (fabs(d - expected[i]) > 1e-7)) {
-          printf("h=%.1f, k=%.1f, r=%.2f, stan=%.8e, BVNcdf=%.8e, matlab=%.8e\n", v[i1], v[i2], rho[ir], b, d, expected[i]);
+          if (PRINT_ERRORS) printf("h=%.1f, k=%.1f, r=%.2f, stan=%.8e, BVNcdf=%.8e, matlab=%.8e\n", v[i1], v[i2], rho[ir], b, d, expected[i]);
         }
         i++;
       }
     }
   }
-  printf("%i validations completed\n", i);
+  if (PRINT_ERRORS) printf("%i validations completed\n", i);
 
   i = 0;
   for (int i1 = 0; i1 < v_ext.size(); i1++) {
@@ -41,13 +44,13 @@ void BgmgMath_binormal_cdf_test() {
         float b = binormal_cdf_stan(v_ext[i1], v_ext[i2], rho_ext[ir]);
         double d = BVNcdf(v_ext[i1], v_ext[i2], rho_ext[ir]);
         if ((fabs(b-d) > 1e-7)) {
-          printf("h=%.1f, k=%.1f, r=%.2f, stan=%.8e, BVNcdf=%.8e\n", v_ext[i1], v_ext[i2], rho_ext[ir], b, d);
+          if (PRINT_ERRORS) printf("h=%.1f, k=%.1f, r=%.2f, stan=%.8e, BVNcdf=%.8e\n", v_ext[i1], v_ext[i2], rho_ext[ir], b, d);
         }
         i++;
       }
     }
   }
-  printf("%i validations completed\n", i);
+  if (PRINT_ERRORS) printf("%i validations completed\n", i);
 
   i = 0;
   for (int i1 = 0; i1 < v_ext.size(); i1++) {
@@ -58,13 +61,13 @@ void BgmgMath_binormal_cdf_test() {
         float s1 = censored2_cdf_BVN<float>(v_ext[i1], v_ext[i2], 1, rho_ext[ir], 1);
         float s2 = censored2_cdf_stan<float>(v_ext[i1], v_ext[i2], 1, rho_ext[ir], 1);
         if (fabs(log(s1) - log(s2)) > 0.001) {
-          printf("DELTA=%.3f : h=%.1f, k=%.1f, r=%.2f, log(censored2_cdf)=%.8e, log(censored2_cdf_stan)=%.8e\n", log(s1)-log(s2), v_ext[i1], v_ext[i2], rho_ext[ir], log(s1), log(s2));
+          if (PRINT_ERRORS) printf("DELTA=%.3f : h=%.1f, k=%.1f, r=%.2f, log(censored2_cdf)=%.8e, log(censored2_cdf_stan)=%.8e\n", log(s1)-log(s2), v_ext[i1], v_ext[i2], rho_ext[ir], log(s1), log(s2));
         }
         i++;
       }
     }
   }
-  printf("%i validations completed\n", i);
+  if (PRINT_ERRORS) printf("%i validations completed\n", i);
 }
 
 // bgmg-test.exe --gtest_filter=BgmgMath.binormal_cdf

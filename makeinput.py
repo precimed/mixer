@@ -1,12 +1,29 @@
 import configparser
 import argparse
-import datetime
+import logging
 import sys
 import numpy as np
 import pandas as pd
 from scipy import sparse
 from multiprocessing import Pool
 
+
+def _create_logger():
+    logger = logging.getLogger("makeinput")
+    logger.setLevel(logging.DEBUG)
+    # create console handler and set level to debug
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    # create formatter
+    formatter = logging.Formatter('[%(asctime)s | %(name)s | %(levelname)s] : %(message)s')
+    # add formatter to ch
+    ch.setFormatter(formatter)
+    # add ch to logger
+    logger.addHandler(ch)
+    return logger
+
+# create and configure logger
+LOGGER = _create_logger()
 
 
 def parse_args(args):
@@ -44,7 +61,7 @@ def ld2npz(ld_f, bim_f, out_npz_f):
     i2: 2 3 5 1 1 3 2 1 2 4 5 3 3 4 1 3 5   # len(i2) = len(i1)
     r2: x y z 1 a s 1 q w e r 1 t 1 d f 1   # x, y ... from [0,1], len(r2) = len(i1)
     """
-    print(f"Processing {ld_f}")
+    LOGGER.info(f"Processing {ld_f}")
     snps = np.loadtxt(bim_f, usecols=1, dtype=bytes)
 
     ind = np.arange(len(snps), dtype='u4')
@@ -73,7 +90,7 @@ def ld2npz(ld_f, bim_f, out_npz_f):
     r2 = r2[i12_sort_idx]
 
     np.savez(out_npz_f,bs=bs, i2=i21, r2=r2)
-    print(f"{out_npz_f} created")
+    LOGGER.info(f"{out_npz_f} created")
 
 
 
@@ -92,7 +109,7 @@ def rprune(ld_npz_f, bim_f, ld_thresh, out_f, snps2overlap=None):
     Output:
         out_f: a file with SNP ids which survived random pruning
     """
-    print(f"pruning {ld_npz_f}")
+    LOGGER.info(f"pruning {ld_npz_f}")
     ld_csr = _ld_npz2ld_csr(ld_npz_f)
     snps = pd.read_table(bim_f, sep='\t', header=None, usecols=[1],
             dtype='str', squeeze=True, engine="c", na_filter=False)
@@ -101,7 +118,7 @@ def rprune(ld_npz_f, bim_f, ld_thresh, out_f, snps2overlap=None):
 
     survived_idx = _rprune(ld_csr, ld_thresh, idx2use)
     snps[survived_idx].to_csv(out_f, index=False, header=False)
-    print(f"{out_f} created")
+    LOGGER.info(f"{out_f} created")
 
 
 
@@ -109,7 +126,7 @@ def rpruneweights(ld_npz_f, bim_f, ld_thresh, n_iter, out_f, snps2overlap=None):
     """
     Wrapper for _rpruneweights which works with ld_npz_f produced by ld2npz.
     """
-    print(f"estimating pruning weights for {ld_npz_f} from {n_iter} iterations")
+    LOGGER.info(f"estimating pruning weights for {ld_npz_f} from {n_iter} iterations")
     ld_csr = _ld_npz2ld_csr(ld_npz_f)
 
     snps = pd.read_table(bim_f, sep='\t', header=None, usecols=[1],
@@ -119,7 +136,7 @@ def rpruneweights(ld_npz_f, bim_f, ld_thresh, n_iter, out_f, snps2overlap=None):
 
     snp_weights = _rpruneweights(ld_csr, ld_thresh, n_iter, idx2use)
     pd.Series(snp_weights).to_csv(out_f, index=False, header=False)
-    print(f"{out_f} created")
+    LOGGER.info(f"{out_f} created")
 
 
 
@@ -184,16 +201,21 @@ def _rpruneweights(ld_csr, ld_thresh, n_iter, idx2use=None):
 
 
 if __name__ == "__main__":
-    print(f"makeinput.py started at {datetime.datetime.now()}")
     args = parse_args(sys.argv[1:])
-    print(f"Reading config from {args.config_file}")
     cfg = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
     cfg.read(args.config_file)
+    log_f = cfg["misc"].get("log_file")
+    fh = logging.FileHandler(log_f)
+    fh.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('[%(asctime)s | %(name)s | %(levelname)s] : %(message)s')
+    fh.setFormatter(formatter)
+    LOGGER.addHandler(fh)
+    LOGGER.info(f"Reading config from {args.config_file}")
 
     n_proc = cfg["misc"].getint("n_proc", fallback=1)
 
     if args.ld2npz:
-        print("Running ld2npz")
+        LOGGER.info("Running ld2npz")
         ld_files = cfg["ld2npz"].get("ld_files").split()
         bim_files = cfg["ld2npz"].get("bim_files").split()
         out_npz_files = cfg["ld2npz"].get("out_npz_files").split()
@@ -202,12 +224,12 @@ if __name__ == "__main__":
             raise ValueError(
                 f"Number of bim, ld and out_npz files in {args.config_file} must be equal")
         n_proc = min(n_proc, len(ld_files))
-        print(f"Using {n_proc} cores")
+        LOGGER.info(f"Using {n_proc} cores")
         with Pool(processes=n_proc) as pool:
             pool.starmap(ld2npz, zip(ld_files, bim_files, out_npz_files))
 
     if args.rprune:
-        print("Running rprune")
+        LOGGER.info("Running rprune")
         ldnpz_files = cfg["rprune"].get("ldnpz_files").split()
         bim_files = cfg["rprune"].get("bim_files").split()
         ld_threshold = cfg["rprune"].getfloat("ld_threshold")
@@ -221,7 +243,7 @@ if __name__ == "__main__":
         if snps2overlap_f is None:
             snps2overlap = None
         else:
-            print(f"reading snps2overlap from {snps2overlap_f}")
+            LOGGER.info(f"reading snps2overlap from {snps2overlap_f}")
             snps2overlap = pd.read_table(snps2overlap_f, header=None, usecols=[0],
                     dtype='str', squeeze=True, engine="c", na_filter=False)
 
@@ -229,7 +251,7 @@ if __name__ == "__main__":
             rprune(ldnpz_f, bim_f, ld_threshold, out_f, snps2overlap)
 
     if args.rpruneweights:
-        print("Running rpruneweights")
+        LOGGER.info("Running rpruneweights")
         ldnpz_files = cfg["rpruneweights"].get("ldnpz_files").split()
         bim_files = cfg["rpruneweights"].get("bim_files").split()
         ld_threshold = cfg["rpruneweights"].getfloat("ld_threshold")
@@ -244,40 +266,11 @@ if __name__ == "__main__":
         if snps2overlap_f is None:
             snps2overlap = None
         else:
-            print(f"reading snps2overlap from {snps2overlap_f}")
+            LOGGER.info(f"reading snps2overlap from {snps2overlap_f}")
             snps2overlap = pd.read_table(snps2overlap_f, header=None, usecols=[0],
                     dtype='str', squeeze=True, engine="c", na_filter=False)
 
         for ldnpz_f, bim_f, out_f in zip(ldnpz_files, bim_files, out_files):
             rpruneweights(ldnpz_f, bim_f, ld_threshold, n_iter, out_f, snps2overlap)
 
-
-
-
-
-    # template_dir = cfg["template"].get("template_dir")
-    # chr2use = cfg["template"].get("chr2use").split()
-    # bim_prefix = cfg["template"].get("bim_prefix")
-    # bim_suffix = cfg["template"].get("bim_suffix")
-    # ld_prefix = cfg["template"].get("ld_prefix")
-    # ld_suffix = cfg["template"].get("ld_suffix")
-    # out_dir = cfg["output"].get("out_dir")
-    # if verbose: print(f"Using {len(chr2use)} chromosomes: {', '.join(chr2use)}")
-
-    # bim_fiels = [os.path.join(template_dir,"".join((bim_prefix,c,bim_suffix)))
-    #         for c in chr2use]
-    # ld_files = [os.path.join(template_dir,"".join((ld_prefix,c,ld_suffix)))
-    #         for c in chr2use]
-    # ld_pkl_files = [os.path.join(out_dir, f"chr{c}.ld.pkl") for c in chr2use]
-
-    # for f in (bim_fiels + ld_files):
-    #     if not os.path.isfile(f):
-    #         raise ValueError(f"{f} file does not exist")
-    # if not os.path.isdir(out_dir):
-    #     raise ValueError(f"{out_dir} dir does not exist")
-
-    # v = [verbose]*len(bim_fiels)
-    # with Pool(processes=n_proc) as pool:
-    #     pool.starmap(make_ld_pkl, zip(bim_fiels,ld_files,ld_pkl_files,v))
-
-    print(f"makeinput.py finished at {datetime.datetime.now()}")
+    LOGGER.info("Finished")

@@ -204,6 +204,7 @@ if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
     cfg = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
     cfg.read(args.config_file)
+    # add file handler (writing to log file) to the LOGGER
     log_f = cfg["misc"].get("log_file")
     fh = logging.FileHandler(log_f)
     fh.setLevel(logging.DEBUG)

@@ -7,12 +7,191 @@ import datetime
 import os
 import re
 import cmmcost_omp.cmmcost_omp as cmmcost_omp
+import test.cmmutils as cmmutils
 from scipy.optimize import minimize
 import scipy.stats as sstats
 
 
-def load_data(bim_files, frq_files, ld_pkl_files, sumstats_f, annot_f):
-    pass
+def _drop_duplicates(df):
+    i = df.index.duplicated(keep='first')
+    if i.any(): df = df.loc[~i,:]
+    return df
+
+
+def load_data(bim_files, frq_files, ldnpz_files, sumstats_f, annot_f,
+    annot2use=None, snp2use_f=None, subset_size=None, subset_seed=None):
+    """
+    Args:
+        bim_files   [K] (str): list of template bim files
+        frq_files   [K] (str): list of template frq files
+        ldnpz_files [K] (str): list of files produced by makeinput.ld2npz
+        sumstats_f      (str): sumstats file, must contain columns: SNP, Z, N.
+                               Only SNPs with z-score in sumstats are used for
+                               fitting
+        annot_f         (str): annotation file, must contain header with SNP
+                               column and at least one 1/0 annotation column.
+                               Only SNPs with annotation are used fo fitting
+        annot2use   [M] (str): list of annotation categories to use, if None all
+                               except SNP columns form annot_f are interpreted
+                               as annotations
+        snp2use_f       (str): no-headr single-column file with SNP ids to use.
+                               If None all SNPs survived so far are used for
+                               fitting
+        subset_size     (int): number of randomly selected SNPs. This applies
+                               after overlapping template with sumstats, annot
+                               and snp2use files. If None all SNPs survived so
+                               far are used for fitting
+        subset_seed     (int): seed for random subsampling
+    Return:
+        snp         [N]   (str): SNP ids to use for fitting
+        snp_z       [N]   (f8) : z-scores of SNPs in snp array
+        s2          [L]   (f4) : vector of het*r2*ssize, L = is2[-1]
+        is2         [N+1] (u8) : vector of LD-block indices in s2 array,
+                                 is2[i] = start of LD-block for snp[i]
+        annot_s2    [L]   (u1) : annotation codes for SNPs in s2 array
+                                 0 <= i <= M corresponds to annot[i]
+        annot_names [M]   (str): annotation categories
+    """
+    print("Loading data")
+
+    # process sumstats
+    sumstats_df = pd.read_csv(sumstats_f, sep="\t", usecols=["SNP", "Z", "N"],
+        index_col="SNP", dtype={"SNP":str, "Z":'f8', "N":'f8'}, na_filter=False)
+    print(f"{sumstats_df.shape[0]} SNPs in {sumstats_f}")
+    sumstats_df = _drop_duplicates(sumstats_df)
+    print(f"{sumstats_df.shape[0]} non-duplicated SNPs in {sumstats_f}")
+
+    # process annot
+    annot_usecols = None if (annot2use is None) else (["SNP"] + annot2use)
+    annot_df = pd.read_csv(annot_f, sep="\t", usecols=annot_usecols,
+        index_col="SNP", dtype={"SNP":str}, na_filter=False)
+    annot_df = annot_df.astype(bool)
+    annot_names = annot_df.columns.to_numpy()
+    print(f"{annot_df.shape[0]} SNPs in {annot_f}")
+    print(f"{annot_names.size} annotation categories in {annot_f}")
+    print(f"annotation categories: {', '.join(annot_names)}")
+    annot_df = _drop_duplicates(annot_df)
+    print(f"{annot_df.shape[0]} non-duplicated SNPs in {annot_f}")
+
+    commonsnp = sumstats_df.index.intersection(annot_df.index)
+    print(f"{commonsnp.size} common SNPs in sumstats and annot")
+
+    # process snp2use
+    if not (snp2use_f is None):
+        snp2use = pd.read_csv(snp2use_f, header=None, names=["SNP"],
+            squeeze=True, na_filter=False)
+        print(f"{snp2use.size} SNPs in {snp2use_f}")
+        snp2use.drop_duplicates(keep='first', inplace=True)
+        print(f"{snp2use.size} non-duplicated SNPs in {snp2use_f}")
+        snp2use = pd.Index(snp2use)
+        commonsnp = commonsnp.intersection(snp2use)
+        print(f"{commonsnp.size} common SNPs in sumstats, annot and snp2use")
+
+    # read SNPs from template and overlap with commonsnp
+    template_snp = [pd.read_csv(f, sep="\t", usecols=[1], header=None,
+                                squeeze=True, na_filter=False, dtype=str)
+                    for f in bim_files]
+    template_snp = pd.concat(template_snp)
+    print(f"{template_snp.size} SNPs in template")
+    commonsnp = commonsnp.intersection(template_snp)
+    print(f"{commonsnp.size} common SNPs in sumstats, annot, snp2use and template")
+
+    # get annotation codes for template SNPs
+    annot_df = annot_df.loc[template_snp,:]
+    #TODO: improve the following check
+    # check whether each template SNP belongs to one and only one annotation category
+    if not (annot_df.sum(axis=1) == 1).all():
+        wrong_annot = (annot_df.sum(axis=1) != 1)
+        wrong_annot_5snp = annot_df.index[wrong_annot][:10] # take max first 5
+        raise ValueError("All template SNPs must belong to one and only one " +
+            f"annotation category! Check these SNPs: {', '.join(wrong_annot_5snp)}")
+    #get annotation categories for template SNPs coded as index of 1/True in annot_df
+    annot = pd.Series(annot_df.to_numpy().nonzero()[1], index=annot_df.index, dtype='u1')
+
+    # take a random subset from commonsnp
+    if not (subset_size is None):
+        if not (subset_seed is None):
+            np.random.seed(subset_seed)
+        commonsnp = commonsnp[np.random.choice(commonsnp.size, subset_size, replace=False)]
+        print(f"{commonsnp.size} random SNPs are taken")
+    print(f"{commonsnp.size} SNPs will be used for fitting")
+
+    # take further only required SNPs from sumstats
+    sumstats_df = sumstats_df.loc[commonsnp,:]
+
+    # estimate len of s2 and get indices of common SNPs
+    common_idx = [] # common_idx = [idx_chr_1, idx_chr_2, ...],
+                    # idx_chr_i =  indices of commonsnp in template
+    bs = [] # bs = [bs_chr_1, bs_chr_2, ...],
+            # bs_chr_i = LD block sizes of SNPs in bim_f[i]
+    for bim_f, ldnpz_f in zip(bim_files, ldnpz_files):
+        # assuming no duplicates in bim file
+        bim_snp = pd.read_csv(bim_f, sep="\t", usecols=[1], header=None,
+                squeeze=True, na_filter=False)
+        i = bim_snp.isin(commonsnp).to_numpy().nonzero()[0].astype('u4')
+        common_idx.append(i)
+
+        ldnpz = np.load(ldnpz_f)
+        bs.append(ldnpz.get("bs"))
+    len_s2 = sum(b[common_idx[i]].sum() for i,b in enumerate(bs))
+    print(f"{len_s2} elements in s2 array")
+    
+    bs_all = np.concatenate(bs)
+    print(f"{bs_all.mean():.2f} SNPs in LD block on average")
+    print(f"{bs_all.max()} SNPs in the largest LD block")
+    is2 = np.zeros(template_snp.size+1, dtype='u8')
+    is2[1:] = bs_all.cumsum(dtype='u8') 
+
+    snp = []
+    snp_z = []
+    s2 = np.zeros(len_s2, dtype='f4')
+    annot_s2 = np.zeros(len_s2, dtype='u1')
+
+    s2_2use_i_start = 0
+
+    for i, (frq_f, ldnpz_f) in enumerate(zip(frq_files, ldnpz_files)):
+        print(f"processing {ldnpz_f}")
+        # assuming the same order of SNPs in bim and frq files
+        ldnpz = np.load(ldnpz_f)
+        maf = pd.read_csv(frq_f, delim_whitespace=True, usecols=["SNP", "MAF"],
+            index_col="SNP", squeeze=True, na_filter=False,
+            dtype={"SNP":str, "MAF":'f8'})
+        commonsnp_chri = maf.index[common_idx[i]] # SNP ids for i-th chr in the corresponding order
+        print(f"{commonsnp_chri.size} common SNPs")
+        snp.append(commonsnp_chri.to_numpy())
+        snp_z.append(sumstats_df.loc[commonsnp_chri,"Z"].to_numpy())
+
+        het_i = (2*maf*(1-maf)).to_numpy()
+        annot_i = annot.loc[maf.index].to_numpy()
+        is2_i = np.zeros(het_i.size+1, dtype='u8')
+        is2_i[1:] = bs[i].cumsum(dtype='u8')
+
+        r2_i = ldnpz.get("r2")
+        i2_i = ldnpz.get("i2")
+
+        ssize_i = sumstats_df.loc[commonsnp_chri, "N"].to_numpy()
+        ind_2use_i = common_idx[i]
+        is2_2use_i = np.zeros(ind_2use_i.size+1, dtype='u8')
+        is2_2use_i[1:] = bs[i][ind_2use_i].cumsum(dtype='u8')
+
+        s2_2use_i_end = int(s2_2use_i_start + is2_i[-1]) # w/o int() result of + has float type ??
+        s2_2use_i = s2[s2_2use_i_start:s2_2use_i_end]
+        annot_s2_2use_i = annot_s2[s2_2use_i_start:s2_2use_i_end]
+
+        cmmutils.fill_s2(het_i, annot_i, is2_i, r2_i, i2_i, ind_2use_i,
+                ssize_i, is2_2use_i, s2_2use_i, annot_s2_2use_i)
+
+        s2_2use_i_start = s2_2use_i_end
+
+    snp = np.concatenate(snp)
+    snp_z = np.concatenate(snp_z)
+
+    s2_min, s2_mean, s2_max = cmmcost_omp.get_nonzero_min_mean_max(s2)
+    print(f"{s2_min:.2f} = min(s2)")
+    print(f"{s2_mean:.2f} = mean(s2)")
+    print(f"{s2_max:.2f} = max(s2)")
+
+    return snp, snp_z, s2, is2, annot_s2, annot_names
 
 
 def process_input(sumstats_f, annot_f, template_dir):
@@ -433,127 +612,145 @@ def run_optimization(p0, sb20, s020, z, z2use, s2, is2, annot_s2, annot_categori
     print(f"Optimization result saved to {opt_result_file}")
 
 
-
 if __name__ == "__main__":
-    print(f"optimize.py started at {datetime.datetime.now()}")
-    print(f"Reading config from {sys.argv[1]}")
-    cfg = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
-    cfg.read(sys.argv[1])
+    template_dir = "/mnt/seagate10/genotypes/1000genomes503eur9m"
+    chr2use = [str(i) for i in range(1,23)]
 
-    os.environ["OMP_NUM_THREADS"] = cfg["omp"].get("OMP_NUM_THREADS")
-    print(f"OMP_NUM_THREADS is set to {os.environ['OMP_NUM_THREADS']}")
-
-    # input parameters
-    template_dir = cfg["general"].get("template_dir")
-    sumstats_f = cfg["general"].get("sumstats_f")
-    annot_f = cfg["general"].get("annot_f")
-    opt_result_file = cfg["general"].get("opt_result_file")
-
-    load_idump = cfg["dump"].getboolean("load_idump")    
-    dump_input = cfg["dump"].getboolean("dump_input")
-    dump_input_file = cfg["dump"].get("dump_input_file")
-    if load_idump:
-        template_snp, template_z, template_snp_in_sumstats, template_annot, s2, is2, annot_s2, annot_categories = process_idump(dump_input_file)
-    else:
-        template_snp, template_z, template_snp_in_sumstats, template_annot, s2, is2, annot_s2, annot_categories = process_input(sumstats_f, annot_f, template_dir)
-    if dump_input:
-        print(f"Dumping input to {dump_input_file}")
-        np.savez(dump_input_file, template_snp=template_snp, template_z=template_z, template_snp_in_sumstats=template_snp_in_sumstats, template_annot=template_annot,
-            s2=s2, is2=is2, annot_s2=annot_s2, annot_categories=annot_categories)
-
-    run_opt = cfg["optimization"].getboolean("run_opt")
-    if run_opt:
-        print("Preparing optimization")
-        adaptive = cfg["optimization"].getboolean("adaptive")
-        maxiter = cfg["optimization"].getint("maxiter")
-        same_pi = cfg["optimization"].getboolean("same_pi")
-        same_sb2 = cfg["optimization"].getboolean("same_sb2")
-        snp2use_f = cfg["optimization"].get("snp2use_f", fallback=None)
-        subset_size = cfg["optimization"].getint("subset_size", fallback=None)
-        subset_seed = cfg["optimization"].getint("subset_seed", fallback=None)
-        rand_init_seed = cfg["optimization"].getint("rand_init_seed", fallback=None)
-
-        n_categories = len(annot_categories)
-        p, sb2, s02 = rand_initial_guess(n_categories, same_pi, same_sb2, rand_init_seed)
-        z2use = template_snp_in_sumstats.copy()
-        if snp2use_f:
-            z2use = overlap(z2use, template_snp, snp2use_f)
-        if subset_size:
-            z2use = randsubset(z2use, subset_size, subset_seed)
-        run_optimization(p, sb2, s02, template_z, z2use, s2, is2, annot_s2, annot_categories,
-                         adaptive, maxiter, same_pi, same_sb2, opt_result_file)
+    bim_files = [os.path.join(template_dir, f"chr{c}.bim") for c in chr2use]
+    frq_files = [os.path.join(template_dir, f"chr{c}.maf.frq") for c in chr2use]
+    ldnpz_files = [os.path.join(template_dir, "ld2npz", f"chr{c}.ld.npz") for c in chr2use]
+    # /mnt/seagate10/sumstats/DIAGRAM_T2D_2018_adjBMI/DIAGRAM_T2D_2018_adjBMI.sumstats.gz
+    # /mnt/seagate10/sumstats/GIANT_HEIGHT_2018_UKB/GIANT_HEIGHT_2018_UKB.sumstats.gz
+    sumstats_f = "/mnt/seagate10/sumstats/GIANT_HEIGHT_2018_UKB/GIANT_HEIGHT_2018_UKB.sumstats.gz"
+    annot_f = "/mnt/seagate10/genotypes/1000genomes503eur9m/annot/1000genomes503eur9m.utr5utr3exon_other.binary.txt"
+    annot2use = None
+    snp2use_f = os.path.join(template_dir, "snps.no_mhc.txt")
+    subset_size = 500000
+    subset_seed = 1
+    load_data(bim_files, frq_files, ldnpz_files, sumstats_f, annot_f,
+        annot2use, snp2use_f, subset_size, subset_seed)
 
 
-    make_qq = cfg["qq"].getboolean("make_qq")
-    if make_qq:
-        print("Making QQ plot")
-        modelqq_out_file = cfg["qq"].get("modelqq_out_file")
-        template_qq_annot_file = cfg["qq"].get("template_annot_file")
-        n_samples = cfg["qq"].getint("n_samples")
-        opt_result_file = cfg["qq"].get("opt_result_file")
-        # get template annotations
-        qq_template_annot, annot_names = get_qq_annot4snp(template_snp, template_qq_annot_file)
-        # parameters derived from data
-        p, sb2, s02 = get_params(opt_result_file)
-        p_experimental = 2*sstats.norm.cdf(-np.abs(template_z))
-        y_max = min(50, max(-np.log10(p_experimental)))
+# if __name__ == "__main__":
+#     print(f"optimize.py started at {datetime.datetime.now()}")
+#     print(f"Reading config from {sys.argv[1]}")
+#     cfg = configparser.ConfigParser(interpolation=configparser.ExtendedInterpolation())
+#     cfg.read(sys.argv[1])
 
-        # get model data
-        n_grid = 150
-        p_grid = np.logspace(-y_max,0,n_grid)
-        # multiply by 0.5 since we want to have two tailed quantiles    
-        z_grid = sstats.norm.ppf(0.5*p_grid)
+#     os.environ["OMP_NUM_THREADS"] = cfg["omp"].get("OMP_NUM_THREADS")
+#     print(f"OMP_NUM_THREADS is set to {os.environ['OMP_NUM_THREADS']}")
 
-        # qq plot should be only for the SNPs which present in sumstats data, i.e. template_snp_in_sumstats
-        # TODO: allow taking only a subset of SNPs for the qq plot. This subset must be used both for modeled and experemental plot.
-        # z_cdf_total, z_cdf_annot = get_z_cdf_2tails(z_grid, template_snp_in_sumstats, n_samples,
-        #     p, sb2, s02, s2, is2, annot_s2, qq_template_annot)
+#     # input parameters
+#     template_dir = cfg["general"].get("template_dir")
+#     sumstats_f = cfg["general"].get("sumstats_f")
+#     annot_f = cfg["general"].get("annot_f")
+#     opt_result_file = cfg["general"].get("opt_result_file")
 
-        z_cdf_total, z_cdf_annot = cmmcost_omp.get_cdfsampling(z_grid, template_snp_in_sumstats, s2, is2, p,
-                sb2, s02, annot_s2, qq_template_annot.astype('u1'), n_samples)
+#     load_idump = cfg["dump"].getboolean("load_idump")    
+#     dump_input = cfg["dump"].getboolean("dump_input")
+#     dump_input_file = cfg["dump"].get("dump_input_file")
+#     if load_idump:
+#         template_snp, template_z, template_snp_in_sumstats, template_annot, s2, is2, annot_s2, annot_categories = process_idump(dump_input_file)
+#     else:
+#         template_snp, template_z, template_snp_in_sumstats, template_annot, s2, is2, annot_s2, annot_categories = process_input(sumstats_f, annot_f, template_dir)
+#     if dump_input:
+#         print(f"Dumping input to {dump_input_file}")
+#         np.savez(dump_input_file, template_snp=template_snp, template_z=template_z, template_snp_in_sumstats=template_snp_in_sumstats, template_annot=template_annot,
+#             s2=s2, is2=is2, annot_s2=annot_s2, annot_categories=annot_categories)
 
-        model_total_x = -np.log10(z_cdf_total)
-        model_annot_x = -np.log10(z_cdf_annot)
-        model_y =  -np.log10(p_grid)
+#     run_opt = cfg["optimization"].getboolean("run_opt")
+#     if run_opt:
+#         print("Preparing optimization")
+#         adaptive = cfg["optimization"].getboolean("adaptive")
+#         maxiter = cfg["optimization"].getint("maxiter")
+#         same_pi = cfg["optimization"].getboolean("same_pi")
+#         same_sb2 = cfg["optimization"].getboolean("same_sb2")
+#         snp2use_f = cfg["optimization"].get("snp2use_f", fallback=None)
+#         subset_size = cfg["optimization"].getint("subset_size", fallback=None)
+#         subset_seed = cfg["optimization"].getint("subset_seed", fallback=None)
+#         rand_init_seed = cfg["optimization"].getint("rand_init_seed", fallback=None)
 
-        # get experimental data
-        data_total_x, data_total_y = get_xy_from_p(p_experimental[template_snp_in_sumstats.astype('bool')])
-        # take only SNPs which are in sumstats
-        data_total_x = data_total_x
-        data_total_y = data_total_y
-        data_annot_x = []
-        data_annot_y = []
-        for i in range(len(annot_names)):
-            annot_i = qq_template_annot[:,i].astype('bool')
-            # take only SNPs which are in sumstats
-            annot_i &= template_snp_in_sumstats.astype('bool')
-            p_experimental_annot = p_experimental[annot_i]
-            annot_x, annot_y = get_xy_from_p(p_experimental_annot)
-            data_annot_x.append(annot_x)
-            data_annot_y.append(annot_y)
-        data_annot_x = np.array(data_annot_x)
-        data_annot_y = np.array(data_annot_y)        
-
-        # save results
-        np.savez(modelqq_out_file, annot_names=annot_names, data_total_x=data_total_x,
-            data_total_y=data_total_y, data_annot_x=data_annot_x, data_annot_y=data_annot_y,
-            model_total_x=model_total_x, model_annot_x=model_annot_x, model_y=model_y)
-
-        print(f"QQ plot data saved to {modelqq_out_file}")
+#         n_categories = len(annot_categories)
+#         p, sb2, s02 = rand_initial_guess(n_categories, same_pi, same_sb2, rand_init_seed)
+#         z2use = template_snp_in_sumstats.copy()
+#         if snp2use_f:
+#             z2use = overlap(z2use, template_snp, snp2use_f)
+#         if subset_size:
+#             z2use = randsubset(z2use, subset_size, subset_seed)
+#         run_optimization(p, sb2, s02, template_z, z2use, s2, is2, annot_s2, annot_categories,
+#                          adaptive, maxiter, same_pi, same_sb2, opt_result_file)
 
 
-    run_single = cfg["test"].getboolean("run_single")
-    if run_single:
-        print("Estimating test cost")
-        # estimate for a given set of parameters
-        n_categories = len(annot_categories)
-        p = np.array([0.005]*n_categories, dtype='f8') # [0.02, 0.005, 0.05, 0.001] [0.005]*n_categories
-        sb2 = np.array([0.0002]*n_categories, dtype='f8') # [5.786066041591348e-05, 5.837030778549846e-05, 5.703057621611015e-05, 5.6426373881400386e-05] [0.0002]*n_categories
-        s02 = 1.0 # 1.0
-        start = time.time()
-        cost = cmmcost_omp.get_cost(template_z, z2use, s2, is2, p, sb2, s02, annot_s2)
-        end = time.time()
-        print(f"{end-start} seconds per single cost function evaluation")
-        print(f"Cost is: {cost}")
+#     make_qq = cfg["qq"].getboolean("make_qq")
+#     if make_qq:
+#         print("Making QQ plot")
+#         modelqq_out_file = cfg["qq"].get("modelqq_out_file")
+#         template_qq_annot_file = cfg["qq"].get("template_annot_file")
+#         n_samples = cfg["qq"].getint("n_samples")
+#         opt_result_file = cfg["qq"].get("opt_result_file")
+#         # get template annotations
+#         qq_template_annot, annot_names = get_qq_annot4snp(template_snp, template_qq_annot_file)
+#         # parameters derived from data
+#         p, sb2, s02 = get_params(opt_result_file)
+#         p_experimental = 2*sstats.norm.cdf(-np.abs(template_z))
+#         y_max = min(50, max(-np.log10(p_experimental)))
 
-    print(f"optimize.py finished at {datetime.datetime.now()}")
+#         # get model data
+#         n_grid = 150
+#         p_grid = np.logspace(-y_max,0,n_grid)
+#         # multiply by 0.5 since we want to have two tailed quantiles    
+#         z_grid = sstats.norm.ppf(0.5*p_grid)
+
+#         # qq plot should be only for the SNPs which present in sumstats data, i.e. template_snp_in_sumstats
+#         # TODO: allow taking only a subset of SNPs for the qq plot. This subset must be used both for modeled and experemental plot.
+#         # z_cdf_total, z_cdf_annot = get_z_cdf_2tails(z_grid, template_snp_in_sumstats, n_samples,
+#         #     p, sb2, s02, s2, is2, annot_s2, qq_template_annot)
+
+#         z_cdf_total, z_cdf_annot = cmmcost_omp.get_cdfsampling(z_grid, template_snp_in_sumstats, s2, is2, p,
+#                 sb2, s02, annot_s2, qq_template_annot.astype('u1'), n_samples)
+
+#         model_total_x = -np.log10(z_cdf_total)
+#         model_annot_x = -np.log10(z_cdf_annot)
+#         model_y =  -np.log10(p_grid)
+
+#         # get experimental data
+#         data_total_x, data_total_y = get_xy_from_p(p_experimental[template_snp_in_sumstats.astype('bool')])
+#         # take only SNPs which are in sumstats
+#         data_total_x = data_total_x
+#         data_total_y = data_total_y
+#         data_annot_x = []
+#         data_annot_y = []
+#         for i in range(len(annot_names)):
+#             annot_i = qq_template_annot[:,i].astype('bool')
+#             # take only SNPs which are in sumstats
+#             annot_i &= template_snp_in_sumstats.astype('bool')
+#             p_experimental_annot = p_experimental[annot_i]
+#             annot_x, annot_y = get_xy_from_p(p_experimental_annot)
+#             data_annot_x.append(annot_x)
+#             data_annot_y.append(annot_y)
+#         data_annot_x = np.array(data_annot_x)
+#         data_annot_y = np.array(data_annot_y)        
+
+#         # save results
+#         np.savez(modelqq_out_file, annot_names=annot_names, data_total_x=data_total_x,
+#             data_total_y=data_total_y, data_annot_x=data_annot_x, data_annot_y=data_annot_y,
+#             model_total_x=model_total_x, model_annot_x=model_annot_x, model_y=model_y)
+
+#         print(f"QQ plot data saved to {modelqq_out_file}")
+
+
+#     run_single = cfg["test"].getboolean("run_single")
+#     if run_single:
+#         print("Estimating test cost")
+#         # estimate for a given set of parameters
+#         n_categories = len(annot_categories)
+#         p = np.array([0.005]*n_categories, dtype='f8') # [0.02, 0.005, 0.05, 0.001] [0.005]*n_categories
+#         sb2 = np.array([0.0002]*n_categories, dtype='f8') # [5.786066041591348e-05, 5.837030778549846e-05, 5.703057621611015e-05, 5.6426373881400386e-05] [0.0002]*n_categories
+#         s02 = 1.0 # 1.0
+#         start = time.time()
+#         cost = cmmcost_omp.get_cost(template_z, z2use, s2, is2, p, sb2, s02, annot_s2)
+#         end = time.time()
+#         print(f"{end-start} seconds per single cost function evaluation")
+#         print(f"Cost is: {cost}")
+
+#     print(f"optimize.py finished at {datetime.datetime.now()}")

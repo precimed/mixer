@@ -1,33 +1,36 @@
 % This script runs Bivariate Causal Mixture for GWAS analysis. 
 
+%{
+% FULL LIST OF AVAILABLE PARAMETERS
+
 % Full path to your libbgmg.so (linux), libbgmg.dylib (mac) or bgmg.dll (windows). See readme for how-to-build instructions.
-bgmg_shared_library        = '/home/oleksanf/vmshare/software/mixer_v0.9.1_linux_x64/lib/libbgmg.so';
-bgmg_shared_library_header = '/home/oleksanf/vmshare/software/mixer_v0.9.1_linux_x64/bgmg_matlab.h';
+bgmg_shared_library        = 'H:\GitHub\BGMG\src\build_win\bin\RelWithDebInfo\bgmg.dll';
+bgmg_shared_library_header = 'H:\GitHub\BGMG\src\bgmg_matlab.h';
 
 % Input data
-bim_file       = '/home/oleksanf/vmshare/data/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim';
-frq_file       = '/home/oleksanf/vmshare/data/LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq';
-plink_ld_bin   = '/home/oleksanf/vmshare/data/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin'; 
+bim_file       = 'H:\GitHub\BGMG\LDSR\1000G_EUR_Phase3_plink\1000G.EUR.QC.@.bim';
+frq_file       = 'H:\GitHub\BGMG\LDSR\1000G_EUR_Phase3_plink_freq\1000G.EUR.QC.@.frq';
+plink_ld_bin   = 'H:\GitHub\BGMG\LDSR\1000G_EUR_Phase3_plink\1000G.EUR.QC.@.p05_SNPwind50k.ld.bin'; 
 chr_labels     = 1:22;
 
-trait1_file    = '/home/oleksanf/vmshare/data/MMIL/SUMSTAT/TMP/ldsr/PGC_SCZ_2014_EUR.sumstats.gz';
-trait2_file    = '/home/oleksanf/vmshare/data/MMIL/SUMSTAT/TMP/ldsr/PGC_MDD_2018_no23andMe.sumstats.gz';
-trait1_params_file       = '/home/oleksanf/github/mixer/PGC_SCZ_2014_EUR_qc_noMHC.model=full.r2min=p05.randprune=n64p05.kmax=20000.run3.fit.params.mat';
-trait2_params_file       = '/home/oleksanf/github/mixer/PGC_MDD_2018_no23andMe_noMHC.model=full.r2min=p05.randprune=n64p05.kmax=20000.run3.fit.params.mat';
-out_file                 = '/home/oleksanf/github/mixer/SCZ_MDD_debug';
+trait1_file    = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR\LDSR_Data\PGC_SCZ_2014_EUR_qc_noMHC.sumstats.gz';
+trait2_file    = 'H:\NORSTORE\MMIL\SUMSTAT\LDSR\LDSR_Data\PGC_BIP_2016_qc_noMHC.sumstats.gz';
+trait1_params_file       = 'H:\GitHub\BGMG\LDSR\BGMG_results\PGC_SCZ_2014_EUR_qc_noMHC.ugmg.params.mat';
+trait2_params_file       = 'H:\GitHub\BGMG\LDSR\BGMG_results\PGC_BIP_2016_qc_noMHC.ugmg.params.mat';
+out_file                 = 'H:\GitHub\BGMG\LDSR\BGMG_results\PGC_SCZ_2014_EUR_qc_noMHC_vs_PGC_BIP_2016_qc_noMHC';
 
 % Enable/disable features
 DO_FIT_BGMG=true; 
-STRATIFIED_QQ_PLOT=false; STRATIFIED_QQ_PLOT_DOWNSCALE=10; % enable/disable stratified QQ plot
+STRATIFIED_QQ_PLOT=true; STRATIFIED_QQ_PLOT_DOWNSCALE=10; % enable/disable stratified QQ plot
 
 % Optional parameters
 exclude = '';                       % file containing SNP rs# to exclude from the anslysis
 extract = '';                       % file containing SNP rs# to include in the anslysis
 randprune_n=64; randprune_r2=0.1;   % random pruning options that define a weighting scheme on tag variants (avoid overcounting signal in large LD blocks)
-kmax=20000;                         % number of sampling interation in pdf(z|params) model. Larger values => more accurate inference, but longer runtime, and larger memory usage
+kmax=5000;                          % number of sampling interation in pdf(z|params) model. Larger values => more accurate inference, but longer runtime, and larger memory usage
 SEED=123;                           % seed for random number generator. Fix for reproducible results.
-cache_tag_r2sum=0;                  % performance optimization. Set to 0 if you run out of RAM memory (but the model will run slower)
-max_causal_fraction=0.01;           % upper threshold on polygenicity. This is required for technical reason - setting to 1.0 causes excesive memory usage.
+cache_tag_r2sum=1;                  % performance optimization. Set to 0 if you run out of RAM memory (but the model will run slower)
+max_causal_fraction=0.03;           % upper threshold on polygenicity. This is required for technical reason - setting to 1.0 causes excesive memory usage.
 r2min=0.05;                         % lower threshold for LD r2 values.
 init_result_from_out_file='';       % path to .mat file with previous results. Use this together with DO_FIT_UGMG=false to make QQ plots on a larger set of variants, using previously fitted parameters.
 CI_ALPHA=0.05;                      % enable confidence interval estimation
@@ -35,6 +38,8 @@ THREADS=-1;                         % specify how many threads to use (concurren
 TolX = 1e-2; TolFun = 1e-2;         % fminserach tolerance (stop criteria)
 z1max = nan; z2max = nan;           % enable right-censoring for z scores above certain threshold
 qq_zgrid_lim = 38; qq_zgrid_step=0.25;  % control internal grid of z scores in stratified QQ plots
+
+%}
 
 if ~exist('out_file', 'var'), out_file = 'BGMG_result'; end;
 if ~exist('bim_file', 'var'), error('bim_file is required'); end;

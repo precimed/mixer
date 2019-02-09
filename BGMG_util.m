@@ -441,7 +441,7 @@ classdef BGMG_util
         end
 
         filt = @(x)unique(x(x~=0));
-        BGMG_cpp.log('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], sig2_beta2=[%s], rho_zero=%.3f, sig2_zero=[%s], cost=%.3e\n', ...
+        BGMG_cpp.log('Bivariate : pi_vec=[%s], rho_beta=[%s], sig2_beta1=[%s], sig2_beta2=[%s], rho_zero=%.3f, sig2_zero=[%s], cost=%.7e\n', ...
             sprintf('%.3e ', ov.pi_vec), ...
             sprintf('%.3f ', ov.rho_beta(end)), ...
             sprintf('%.2e ', filt(ov.sig2_beta(1, :))), ...
@@ -484,6 +484,39 @@ classdef BGMG_util
         end
     end
 
+    function ov = BGMG_mapparams3_pi12_constrain_rg(iv, options)
+        % mapparams for BGMG model with 1 free parameter, pi12
+        % constraints pi1u, pi2u, sig2beta, sig2zero, rho_zero and rg (genetic correlation)
+        % calculates rho_beta from equation:
+        %     rg = rho_beta * pi12 / sqrt(pi1u*pi2u)
+        % this impose limitations:
+        %     pi12 >= rg * sqrt(pi1u * pi2u)   (1)
+        %     pi12 <= min(pi1u, pi2u)          (2)
+        % (1) and (2) might lead to empty solution space, indicating that rg, pi1u, pi2u were miss-calculated
+        % condition rg * sqrt(pi1u * pi2u) < min(pi1u, pi2u) must be checked beforehand
+        %
+        % test
+        % BGMG_util.BGMG_mapparams3_pi12_constrain_rg(0.05, struct('pi_vec', [0.1, 0.2], 'rg', 0.45, 'sig2_beta', [0.01, 0.02], 'sig2_zero', [1.5 1.3], 'rho_zero', 0.15))
+        is_packing = isstruct(iv);
+        if is_packing, ov = []; else ov = struct(); end
+        
+        if is_packing
+            ov = iv.pi_vec(3);
+        else
+            pi12 = iv(1);
+            if any(pi12 > options.pi_vec), pi12 = min(options.pi_vec); end
+            ov.pi_vec = [options.pi_vec(1) - pi12, options.pi_vec(2) - pi12, pi12];
+
+            ov.rho_beta = [0, 0, options.rg * sqrt(prod(options.pi_vec)) / pi12];
+            if abs(ov.rho_beta(3)) > 1, ov.rho_beta(3) = sign(ov.rho_beta(3)); end
+            ov.rho_zero = options.rho_zero;
+            ov.sig2_beta = [options.sig2_beta(1), 0, options.sig2_beta(1); ...
+                            0, options.sig2_beta(2), options.sig2_beta(2)];
+            ov.sig2_zero = BGMG_util.colvec(options.sig2_zero);
+            
+        end
+    end
+    
     function ov = BGMG_mapparams3_rho_and_pifrac(iv, options)
         % mapparams for BGMG model with 3 free parameters:
         % - pi12frac = pi12/min(pi1u, pi2u)

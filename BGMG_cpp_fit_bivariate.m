@@ -15,77 +15,94 @@ function result = BGMG_cpp_fit_bivariate(params, options)
     bgmglib = BGMG_cpp();
     bgmglib.clear_loglike_cache();
  
-    fminsearch_options = struct('Display', 'on');
+    fminsearch_options = struct('Display', 'iter', 'TolX', 1e-4*sum(params.pi_vec));
     if ~isnan(options.MaxFunEvals), fminsearch_options.MaxFunEvals=options.MaxFunEvals; end;
     if ~isnan(options.TolX), fminsearch_options.MaxFunEvals=options.TolX; end;
     if ~isnan(options.TolFun), fminsearch_options.MaxFunEvals=options.TolFun; end;
 
-    mapparams_generic = @(x, params0)BGMG_util.BGMG_mapparams3_rho_and_pifrac(x, struct(...
-        'sig2_zero', params0.sig2_zero, ...
-        'sig2_beta', params0.sig2_beta(:, end), ...
-        'pi_vec', [sum(params0.pi_vec([1, 3])), sum(params0.pi_vec([2, 3]))]));
-    mapparams = @(x)mapparams_generic(x, params);
-    
-    fitfunc = @(x0)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
+    params1.pi_vec = sum(params.pi_vec([1, 3]));
+    params2.pi_vec = sum(params.pi_vec([2, 3]));
+    params_inft.rho_beta = params.rho_beta(3) * params.pi_vec(3)/sqrt(params1.pi_vec*params2.pi_vec); % rg
+    min_pi12 = abs(params_inft.rho_beta) * sqrt(params1.pi_vec * params2.pi_vec);
+    max_pi12 = min(params1.pi_vec, params2.pi_vec);
+    max_rg = max_pi12/sqrt(params1.pi_vec * params2.pi_vec);
+    if ((abs(params_inft.rho_beta) > abs(max_rg)) || (min_pi12 > max_pi12))  % mathematically these two conditions are equivalent
+        % backup solution for the case when rg is too large...   
+        mapparams_generic = @(x, params0)BGMG_util.BGMG_mapparams3_rho_and_pifrac(x, struct(...
+            'sig2_zero', params0.sig2_zero, ...
+            'sig2_beta', params0.sig2_beta(:, end), ...
+            'pi_vec', [sum(params0.pi_vec([1, 3])), sum(params0.pi_vec([2, 3]))]));
+        mapparams = @(x)mapparams_generic(x, params);
 
-    % Step2. Final unconstrained optimization (jointly on all parameters), using fast cost function
-    BGMG_cpp.log('Trait 1,2: final optimization (full cost function)\n');
-    result.params = fitfunc(params);
-    result.loglike_fit_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
+        fitfunc = @(x0)mapparams(fminsearch(@(x)BGMG_util.BGMG_fminsearch_cost(mapparams(x)), mapparams(x0), fminsearch_options));
 
-    % Adjust based on smooth approximation
-    if options.fit_full_model
-        bgmglib.clear_loglike_cache();
-        x0 = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(result.params);
-        arg_index=9;
-        xgrid = linspace(-5, 5, 50)';
-        for xi = 1:length(xgrid)
-            x=x0; x(arg_index)=xgrid(xi);
-            BGMG_util.BGMG_fminsearch_cost(BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x));
-        end
-        result.loglike_adj_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
-        result.loglike_adj_trajectory.xgrid = xgrid;
-        def = isfinite(xgrid+result.loglike_adj_trajectory.cost);
-        x = xgrid(def);
-        y = result.loglike_adj_trajectory.cost(def);
-        
-        technique = '';
-        adjust_poly3 = 0;
-        adjust_1d = 1;
-        x0opt = nan;
-        
-        if adjust_1d && ~isempty(y)
-            technique = '1-D lookup (optimize pifrac)';
-            [~, id] = min(y);
-            x0opt = x(id);
-        end
-        
-        if adjust_poly3 && ~isempty(y)
-            try
-                technique = 'smooth curve3 fit';
-                curve3 = fit(x, y, 'poly3'); 
-                x0opt = fminsearch(@(x)curve3(x), x0(arg_index)); 
-                if x0opt <= quantile(xgrid(def), 0.2) || x0opt >= quantile(xgrid(def), 0.8)
-                    x0opt = nan;
+        % Step2. Final unconstrained optimization (jointly on all parameters), using fast cost function
+        BGMG_cpp.log('Trait 1,2: final optimization (full cost function)\n');
+        result.params = fitfunc(params);
+        result.loglike_fit_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
+
+        % Adjust based on smooth approximation
+        if options.fit_full_model
+            bgmglib.clear_loglike_cache();
+            x0 = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(result.params);
+            arg_index=9;
+            xgrid = linspace(-5, 5, 50)';
+            for xi = 1:length(xgrid)
+                x=x0; x(arg_index)=xgrid(xi);
+                BGMG_util.BGMG_fminsearch_cost(BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x));
+            end
+            result.loglike_adj_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
+            result.loglike_adj_trajectory.xgrid = xgrid;
+            def = isfinite(xgrid+result.loglike_adj_trajectory.cost);
+            x = xgrid(def);
+            y = result.loglike_adj_trajectory.cost(def);
+
+            technique = '';
+            adjust_poly3 = 0;
+            adjust_1d = 1;
+            x0opt = nan;
+
+            if adjust_1d && ~isempty(y)
+                technique = '1-D lookup (optimize pifrac)';
+                [~, id] = min(y);
+                x0opt = x(id);
+            end
+
+            if adjust_poly3 && ~isempty(y)
+                try
+                    technique = 'smooth curve3 fit';
+                    curve3 = fit(x, y, 'poly3'); 
+                    x0opt = fminsearch(@(x)curve3(x), x0(arg_index)); 
+                    if x0opt <= quantile(xgrid(def), 0.2) || x0opt >= quantile(xgrid(def), 0.8)
+                        x0opt = nan;
+                    end
+                catch
                 end
-            catch
+            end
+
+            if isfinite(x0opt)
+                BGMG_cpp.log('Adjust BGMG solution (%.3f -> %.3f) based on %s\n', x0(arg_index), x0opt, technique);
+                x0(arg_index) = x0opt;
+                result.params = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x0);
+            else
+                BGMG_cpp.log('Refuse to change BGMG solution (%.3f -> %.3f) %s\n', x0(arg_index), x0opt, technique);
+            end
+
+            if 0
+             figure(20);
+             bt = result.loglike_adj_trajectory;
+             subplot(1,2,1); plot(bt.pivec(:, 3) ./ min(sum(bt.pivec(:, [1 3]), 2), sum(bt.pivec(:, [2 3]), 2)), [bt.cost, curve3(xgrid)])
+             subplot(1,2,2); plot(xgrid, [bt.cost, curve3(xgrid)])
             end
         end
-        
-        if isfinite(x0opt)
-            BGMG_cpp.log('Adjust BGMG solution (%.3f -> %.3f) based on %s\n', x0(arg_index), x0opt, technique);
-            x0(arg_index) = x0opt;
-            result.params = BGMG_util.BGMG_mapparams3_decorrelated_parametrization(x0);
-        else
-            BGMG_cpp.log('Refuse to change BGMG solution (%.3f -> %.3f) %s\n', x0(arg_index), x0opt, technique);
-        end
-
-        if 0
-         figure(20);
-         bt = result.loglike_adj_trajectory;
-         subplot(1,2,1); plot(bt.pivec(:, 3) ./ min(sum(bt.pivec(:, [1 3]), 2), sum(bt.pivec(:, [2 3]), 2)), [bt.cost, curve3(xgrid)])
-         subplot(1,2,2); plot(xgrid, [bt.cost, curve3(xgrid)])
-        end
+    else
+        % simple 1D search
+        func_map_params = @(x)BGMG_util.BGMG_mapparams3_pi12_constrain_rg(...
+            x, struct('pi_vec', [params1.pi_vec, params2.pi_vec], 'rg', params_inft.rho_beta, ...
+            'sig2_zero', params.sig2_zero, 'sig2_beta', params.sig2_beta(:, 3),...
+            'rho_zero', params.rho_zero));
+        result.params = func_map_params(fminbnd(@(x)BGMG_util.BGMG_fminsearch_cost(func_map_params(x)), min_pi12, max_pi12, fminsearch_options));
+        result.loglike_fit_trajectory = bgmglib.extract_bivariate_loglike_trajectory();
     end
     
     % Step3. Uncertainty estimation. 

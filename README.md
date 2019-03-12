@@ -46,6 +46,8 @@ When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR
 
 ### Install on Linux using pre-built binaries
 
+This step typically takes about 10 minutes to complete.
+
 * Download "Linux_x64.tar.gz" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
 * Extract "Linux_x64.tar.gz" to a new folder. Below we refer to this folder as ``MIXER_ROOT``.
 * Test that MiXeR executable runs smoothly:
@@ -238,6 +240,7 @@ out_file='SSGAC_EDU_2018_no23andMe_noMHC.test';
 ```
 
 Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.csv.gz``).
+These steps typically take about 8 hours to complete.
 
 ### Bivariate (cross-trait) analysis
 
@@ -270,6 +273,8 @@ STRATIFIED_QQ_PLOT=1;
 init_from_params_file='PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.params.mat';
 out_file='PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test';
 ```
+
+These steps typically take about 10 hours to complete.
 
 ### Sequence of operations
 

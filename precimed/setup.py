@@ -6,7 +6,7 @@ setup_kwargs = dict(
     name='precimed',
     version='0.9.0',
     packages=['mixer'],
-    install_requires=[],  # dependencies
+    install_requires=['numpy', 'numdifftools'],  # dependencies
 )
 
 if __name__ == '__main__':

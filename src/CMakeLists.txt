@@ -9,6 +9,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 set(CMAKE_BUILD_TYPE "Release")
+#set(CMAKE_BUILD_TYPE "Debug")
 message("-- Build type: ${CMAKE_BUILD_TYPE}")
 
 include(CheckCXXCompilerFlag)
@@ -24,8 +25,8 @@ endif (COMPILER_SUPPORTS_CXX11)
 
 if (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
     ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -mavx")
-   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -mavx")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -mavx -ggdb")
+   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -mavx -ggdb")
 endif (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
       ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
 

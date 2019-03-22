@@ -25,7 +25,7 @@ class LibBgmg(object):
     def __init__(self, lib_name=None, context_id=0):
         self._context_id = context_id
         self.cdll, self._lib_name = self._load_cdll(lib_name)
-        logging.debug('__init__(lib_name={}, context_id={})'.format(self._lib_name, context_id))
+        logging.info('__init__(lib_name={}, context_id={})'.format(self._lib_name, context_id))
 
         float32_pointer_type = np.ctypeslib.ndpointer(dtype=np.float32, ndim=1, flags='C_CONTIGUOUS')
         int32_pointer_type = np.ctypeslib.ndpointer(dtype=np.int32, ndim=1, flags='C_CONTIGUOUS')
@@ -48,6 +48,7 @@ class LibBgmg(object):
         self.cdll.bgmg_retrieve_nvec.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_set_option.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_double]
         self.cdll.bgmg_set_ld_r2_coo_from_file.argtypes = [ctypes.c_int, ctypes.c_char_p]
+        self.cdll.bgmg_set_ld_r2_csr.argtypes = [ctypes.c_int, ctypes.c_int]
         self.cdll.bgmg_set_weights_randprune.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float]
         self.cdll.bgmg_retrieve_ld_tag_r2_sum.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_retrieve_ld_tag_r4_sum.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
@@ -60,16 +61,19 @@ class LibBgmg(object):
         self.cdll.bgmg_calc_univariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_calc_univariate_power.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_calc_univariate_delta_posterior.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type]
-    
+        self.cdll.bgmg_calc_bivariate_cost.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float]
+        self.cdll.bgmg_calc_bivariate_cost.restype = ctypes.c_double
+        self.cdll.bgmg_calc_bivariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type]
+
     def get_last_error(self):
         return _n2p(self.cdll.bgmg_get_last_error())
 
     def init_log(self, file):
-        logging.debug('init_log({})'.format(file)) 
+        logging.info('init_log({})'.format(file)) 
         self.cdll.bgmg_init_log(_p2n(file))
 
     def log_message(self, message):
-        logging.debug('log_message({})'.format(message)) 
+        logging.info('log_message({})'.format(message)) 
         self.cdll.bgmg_log_message(_p2n(message))
 
     def dispose(self):
@@ -242,17 +246,25 @@ class LibBgmg(object):
         self._check_error(self.cdll.bgmg_calc_univariate_delta_posterior(self._context_id, trait, pi_vec, sig2_zero, sig2_beta, self.num_tag, c0, c1, c2))
         return (c0, c1, c2)
 
-    # TBD: implement bivariate-specific functions    
-    '''    
-    function cost = calc_bivariate_cost(obj, pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero)
-        cost = calllib('bgmg', 'bgmg_calc_bivariate_cost', obj.Context, 3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero); obj.check();
-    end
-    function pdf  = calc_bivariate_pdf(obj, pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero, zgrid1, zgrid2)
-        pBuffer = libpointer('singlePtr', zeros(length(zgrid1), 1, 'single'));
-        calllib('bgmg', 'bgmg_calc_bivariate_pdf', obj.Context, length(pi_vec), pi_vec, length(sig2_beta), sig2_beta, rho_beta, length(sig2_zero), sig2_zero, rho_zero, length(zgrid1), zgrid1, zgrid2, pBuffer); obj.check(); 
-        pdf = reshape(pBuffer.Value', size(zgrid1)); clear pBuffer
-    end
-    '''
+    def calc_bivariate_cost(self, pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero):
+        pi_vec = (pi_vec if isinstance(pi_vec, np.ndarray) else np.array(pi_vec)).astype(np.float32)
+        sig2_beta = (sig2_beta if isinstance(sig2_beta, np.ndarray) else np.array(sig2_beta)).astype(np.float32)
+        sig2_zero = (sig2_zero if isinstance(sig2_zero, np.ndarray) else np.array(sig2_zero)).astype(np.float32)
+        cost = self.cdll.bgmg_calc_bivariate_cost(self._context_id, np.size(pi_vec), pi_vec, np.size(sig2_beta), sig2_beta, rho_beta, np.size(sig2_zero), sig2_zero, rho_zero)
+        self._check_error()
+        return cost
+
+    def calc_bivariate_pdf(self, pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero, zvec1, zvec2):
+        #, int length, float* zvec1, float* zvec2, float* pdf
+        pi_vec = (pi_vec if isinstance(pi_vec, np.ndarray) else np.array(pi_vec)).astype(np.float32)
+        sig2_beta = (sig2_beta if isinstance(sig2_beta, np.ndarray) else np.array(sig2_beta)).astype(np.float32)
+        sig2_zero = (sig2_zero if isinstance(sig2_zero, np.ndarray) else np.array(sig2_zero)).astype(np.float32)
+        zvec1 = (zvec1 if isinstance(zvec1, np.ndarray) else np.array(zvec1)).astype(np.float32)
+        zvec2 = (zvec2 if isinstance(zvec2, np.ndarray) else np.array(zvec2)).astype(np.float32)
+        if np.size(zvec1) != np.size(zvec2): raise(RuntimeError("len(zvec1) != len(zvec2)"))
+        pdf = np.zeros(shape=(np.size(zvec1),), dtype=np.float32)
+        self._check_error(self.cdll.bgmg_calc_bivariate_pdf(self._context_id, np.size(pi_vec), pi_vec, np.size(sig2_beta), sig2_beta, rho_beta, np.size(sig2_zero), sig2_zero, rho_zero, np.size(zvec1), zvec1, zvec2, pdf))
+        return pdf
 
     def __str__(self):
         description = []

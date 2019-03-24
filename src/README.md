@@ -145,3 +145,22 @@ matlab -nodisplay -nosplash -nodesktop -r "
 The argument to matlab call has to be in one string; or, start matlab and enter all commands that set parameters, followed by `UGMG_cpp_run_simple` to trigger the actual run.
 
 To update access: ``setfacl -R -m u:<user>:rx /home/oleksand/GitHub/precimed``.
+
+
+** Building for MiXeR python wrapper on Abel
+
+```
+module load cmake/3.7.1 python2/2.7.15.gnu
+wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz 
+tar -xzvf boost_1_69_0.tar.gz && cd boost_1_69_0
+./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --j12
+cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_69_0 
+make -j16 
+```
+
+I used ``python2/2.7.15.gnu`` to compile boost and mixer, but then run with ``python3/3.7.0.gnu``.
+The toolchains are almost equal so it should make no difference when re-compile with ``python3/3.7.0.gnu``.
+```
+  1) binutils/2.26        2) gcc/6.1.0            3) openmpi.gnu/1.10.6   4) python2/2.7.15.gnu
+  1) binutils/2.26        2) gcc/6.1.0            3) openmpi.gnu/1.10.6   4) openssl/1_1_1        5) python3/3.7.0.gnu
+```

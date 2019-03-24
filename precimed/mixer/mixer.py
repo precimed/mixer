@@ -175,7 +175,7 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, fit_sequence, init_p
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "constrained" fit'))
             libbgmg.set_option('fast_cost', 0)
             libbgmg.log_message("fit_type==constrained, UnivariateParametrization_constH2_constSIG2ZERO.fit(), 'full model...'")
-            params, details = UnivariateParametrization_constH2_cRonstSIG2ZERO(init_pi=params._pi, const_params=params,
+            params, details = UnivariateParametrization_constH2_constSIG2ZERO(init_pi=params._pi, const_params=params,
                 lib=libbgmg, trait=trait).fit(optimizer)
             libbgmg.log_message("fit_type==constrained: Done, {}".format(params))
         elif fit_type == 'full':

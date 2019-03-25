@@ -59,7 +59,7 @@ def fix_and_validate_args(args):
 def convert_args_to_libbgmg_options(args):
     libbgmg_options = {
         'r2min': args.r2min, 'kmax': args.kmax, 'max_causals': args.max_causals,
-        'num_components': 1 if (args.trait2_file is None) else 3,
+        'num_components': 1 if (not args.trait2_file) else 3,
         'cache_tag_r2sum': args.cache_tag_r2sum, 'threads': args.threads, 'seed': args.seed,
         'z1max': args.z1max, 'z2max': args.z2max,
     }

@@ -193,6 +193,34 @@ class UnivariateParametrization_constH2_constSIG2ZERO(object):
         result = optimizer(self._calc_cost, self._init_vec)
         return self._vec_to_params(result.x), result
 
+# Parametrization that constraints sig2_zero parameter, and a product of sig2_beta and pi
+class UnivariateParametrization_constH2_constSIG2ZERO_boundedPI(object):
+    def __init__(self, const_params, max_pi, lib, trait):
+        # const_params is params to derive constraints
+        self._const_params = const_params
+        self._lib = lib
+        self._trait = trait
+        self._max_pi = max_pi
+
+        # we need an offset from zero for Brent method to converge
+        # in our domain a polygenicity below 1e-5 is basically a mendelian trait
+        self._eps_pi = 1e-5 
+
+    def _vec_to_params(self, pi):
+        if pi<epsval: pi=epsval
+        if pi>self._max_pi: pi=self._max_pi
+        sig2_beta = (self._const_params._sig2_beta * self._const_params._pi) / pi
+        return UnivariateParams(pi=pi,
+                                sig2_beta=sig2_beta,
+                                sig2_zero=self._const_params._sig2_zero)
+    
+    def _calc_cost(self, vec):
+        return self._vec_to_params(vec).cost(self._lib, self._trait)
+    
+    def fit(self, scalar_optimizer):
+        result = scalar_optimizer(self._calc_cost, self._eps_pi, self._max_pi - self._eps_pi)
+        return self._vec_to_params(result.x), result
+
 # Unconstrained parametrization with "independent axis", i.e.
 #   x1 = log(sig2_zero)
 #   x2 = log(atanh(pi)) + log(sig2_beta)
@@ -282,7 +310,7 @@ class BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO_boundedPI(ob
         return self._vec_to_params(vec).cost(self._lib)
     
     # optimizer can be, for example
-    # scalar_optimizer = lambda func, xLeft, xRight: scipy.optimize.minimize_scalar(func,  method='bounded', bounds=[xLeft, xRight])
+    # scalar_optimizer = lambda func, xLeft, xRight: scipy.optimize.minimize_scalar(func,  method='Brent', bracket=[xLeft, xRight])
     def fit(self, scalar_optimizer):
         result = scalar_optimizer(self._calc_cost, self._min_pi12, self._max_pi12)
         return self._vec_to_params(result.x), result

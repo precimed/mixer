@@ -21,6 +21,7 @@ from utils import _logit_logistic_converter
 from utils import _arctanh_tanh_converter
 from utils import UnivariateParametrization_constPI
 from utils import UnivariateParametrization_constH2_constSIG2ZERO
+from utils import UnivariateParametrization_constH2_constSIG2ZERO_boundedPI
 from utils import UnivariateParametrization_constPI_constSIG2BETA
 from utils import UnivariateParametrization
 from utils import BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO
@@ -150,7 +151,7 @@ def load_bivariate_params_file(fname):
             UnivariateParams(pi=p['pi'][0]+p['pi'][2], sig2_beta=p['sig2_beta'][0], sig2_zero=p['sig2_zero'][0]),
             UnivariateParams(pi=p['pi'][1]+p['pi'][2], sig2_beta=p['sig2_beta'][1], sig2_zero=p['sig2_zero'][1]))
 
-def apply_univariate_fit_sequence(args, libbgmg, optimizer, fit_sequence, init_params=None, trait=1):
+def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fit_sequence, init_params=None, trait=1):
     # 'load', 'init', 'inflation', 'constrained', 'full'
     params=init_params
     for fit_type in fit_sequence:
@@ -258,8 +259,8 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
         elif fit_type == 'inflation':
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "inflation" fit'))
-            params1 = apply_univariate_fit_sequence(args, libbgmg, optimizer, ['inflation'], init_params=params1, trait=1)
-            params2 = apply_univariate_fit_sequence(args, libbgmg, optimizer, ['inflation'], init_params=params2, trait=2)
+            params1 = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params1, trait=1)
+            params2 = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params2, trait=2)
             libbgmg.log_message("fit_type==inflation: BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI.fit(), 'fast model'...")
             libbgmg.set_option('fast_cost', 1)
             params, details = BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI(
@@ -321,7 +322,7 @@ if __name__ == "__main__":
 
     if not args.trait2_file:
         results['analysis'] = 'univariate'
-        params = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, args.fit_sequence)
+        params = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, args.fit_sequence)
         results['params'] = {'pi': params._pi, 'sig2_beta': params._sig2_beta, 'sig2_zero': params._sig2_zero}
         if np.isfinite(args.ci_alpha):
             libbgmg.log_message("Uncertainty estimation...")

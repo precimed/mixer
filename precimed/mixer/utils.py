@@ -334,7 +334,7 @@ class BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(object):
 class BivariateParametrization_constUNIVARIATE(object):
     def __init__(self, const_params1, const_params2, init_pi12, init_rho_beta, init_rho_zero, lib):
         max_pi12 = min(const_params1._pi, const_params2._pi)
-        assert((init_pi12 >= 0) and (init_pi12 < max_pi12))
+        assert((init_pi12 >= 0) and (init_pi12 <= max_pi12))
         assert(abs(init_rho_beta) <= 1.0)
         assert(abs(init_rho_zero) <= 1.0)
         

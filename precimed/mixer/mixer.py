@@ -306,7 +306,8 @@ if __name__ == "__main__":
 
     # TBD: specify stop criteria
     nelder_optimizer = lambda func, x0: scipy.optimize.minimize(func, x0, method='Nelder-Mead')
-    scalar_optimizer = lambda func, xLeft, xRight: scipy.optimize.minimize_scalar(func,  method='bounded', bounds=[xLeft, xRight])
+    #scalar_optimizer = lambda func, xLeft, xRight: scipy.optimize.minimize_scalar(func,  method='bounded', bounds=[xLeft, xRight])
+    scalar_optimizer = lambda func, xLeft, xRight: scipy.optimize.minimize_scalar(func,  method='Brent', bracket=[xLeft, xRight])
    
     totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))
 

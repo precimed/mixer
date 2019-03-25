@@ -266,7 +266,10 @@ class BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO_boundedPI(ob
         self._lib = lib
         
     def _vec_to_params(self, pi12):
-        assert (self._min_pi12 <= pi12) and (pi12 <= self._max_pi12)
+        # The following assertion doesn't work with Brent method, which may evaluate outside of the bracket range
+        #assert (self._min_pi12 <= pi12) and (pi12 <= self._max_pi12)
+        if pi12 < self._min_pi12: pi12 = self._min_pi12
+        if pi12 > self._max_pi12: pi12 = self._max_pi12
         rho_beta = self._const_rg * np.sqrt(self._const_params1._pi * self._const_params2._pi) / pi12
         assert abs(rho_beta) <= 1
         return BivariateParams(pi=[self._const_params1._pi - pi12, self._const_params2._pi - pi12, pi12], 

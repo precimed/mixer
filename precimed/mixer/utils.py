@@ -202,10 +202,6 @@ class UnivariateParametrization_constH2_constSIG2ZERO_boundedPI(object):
         self._trait = trait
         self._max_pi = max_pi
 
-        # we need an offset from zero for Brent method to converge
-        # in our domain a polygenicity below 1e-5 is basically a mendelian trait
-        self._eps_pi = 1e-5 
-
     def _vec_to_params(self, pi):
         if pi<epsval: pi=epsval
         if pi>self._max_pi: pi=self._max_pi
@@ -218,7 +214,7 @@ class UnivariateParametrization_constH2_constSIG2ZERO_boundedPI(object):
         return self._vec_to_params(vec).cost(self._lib, self._trait)
     
     def fit(self, scalar_optimizer):
-        result = scalar_optimizer(self._calc_cost, self._eps_pi, self._max_pi - self._eps_pi)
+        result = scalar_optimizer(self._calc_cost)
         return self._vec_to_params(result.x), result
 
 # Unconstrained parametrization with "independent axis", i.e.
@@ -312,7 +308,7 @@ class BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO_boundedPI(ob
     # optimizer can be, for example
     # scalar_optimizer = lambda func, xLeft, xRight: scipy.optimize.minimize_scalar(func,  method='Brent', bracket=[xLeft, xRight])
     def fit(self, scalar_optimizer):
-        result = scalar_optimizer(self._calc_cost, self._min_pi12, self._max_pi12)
+        result = scalar_optimizer(self._calc_cost)
         return self._vec_to_params(result.x), result
 
 # BGMG_cpp_fit_bivariate_fast (fits pi12 and rho_beta constrained on rg and all univariate params)

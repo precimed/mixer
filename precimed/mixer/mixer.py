@@ -166,9 +166,11 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
                 const_pi=1.0, init_sig2_zero=np.var(libbgmg.get_zvec(trait)),
                 init_sig2_beta=1.0/np.mean(libbgmg.get_nvec(trait)),
                 lib=libbgmg, trait=trait).fit(optimizer)
+            libbgmg.log_message("fit_type==init: intermediate {}".format(params))
             libbgmg.log_message("fit_type==init: UnivariateParametrization_constH2_constSIG2ZERO.fit() with 'fast model'...")
             params, details = UnivariateParametrization_constH2_constSIG2ZERO(init_pi=0.01, const_params=params,
                 lib=libbgmg, trait=trait).fit(optimizer)
+            libbgmg.log_message("fit_type==init: intermediate {}".format(params))
             libbgmg.log_message("fit_type==init: UnivariateParametrization.fit() with 'fast model'...")
             params, details = UnivariateParametrization(init_params=params, lib=libbgmg, trait=trait).fit(optimizer)
             libbgmg.log_message("fit_type==init: Done, {}".format(params))
@@ -232,19 +234,33 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             libbgmg.log_message("fit_type==init: Done, {}".format(params))
             
         elif fit_type == 'constrained':
-            # Constrained optimization intentionally does params._pi[2] to initialize,
+            # Constrained optimization intgentionally does params._pi[2] to initialize,
             # because "fast cost" function used in 'init' sometimes leads to biased estimates,
             # which give to bad initial guess for the "full cost".
             # Hense we use scalar_optimizer (golden search on bounded interval) which does not require x0.
 
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "constrained" fit'))
-            libbgmg.log_message("fit_type==constrained: BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO_boundedPI.fit(), 'full model'...")
+            max_pi12 = np.min([params1._pi, params2._pi])
+            min_pi12 = abs(params._rg()) * np.sqrt(params1._pi * params2._pi)
+            init_pi12 = np.sqrt(np.max([min_pi12, np.min([max_pi12/2.0, 1e-6])]) * max_pi12)
+            libbgmg.log_message("fit_type==constrained: BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO.fit(init_pi12={}), 'full model'...".format(init_pi12))
+            libbgmg.set_option('fast_cost', 0)
+            params, details = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(
+                const_params1=params1, const_params2=params2,
+                const_rg=params._rg(), const_rho_zero=params._rho_zero,
+                init_pi12=init_pi12,
+                lib=libbgmg).fit(optimizer)
+            libbgmg.log_message("fit_type==constrained: intermediate {}".format(params))
+
+            brent_pi12min = np.max([min_pi12, params._pi[2]/10])
+            brent_pi12max = np.min([max_pi12, params._pi[2]*10])
+            libbgmg.log_message("fit_type==constrained: BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO_boundedPI.fit([{}, {}]), 'full model'...".format(brent_pi12min, brent_pi12max))
             libbgmg.set_option('fast_cost', 0)
             params, details = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO_boundedPI(
                 const_params1=params1, const_params2=params2,
                 const_rg=params._rg(), const_rho_zero=params._rho_zero,
-                lib=libbgmg).fit(scalar_optimizer)
+                lib=libbgmg).fit(lambda x: scalar_optimizer(x, brent_pi12min, brent_pi12max))
             libbgmg.log_message("fit_type==constrained: Done, {}".format(params))
         elif fit_type == 'full':
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))

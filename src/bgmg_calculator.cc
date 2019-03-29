@@ -66,7 +66,7 @@ std::vector<float>* BgmgCalculator::get_nvec(int trait_index) {
   return (trait_index == 1) ? &nvec1_ : &nvec2_;
 }
 
-BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), r2_min_(0.0), z1max_(1e10), z2max_(1e10), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false), ld_matrix_csr_(*this) {
+BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false), ld_matrix_csr_(*this) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
   seed_ = (boost::posix_time::microsec_clock::local_time() - time_epoch).ticks();
 }
@@ -94,11 +94,10 @@ int64_t BgmgCalculator::set_zvec(int trait, int length, float* values) {
 
 int64_t BgmgCalculator::set_nvec(int trait, int length, float* values) {
   if ((trait != 1) && (trait != 2)) BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
-  for (int i = 0; i < length; i++) {
-    if (!std::isfinite(values[i])) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined values"));
-  }
-
-  LOG << " set_nvec(trait=" << trait << "); ";
+  
+  int num_undef = 0;
+  for (int i = 0; i < length; i++) if (!std::isfinite(values[i])) num_undef++;
+  LOG << " set_nvec(trait=" << trait << "); num_undef=" << num_undef;
   check_num_tag(length);
   get_nvec(trait)->assign(values, values + length);
   return 0;
@@ -145,6 +144,8 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
     z2max_ = value; return 0;
   } else if (!strcmp(option, "fast_cost")) {
     use_fast_cost_calc_ = (value != 0); return 0;
+  } else if (!strcmp(option, "use_complete_tag_indices")) {
+    use_complete_tag_indices_ = (value != 0); return 0;
   } else if (!strcmp(option, "threads")) {
     if (value > 0) {
       LOG << "omp_set_num_threads(" << static_cast<int>(value) << ")";
@@ -591,6 +592,8 @@ int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float
 
       for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
         if (weights_[tag_index] == 0) continue;
+        if (!std::isfinite(nvec[tag_index])) continue;
+
         const double tag_weight = static_cast<double>(weights_[tag_index]);
 
         float tag_r2sum_value = tag_r2sum[tag_index];
@@ -739,6 +742,8 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
     }
 
     for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+     if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+
       const float tag_r2sum_value = tag_r2sum[tag_index];
       const float delta2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta;  // S^2_kj
       const float sig2eff = delta2eff + sig2_zero;
@@ -766,6 +771,7 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
   const double pi_k = 1.0 / static_cast<double>(k_max_);
   static const double inv_sqrt_2pi = 0.3989422804014327;
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
     c0[tag_index] = pi_k * inv_sqrt_2pi * c0_global[tag_index];
     c1[tag_index] = pi_k * inv_sqrt_2pi * c1_global[tag_index];
     c2[tag_index] = pi_k * inv_sqrt_2pi * c2_global[tag_index];
@@ -812,7 +818,7 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index])) continue;
+    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
 
     double pdf_tag = 0.0f;
     for (int k_index = 0; k_index < k_max_; k_index++) {
@@ -888,7 +894,7 @@ double BgmgCalculator::calc_univariate_cost_cache_deriv(int trait_index, float p
 #pragma omp for schedule(static)
     for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
       if (weights_[tag_index] == 0) continue;
-      if (!std::isfinite(zvec[tag_index])) continue;
+      if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
 
       for (int k_index = 0; k_index < k_max_; k_index++) {
         float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
@@ -923,7 +929,7 @@ double BgmgCalculator::calc_univariate_cost_cache_deriv(int trait_index, float p
   int num_infinite = 0;
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index])) continue;
+    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
     double increment = -std::log(pdf_double[tag_index]) * weights_[tag_index];
     if (!std::isfinite(increment)) num_infinite++;
     log_pdf_total += increment;
@@ -967,7 +973,7 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
         rhs.find_tag_r2sum_no_cache(component_id, num_causals, k_index, &tag_r2sum);
         for (int tag_index = 0; tag_index < rhs.num_tag_; tag_index++) {
           if (rhs.weights_[tag_index] == 0) continue;
-          if (!std::isfinite(zvec[tag_index])) continue;
+          if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
 
           float tag_r2sum_value = tag_r2sum[tag_index];
           float sig2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta + sig2_zero;
@@ -1072,8 +1078,8 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index])) continue;
-    if (!std::isfinite(zvec2_[tag_index])) continue;
+    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
 
     const float z1 = zvec1_[tag_index];
     const float z2 = zvec2_[tag_index];
@@ -1154,8 +1160,8 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
 
       for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
         if (weights_[tag_index] == 0) continue;
-        if (!std::isfinite(zvec1_[tag_index])) continue;
-        if (!std::isfinite(zvec2_[tag_index])) continue;
+        if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
+        if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
 
         const float z1 = zvec1_[tag_index];
         const float z2 = zvec2_[tag_index];
@@ -1193,8 +1199,8 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
   int num_infinite = 0;
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index])) continue;
-    if (!std::isfinite(zvec2_[tag_index])) continue;
+    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
     double increment = -std::log(pdf_double[tag_index]) * weights_[tag_index];
     if (!std::isfinite(increment)) num_infinite++;
     log_pdf_total += increment;
@@ -1269,6 +1275,9 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
 
       for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
         if (weights_[tag_index] == 0) continue;
+        if (!std::isfinite(nvec1_[tag_index])) continue;
+        if (!std::isfinite(nvec2_[tag_index])) continue;
+
         double tag_weight = static_cast<double>(weights_[tag_index]);
 
         const float n1 = nvec1_[tag_index];
@@ -1354,6 +1363,7 @@ void BgmgCalculator::log_diagnostics() {
   for (int i = 0; i < last_num_causals_.size(); i++) 
     LOG << " diag: last_num_causals_[" << i << "]=" << last_num_causals_[i];
   LOG << " diag: options.k_max_=" << k_max_;
+  LOG << " diag: options.use_complete_tag_indices_=" << use_complete_tag_indices_;
   LOG << " diag: options.max_causals_=" << max_causals_;
   LOG << " diag: options.num_components_=" << num_components_;
   LOG << " diag: options.r2_min_=" << r2_min_;
@@ -1385,7 +1395,7 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index])) continue;
+    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
     double tag_weight = static_cast<double>(weights_[tag_index]);
     
     const float tag_r2 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2()[tag_index];
@@ -1443,8 +1453,8 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index])) continue;
-    if (!std::isfinite(zvec2_[tag_index])) continue;
+    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
 
     const float z1 = zvec1_[tag_index];
     const float n1 = nvec1_[tag_index];
@@ -1573,6 +1583,23 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
       std::vector<char> processed_tag_indices(num_tag_, 0);
       for (int i = 0; i < num_tag_; i++) candidate_tag_indices[i] = i;
       std::set<int> non_processed_tag_indices(candidate_tag_indices.begin(), candidate_tag_indices.end());
+
+      // random pruning should operate only on SNPs with defined zvec and nvec.
+      int num_excluded_by_defvec = 0;
+      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+        bool exclude = false;
+        if ((!zvec1_.empty()) && !std::isfinite(zvec1_[tag_index])) exclude = true;
+        if ((!nvec1_.empty()) && !std::isfinite(nvec1_[tag_index])) exclude = true;
+        if ((!zvec2_.empty()) && !std::isfinite(zvec2_[tag_index])) exclude = true;
+        if ((!nvec2_.empty()) && !std::isfinite(nvec2_[tag_index])) exclude = true;
+        if (exclude) {
+          processed_tag_indices[tag_index] = 1;         // mark as processed, and
+          non_processed_tag_indices.erase(tag_index);   // remove from the set
+          num_excluded_by_defvec++;
+        }
+      }
+      if ((prune_i == 0) && (num_excluded_by_defvec > 0))
+        LOG << " set_weights_randprune excludes " << num_excluded_by_defvec << " variants due to undefined zvec or nvec";
 
       while (candidate_tag_indices.size() > 0) {
         // Here is the logic:
@@ -1987,7 +2014,7 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
   // Find tag indices
   std::vector<int> tag_indices;
   for (int i = 0; i < bim_file_.size(); i++)
-    if (defvec[i]) tag_indices.push_back(i);
+    if (defvec[i] || use_complete_tag_indices_) tag_indices.push_back(i);
 
   // Initialize bgmg_calculator, e.i.
   // - set_tag_indices
@@ -2002,8 +2029,9 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
   if (!trait1_file.empty()) {
     std::vector<float> zvec(tag_indices.size(), 0), nvec(tag_indices.size(), 0);
     for (int i = 0; i < tag_indices.size(); i++) {
-      zvec[i] = trait1_file_object.zscore()[tag_indices[i]];
-      nvec[i] = trait1_file_object.sample_size()[tag_indices[i]];
+      const int snp_index = tag_indices[i];
+      zvec[i] = defvec[snp_index] ? trait1_file_object.zscore()[snp_index] : NAN;
+      nvec[i] = defvec[snp_index] ? trait1_file_object.sample_size()[snp_index] : NAN;
     }
     set_zvec(1, tag_indices.size(), &zvec[0]);
     set_nvec(1, tag_indices.size(), &nvec[0]);
@@ -2012,8 +2040,9 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
   if (!trait2_file.empty()) {
     std::vector<float> zvec(tag_indices.size(), 0), nvec(tag_indices.size(), 0);
     for (int i = 0; i < tag_indices.size(); i++) {
-      zvec[i] = trait2_file_object.zscore()[tag_indices[i]];
-      nvec[i] = trait2_file_object.sample_size()[tag_indices[i]];
+      const int snp_index = tag_indices[i];
+      zvec[i] = defvec[snp_index] ? trait2_file_object.zscore()[snp_index] : NAN;
+      nvec[i] = defvec[snp_index] ? trait2_file_object.sample_size()[snp_index] : NAN;
     }
     set_zvec(2, tag_indices.size(), &zvec[0]);
     set_nvec(2, tag_indices.size(), &nvec[0]);

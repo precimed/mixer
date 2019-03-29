@@ -66,7 +66,7 @@ def convert_args_to_libbgmg_options(args):
         'r2min': args.r2min, 'kmax': args.kmax, 'max_causals': args.max_causals,
         'num_components': 1 if (not args.trait2_file) else 3,
         'cache_tag_r2sum': args.cache_tag_r2sum, 'threads': args.threads, 'seed': args.seed,
-        'z1max': args.z1max, 'z2max': args.z2max, 'use_complete_tag_indices': 1
+        'z1max': args.z1max, 'z2max': args.z2max
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
 
@@ -302,6 +302,7 @@ if __name__ == "__main__":
 
     fix_and_validate_args(args)
 
+    libbgmg.set_option('use_complete_tag_indices', 1)
     libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, args.trait2_file,
         args.exclude, args.extract)
 

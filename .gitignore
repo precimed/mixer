@@ -1,4 +1,5 @@
 *.asv
+*.pyc
 *.log
 /.metadata/
 *__pycache__*

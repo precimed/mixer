@@ -32,6 +32,12 @@
 #include "bgmg_parse.h"
 #include "ld_matrix_csr.h"
 
+enum CostCalculator {
+  CostCalculator_Sampling = 0,
+  CostCalculator_Gaussian = 1,
+  CostCalculator_Convolve = 2,
+}; 
+
 // Singleton class to manage a collection of objects, identifiable with some integer ID.
 template<class Type>
 class TemplateManager : boost::noncopyable {
@@ -363,12 +369,16 @@ class BgmgCalculator : public TagToSnpMapping {
   float z1max_;
   float z2max_;
   float max_chisq_trait2_;
-  bool use_fast_cost_calc_;
+  CostCalculator cost_calculator_;
   bool cache_tag_r2sum_;
+  double cubature_abs_error_;
+  double cubature_rel_error_;
+  int cubature_max_evals_;
   void check_num_snp(int length);
   void check_num_tag(int length);
   double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+  double calc_univariate_cost_convolve(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
 
   BimFile bim_file_;
 

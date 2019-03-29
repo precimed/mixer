@@ -43,6 +43,8 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/filesystem.hpp>
 
+#include "cubature/cubature.h"
+
 // Include namespace SEMT & global operators.
 #define SEMT_DISABLE_PRINT 0
 #include "semt/Semt.h"
@@ -66,7 +68,10 @@ std::vector<float>* BgmgCalculator::get_nvec(int trait_index) {
   return (trait_index == 1) ? &nvec1_ : &nvec2_;
 }
 
-BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), num_components_(1), max_causals_(100000), use_fast_cost_calc_(false), cache_tag_r2sum_(false), ld_matrix_csr_(*this) {
+BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), 
+    use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), num_components_(1), 
+    max_causals_(100000), cost_calculator_(CostCalculator_Sampling), cache_tag_r2sum_(false), ld_matrix_csr_(*this),
+    cubature_abs_error_(0), cubature_rel_error_(1e-4), cubature_max_evals_(0) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
   seed_ = (boost::posix_time::microsec_clock::local_time() - time_epoch).ticks();
 }
@@ -134,21 +139,29 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
     clear_state(); num_components_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "seed")) {
     seed_ = static_cast<int64_t>(value); return 0;
+  } else if (!strcmp(option, "cubature_max_evals")) {
+    cubature_max_evals_ = static_cast<int64_t>(value); return 0;
+  } else if (!strcmp(option, "cubature_abs_error")) {
+    cubature_abs_error_ = value; return 0;
+  } else if (!strcmp(option, "cubature_rel_error")) {
+    cubature_rel_error_ = value; return 0;
   } else if (!strcmp(option, "fast_cost")) {
-    use_fast_cost_calc_ = (value != 0); return 0;
+    cost_calculator_ = (value != 0) ? CostCalculator_Sampling : CostCalculator_Gaussian; return 0;
+  } else if (!strcmp(option, "cost_calculator")) {
+    int int_value = (int)value;
+    if (int_value < 0 || int_value > 2) BGMG_THROW_EXCEPTION(::std::runtime_error("cost_calculator value must be 0 (Sampling), 1 (Gaussian) or 2 (Convolve)"));
+    cost_calculator_ = (CostCalculator)int_value; return 0;
   } else if (!strcmp(option, "z1max")) {
     if (value <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("zmax must be positive"));
     z1max_ = value; return 0;
   } else if (!strcmp(option, "z2max")) {
     if (value <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("zmax must be positive"));
     z2max_ = value; return 0;
-  } else if (!strcmp(option, "fast_cost")) {
-    use_fast_cost_calc_ = (value != 0); return 0;
   } else if (!strcmp(option, "use_complete_tag_indices")) {
     use_complete_tag_indices_ = (value != 0); return 0;
   } else if (!strcmp(option, "threads")) {
     if (value > 0) {
-      LOG << "omp_set_num_threads(" << static_cast<int>(value) << ")";
+      LOG << " omp_set_num_threads(" << static_cast<int>(value) << ")";
       omp_set_num_threads(static_cast<int>(value));
     }
     return 0;
@@ -752,7 +765,7 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
       const float sig2eff_5_2 = sig2eff_3_2 * sig2eff;
 
       const float z = zvec[tag_index];
-      const float exp_common = exp(-0.5f*z*z / sig2eff);
+      const float exp_common = std::exp(-0.5f*z*z / sig2eff);
 
       c0_local[tag_index] += (exp_common / sig2eff_1_2);
       c1_local[tag_index] += (exp_common / sig2eff_3_2) * z * delta2eff;
@@ -789,11 +802,12 @@ double BgmgCalculator::calc_univariate_cost(int trait_index, float pi_vec, float
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   double cost;
-  if (use_fast_cost_calc_) cost = calc_univariate_cost_fast(trait_index,pi_vec, sig2_zero, sig2_beta);
+  if (cost_calculator_ == CostCalculator_Gaussian) cost = calc_univariate_cost_fast(trait_index, pi_vec, sig2_zero, sig2_beta);
+  else if (cost_calculator_ == CostCalculator_Convolve) cost = calc_univariate_cost_convolve(trait_index, pi_vec, sig2_zero, sig2_beta);
   else if (!cache_tag_r2sum_) cost = calc_univariate_cost_nocache(trait_index, pi_vec, sig2_zero, sig2_beta);
   else cost = calc_univariate_cost_cache(trait_index, pi_vec, sig2_zero, sig2_beta);
 
-  if (!use_fast_cost_calc_) loglike_cache_.add_entry(pi_vec, sig2_zero, sig2_beta, cost);
+  loglike_cache_.add_entry(pi_vec, sig2_zero, sig2_beta, cost);
   return cost;
 }
 
@@ -1039,11 +1053,11 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
   if (pi_vec_len != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: pi_vec_len != 3"));
 
   double cost;
-  if (use_fast_cost_calc_) cost = calc_bivariate_cost_fast(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  if (cost_calculator_==CostCalculator_Gaussian) cost = calc_bivariate_cost_fast(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   else if (!cache_tag_r2sum_) cost = calc_bivariate_cost_nocache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   else cost = calc_bivariate_cost_cache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
 
-  if (!use_fast_cost_calc_) loglike_cache_.add_entry(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
+  loglike_cache_.add_entry(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
   return cost;
 }
 
@@ -1369,9 +1383,15 @@ void BgmgCalculator::log_diagnostics() {
   LOG << " diag: options.r2_min_=" << r2_min_;
   LOG << " diag: options.z1max_=" << z1max_;
   LOG << " diag: options.z2max_=" << z2max_;
-  LOG << " diag: options.use_fast_cost_calc_=" << (use_fast_cost_calc_ ? "yes" : "no");
+  LOG << " diag: options.cost_calculator_=" << ((int)cost_calculator_) <<
+    ((cost_calculator_==CostCalculator_Sampling) ? " (Sampling)" :
+     (cost_calculator_==CostCalculator_Gaussian) ? " (Gaussian)" :
+     (cost_calculator_==CostCalculator_Convolve) ? " (Convolve)" : " (Unknown)");
   LOG << " diag: options.cache_tag_r2sum_=" << (cache_tag_r2sum_ ? "yes" : "no");
   LOG << " diag: options.seed_=" << (seed_);
+  LOG << " diag: options.cubature_abs_error_=" << (cubature_abs_error_);
+  LOG << " diag: options.cubature_rel_error_=" << (cubature_rel_error_);
+  LOG << " diag: options.cubature_max_evals_=" << (cubature_max_evals_);
   LOG << " diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
 }
 
@@ -1523,6 +1543,151 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
     LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   LOG << "<calc_bivariate_cost_fast(" << ss << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
+  return log_pdf_total;
+}
+
+class UnivariateCharacteristicFunctionData {
+ public:
+  float pi_vec;
+  float sig2_zero;
+  float sig2_beta;
+  int tag_index;  // for which SNP to calculate the characteristic function
+                  // note that use_complete_tag_indices_ must be enabled for "convolve" calculator, 
+                  // so "tag" and "snp" are in the same indexing
+  LdMatrixRow* ld_matrix_row;
+  const std::vector<float>* hvec;
+  const std::vector<float>* zvec;
+  const std::vector<float>* nvec;
+  const std::vector<float>* ld_tag_sum_r2_below_r2min_adjust_for_hvec;
+  int func_evals;
+};
+
+int calc_univariate_characteristic_function_times_cosinus(unsigned ndim, const double *x, void *raw_data, unsigned fdim, double* fval) {
+  assert(ndim == 1);
+  assert(fdim == 1);
+  const float t = (float)x[0];
+  const float minus_tsqr_half = -t*t/2.0;
+  UnivariateCharacteristicFunctionData* data = (UnivariateCharacteristicFunctionData *)raw_data;
+  const float pi1 = data->pi_vec;
+  const float pi0 = 1.0 - pi1;
+  const float sig2beta_times_nval = (*data->nvec)[data->tag_index] * data->sig2_beta;
+  const float zval = (*data->zvec)[data->tag_index];
+  
+    // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
+  const float inf_adj = pi1 * (*data->ld_tag_sum_r2_below_r2min_adjust_for_hvec)[data->tag_index] * sig2beta_times_nval;
+  const float m_1_pi = M_1_PI;
+
+  double result = m_1_pi * cos(t * zval) * std::exp(minus_tsqr_half * (data->sig2_zero + inf_adj));
+  
+  auto iter_end = data->ld_matrix_row->end();
+  for (auto iter = data->ld_matrix_row->begin(); iter < iter_end; iter++) {
+    int snp_index = iter.tag_index();  // yes, this is correct - snp_index on the LHS, tag_index on the RHS.
+                                       // ld_matrix was designed to work with "sampling" calculator which require 
+                                       // a mapping from a causal SNP "i" to all tag SNPs "j" that are in LD with "i".
+                                       // however, for for "convolve" we are interested in mapping from a tag SNP "j"
+                                       // to all causal SNPs "i" in LD with "j". To make this work we store a complete
+                                       // LD matrix (e.g. _num_snp == _num_tag), and explore symmetry of the matrix. 
+    float r2 = iter.r2();
+    float hval = (*data->hvec)[snp_index];
+    result *= (double)(pi0 + pi1 * std::exp(minus_tsqr_half * sig2beta_times_nval * r2 * hval));
+  }
+
+  data->func_evals++;
+  *fval = result;
+  return 0; 
+}
+
+int calc_univariate_characteristic_function_for_integration(unsigned ndim, const double *x, void *raw_data, unsigned fdim, double* fval) {
+  const double t = x[0];
+  const double inv_1_minus_t = 1.0 / (1.0 - t);
+  const double x_transformed = t * inv_1_minus_t;
+  const double jacob = inv_1_minus_t * inv_1_minus_t;
+  int retval = calc_univariate_characteristic_function_times_cosinus(ndim, &x_transformed, raw_data, fdim, fval);
+  (*fval) *= jacob;
+  return retval;
+}
+
+double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
+  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  std::vector<float>& zvec(*get_zvec(trait_index));
+
+  // Use an approximation that preserves variance and kurtosis.
+  // This gives a robust cost function that scales up to a very high pivec, including infinitesimal model pi==1.
+
+  std::stringstream ss;
+  ss << "trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta;
+  LOG << ">calc_univariate_cost_convolve(" << ss.str() << ")";
+
+  double log_pdf_total = 0.0;
+  int num_snp_failed = 0;
+  int num_infinite = 0;
+  double func_evals = 0.0;
+  SimpleTimer timer(-1);
+
+  std::vector<float> hvec;
+  find_hvec(*this, &hvec);
+
+  // in use_complete_tag_indices_ many tag indices are undefined
+  // we compute deftag to avoid unbalanced load across OpenMP threads (static scheduler is still the way to go here.)
+  std::vector<int> deftag_indices;
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (weights_[tag_index] == 0) continue;
+    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+    deftag_indices.push_back(tag_index);
+  }
+  const int num_deftag = deftag_indices.size();
+
+#pragma omp parallel
+  {
+    LdMatrixRow ld_matrix_row;
+    UnivariateCharacteristicFunctionData data;
+    data.pi_vec = pi_vec;
+    data.sig2_zero = sig2_zero;
+    data.sig2_beta = sig2_beta;
+    data.ld_matrix_row = &ld_matrix_row;
+    data.hvec = &hvec;
+    data.zvec = &zvec;
+    data.nvec = &nvec;
+    data.ld_tag_sum_r2_below_r2min_adjust_for_hvec = &ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+
+#pragma omp for schedule(static) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals)
+    for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+      int tag_index = deftag_indices[deftag_index];
+      double tag_weight = static_cast<double>(weights_[tag_index]);
+
+      const int causal_index = tag_index; // yes, causal==tag in this case -- see a large comment in calc_univariate_characteristic_function_times_cosinus function.
+      ld_matrix_csr_.extract_row(causal_index, data.ld_matrix_row);
+      data.tag_index = tag_index;
+      data.func_evals = 0;
+
+      double tag_pdf = 0, tag_pdf_err = 0;
+      const double xmin = 0, xmax = 1;
+      const int integrand_fdim = 1, ndim = 1;
+      int cubature_result = hcubature(integrand_fdim, calc_univariate_characteristic_function_for_integration,
+        &data, ndim, &xmin, &xmax, cubature_max_evals_, cubature_abs_error_, cubature_rel_error_, ERROR_INDIVIDUAL, &tag_pdf, &tag_pdf_err);
+      func_evals += (weights_[tag_index] * (double)data.func_evals);
+      if (cubature_result != 0) { num_snp_failed++; continue; }
+
+      if (tag_pdf <= 0)
+        tag_pdf = 1e-100;
+
+      double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
+      if (!std::isfinite(increment)) num_infinite++;
+      log_pdf_total += increment;
+    }
+  }    
+
+  if (num_snp_failed > 0)
+    LOG << " warning: hcubature failed for " << num_snp_failed << " tag snps";
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
+
+  double total_weight = 0.0;
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) total_weight += weights_[tag_index];
+  func_evals /= total_weight;
+
+  LOG << "<calc_univariate_cost_convolve(" << ss.str() << "), cost=" << log_pdf_total << ", evals=" << func_evals << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 

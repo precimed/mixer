@@ -51,6 +51,7 @@ public:
     for (int i = 0; i < num_snp_; i++) tag_to_snp_.push_back(i);
     std::shuffle(tag_to_snp_.begin(), tag_to_snp_.end(), g_);
     tag_to_snp_.resize(num_tag_);
+    std::sort(tag_to_snp_.begin(), tag_to_snp_.end()); 
 
     regenerate_zvec();
     for (int i = 0; i < num_tag_; i++) n_vec_.push_back(n);
@@ -226,8 +227,8 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
 
   calc.calc_univariate_power(trait_index, 0.2, 1.2, 0.1, zthresh, nvec.size(), &nvec[0], &svec[0]);
   for (int i = 1; i < svec.size(); i++) ASSERT_TRUE(svec[i] > svec[i-1]);
-  if (r2min != 0) { ASSERT_NEAR(svec.front(), 0.000107377324, 1e-6); ASSERT_NEAR(svec.back(), 0.815517604, 1e-6); }
-  else {            ASSERT_NEAR(svec.front(), 0.000107204585, 1e-6); ASSERT_NEAR(svec.back(), 0.814647913, 1e-6); }
+  if (r2min != 0) { ASSERT_NEAR(svec.front(), 5.83319888e-05, 1e-6); ASSERT_NEAR(svec.back(), 0.708118141, 1e-6); }
+  else {            ASSERT_NEAR(svec.front(), 5.78380204e-05, 1e-6); ASSERT_NEAR(svec.back(), 0.706565797, 1e-6); }
 
   std::vector<float> c0(num_tag, 0.0), c1(num_tag, 0.0), c2(num_tag, 0.0);
   calc.calc_univariate_delta_posterior(trait_index, 0.2, 1.2, 0.1, num_tag, &c0[0], &c1[0], &c2[0]);
@@ -254,7 +255,64 @@ TEST(UgmgTest, CalcLikelihood_with_r2min) {
   const float r2min = 0.2;
   const int trait_index = 1;
   UgmgTest_CalcLikelihood(r2min, trait_index);
+}
 
+void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index) {
+  // Tests calculation of log likelihood, assuming that all data is already set
+  int num_snp = 10;
+  int num_tag = 10;
+  int kmax = 20000; // #permutations
+  int N = 100;  // gwas sample size, constant across all variants
+  TestMother tm(num_snp, num_tag, N);
+  BgmgCalculator calc;
+  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_option("seed", 0);
+  calc.set_option("max_causals", num_snp);
+  calc.set_option("kmax", kmax);
+  calc.set_option("num_components", 1);
+  calc.set_option("cache_tag_r2sum", 1);
+  calc.set_option("r2min", r2min);
+  calc.set_option("use_complete_tag_indices", 1);
+  calc.set_option("threads", 1);
+
+  calc.set_zvec(trait_index, num_tag, &tm.zvec()->at(0));
+  calc.set_nvec(trait_index, num_tag, &tm.nvec()->at(0));
+  calc.set_weights(num_tag, &tm.weights()->at(0));
+
+  std::vector<int> snp_index, tag_index;
+  std::vector<float> r2;
+  tm.make_r2(20, &snp_index, &tag_index, &r2);
+  
+  calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
+  calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
+  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_csr();  // finalize csr structure
+
+  calc.set_option("cost_calculator", 0);
+  double cost_sampling = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
+  calc.set_option("cost_calculator", 1);
+  double cost_gaussian = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
+  calc.set_option("cost_calculator", 2);
+  double cost_convolve = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
+
+  ASSERT_TRUE(std::isfinite(cost_sampling));
+  ASSERT_TRUE(std::isfinite(cost_gaussian));
+  ASSERT_TRUE(std::isfinite(cost_convolve));
+  std::cout << cost_sampling << ", " << (cost_gaussian-cost_sampling) << ", " << (cost_convolve-cost_sampling) << std::endl;
+}
+
+// --gtest_filter=UgmgTest.CalcLikelihood
+TEST(UgmgTest, CalcConvolveLikelihood) {
+  const float r2min = 0.0; 
+  const int trait_index = 2; // use second trait for calculations; should work...
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index);
+}
+
+// --gtest_filter=UgmgTest.CalcLikelihood_with_r2min
+TEST(UgmgTest, CalcConvolveLikelihood_with_r2min) {
+  const float r2min = 0.2;
+  const int trait_index = 1;
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index);
 }
 
 void BgmgTest_CalcLikelihood(float r2min) {
@@ -321,7 +379,7 @@ void BgmgTest_CalcLikelihood(float r2min) {
   calc.set_option("fast_cost", 1);
   cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
   ASSERT_TRUE(std::isfinite(cost));
-  ASSERT_EQ(calc.get_loglike_cache_size(), 1);  // still 2 because fast_cost calculations should not be cached (the idea was to only cache full cost function, not an approximate solution)
+  ASSERT_EQ(calc.get_loglike_cache_size(), 2);
 
   std::vector<float> zvec1_grid, zvec2_grid, zvec_pdf, zvec_pdf_nocache;
   for (float z1 = -10; z1 < 10; z1 += 0.2) {

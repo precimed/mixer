@@ -98,6 +98,7 @@ set(SRC_LIST
 	nlopt/stop.c
 	nlopt/qsort_r.c
 	nlopt/timer.c
+	cubature/hcubature.c
 	FastDifferentialCoding/fastdelta.c
 )
 
@@ -128,6 +129,7 @@ set(SRC_TEST_LIST
 	test/semt_test.cc
 	test/streamvbyte_test.cc
 	test/nlopt_test.cc
+	test/cubature_test.cc
 	test/bgmg_test_main.cc
 	test/bgmg_math_test.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc

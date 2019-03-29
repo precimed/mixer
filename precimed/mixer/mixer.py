@@ -44,6 +44,10 @@ MASTHEAD += "* Norwegian Centre for Mental Disorders Research / University of Os
 MASTHEAD += "* GNU General Public License v3\n"
 MASTHEAD += "***********************************************************************\n"
 
+_cost_calculator_sampling = 0
+_cost_calculator_gaussian = 1
+_cost_calculator_convolve = 2
+
 def fix_and_validate_args(args):
     arg_dict = vars(args)
     chr2use_arg = arg_dict["chr2use"]
@@ -62,7 +66,7 @@ def convert_args_to_libbgmg_options(args):
         'r2min': args.r2min, 'kmax': args.kmax, 'max_causals': args.max_causals,
         'num_components': 1 if (not args.trait2_file) else 3,
         'cache_tag_r2sum': args.cache_tag_r2sum, 'threads': args.threads, 'seed': args.seed,
-        'z1max': args.z1max, 'z2max': args.z2max,
+        'z1max': args.z1max, 'z2max': args.z2max, 'use_complete_tag_indices': 1
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
 
@@ -160,7 +164,7 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
             params = load_univariate_params_file(args.load_params_file)
             libbgmg.log_message("fit_type==load: Done, {}".format(params))
         elif fit_type == 'init':
-            libbgmg.set_option('fast_cost', 1)
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
             libbgmg.log_message("fit_type==init: UnivariateParametrization_constPI.fit(const_pi=1.0) with 'fast model'...")
             params, details = UnivariateParametrization_constPI(
                 const_pi=1.0, init_sig2_zero=np.ma.var(np.ma.masked_invalid(libbgmg.get_zvec(trait))),
@@ -176,20 +180,20 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
             libbgmg.log_message("fit_type==init: Done, {}".format(params))
         elif fit_type == 'constrained':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "constrained" fit'))
-            libbgmg.set_option('fast_cost', 0)
+            libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
             libbgmg.log_message("fit_type==constrained, UnivariateParametrization_constH2_constSIG2ZERO.fit(), 'full model...'")
             params, details = UnivariateParametrization_constH2_constSIG2ZERO(init_pi=params._pi, const_params=params,
                 lib=libbgmg, trait=trait).fit(optimizer)
             libbgmg.log_message("fit_type==constrained: Done, {}".format(params))
         elif fit_type == 'full':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
-            libbgmg.set_option('fast_cost', 0)
+            libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
             libbgmg.log_message("fit_type==full: UnivariateParametrization.fit(), 'full model'...")
             params, details = UnivariateParametrization(init_params=params, lib=libbgmg, trait=trait).fit(optimizer)
             libbgmg.log_message("fit_type==full: Done, {}".format(params))
         elif fit_type == 'inflation':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "inflation" fit'))
-            libbgmg.set_option('fast_cost', 1)
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
             libbgmg.log_message("fit_type==inflation: UnivariateParametrization_constPI_constSIG2BETA.fit(), 'fast model'...")
             params, details = UnivariateParametrization_constPI_constSIG2BETA(
                 init_sig2_zero=params._sig2_zero, const_params=params, lib=libbgmg, trait=trait).fit(optimizer)
@@ -224,7 +228,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
         elif fit_type == 'init':
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
             libbgmg.log_message("fit_type==init: BivariateParametrization_constUNIVARIATE.fit(), 'fast model'...")
-            libbgmg.set_option('fast_cost', 1)
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
             zcorr = np.ma.corrcoef(np.ma.masked_invalid(libbgmg.zvec1), np.ma.masked_invalid(libbgmg.zvec2))[0, 1]
             params, details = BivariateParametrization_constUNIVARIATE(
                 const_params1=params1, const_params2=params2,
@@ -245,28 +249,18 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             min_pi12 = abs(params._rg()) * np.sqrt(params1._pi * params2._pi)
             init_pi12 = np.sqrt(np.max([min_pi12, np.min([max_pi12/2.0, 1e-6])]) * max_pi12)
             libbgmg.log_message("fit_type==constrained: BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO.fit(init_pi12={}), 'full model'...".format(init_pi12))
-            libbgmg.set_option('fast_cost', 0)
+            libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
             params, details = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(
                 const_params1=params1, const_params2=params2,
                 const_rg=params._rg(), const_rho_zero=params._rho_zero,
                 init_pi12=init_pi12,
                 lib=libbgmg).fit(optimizer)
-            libbgmg.log_message("fit_type==constrained: intermediate {}".format(params))
-
-            brent_pi12min = np.max([min_pi12, params._pi[2]/10])
-            brent_pi12max = np.min([max_pi12, params._pi[2]*10])
-            libbgmg.log_message("fit_type==constrained: BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO_boundedPI.fit([{}, {}]), 'full model'...".format(brent_pi12min, brent_pi12max))
-            libbgmg.set_option('fast_cost', 0)
-            params, details = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO_boundedPI(
-                const_params1=params1, const_params2=params2,
-                const_rg=params._rg(), const_rho_zero=params._rho_zero,
-                lib=libbgmg).fit(lambda x: scalar_optimizer(x, brent_pi12min, brent_pi12max))
-            libbgmg.log_message("fit_type==constrained: Done, {}".format(params))
+            libbgmg.log_message("fit_type==constrained: Done {}".format(params))
         elif fit_type == 'full':
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
             libbgmg.log_message("fit_type==full: BivariateParametrization_constUNIVARIATE.fit(), 'full model'...")
-            libbgmg.set_option('fast_cost', 0)
+            libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
             params, details = BivariateParametrization_constUNIVARIATE(
                 const_params1=params1, const_params2=params2,
                 init_pi12=params._pi[2], init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
@@ -278,7 +272,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             params1 = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params1, trait=1)
             params2 = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params2, trait=2)
             libbgmg.log_message("fit_type==inflation: BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI.fit(), 'fast model'...")
-            libbgmg.set_option('fast_cost', 1)
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
             params, details = BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI(
                 const_params1=params1, const_params2=params2,
                 const_pi12=params._pi[2], const_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
@@ -342,7 +336,7 @@ if __name__ == "__main__":
         results['params'] = {'pi': params._pi, 'sig2_beta': params._sig2_beta, 'sig2_zero': params._sig2_zero}
         if np.isfinite(args.ci_alpha):
             libbgmg.log_message("Uncertainty estimation...")
-            libbgmg.set_option('fast_cost', 1)        
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
             results['ci'], _ = _calculate_univariate_uncertainty(UnivariateParametrization(params, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
             for k, v in results['ci'].items():
                 libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
@@ -354,7 +348,7 @@ if __name__ == "__main__":
         results['params'] = {'pi': params._pi, 'sig2_beta': params._sig2_beta, 'sig2_zero': params._sig2_zero, 'rho_zero': params._rho_zero, 'rho_beta': params._rho_beta}
         if np.isfinite(args.ci_alpha):
             libbgmg.log_message("Uncertainty estimation...")
-            libbgmg.set_option('fast_cost', 1)        
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
             _, ci_sample1 = _calculate_univariate_uncertainty(UnivariateParametrization(params1, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
             _, ci_sample2 = _calculate_univariate_uncertainty(UnivariateParametrization(params2, libbgmg, trait=2), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
             results['ci'], _ = _calculate_bivariate_uncertainty(BivariateParametrization_constUNIVARIATE(

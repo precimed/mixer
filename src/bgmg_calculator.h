@@ -358,6 +358,7 @@ class BgmgCalculator : public TagToSnpMapping {
   int max_causals_;
   int num_components_;
   int64_t seed_;
+  bool use_complete_tag_indices_;  // an option that indicates that all SNPs are TAG (i.e. num_snp_ == num_tag_).
   float r2_min_;
   float z1max_;
   float z2max_;

@@ -163,8 +163,8 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
             libbgmg.set_option('fast_cost', 1)
             libbgmg.log_message("fit_type==init: UnivariateParametrization_constPI.fit(const_pi=1.0) with 'fast model'...")
             params, details = UnivariateParametrization_constPI(
-                const_pi=1.0, init_sig2_zero=np.var(libbgmg.get_zvec(trait)),
-                init_sig2_beta=1.0/np.mean(libbgmg.get_nvec(trait)),
+                const_pi=1.0, init_sig2_zero=np.ma.var(np.ma.masked_invalid(libbgmg.get_zvec(trait))),
+                init_sig2_beta=1.0/np.nanmean(libbgmg.get_nvec(trait)),
                 lib=libbgmg, trait=trait).fit(optimizer)
             libbgmg.log_message("fit_type==init: intermediate {}".format(params))
             libbgmg.log_message("fit_type==init: UnivariateParametrization_constH2_constSIG2ZERO.fit() with 'fast model'...")
@@ -225,7 +225,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
             libbgmg.log_message("fit_type==init: BivariateParametrization_constUNIVARIATE.fit(), 'fast model'...")
             libbgmg.set_option('fast_cost', 1)
-            zcorr = np.corrcoef(libbgmg.zvec1, libbgmg.zvec2)[0, 1]
+            zcorr = np.ma.corrcoef(np.ma.masked_invalid(libbgmg.zvec1), np.ma.masked_invalid(libbgmg.zvec2))[0, 1]
             params, details = BivariateParametrization_constUNIVARIATE(
                 const_params1=params1, const_params2=params2,
                 init_pi12=min(params1._pi, params2._pi)*0.1,
@@ -334,7 +334,7 @@ if __name__ == "__main__":
     results['options']['num_snp'] = float(libbgmg.num_snp)
     results['options']['num_tag'] = float(libbgmg.num_tag)
     results['options']['sum_weights'] = float(np.sum(libbgmg.weights))
-    results['options']['trait1_nval'] = float(np.median(libbgmg.get_nvec(trait=1)))
+    results['options']['trait1_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=1)))
 
     if not args.trait2_file:
         results['analysis'] = 'univariate'
@@ -349,7 +349,7 @@ if __name__ == "__main__":
             libbgmg.log_message("Uncertainty estimation done.")
     else:
         results['analysis'] = 'bivariate'
-        results['options']['trait2_nval'] = float(np.median(libbgmg.get_nvec(trait=2)))
+        results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
         params, params1, params2 = apply_bivariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer)
         results['params'] = {'pi': params._pi, 'sig2_beta': params._sig2_beta, 'sig2_zero': params._sig2_zero, 'rho_zero': params._rho_zero, 'rho_beta': params._rho_beta}
         if np.isfinite(args.ci_alpha):

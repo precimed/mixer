@@ -315,6 +315,63 @@ TEST(UgmgTest, CalcConvolveLikelihood_with_r2min) {
   UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index);
 }
 
+void BgmgTest_CalcLikelihood_testConvolution(float r2min) {
+  // Tests calculation of log likelihood, assuming that all data is already set
+  int num_snp = 10;
+  int num_tag = 10;
+  int kmax = 20000; // #permutations
+  int N = 100;  // gwas sample size, constant across all variants
+  TestMother tm(num_snp, num_tag, N);
+  BgmgCalculator calc;
+  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_option("seed", 0);
+  calc.set_option("max_causals", num_snp);
+  calc.set_option("kmax", kmax);
+  calc.set_option("num_components", 3);
+  calc.set_option("cache_tag_r2sum", 1);
+  calc.set_option("r2min", r2min);
+  calc.set_option("use_complete_tag_indices", 1);
+  calc.set_option("threads", 1);
+
+  int trait = 1;
+  calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
+  calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+
+  trait = 2; tm.regenerate_zvec();
+  calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
+  calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+
+  calc.set_weights(num_tag, &tm.weights()->at(0));
+
+  std::vector<int> snp_index, tag_index;
+  std::vector<float> r2;
+  tm.make_r2(20, &snp_index, &tag_index, &r2);
+
+  calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
+  calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
+  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_csr();  // finalize csr structure
+  calc.set_weights_randprune(20, 0.25);
+
+  float pi_vec[] = { 0.1, 0.2, 0.15 };
+  float sig2_beta[] = { 0.5, 0.3 };
+  float rho_beta = 0.8;
+  float sig2_zero[] = { 1.1, 1.2 };
+  float rho_zero = 0.1;
+
+  calc.set_option("cost_calculator", 0);
+  double cost_sampling = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
+  calc.set_option("cost_calculator", 1);
+  double cost_gaussian = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
+  calc.set_option("cost_calculator", 2);
+  double cost_convolve = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
+
+  ASSERT_TRUE(std::isfinite(cost_sampling));
+  ASSERT_TRUE(std::isfinite(cost_gaussian));
+  ASSERT_TRUE(std::isfinite(cost_convolve));
+  std::cout << cost_sampling << ", " << (cost_gaussian-cost_sampling) << ", " << (cost_convolve-cost_sampling) << std::endl;
+}
+
 void BgmgTest_CalcLikelihood(float r2min) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
@@ -398,6 +455,18 @@ void BgmgTest_CalcLikelihood(float r2min) {
 
   for (int i = 0; i < zvec_pdf_nocache.size(); i++)
     ASSERT_FLOAT_EQ(zvec_pdf[i], zvec_pdf_nocache[i]);
+}
+
+// --gtest_filter=BgmgTest.CalcConvolveLikelihood
+TEST(BgmgTest, CalcConvolveLikelihood) {
+  const float r2min = 0.0; 
+  BgmgTest_CalcLikelihood_testConvolution(r2min);
+}
+
+// --gtest_filter=BgmgTest.CalcConvolveLikelihood_with_r2min
+TEST(BgmgTest, CalcConvolveLikelihood_with_r2min) {
+  const float r2min = 0.2;
+  BgmgTest_CalcLikelihood_testConvolution(r2min);
 }
 
 // bgmg-test.exe --gtest_filter=BgmgTest.CalcLikelihood

@@ -56,6 +56,8 @@
 #include "bgmg_math.h"
 #include "fmath.hpp"
 
+#include <immintrin.h>  // _mm_setcsr, _mm_getcsr
+
 #define FLOAT_TYPE float
 
 std::vector<float>* BgmgCalculator::get_zvec(int trait_index) {
@@ -74,6 +76,19 @@ BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed
     cubature_abs_error_(0), cubature_rel_error_(1e-4), cubature_max_evals_(0) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
   seed_ = (boost::posix_time::microsec_clock::local_time() - time_epoch).ticks();
+
+  // flush denormals to zero --- implemented only for GCC. Need the same for clang and MS VS.
+  // https://stackoverflow.com/questions/9314534/why-does-changing-0-1f-to-0-slow-down-performance-by-10x
+  // https://carlh.net/plugins/denormals.php
+  // #if defined(__clang__)
+  // #include <fenv.h>
+  // fesetenv(FE_DFL_DISABLE_SSE_DENORMS_ENV);
+  // #elif  defined(_MSC_VER)
+  // #include <immintrin.h>
+  // _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+  // _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+
+  _mm_setcsr( _mm_getcsr() | (1<<15) | (1<<6));
 }
 
 void BgmgCalculator::check_num_snp(int length) {

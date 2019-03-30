@@ -66,7 +66,7 @@ def convert_args_to_libbgmg_options(args):
         'r2min': args.r2min, 'kmax': args.kmax, 'max_causals': args.max_causals,
         'num_components': 1 if (not args.trait2_file) else 3,
         'cache_tag_r2sum': args.cache_tag_r2sum, 'threads': args.threads, 'seed': args.seed,
-        'z1max': args.z1max, 'z2max': args.z2max
+        'z1max': args.z1max, 'z2max': args.z2max, 'cubature_rel_error': 1e-6, 'cubature_max_evals':100 
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
 

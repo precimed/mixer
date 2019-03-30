@@ -1864,9 +1864,6 @@ double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_ve
       double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
       if (!std::isfinite(increment)) num_infinite++;
       log_pdf_total += increment;
-
-#pragma omp critical
-      if (deftag_index < 10) LOG << tag_pdf << ", " << data.func_evals;
     }
   }    
 

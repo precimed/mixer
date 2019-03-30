@@ -1069,6 +1069,7 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
 
   double cost;
   if (cost_calculator_==CostCalculator_Gaussian) cost = calc_bivariate_cost_fast(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
+  else if (cost_calculator_==CostCalculator_Convolve) cost = calc_bivariate_cost_convolve(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   else if (!cache_tag_r2sum_) cost = calc_bivariate_cost_nocache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   else cost = calc_bivariate_cost_cache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
 
@@ -1627,9 +1628,6 @@ double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_v
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));
 
-  // Use an approximation that preserves variance and kurtosis.
-  // This gives a robust cost function that scales up to a very high pivec, including infinitesimal model pi==1.
-
   std::stringstream ss;
   ss << "trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta;
   LOG << ">calc_univariate_cost_convolve(" << ss.str() << ")";
@@ -1703,6 +1701,185 @@ double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_v
   func_evals /= total_weight;
 
   LOG << "<calc_univariate_cost_convolve(" << ss.str() << "), cost=" << log_pdf_total << ", evals=" << func_evals << ", elapsed time " << timer.elapsed_ms() << "ms";
+  return log_pdf_total;
+}
+
+class BivariateCharacteristicFunctionData {
+ public:
+  const float* pi_vec;
+  const float* sig2_zero;
+  const float* sig2_beta;
+  float rho_beta;
+  float rho_zero;
+
+  int tag_index;  // for which SNP to calculate the characteristic function
+                  // note that use_complete_tag_indices_ must be enabled for "convolve" calculator, 
+                  // so "tag" and "snp" are in the same indexing
+  LdMatrixRow* ld_matrix_row;
+
+  const std::vector<float>* hvec;
+  const std::vector<float>* zvec1;
+  const std::vector<float>* nvec1;
+  const std::vector<float>* zvec2;
+  const std::vector<float>* nvec2;
+  const std::vector<float>* ld_tag_sum_r2_below_r2min_adjust_for_hvec;
+  int func_evals;
+};
+
+inline float exp_quad_form(float t1, float t2, float a11, float a12, float a22) {
+  return std::exp(-0.5f*(t1*t1 * a11 + 2.0*t1*t2*a12 + t2*t2*a22));
+}
+
+int calc_bivariate_characteristic_function_times_cosinus(unsigned ndim, const double *x, void *raw_data, unsigned fdim, double* fval) {
+  assert(ndim == 2);
+  assert(fdim == 1);
+  const float t1 = (float)x[0];
+  const float t2 = (float)x[1];
+  BivariateCharacteristicFunctionData* data = (BivariateCharacteristicFunctionData *)raw_data;
+  const float pi1 = data->pi_vec[0];
+  const float pi2 = data->pi_vec[1];
+  const float pi12 = data->pi_vec[2];
+  const float pi0 = 1.0 - pi1 - pi2 - pi12;
+  const float eff_sig2_beta1 = (*data->nvec1)[data->tag_index] * data->sig2_beta[0];
+  const float eff_sig2_beta2 = (*data->nvec2)[data->tag_index] * data->sig2_beta[1];
+  const float eff_sig2_beta_cov = data->rho_beta * sqrt(eff_sig2_beta1 * eff_sig2_beta2);
+  const float sig2_zero_cov = data->rho_zero * sqrt(data->sig2_zero[0] * data->sig2_zero[1]);
+  const float zval1 = (*data->zvec1)[data->tag_index];
+  const float zval2 = (*data->zvec2)[data->tag_index];
+  const float inf_adj_r2 = (*data->ld_tag_sum_r2_below_r2min_adjust_for_hvec)[data->tag_index];
+  const float scaling_factor = 0.5 * M_1_PI * M_1_PI;
+
+  double result = scaling_factor * cos(t1 * zval1 + t2 * zval2);
+  result *= exp_quad_form(t1, t2, data->sig2_zero[0], sig2_zero_cov, data->sig2_zero[1]);
+
+  // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
+  result *= exp_quad_form(t1, t2, pi1 * eff_sig2_beta1 * inf_adj_r2, 0, 0);
+  result *= exp_quad_form(t1, t2, 0, 0, pi2 * eff_sig2_beta2 * inf_adj_r2);
+  result *= exp_quad_form(t1, t2, pi12 * eff_sig2_beta1 * inf_adj_r2,
+                                  pi12 * eff_sig2_beta_cov * inf_adj_r2,
+                                  pi12 * eff_sig2_beta2 * inf_adj_r2);
+  
+  auto iter_end = data->ld_matrix_row->end();
+  for (auto iter = data->ld_matrix_row->begin(); iter < iter_end; iter++) {
+    int snp_index = iter.tag_index();  // yes, this is correct - snp_index on the LHS, tag_index on the RHS. 
+                                       // See comment in the univariate counterpart, calc_univariate_characteristic_function_times_cosinus
+    const float r2 = iter.r2();
+    const float hval = (*data->hvec)[snp_index];
+    const float r2_times_hval = r2 * hval;
+    result *= (double) (pi0 + 
+                        pi1 * exp_quad_form(t1, t2, eff_sig2_beta1 * r2_times_hval, 0, 0) +
+                        pi2 * exp_quad_form(t1, t2, 0, 0, eff_sig2_beta2 * r2_times_hval) + 
+                        pi12* exp_quad_form(t1, t2, eff_sig2_beta1 * r2_times_hval,
+                                                    eff_sig2_beta_cov * r2_times_hval,
+                                                    eff_sig2_beta2 * r2_times_hval));
+  }
+
+  data->func_evals++;
+  *fval = result;
+  return 0; 
+}
+
+int calc_bivariate_characteristic_function_for_integration(unsigned ndim, const double *x, void *raw_data, unsigned fdim, double* fval) {
+  double x_transformed[2];
+
+  const double t1 = x[0];
+  const double inv_1_minus_t1 = 1.0 / (1.0 - t1);
+  x_transformed[0] = t1 * inv_1_minus_t1;
+  const double jacob1 = inv_1_minus_t1 * inv_1_minus_t1;
+
+  const double t2 = x[1];
+  const double inv_1_minus_t2sqr = 1.0 / (1.0 - t2*t2);
+  x_transformed[1] = t2 * inv_1_minus_t2sqr;
+  const double jacob2 = (1 + t2*t2) * inv_1_minus_t2sqr * inv_1_minus_t2sqr;
+  
+  int retval = calc_bivariate_characteristic_function_times_cosinus(ndim, x_transformed, raw_data, fdim, fval);
+  (*fval) *= (jacob1 * jacob2);
+  return retval;
+}
+
+double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
+  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
+
+  std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
+  LOG << ">calc_bivariate_cost_convolve(" << ss << ")";
+
+  double log_pdf_total = 0.0;
+  int num_snp_failed = 0;
+  int num_infinite = 0;
+  double func_evals = 0.0;
+  SimpleTimer timer(-1);
+
+  std::vector<float> hvec;
+  find_hvec(*this, &hvec);
+
+  // in use_complete_tag_indices_ many tag indices are undefined
+  // we compute deftag to avoid unbalanced load across OpenMP threads (static scheduler is still the way to go here.)
+  std::vector<int> deftag_indices;
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (weights_[tag_index] == 0) continue;
+    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+    deftag_indices.push_back(tag_index);
+  }
+  const int num_deftag = deftag_indices.size();
+
+#pragma omp parallel
+  {
+    LdMatrixRow ld_matrix_row;
+    BivariateCharacteristicFunctionData data;
+    data.pi_vec = pi_vec;
+    data.sig2_zero = sig2_zero;
+    data.sig2_beta = sig2_beta;
+    data.rho_zero = rho_zero;
+    data.rho_beta = rho_beta;
+    data.ld_matrix_row = &ld_matrix_row;
+    data.hvec = &hvec;
+    data.zvec1 = &zvec1_;
+    data.nvec1 = &nvec1_;
+    data.zvec2 = &zvec2_;
+    data.nvec2 = &nvec2_;
+    data.ld_tag_sum_r2_below_r2min_adjust_for_hvec = &ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+
+#pragma omp for schedule(static) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals)
+    for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+      int tag_index = deftag_indices[deftag_index];
+      double tag_weight = static_cast<double>(weights_[tag_index]);
+
+      const int causal_index = tag_index; // yes, causal==tag in this case -- see a large comment in calc_univariate_characteristic_function_times_cosinus function.
+      ld_matrix_csr_.extract_row(causal_index, data.ld_matrix_row);
+      data.tag_index = tag_index;
+      data.func_evals = 0;
+
+      double tag_pdf = 0, tag_pdf_err = 0;
+      const double xmin[2] = {0.0, -1.0}, xmax[2] = {1.0, 1.0};
+      const int integrand_fdim = 1, ndim = 2;
+      int cubature_result = hcubature(integrand_fdim, calc_bivariate_characteristic_function_for_integration,
+        &data, ndim, xmin, xmax, cubature_max_evals_, cubature_abs_error_, cubature_rel_error_, ERROR_INDIVIDUAL, &tag_pdf, &tag_pdf_err);
+      func_evals += (weights_[tag_index] * (double)data.func_evals);
+      if (cubature_result != 0) { num_snp_failed++; continue; }
+
+      if (tag_pdf <= 0)
+        tag_pdf = 1e-100;
+
+      double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
+      if (!std::isfinite(increment)) num_infinite++;
+      log_pdf_total += increment;
+
+#pragma omp critical
+      if (deftag_index < 10) LOG << tag_pdf << ", " << data.func_evals;
+    }
+  }    
+
+  if (num_snp_failed > 0)
+    LOG << " warning: hcubature failed for " << num_snp_failed << " tag snps";
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
+
+  double total_weight = 0.0;
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) total_weight += weights_[tag_index];
+  func_evals /= total_weight;
+
+  LOG << "<calc_bivariate_cost_convolve(" << ss << "), cost=" << log_pdf_total << ", evals=" << func_evals << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 

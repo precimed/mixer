@@ -181,6 +181,7 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
         elif fit_type == 'constrained':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "constrained" fit'))
             libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
+            libbgmg.set_option('cubature_max_evals', 100)
             libbgmg.log_message("fit_type==constrained, UnivariateParametrization_constH2_constSIG2ZERO.fit(), 'full model...'")
             params, details = UnivariateParametrization_constH2_constSIG2ZERO(init_pi=params._pi, const_params=params,
                 lib=libbgmg, trait=trait).fit(optimizer)
@@ -188,6 +189,7 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
         elif fit_type == 'full':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
             libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
+            libbgmg.set_option('cubature_max_evals', 100)
             libbgmg.log_message("fit_type==full: UnivariateParametrization.fit(), 'full model'...")
             params, details = UnivariateParametrization(init_params=params, lib=libbgmg, trait=trait).fit(optimizer)
             libbgmg.log_message("fit_type==full: Done, {}".format(params))
@@ -250,6 +252,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             init_pi12 = np.sqrt(np.max([min_pi12, np.min([max_pi12/2.0, 1e-6])]) * max_pi12)
             libbgmg.log_message("fit_type==constrained: BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO.fit(init_pi12={}), 'full model'...".format(init_pi12))
             libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
+            libbgmg.set_option('cubature_max_evals', 1000)
             params, details = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(
                 const_params1=params1, const_params2=params2,
                 const_rg=params._rg(), const_rho_zero=params._rho_zero,
@@ -261,6 +264,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
             libbgmg.log_message("fit_type==full: BivariateParametrization_constUNIVARIATE.fit(), 'full model'...")
             libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
+            libbgmg.set_option('cubature_max_evals', 1000)
             params, details = BivariateParametrization_constUNIVARIATE(
                 const_params1=params1, const_params2=params2,
                 init_pi12=params._pi[2], init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,

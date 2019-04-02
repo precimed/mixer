@@ -73,7 +73,7 @@ std::vector<float>* BgmgCalculator::get_nvec(int trait_index) {
 BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), 
     use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), num_components_(1), 
     max_causals_(100000), cost_calculator_(CostCalculator_Sampling), cache_tag_r2sum_(false), ld_matrix_csr_(*this),
-    cubature_abs_error_(0), cubature_rel_error_(1e-4), cubature_max_evals_(0) {
+    cubature_abs_error_(0), cubature_rel_error_(1e-4), cubature_max_evals_(0), calc_k_pdf_(false) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
   seed_ = (boost::posix_time::microsec_clock::local_time() - time_epoch).ticks();
 
@@ -154,6 +154,8 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
     clear_state(); num_components_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "seed")) {
     seed_ = static_cast<int64_t>(value); return 0;
+  } else if (!strcmp(option, "calc_k_pdf")) {
+    calc_k_pdf_ = (value != 0); return 0;
   } else if (!strcmp(option, "cubature_max_evals")) {
     cubature_max_evals_ = static_cast<int64_t>(value); return 0;
   } else if (!strcmp(option, "cubature_abs_error")) {
@@ -990,6 +992,9 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
 
   const double pi_k = 1.0 / static_cast<double>(rhs.k_max_);
 
+  rhs.k_pdf_.resize(rhs.k_max_, 0.0f);
+  for (int i = 0; i < rhs.k_max_; i++) rhs.k_pdf_[i] = 0;
+
   std::valarray<double> pdf_double(0.0, rhs.num_tag_);
 #pragma omp parallel
   {
@@ -1012,6 +1017,8 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
           const bool censoring = std::abs(tag_z) > rhs.z1max_;
           double pdf = static_cast<double>(censoring ? censored_cdf<T>(rhs.z1max_, s) : gaussian_pdf<T>(tag_z, s));
           pdf_double_local[tag_index] += pdf * pi_k;
+
+          if (rhs.calc_k_pdf_) rhs.k_pdf_[k_index] += (-std::log(pdf) * rhs.weights_[tag_index]);
         }
       }
 #pragma omp critical
@@ -1408,6 +1415,7 @@ void BgmgCalculator::log_diagnostics() {
   LOG << " diag: options.cubature_abs_error_=" << (cubature_abs_error_);
   LOG << " diag: options.cubature_rel_error_=" << (cubature_rel_error_);
   LOG << " diag: options.cubature_max_evals_=" << (cubature_max_evals_);
+  LOG << " diag: options.calc_k_pdf_=" << (calc_k_pdf_);
   LOG << " diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
 }
 
@@ -1887,6 +1895,7 @@ void BgmgCalculator::clear_state() {
 
   // clear ordering of SNPs
   snp_order_.clear();
+  k_pdf_.clear();
   tag_r2sum_.clear();
   last_num_causals_.clear();
 }
@@ -2012,6 +2021,38 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
     weights_[i] = static_cast<float>(passed_random_pruning[i]) / static_cast<float>(n);
 
   LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << "), elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}
+
+int64_t BgmgCalculator::set_snp_order(int component_id, int64_t length, const int* buffer) {
+  if ((component_id < 0) || (component_id >= num_components_)) BGMG_THROW_EXCEPTION(::std::runtime_error("component_id out of range"));
+  if (length != (max_causals_ * k_max_)) BGMG_THROW_EXCEPTION(::std::runtime_error("buffer length must be max_causals_ * k_max_"));
+  if ((snp_order_.size() != num_components_) || (snp_order_[component_id] == nullptr)) BGMG_THROW_EXCEPTION(::std::runtime_error("snp_order_.size() != num_components_, or is empty"));
+  if (snp_order_[component_id]->size() != length) BGMG_THROW_EXCEPTION(::std::runtime_error("snp_order_[component_id] has a wrong size"));
+  for (int64_t k = 0; k < k_max_; k++)
+    for (int64_t j = 0; j < max_causals_; j++)
+      (*snp_order_[component_id])(j, k) = buffer[k*max_causals_ + j];
+  LOG << " set_snp_order(component_id" << component_id << ")";
+  return 0;
+}
+
+int64_t BgmgCalculator::retrieve_snp_order(int component_id, int64_t length, int* buffer) {
+  if ((component_id < 0) || (component_id >= num_components_)) BGMG_THROW_EXCEPTION(::std::runtime_error("component_id out of range"));
+  if (length != (max_causals_ * k_max_)) BGMG_THROW_EXCEPTION(::std::runtime_error("buffer length must be max_causals_ * k_max_"));
+  if ((snp_order_.size() != num_components_) || (snp_order_[component_id] == nullptr)) BGMG_THROW_EXCEPTION(::std::runtime_error("snp_order_.size() != num_components_, or is empty"));
+  if (snp_order_[component_id]->size() != length) BGMG_THROW_EXCEPTION(::std::runtime_error("snp_order_[component_id] has a wrong size"));
+  for (int64_t k = 0; k < k_max_; k++)
+    for (int64_t j = 0; j < max_causals_; j++)
+      buffer[k*max_causals_ + j] = (*snp_order_[component_id])(j, k);
+  LOG << " retrieve_snp_order(component_id" << component_id << ")";
+  return 0;
+}
+
+int64_t BgmgCalculator::retrieve_k_pdf(int length, double* buffer) {
+  if (k_pdf_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("k_pdf_ is not generated; make sure 'calc_univariate_cost_nocache' is called."));
+  if (length != k_pdf_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  LOG << " retrieve_k_pdf()";
+  for (int i = 0; i < k_pdf_.size(); i++) buffer[i] = k_pdf_[i];
   return 0;
 }
 

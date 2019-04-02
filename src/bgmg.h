@@ -55,8 +55,15 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_get_num_snp(int context_id);
   DLL_PUBLIC int64_t bgmg_retrieve_tag_indices(int context_id, int num_tag, int* tag_indices);
 
+  DLL_PUBLIC int64_t bgmg_get_k_max(int context_id);
+  DLL_PUBLIC int64_t bgmg_get_max_causals(int context_id);
+
   DLL_PUBLIC int64_t bgmg_set_chrnumvec(int context_id, int length, int* values);
   DLL_PUBLIC int64_t bgmg_retrieve_chrnumvec(int context_id, int length, int* buffer);
+
+  DLL_PUBLIC int64_t bgmg_set_snp_order(int context_id, int component_id, int64_t length, int* values);
+  DLL_PUBLIC int64_t bgmg_retrieve_snp_order(int context_id, int component_id, int64_t length, int* values);
+  DLL_PUBLIC int64_t bgmg_retrieve_k_pdf(int context_id, int length, double* values);
 
   // Set variouns options:
   // diag, kmax, r2min, max_causals, num_components, seed, fast_cost, threads, cache_tag_r2sum; refer to BgmgCalculator::set_option for a full list.

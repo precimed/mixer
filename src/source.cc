@@ -95,6 +95,14 @@ int64_t bgmg_set_weights(int context_id, int length, float* values) {
   } CATCH_EXCEPTIONS;
 }
 
+int64_t bgmg_set_snp_order(int context_id, int component_id, int64_t length, int* values) {
+  try {
+    set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(values);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_snp_order(component_id, length, values);
+  } CATCH_EXCEPTIONS;
+}
+
 int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_indices) {
   try {
     if (!LoggerImpl::singleton().is_initialized()) LoggerImpl::singleton().init("bgmg.log");
@@ -115,6 +123,36 @@ int64_t bgmg_get_num_snp(int context_id) {
   try {
     set_last_error(std::string());
     return BgmgCalculatorManager::singleton().Get(context_id)->num_snp();
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_get_k_max(int context_id) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->k_max();
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_get_max_causals(int context_id) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->max_causals();
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_retrieve_snp_order(int context_id, int component_id, int64_t length, int* values) {
+  try {
+    set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(values);
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_snp_order(component_id, length, values);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_retrieve_k_pdf(int context_id, int length, double* values) {
+  try {
+    set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(values);
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_k_pdf(length, values);
   } CATCH_EXCEPTIONS;
 }
 

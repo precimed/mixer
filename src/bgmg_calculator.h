@@ -242,6 +242,10 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t set_chrnumvec(int num_snp, const int* chrlabel);
   int64_t retrieve_chrnumvec(int length, int* buffer);
 
+  int64_t set_snp_order(int component_id, int64_t length, const int* buffer);
+  int64_t retrieve_snp_order(int component_id, int64_t length, int* buffer);
+  int64_t retrieve_k_pdf(int length, double* buffer);
+
   // consume input in plink format, e.i. lower triangular LD r2 matrix
   // - snp_index is less than tag_index;
   // - does not contain r2=1.0 of the variant with itself
@@ -312,6 +316,9 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t seed() { return seed_; }
   void set_seed(int64_t seed) { seed_ = seed; }
 
+  int max_causals() const { return max_causals_; }
+  int k_max() const { return k_max_; }
+
   virtual int num_snp() { return num_snp_; }
   virtual int num_tag() { return num_tag_; }
   virtual const std::vector<int>& tag_to_snp() { return  tag_to_snp_; }
@@ -360,7 +367,7 @@ class BgmgCalculator : public TagToSnpMapping {
   std::vector<float>                               last_num_causals_;
 
   // options, and what do they affect
-  int k_max_;           
+  int k_max_;
   int max_causals_;
   int num_components_;
   int64_t seed_;
@@ -374,6 +381,8 @@ class BgmgCalculator : public TagToSnpMapping {
   double cubature_abs_error_;
   double cubature_rel_error_;
   int cubature_max_evals_;
+  std::vector<double> k_pdf_;  // the log-likelihood cost calculated independently for each of 0...k_max-1 selections of causal variants.            
+  bool calc_k_pdf_;            // a flag indicating whether we should calculate k_pdf_
   void check_num_snp(int length);
   void check_num_tag(int length);
   double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);

@@ -28,6 +28,7 @@ class LibBgmg(object):
         logging.info('__init__(lib_name={}, context_id={})'.format(self._lib_name, context_id))
 
         float32_pointer_type = np.ctypeslib.ndpointer(dtype=np.float32, ndim=1, flags='C_CONTIGUOUS')
+        float64_pointer_type = np.ctypeslib.ndpointer(dtype=np.float64, ndim=1, flags='C_CONTIGUOUS')
         int32_pointer_type = np.ctypeslib.ndpointer(dtype=np.int32, ndim=1, flags='C_CONTIGUOUS')
 
         # set function signatures ('restype' and 'argtype') for all functions that involve non-integer types
@@ -46,6 +47,9 @@ class LibBgmg(object):
         self.cdll.bgmg_retrieve_zvec.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_set_nvec.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_retrieve_nvec.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type]
+        self.cdll.bgmg_set_snp_order.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_longlong, int32_pointer_type]
+        self.cdll.bgmg_retrieve_snp_order.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_longlong, int32_pointer_type]
+        self.cdll.bgmg_retrieve_k_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float64_pointer_type]
         self.cdll.bgmg_set_option.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_double]
         self.cdll.bgmg_set_ld_r2_coo_from_file.argtypes = [ctypes.c_int, ctypes.c_char_p]
         self.cdll.bgmg_set_ld_r2_csr.argtypes = [ctypes.c_int, ctypes.c_int]
@@ -113,6 +117,14 @@ class LibBgmg(object):
         return self._check_error(self.cdll.bgmg_get_num_snp(self._context_id))
 
     @property
+    def max_causals(self):
+        return self._check_error(self.cdll.bgmg_get_max_causals(self._context_id))
+   
+    @property
+    def k_max(self):
+        return self._check_error(self.cdll.bgmg_get_k_max(self._context_id))
+
+    @property
     def defvec(self):
         numpy_ndarray = np.zeros(shape=(self.num_tag,), dtype=np.int32)
         self._check_error(self.cdll.bgmg_retrieve_tag_indices(self._context_id, np.size(numpy_ndarray), numpy_ndarray))
@@ -147,6 +159,10 @@ class LibBgmg(object):
     def chrnumvec(self, val):  
         self._set_vec_impl(self.cdll.bgmg_set_chrnumvec, np.int32, val, trait=None)
 
+    @property
+    def k_pdf(self):
+        return self._get_vec_impl(self.cdll.bgmg_retrieve_k_pdf, np.float64, self.k_max, trait=None)
+
     def set_zvec(self, val, trait):
         self._set_vec_impl(self.cdll.bgmg_set_zvec, np.float32, val, trait=trait)
 
@@ -158,6 +174,12 @@ class LibBgmg(object):
 
     def get_nvec(self, trait):
         return self._get_vec_impl(self.cdll.bgmg_retrieve_nvec, np.float32, self.num_tag, trait=trait)
+
+    def get_snp_order(self, component_id):
+        return self._get_vec_impl(self.cdll.bgmg_retrieve_snp_order, np.int32, self.k_max * self.max_causals, trait=component_id).reshape((self.k_max, self.max_causals))
+
+    def set_snp_order(self, component_id, val):
+        self._set_vec_impl(self.cdll.bgmg_set_snp_order, np.int32, val, trait=component_id)
 
     @property
     def zvec1(self):

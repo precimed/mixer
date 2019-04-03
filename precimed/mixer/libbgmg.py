@@ -59,7 +59,9 @@ class LibBgmg(object):
         self.cdll.bgmg_num_ld_r2_snp.argtypes = [ctypes.c_int, ctypes.c_int]
         self.cdll.bgmg_retrieve_ld_r2_snp.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, int32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_num_ld_r2_chr.argtypes = [ctypes.c_int, ctypes.c_int]
-        self.cdll.bgmg_retrieve_ld_r2_chr.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, int32_pointer_type, int32_pointer_type, float32_pointer_type]
+        self.cdll.bgmg_retrieve_ld_r2_chr.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_longlong, int32_pointer_type, int32_pointer_type, float32_pointer_type]
+        self.cdll.bgmg_num_ld_r2_snp_range.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
+        self.cdll.bgmg_retrieve_ld_r2_snp_range.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_longlong, int32_pointer_type, int32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_calc_univariate_cost.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_double, ctypes.c_double, ctypes.c_double]
         self.cdll.bgmg_calc_univariate_cost.restype = ctypes.c_double
         self.cdll.bgmg_calc_univariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type]
@@ -241,6 +243,20 @@ class LibBgmg(object):
         tag_array = np.zeros(shape=(num_ld_r2,), dtype=np.int32)
         r2_array = np.zeros(shape=(num_ld_r2,), dtype=np.float32)
         self._check_error(self.cdll.bgmg_retrieve_ld_r2_chr(self._context_id, chr_label, num_ld_r2, snp_array, tag_array, r2_array))
+        return (snp_array, tag_array, r2_array)
+
+    # return (snp, tag, r2) tuple, representing LD structure of a given range of snps
+    # [from_snp, to_snp) - left snp inclusive, right snp exclusive, values between 0 and num_snp.
+    # snp, tag and r2 are vectors of the same length
+    # snp gives an index of a reference snp
+    # tag gives an index of a tag snp
+    # r2 gives corresponding LD r2 correlation
+    def get_ld_r2_snp_range(self, from_snp, to_snp):
+        num_ld_r2 = self._check_error(self.cdll.bgmg_num_ld_r2_snp_range(self._context_id, from_snp, to_snp))
+        snp_array = np.zeros(shape=(num_ld_r2,), dtype=np.int32)
+        tag_array = np.zeros(shape=(num_ld_r2,), dtype=np.int32)
+        r2_array = np.zeros(shape=(num_ld_r2,), dtype=np.float32)
+        self._check_error(self.cdll.bgmg_retrieve_ld_r2_snp_range(self._context_id, from_snp, to_snp, num_ld_r2, snp_array, tag_array, r2_array))
         return (snp_array, tag_array, r2_array)
 
     def calc_univariate_cost(self, trait, pi_vec, sig2_zero, sig2_beta):

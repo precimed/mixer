@@ -2273,7 +2273,7 @@ int64_t BgmgCalculator::num_ld_r2_chr(int chr_label) {
   return retval;
 }
 
-int64_t BgmgCalculator::retrieve_ld_r2_chr(int chr_label, int length, int* snp_index, int* tag_index, float* r2) {
+int64_t BgmgCalculator::retrieve_ld_r2_chr(int chr_label, int64_t length, int* snp_index, int* tag_index, float* r2) {
   if (length != num_ld_r2_chr(chr_label)) BGMG_THROW_EXCEPTION(::std::runtime_error("length does not match num_ld_r2_chr"));
   LOG << " retrieve_ld_r2_chr(chr_label=" << chr_label << ")";
   
@@ -2458,4 +2458,32 @@ int64_t BgmgCalculator::convert_plink_ld(std::string plink_ld_gz, std::string pl
   PlinkLdFile plink_ld_file(bim_file_, plink_ld_gz);
   plink_ld_file.save_as_binary(plink_ld_bin);
   return 0;
+}
+
+int64_t BgmgCalculator::num_ld_r2_snp_range(int snp_index_from, int snp_index_to) {
+  return retrieve_ld_r2_snp_range(snp_index_from, snp_index_to, -1, nullptr, nullptr, nullptr);
+}
+
+int64_t BgmgCalculator::retrieve_ld_r2_snp_range(int snp_index_from, int snp_index_to, int length, int* snp_index, int* tag_index, float* r2) {
+  // length < 0 indicate that we just calculate num_ld_r2_snp_range (i.e. the buffer size needed to copy out the result)
+  CHECK_SNP_INDEX((*this), snp_index_from);
+  CHECK_SNP_INDEX((*this), snp_index_to);
+  int64_t num_r2 = 0;
+  LdMatrixRow ld_matrix_row;
+  for (int iter_snp_index = snp_index_from; iter_snp_index < snp_index_to; iter_snp_index++) {
+    ld_matrix_csr_.extract_row(iter_snp_index, &ld_matrix_row);
+    auto iter_end = ld_matrix_row.end();
+    for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+      const int iter_tag_index = iter.tag_index();
+      if (tag_to_snp_[iter_tag_index] < snp_index_from || tag_to_snp_[iter_tag_index] >= snp_index_to) continue;
+      num_r2++;
+      if (length < 0) continue;
+      if (num_r2 > length) BGMG_THROW_EXCEPTION(::std::runtime_error("insufficient length for retrieve_ld_r2_snp_range"));
+      snp_index[num_r2 - 1] = iter_snp_index;
+      tag_index[num_r2 - 1] = iter_tag_index;
+      r2[num_r2 - 1] = iter.r2(); // here we are interested in r2 (hvec is irrelevant)
+    }
+  }
+  LOG << ((length < 0) ? " num_ld_r2_snp_range(" : " retrieve_ld_r2_snp_range(from=") << snp_index_from << ", to=" << snp_index_to << "), return " << num_r2;
+  return (length < 0) ? num_r2 : 0;
 }

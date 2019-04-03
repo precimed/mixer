@@ -208,10 +208,24 @@ int64_t bgmg_num_ld_r2_chr(int context_id, int chr_label) {
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_retrieve_ld_r2_chr(int context_id, int chr_label, int length, int* snp_index, int* tag_index, float* r2) {
+int64_t bgmg_retrieve_ld_r2_chr(int context_id, int chr_label, int64_t length, int* snp_index, int* tag_index, float* r2) {
   try {
     set_last_error(std::string());
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_ld_r2_chr(chr_label, length, snp_index, tag_index, r2);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_num_ld_r2_snp_range(int context_id, int snp_index_from, int snp_index_to) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->num_ld_r2_snp_range(snp_index_from, snp_index_to);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_retrieve_ld_r2_snp_range(int context_id, int snp_index_from, int snp_index_to, int64_t length, int* snp_index, int* tag_index, float* r2) {
+  try {
+    set_last_error(std::string());
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_ld_r2_snp_range(snp_index_from, snp_index_to, length, tag_index, snp_index, r2);
   } CATCH_EXCEPTIONS;
 }
 

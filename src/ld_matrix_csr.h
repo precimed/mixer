@@ -127,7 +127,7 @@ class LdMatrixCsrChunk {
  public:
   std::vector<std::tuple<int, int, packed_r2_value>> coo_ld_; // snp, tag, r2
 
-  // csr_ld_snp_index_.size() == num_snp_ + 1; 
+  // csr_ld_snp_index_.size() == num_snps_in_chunk() + 1; 
   // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
   // csr_ld_tag_index_.size() == csr_ld_r2_.size() == number of non-zero LD r2 values
   // csr_ld_tag_index_ contains values from 0 to num_tag_-1

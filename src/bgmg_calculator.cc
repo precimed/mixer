@@ -70,6 +70,11 @@ std::vector<float>* BgmgCalculator::get_nvec(int trait_index) {
   return (trait_index == 1) ? &nvec1_ : &nvec2_;
 }
 
+std::vector<float>* BgmgCalculator::get_causalbetavec(int trait_index) {
+  if ((trait_index != 1) && (trait_index != 2)) BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
+  return (trait_index == 1) ? &causalbetavec1_ : &causalbetavec2_;
+}
+
 BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), 
     use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), num_components_(1), 
     max_causals_(100000), cost_calculator_(CostCalculator_Sampling), cache_tag_r2sum_(false), ld_matrix_csr_(*this),
@@ -123,6 +128,16 @@ int64_t BgmgCalculator::set_nvec(int trait, int length, float* values) {
   return 0;
 }
 
+int64_t BgmgCalculator::set_causalbetavec(int trait, int length, float* values) {
+  if ((trait != 1) && (trait != 2)) BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
+  
+  int num_undef = 0;
+  for (int i = 0; i < length; i++) if (!std::isfinite(values[i])) num_undef++;
+  LOG << " set_causalbetavec(trait=" << trait << "); num_undef=" << num_undef;
+  check_num_snp(length);
+  get_causalbetavec(trait)->assign(values, values + length);
+  return 0;
+}
 
 int64_t BgmgCalculator::set_weights(int length, float* values) {
   int nnz = 0;
@@ -2079,6 +2094,15 @@ int64_t BgmgCalculator::retrieve_nvec(int trait, int length, float* buffer) {
   if (nvec.size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec.size() != num_tag_"));
   LOG << " retrieve_nvec()";
   for (int i = 0; i < num_tag_; i++) buffer[i] = nvec[i];
+  return 0;
+}
+
+int64_t BgmgCalculator::retrieve_causalbetavec(int trait, int length, float* buffer) {
+  if (length != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("wrong buffer size"));
+  const std::vector<float>& causalbetavec(*get_causalbetavec(trait));
+  if (causalbetavec.size() != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("causalbetavec.size() != num_snp_"));
+  LOG << " retrieve_causalbetavec()";
+  for (int i = 0; i < num_snp_; i++) buffer[i] = causalbetavec[i];
   return 0;
 }
 

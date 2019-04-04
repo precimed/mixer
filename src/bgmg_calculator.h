@@ -271,11 +271,13 @@ class BgmgCalculator : public TagToSnpMapping {
   // all values must be defined
   int64_t set_zvec(int trait, int length, float* values);
   int64_t set_nvec(int trait, int length, float* values);
+  int64_t set_causalbetavec(int trait, int length, float* values);
   int64_t set_weights(int length, float* values);
   int64_t set_weights_randprune(int n, float r2);   // alternative to set_weights; calculates weights based on random pruning from LD matrix
 
   int64_t retrieve_zvec(int trait, int length, float* buffer);
   int64_t retrieve_nvec(int trait, int length, float* buffer);
+  int64_t retrieve_causalbetavec(int trait, int length, float* buffer);
   int64_t retrieve_mafvec(int length, float* buffer);
   int64_t retrieve_weights(int length, float* buffer);
   int64_t retrieve_tag_indices(int num_tag, int* tag_indices);
@@ -356,8 +358,12 @@ class BgmgCalculator : public TagToSnpMapping {
   std::vector<float> weights_;
   std::vector<float> mafvec_;
 
+  std::vector<float> causalbetavec1_;  // assumed causal betas, added as fixed effects component in the model
+  std::vector<float> causalbetavec2_;  // e.g. delta_j = \sqrt N_j \sum_i \sqrt H_i r_ij \beta_i   <- here "beta_i" is causalbetavec
+
   std::vector<float>* get_zvec(int trait_index);
   std::vector<float>* get_nvec(int trait_index);
+  std::vector<float>* get_causalbetavec(int trait_index);
 
   LoglikeCache loglike_cache_;
 

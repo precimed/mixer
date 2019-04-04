@@ -79,6 +79,14 @@ int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values) {
   } CATCH_EXCEPTIONS;
 }
 
+int64_t bgmg_set_causalbetavec(int context_id, int trait, int length, float* values) {
+  try {
+    set_last_error(std::string());
+    check_trait_index(trait); check_is_positive(length); check_is_not_null(values);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_causalbetavec(trait, length, values);
+  } CATCH_EXCEPTIONS;
+}
+
 int64_t bgmg_set_mafvec(int context_id, int length, float* values) {
   try {
     set_last_error(std::string());
@@ -272,6 +280,14 @@ int64_t bgmg_retrieve_nvec(int context_id, int trait, int length, float* buffer)
     set_last_error(std::string());
     check_is_positive(length); check_is_not_null(buffer);
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_nvec(trait, length, buffer);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_retrieve_causalbetavec(int context_id, int trait, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_causalbetavec(trait, length, buffer);
   } CATCH_EXCEPTIONS;
 }
 

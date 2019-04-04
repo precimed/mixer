@@ -73,10 +73,12 @@ extern "C" {
   // API to populate and retrieve zvec, nvec, mafvec
   DLL_PUBLIC int64_t bgmg_set_zvec(int context_id, int trait, int length, float* values);
   DLL_PUBLIC int64_t bgmg_set_nvec(int context_id, int trait, int length, float* values);
+  DLL_PUBLIC int64_t bgmg_set_causalbetavec(int context_id, int trait, int length, float* values);
   DLL_PUBLIC int64_t bgmg_set_mafvec(int context_id, int length, float* values);
 
   DLL_PUBLIC int64_t bgmg_retrieve_zvec(int context_id, int trait, int length, float* buffer);
   DLL_PUBLIC int64_t bgmg_retrieve_nvec(int context_id, int trait, int length, float* buffer);
+  DLL_PUBLIC int64_t bgmg_retrieve_causalbetavec(int context_id, int trait, int length, float* buffer);
   DLL_PUBLIC int64_t bgmg_retrieve_mafvec(int context_id, int length, float* buffer);
 
   // API to populate LD structure

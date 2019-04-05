@@ -133,6 +133,7 @@ int64_t BgmgCalculator::set_causalbetavec(int trait, int length, float* values) 
   
   int num_undef = 0;
   for (int i = 0; i < length; i++) if (!std::isfinite(values[i])) num_undef++;
+  if (num_undef > 0) BGMG_THROW_EXCEPTION(::std::runtime_error("undefined values not allowed in causalbetavec, use zero instead"));
   LOG << " set_causalbetavec(trait=" << trait << "); num_undef=" << num_undef;
   check_num_snp(length);
   get_causalbetavec(trait)->assign(values, values + length);
@@ -733,7 +734,7 @@ int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, flo
   }
 
   for (int i = 0; i < length; i++) svec[i] = static_cast<float>(s_numerator_global[i] / s_denominator_global[i]);
-  LOG << ">calc_univariate_power(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", zthresh=" << zthresh << ", length(nvec)=" << length << "), elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<calc_univariate_power(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", zthresh=" << zthresh << ", length(nvec)=" << length << "), elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
@@ -823,7 +824,7 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
   }
 
 
-  LOG << ">calc_univariate_delta_posterior(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(nvec)=" << length << "), elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<calc_univariate_delta_posterior(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(nvec)=" << length << "), elapsed time " << timer.elapsed_ms() << "ms";
 }
 
 double BgmgCalculator::calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
@@ -856,6 +857,9 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
 
   SimpleTimer timer(-1);
 
+  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
+  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
+
   const double pi_k = 1.0 / static_cast<double>(k_max_);
   
   double log_pdf_total = 0.0;
@@ -871,7 +875,7 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
       float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
       float sig2eff = tag_r2sum * nvec[tag_index] * sig2_beta + sig2_zero;
 
-      const float tag_z = zvec[tag_index];
+      const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec;
       float s = sqrt(sig2eff);
       const bool censoring = std::abs(tag_z) > z1max_;
 
@@ -905,6 +909,7 @@ SEMT::Expr<SEMT::Literal<inv_sqrt_2pi_struct>> inv_sqrt_2pi_value;
 
 double BgmgCalculator::calc_univariate_cost_cache_deriv(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int deriv_length, double* deriv) {
   // NB! censoring is not implemented in calc_univariate_cost_cache_deriv
+  // NB! causalbetavec is not supported in calc_univariate_cost_cache_deriv
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));
 
@@ -1007,8 +1012,10 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
 
   const double pi_k = 1.0 / static_cast<double>(rhs.k_max_);
 
-  rhs.k_pdf_.resize(rhs.k_max_, 0.0f);
-  for (int i = 0; i < rhs.k_max_; i++) rhs.k_pdf_[i] = 0;
+  rhs.k_pdf_.assign(rhs.k_max_, 0.0f);
+
+  std::valarray<float> fixed_effect_delta(0.0, rhs.num_tag_);;
+  rhs.calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
 
   std::valarray<double> pdf_double(0.0, rhs.num_tag_);
 #pragma omp parallel
@@ -1027,7 +1034,7 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
           float tag_r2sum_value = tag_r2sum[tag_index];
           float sig2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta + sig2_zero;
 
-          const float tag_z = zvec[tag_index];
+          const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec
           float s = sqrt(sig2eff);
           const bool censoring = std::abs(tag_z) > rhs.z1max_;
           double pdf = static_cast<double>(censoring ? censored_cdf<T>(rhs.z1max_, s) : gaussian_pdf<T>(tag_z, s));
@@ -1116,6 +1123,10 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
 
   SimpleTimer timer(-1);
 
+  std::valarray<float> fixed_effect_delta1(0.0, num_tag_), fixed_effect_delta2(0.0, num_tag_);
+  calc_fixed_effect_delta_from_causalbetavec(1, &fixed_effect_delta1);
+  calc_fixed_effect_delta_from_causalbetavec(2, &fixed_effect_delta2);
+
   // Sigma0  = [a0 b0; b0 c0];
   const float a0 = sig2_zero[0];
   const float c0 = sig2_zero[1];
@@ -1133,8 +1144,8 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
     if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
     if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
 
-    const float z1 = zvec1_[tag_index];
-    const float z2 = zvec2_[tag_index];
+    const float z1 = zvec1_[tag_index] - fixed_effect_delta1[tag_index];  // apply causalbetavec;
+    const float z2 = zvec2_[tag_index] - fixed_effect_delta2[tag_index];  // apply causalbetavec;
     const float n1 = nvec1_[tag_index];
     const float n2 = nvec2_[tag_index];
 
@@ -1187,6 +1198,10 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
 
   SimpleTimer timer(-1);
 
+  std::valarray<float> fixed_effect_delta1(0.0, num_tag_), fixed_effect_delta2(0.0, num_tag_);
+  calc_fixed_effect_delta_from_causalbetavec(1, &fixed_effect_delta1);
+  calc_fixed_effect_delta_from_causalbetavec(2, &fixed_effect_delta2);
+
   // Sigma0  = [a0 b0; b0 c0];
   const float a0 = sig2_zero[0];
   const float c0 = sig2_zero[1];
@@ -1215,8 +1230,8 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
         if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
         if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
 
-        const float z1 = zvec1_[tag_index];
-        const float z2 = zvec2_[tag_index];
+        const float z1 = zvec1_[tag_index] - fixed_effect_delta1[tag_index];  // apply causalbetavec;
+        const float z2 = zvec2_[tag_index] - fixed_effect_delta2[tag_index];  // apply causalbetavec;
         const float n1 = nvec1_[tag_index];
         const float n2 = nvec2_[tag_index];
 
@@ -1394,10 +1409,14 @@ void BgmgCalculator::log_diagnostics() {
   LOG << " diag: zvec1_=" << std_vector_to_str(zvec1_);
   LOG << " diag: nvec1_.size()=" << nvec1_.size();
   LOG << " diag: nvec1_=" << std_vector_to_str(nvec1_);
+  LOG << " diag: causalbetavec1_.size()=" << causalbetavec1_.size();
+  LOG << " diag: causalbetavec1_=" << std_vector_to_str(causalbetavec1_);
   LOG << " diag: zvec2_.size()=" << zvec2_.size();
   LOG << " diag: zvec2_=" << std_vector_to_str(zvec2_);
   LOG << " diag: nvec2_.size()=" << nvec2_.size();
   LOG << " diag: nvec2_=" << std_vector_to_str(nvec2_);
+  LOG << " diag: causalbetavec2_.size()=" << causalbetavec2_.size();
+  LOG << " diag: causalbetavec2_=" << std_vector_to_str(causalbetavec2_);
   LOG << " diag: weights_.size()=" << weights_.size();
   LOG << " diag: weights_=" << std_vector_to_str(weights_);
   LOG << " diag: mafvec_.size()=" << mafvec_.size();
@@ -1448,6 +1467,9 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
   double log_pdf_total = 0.0;
   SimpleTimer timer(-1);
 
+  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
+  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
+
   int num_zero_tag_r2 = 0;
   int num_infinite = 0;
 
@@ -1471,7 +1493,7 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
     const double tag_pi0 = 1.0 - tag_pi1;
     const float tag_sig2beta = sig2_beta * tag_eta_factor;
 
-    const float tag_z = zvec[tag_index];
+    const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec;
     const float tag_n = nvec[tag_index];
 
     const bool censoring = std::abs(tag_z) > z1max_;
@@ -1502,6 +1524,10 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
   double log_pdf_total = 0.0;
   SimpleTimer timer(-1);
 
+  std::valarray<float> fixed_effect_delta1(0.0, num_tag_), fixed_effect_delta2(0.0, num_tag_);
+  calc_fixed_effect_delta_from_causalbetavec(1, &fixed_effect_delta1);
+  calc_fixed_effect_delta_from_causalbetavec(2, &fixed_effect_delta2);
+
   int num_zero_tag_r2 = 0;
   int num_infinite = 0;
 
@@ -1515,9 +1541,9 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
     if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
     if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
 
-    const float z1 = zvec1_[tag_index];
+    const float z1 = zvec1_[tag_index] - fixed_effect_delta1[tag_index];
     const float n1 = nvec1_[tag_index];
-    const float z2 = zvec2_[tag_index];
+    const float z2 = zvec2_[tag_index] - fixed_effect_delta2[tag_index];
     const float n2 = nvec2_[tag_index];
 
     const float tag_r2 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2()[tag_index];
@@ -1597,6 +1623,7 @@ class UnivariateCharacteristicFunctionData {
   const std::vector<float>* hvec;
   const std::vector<float>* zvec;
   const std::vector<float>* nvec;
+  const std::valarray<float>* fixed_effect_delta;
   const std::vector<float>* ld_tag_sum_r2_below_r2min_adjust_for_hvec;
   int func_evals;
 };
@@ -1610,7 +1637,7 @@ int calc_univariate_characteristic_function_times_cosinus(unsigned ndim, const d
   const float pi1 = data->pi_vec;
   const float pi0 = 1.0 - pi1;
   const float sig2beta_times_nval = (*data->nvec)[data->tag_index] * data->sig2_beta;
-  const float zval = (*data->zvec)[data->tag_index];
+  const float zval = (*data->zvec)[data->tag_index] - (*data->fixed_effect_delta)[data->tag_index];  // apply causalbetavec
   
     // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
   const float inf_adj = pi1 * (*data->ld_tag_sum_r2_below_r2min_adjust_for_hvec)[data->tag_index] * sig2beta_times_nval;
@@ -1648,6 +1675,7 @@ int calc_univariate_characteristic_function_for_integration(unsigned ndim, const
 
 double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
+
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));
 
@@ -1660,6 +1688,9 @@ double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_v
   int num_infinite = 0;
   double func_evals = 0.0;
   SimpleTimer timer(-1);
+
+  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
+  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
 
   std::vector<float> hvec;
   find_hvec(*this, &hvec);
@@ -1685,6 +1716,7 @@ double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_v
     data.hvec = &hvec;
     data.zvec = &zvec;
     data.nvec = &nvec;
+    data.fixed_effect_delta = &fixed_effect_delta;
     data.ld_tag_sum_r2_below_r2min_adjust_for_hvec = &ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
 
 #pragma omp for schedule(static) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals)
@@ -1822,6 +1854,7 @@ int calc_bivariate_characteristic_function_for_integration(unsigned ndim, const 
 
 double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
+  if (!causalbetavec1_.empty() || !causalbetavec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator does not support causalbetavec"));
 
   std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
   LOG << ">calc_bivariate_cost_convolve(" << ss << ")";
@@ -2035,7 +2068,7 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
   for (int i = 0; i < num_tag_; i++)
     weights_[i] = static_cast<float>(passed_random_pruning[i]) / static_cast<float>(n);
 
-  LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << "), elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<set_weights_randprune(n=" << n << ", r2=" << r2_threshold << "), elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
@@ -2510,4 +2543,49 @@ int64_t BgmgCalculator::retrieve_ld_r2_snp_range(int snp_index_from, int snp_ind
   }
   LOG << ((length < 0) ? " num_ld_r2_snp_range(" : " retrieve_ld_r2_snp_range(from=") << snp_index_from << ", to=" << snp_index_to << "), return " << num_r2;
   return (length < 0) ? num_r2 : 0;
+}
+
+void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index, std::valarray<float>* delta) {
+  if (delta->size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_fixed_effect_delta_from_causalbetavec expect delta to be already initialized"));
+  *delta = 0.0f;
+
+  const std::vector<float>& causalbetavec(*get_causalbetavec(trait_index));
+  if (causalbetavec.empty()) return;
+
+  LOG << ">calc_fixed_effect_delta_from_causalbetavec(trait_index=" << trait_index << ")";
+
+  BGMG_THROW_EXCEPTION(::std::runtime_error("calc_fixed_effect_delta_from_causalbetavec is not yet fully implemented; sign information is lost in r2 - need to refactor storage of LD r2 matrix"));
+
+  SimpleTimer timer(-1);
+
+  std::vector<float> sqrt_hvec;
+  find_hvec(*this, &sqrt_hvec);
+  for (int i = 0; i < sqrt_hvec.size(); i++) sqrt_hvec[i] = sqrt(sqrt_hvec[i]);
+
+#pragma omp parallel
+  {
+    LdMatrixRow ld_matrix_row;
+    std::valarray<float> delta_local(0.0, num_tag_);
+
+    // many entries in causalbetavec are expected to be zero, therefore static scheduler may give an unbalanced load
+    // however it's fairly short operation anyway, so we don't bother too much.
+#pragma omp for schedule(static)
+    for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
+      if (causalbetavec[causal_index] == 0.0f) continue;
+      ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
+      auto iter_end = ld_matrix_row.end();
+      for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+        const int tag_index = iter.tag_index();
+        const float r_value = sqrt(iter.r2());  // <BUG-BUG, here we must take into account signed r, not r2.
+        delta_local[tag_index] += r_value * sqrt(sqrt_hvec[causal_index]) * causalbetavec[causal_index];
+      }
+    }
+#pragma omp critical
+    (*delta) += delta_local;
+  }
+
+  const std::vector<float>& nvec(*get_nvec(trait_index));
+  for (int i = 0; i < nvec.size(); i++) delta[i] *= sqrt(nvec[i]);
+
+  LOG << "<calc_fixed_effect_delta_from_causalbetavec(trait_index=" << trait_index  << "), elapsed time " << timer.elapsed_ms() << "ms";
 }

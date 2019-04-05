@@ -476,3 +476,55 @@ void SnpList::read(std::string filename) {
 bool SnpList::contains(const std::string& snp) const { 
   return snp_set_.find(boost::to_lower_copy(snp)) != snp_set_.end();
 }
+
+void FamFile::clear() {
+  fid_.clear();
+  iid_.clear();
+  father_id_.clear();
+  mother_id_.clear();
+  sex_.clear();
+  pheno_.clear();
+}
+
+void FamFile::read(std::string filename) {
+//LOG << "Reading " << filename << "...";
+
+  const std::string separators = " \t\n\r";
+  std::vector<std::string> tokens;
+
+  std::shared_ptr<std::istream> in_ptr = open_file(filename);
+  std::istream& in = *in_ptr;
+
+  int line_no = 0;
+  for (std::string str; std::getline(in, str); )
+  {
+    line_no++;
+    std::string fid, iid, father_id, mother_id;
+    int sex;
+    double pheno;
+
+    boost::trim_if(str, boost::is_any_of(separators));
+    boost::split(tokens, str, boost::is_any_of(separators), boost::token_compress_on);
+    try {
+      fid = tokens[0];
+      iid = tokens[1];
+      father_id = tokens[2];
+      mother_id = tokens[3];
+      sex = stoi(tokens[4]);  // must not use stream or boost::lexical_cast (result in some lock contention)
+      pheno = stod(tokens[5]);
+    }
+    catch (...) {
+      std::stringstream error_str;
+      error_str << "Error parsing " << filename << ":" << line_no << " ('" << str << "')";
+      throw std::invalid_argument(error_str.str());
+    }
+    fid_.push_back(fid);
+    iid_.push_back(iid);
+    father_id_.push_back(father_id);
+    mother_id_.push_back(mother_id);
+    sex_.push_back(sex);
+    pheno_.push_back(pheno);
+  }
+
+  LOG << " Found " << fid_.size() << " variants in " << filename;
+}

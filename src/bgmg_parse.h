@@ -34,6 +34,31 @@ private:
   std::map<std::string, int> snp_to_index_;
 };
 
+class FamFile {
+public:
+  FamFile() {}
+  explicit FamFile(std::string filename) { read(filename); }
+  void clear();
+
+  void read(std::string filename);
+
+  int size() const { return fid_.size(); }
+  const std::vector<std::string>& fid() const { return fid_; }
+  const std::vector<std::string>& iid() const { return iid_; }
+  const std::vector<std::string>& father_id() const { return father_id_; }
+  const std::vector<std::string>& mother_id() const { return mother_id_; }
+  const std::vector<int>& sex() const { return sex_; }
+  const std::vector<double>& pheno() const { return pheno_; }
+
+private:
+  std::vector<std::string> fid_;
+  std::vector<std::string> iid_;
+  std::vector<std::string> father_id_;
+  std::vector<std::string> mother_id_;
+  std::vector<int> sex_; // 1 = male, 2 = female, 0 = unknown
+  std::vector<double> pheno_;
+};
+
 class SnpList {
 public:
   SnpList() {}

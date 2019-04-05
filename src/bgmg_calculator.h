@@ -25,6 +25,8 @@
 
 #include <iostream>
 #include <sstream>
+#include <vector>
+#include <valarray>
 
 #include "boost/utility.hpp"
 
@@ -397,6 +399,7 @@ class BgmgCalculator : public TagToSnpMapping {
   double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   double calc_univariate_cost_convolve(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_bivariate_cost_convolve(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+  void calc_fixed_effect_delta_from_causalbetavec(int trait_index, std::valarray<float>* delta);
 
   BimFile bim_file_;
 

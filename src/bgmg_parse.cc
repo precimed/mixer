@@ -528,3 +528,13 @@ void FamFile::read(std::string filename) {
 
   LOG << " Found " << fid_.size() << " variants in " << filename;
 }
+
+void BedFileInMemory::read(std::string filename) {
+  LOG << " Reading " << num_subjects_ << " subjects, " << num_snps_ << " variants from " << filename;
+  std::ifstream bedfile_stream(filename, std::ios::in | std::ios::binary);
+  std::istreambuf_iterator<char> eos;
+  std::string buffer(std::istreambuf_iterator<char>(bedfile_stream), eos);
+  buffer_.swap(buffer);
+  if (buffer_.size() != row_byte_size_ * num_snps_ + BED_HEADER_SIZE) throw std::invalid_argument("plink .bed file has a wrong size");
+  LOG << " Finish reading " << filename;
+}

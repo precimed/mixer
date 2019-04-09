@@ -4,6 +4,27 @@
 #include <string>
 #include <map>
 
+#define BED_HEADER_SIZE 3
+
+class BedFileInMemory {
+public:
+  BedFileInMemory() : num_subjects_(0), num_snps_(0), row_byte_size_(0) {}
+  explicit BedFileInMemory(int num_subjects, int num_snps, std::string filename) :
+      num_subjects_(num_subjects), num_snps_(num_snps), row_byte_size_((num_subjects + 3) / 4) { read(filename); }
+
+  void read(std::string filename);
+
+  const char* geno(int snp_index) {
+    return &buffer_[BED_HEADER_SIZE + snp_index * row_byte_size_];
+  }
+
+private:
+  const int num_subjects_;
+  const int num_snps_;
+  const int row_byte_size_;
+  std::string buffer_; // remember this has a header (3 bytes), followed by the actual genotypes
+};
+
 class BimFile {
 public:
   BimFile() {}

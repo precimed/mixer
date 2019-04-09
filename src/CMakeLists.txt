@@ -88,6 +88,8 @@ set(SRC_LIST
 	bgmg_parse.cc
 	bgmg_parse.h
 	fmath.hpp
+	plink_ld.cc
+	plink_common.cc
 	semt/semt/VectorExpr.cpp
 	TurboPFor/vsimple.c
 	TurboPFor/vint.c
@@ -126,6 +128,7 @@ endif (MSVC)
 set(SRC_TEST_LIST
 	source.cc
 	test/bgmg_main_unittest.cc
+	test/bgmg_ld_test.cc
 	test/semt_test.cc
 	test/streamvbyte_test.cc
 	test/nlopt_test.cc

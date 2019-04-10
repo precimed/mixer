@@ -42,7 +42,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, std::string frqfile, fl
 
   const int block_size = std::min(8*1024, num_snps);  // handle blocks of up to 8K SNPs
   const int block_elems = block_size * block_size;
-  const int num_blocks = (num_subj + (block_size-1)) / block_size;
+  const int num_blocks = (num_snps + (block_size-1)) / block_size;
   std::vector<int> idx1(block_elems, 0), idx2(block_elems, 0);
   for (int i = 0; i < block_size; i++) {
     for (int j = 0; j < block_size; j++) {

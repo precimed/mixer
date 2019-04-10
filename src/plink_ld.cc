@@ -572,7 +572,7 @@ uint32_t ld_missing_ct_intersect(uintptr_t* lptr1, uintptr_t* lptr2, uintptr_t w
   return tot;
 }
 
-PlinkLdBaseBedFile::PlinkLdBaseBedFile(int num_subjects) {
+SampleCountInfo::SampleCountInfo(int num_subjects) {
   unfiltered_sample_ct = num_subjects;
   unfiltered_sample_ctl = BITCT_TO_WORDCT(unfiltered_sample_ct);
   unfiltered_sample_ctl2 = QUATERCT_TO_WORDCT(unfiltered_sample_ct);
@@ -595,75 +595,69 @@ PlinkLdBaseBedFile::PlinkLdBaseBedFile(int num_subjects) {
   founder_ctwd12_rem = founder_ctwd - (12 * founder_ctwd12);
   lshift_last = 2 * ((0x7fffffc0 - founder_ct) % BITCT2);
 
-  founder_info_vec.resize(unfiltered_sample_ctl);
-  founder_info = &founder_info_vec[0];
-  fill_all_bits(unfiltered_sample_ct, founder_info);
+  unfiltered_sample_ct4 = (unfiltered_sample_ct + 3) / 4;
 }
 
-PlinkLdBedFile::PlinkLdBedFile(int num_subjects, int num_snps, FILE* bedfile): PlinkLdBaseBedFile(num_subjects), num_snps_(num_snps) {
-  std::vector<uintptr_t> loadbuf_vec(unfiltered_sample_ctv2, 0);
-  uintptr_t* loadbuf = &loadbuf_vec[0];
-  loadbuf[unfiltered_sample_ctv2 - 2] = 0;
-  loadbuf[unfiltered_sample_ctv2 - 1] = 0;
+PlinkLdBedFileChunk::PlinkLdBedFileChunk(int num_subjects, int snp_start_index, int num_snps_in_chunk, FILE* bedfile) : num_subj_(num_subjects), num_snps_in_chunk_(num_snps_in_chunk) {
+  const SampleCountInfo sc(num_subjects);
+  std::vector<uintptr_t> loadbuf_vec(sc.unfiltered_sample_ctv2, 0);
+  std::vector<uintptr_t> founder_info_vec(sc.unfiltered_sample_ctl, 0);
+  fill_all_bits(sc.unfiltered_sample_ct, &founder_info_vec[0]);
 
   const bool is_x = false;  // no special processing for X chromosome
   uintptr_t* founder_male_include2 = nullptr;  // not used when is_x == false
   const bool is_marker_reverse = false;
   const int bed_offset = 3;
  
-  geno_vec.resize(num_snps_ * founder_ct_192_long, 0);
-  geno = &geno_vec[0];
+  geno_vec.resize(num_snps_in_chunk * sc.founder_ct_192_long, 0);
+  geno_masks_vec.resize(num_snps_in_chunk * sc.founder_ct_192_long, 0);
+  ld_missing_cts_vec.resize(num_snps_in_chunk, 0);
 
-  geno_masks_vec.resize(num_snps * founder_ct_192_long, 0);
-  geno_masks = &geno_masks_vec[0];
-
-  ld_missing_cts_vec.resize(num_snps_, 0);
-  ld_missing_cts = &ld_missing_cts_vec[0];
-
-  uint32_t unfiltered_sample_ct4 = (unfiltered_sample_ct + 3) / 4;
-  const int marker_uidx = 0;
-  if (fseeko(bedfile, bed_offset + (marker_uidx * ((uint64_t)unfiltered_sample_ct4)), SEEK_SET)) {
+  if (fseeko(bedfile, bed_offset + (snp_start_index * ((uint64_t)sc.unfiltered_sample_ct4)), SEEK_SET)) {
     throw "error while reading bfile";
   }
 
-  for (int snp_index = 0; snp_index < num_snps; snp_index++) {
+  for (int snp_index = 0; snp_index < num_snps_in_chunk; snp_index++) {
     uint32_t error_code = load_and_collapse_incl(
-      unfiltered_sample_ct, founder_ct, founder_info, final_mask, is_marker_reverse,
-      bedfile, loadbuf, &(geno[snp_index * founder_ct_192_long]));
+      sc.unfiltered_sample_ct, sc.founder_ct, &founder_info_vec[0], sc.final_mask, is_marker_reverse,
+      bedfile, &loadbuf_vec[0], &(geno()[snp_index * sc.founder_ct_192_long]));
     if (error_code != 0) throw "error while reading bfile";
 
-    ld_process_load2(&(geno[snp_index * founder_ct_192_long]), 
-                      &(geno_masks_vec[snp_index * founder_ct_192_long]),
-                      &(ld_missing_cts[snp_index]), 
-                      founder_ct, is_x, founder_male_include2);
+    ld_process_load2(&(geno_vec[snp_index * sc.founder_ct_192_long]), 
+                     &(geno_masks_vec[snp_index * sc.founder_ct_192_long]),
+                     &(ld_missing_cts_vec[snp_index]), 
+                     sc.founder_ct, is_x, founder_male_include2);
   }
 }
 
-double PlinkLdBedFile::ld_corr(int snp_fixed_index, int snp_var_index) {
+double PlinkLdBedFileChunk::calculate_ld_corr(PlinkLdBedFileChunk& fixed_chunk, PlinkLdBedFileChunk& var_chunk, int snp_fixed_index, int snp_var_index) {
   // The following routine is combined from plink's ld_block_thread() and ld_report_regular() in plink_ld.c
+  const SampleCountInfo sc(fixed_chunk.num_subj());
 
   const bool is_r2 = false;
   const bool keep_sign = false;
 
-  uintptr_t* mask_fixed_vec_ptr = &(geno_masks[snp_fixed_index * founder_ct_192_long]);
-  uintptr_t* mask_var_vec_ptr = &(geno_masks[snp_var_index * founder_ct_192_long]);
-  uintptr_t* geno_fixed_vec_ptr = &(geno[snp_fixed_index * founder_ct_192_long]);
-  uintptr_t* geno_var_vec_ptr = &(geno[snp_var_index * founder_ct_192_long]);
+  uintptr_t* mask_fixed_vec_ptr = &(fixed_chunk.geno_masks()[snp_fixed_index * sc.founder_ct_192_long]);
+  uintptr_t* mask_var_vec_ptr = &(var_chunk.geno_masks()[snp_var_index * sc.founder_ct_192_long]);
+  uintptr_t* geno_fixed_vec_ptr = &(fixed_chunk.geno()[snp_fixed_index * sc.founder_ct_192_long]);
+  uintptr_t* geno_var_vec_ptr = &(var_chunk.geno()[snp_var_index * sc.founder_ct_192_long]);
 
-  uint32_t fixed_missing_ct = ld_missing_cts[snp_fixed_index];
-  uint32_t fixed_non_missing_ct = founder_ct - fixed_missing_ct;
-  uint32_t non_missing_ct = fixed_non_missing_ct - ld_missing_cts[snp_var_index];
-  if (fixed_missing_ct && ld_missing_cts[snp_var_index]) {
-    non_missing_ct += ld_missing_ct_intersect(mask_var_vec_ptr, mask_fixed_vec_ptr, founder_ctwd12, founder_ctwd12_rem, lshift_last);
+  uint32_t fixed_missing_ct = fixed_chunk.ld_missing_cts()[snp_fixed_index];
+  uint32_t var_missing_ct = var_chunk.ld_missing_cts()[snp_var_index];
+  uint32_t fixed_non_missing_ct = sc.founder_ct - fixed_missing_ct;
+  uint32_t var_non_missing_ct = sc.founder_ct - var_missing_ct;
+  uint32_t non_missing_ct = fixed_non_missing_ct - var_missing_ct;
+  if (fixed_missing_ct && var_missing_ct) {
+    non_missing_ct += ld_missing_ct_intersect(mask_var_vec_ptr, mask_fixed_vec_ptr, sc.founder_ctwd12, sc.founder_ctwd12_rem, sc.lshift_last);
   }
 
   int32_t dp_result[5];
-  dp_result[0] = founder_ct;
+  dp_result[0] = sc.founder_ct;
   dp_result[1] = -fixed_non_missing_ct;
-  dp_result[2] = ld_missing_cts[snp_var_index] - founder_ct;
+  dp_result[2] = -var_non_missing_ct;
   dp_result[3] = dp_result[1];
   dp_result[4] = dp_result[2];
-  ld_dot_prod(geno_var_vec_ptr, geno_fixed_vec_ptr, mask_var_vec_ptr, mask_fixed_vec_ptr, dp_result, founder_ct_mld_m1, founder_ct_mld_rem);
+  ld_dot_prod(geno_var_vec_ptr, geno_fixed_vec_ptr, mask_var_vec_ptr, mask_fixed_vec_ptr, dp_result, sc.founder_ct_mld_m1, sc.founder_ct_mld_rem);
 
   double non_missing_ctd = (double)((int32_t)non_missing_ct);
   double dxx = dp_result[1];

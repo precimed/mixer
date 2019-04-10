@@ -25,12 +25,17 @@
 
 #include <vector>
 
-class PlinkLdBaseBedFile {
-protected:
+// Calculates several derived measures from the number of subjects.
+// Has several simplifications compared to what is typically handled in plink:
+// * Assumes that all individuals are founders.
+// * Performs no filtering on individuals.
+class SampleCountInfo {
+public:
   uintptr_t unfiltered_sample_ct;
   uintptr_t unfiltered_sample_ctl;
   uintptr_t unfiltered_sample_ctl2;
   uintptr_t unfiltered_sample_ctv2;
+  uint32_t unfiltered_sample_ct4;
 
   uintptr_t founder_ct;
   uintptr_t final_mask ;
@@ -44,40 +49,28 @@ protected:
   uintptr_t founder_ctwd12;
   uintptr_t founder_ctwd12_rem;
   uintptr_t lshift_last;
-
-  std::vector<uintptr_t> founder_info_vec;
-  uintptr_t* founder_info;
-
-  virtual ~PlinkLdBaseBedFile() {}
-
 public:
-  explicit PlinkLdBaseBedFile(int num_subjects);
+  explicit SampleCountInfo(int num_subjects);
 };
 
-// A class that wraps plink BED file.
-// Assumes that all individuals are founders.
-// Performs no filtering on individuals.
-// Performs no filtering on variants.
-class PlinkLdBedFile : public PlinkLdBaseBedFile {
+// A class that wraps a chunk of a plink BED file, and stores it into a format suitable for computing LD allelic correlation.
+class PlinkLdBedFileChunk {
  public:
-  explicit PlinkLdBedFile(int num_subjects, int num_snps, FILE* bedfile);
-  virtual ~PlinkLdBedFile() {}
-  double ld_corr(int snp_fixed_index, int snp_var_index);
+  explicit PlinkLdBedFileChunk(int num_subjects, int snp_start_index, int num_snps_in_chunk, FILE* bedfile);
+  virtual ~PlinkLdBedFileChunk() {}
+
+  uintptr_t* geno() {return &geno_vec[0];}
+  uintptr_t* geno_masks() {return &geno_masks_vec[0];}
+  uint32_t* ld_missing_cts() {return &ld_missing_cts_vec[0];}
+  int num_subj() { return num_subj_; }
+
+  static double calculate_ld_corr(PlinkLdBedFileChunk& fixed_chunk, PlinkLdBedFileChunk& var_chunk, int snp_fixed_index, int snp_var_index);
 
  private:
-  FILE* bedfile;
-
-  int num_snps_;
+  int num_subj_;
+  int num_snps_in_chunk_;
   std::vector<uintptr_t> geno_vec;
-  uintptr_t* geno;
-
-  std::vector<uintptr_t> loadbuf_vec;
-  uintptr_t* loadbuf;
-
   std::vector<uintptr_t> geno_masks_vec;
-  uintptr_t* geno_masks;
-
   std::vector<uint32_t> ld_missing_cts_vec;
-  uint32_t* ld_missing_cts;
 };
 

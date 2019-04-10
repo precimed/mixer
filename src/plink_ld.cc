@@ -598,7 +598,10 @@ SampleCountInfo::SampleCountInfo(int num_subjects) {
   unfiltered_sample_ct4 = (unfiltered_sample_ct + 3) / 4;
 }
 
-PlinkLdBedFileChunk::PlinkLdBedFileChunk(int num_subjects, int snp_start_index, int num_snps_in_chunk, FILE* bedfile) : num_subj_(num_subjects), num_snps_in_chunk_(num_snps_in_chunk) {
+uint32_t PlinkLdBedFileChunk::init(int num_subjects, int snp_start_index, int num_snps_in_chunk, FILE* bedfile) {
+  num_subj_ = num_subjects;
+  num_snps_in_chunk_ = num_snps_in_chunk;
+
   const SampleCountInfo sc(num_subjects);
   std::vector<uintptr_t> loadbuf_vec(sc.unfiltered_sample_ctv2, 0);
   std::vector<uintptr_t> founder_info_vec(sc.unfiltered_sample_ctl, 0);
@@ -614,20 +617,23 @@ PlinkLdBedFileChunk::PlinkLdBedFileChunk(int num_subjects, int snp_start_index, 
   ld_missing_cts_vec.resize(num_snps_in_chunk, 0);
 
   if (fseeko(bedfile, bed_offset + (snp_start_index * ((uint64_t)sc.unfiltered_sample_ct4)), SEEK_SET)) {
-    throw "error while reading bfile";
+    return RET_READ_FAIL;
   }
 
   for (int snp_index = 0; snp_index < num_snps_in_chunk; snp_index++) {
     uint32_t error_code = load_and_collapse_incl(
       sc.unfiltered_sample_ct, sc.founder_ct, &founder_info_vec[0], sc.final_mask, is_marker_reverse,
       bedfile, &loadbuf_vec[0], &(geno()[snp_index * sc.founder_ct_192_long]));
-    if (error_code != 0) throw "error while reading bfile";
+    if (error_code != 0)
+      return error_code;
 
     ld_process_load2(&(geno_vec[snp_index * sc.founder_ct_192_long]), 
                      &(geno_masks_vec[snp_index * sc.founder_ct_192_long]),
                      &(ld_missing_cts_vec[snp_index]), 
                      sc.founder_ct, is_x, founder_male_include2);
   }
+
+  return 0;
 }
 
 double PlinkLdBedFileChunk::calculate_ld_corr(PlinkLdBedFileChunk& fixed_chunk, PlinkLdBedFileChunk& var_chunk, int snp_fixed_index, int snp_var_index) {

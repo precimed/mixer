@@ -11,6 +11,7 @@
 #include <future>
 #include <map>
 #include <limits>
+#include <string>
 
 #include <boost/program_options.hpp>
 #include <boost/noncopyable.hpp>
@@ -102,6 +103,7 @@ void log_header(int argc, char *argv[]) {
 }
 
 struct BgmgOptions {
+  std::string bfile;
   std::string bim;
   std::string frq;
   std::string chr_labels;
@@ -110,6 +112,7 @@ struct BgmgOptions {
   std::string trait1;
   std::string exclude;
   std::string extract;
+  float r2min;
 };
 
 void describe_bgmg_options(BgmgOptions& s) {
@@ -125,8 +128,8 @@ void describe_bgmg_options(BgmgOptions& s) {
 
 void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
   // Validate --bim / --bim-chr option
-  if (bgmg_options.bim.empty())
-    throw std::invalid_argument(std::string("ERROR: --bim must be specified"));
+  if (bgmg_options.bim.empty() && bgmg_options.bfile.empty())
+    throw std::invalid_argument(std::string("ERROR: --bim or --bfile must be specified"));
 
   // Validate --out option
   if (bgmg_options.out.empty())
@@ -146,6 +149,9 @@ void fix_and_validate(BgmgOptions& bgmg_options, po::variables_map& vm) {
   if (bgmg_options.frq.empty())
     throw std::invalid_argument(std::string("ERROR: --frq must be specified"));
 
+  if (!bgmg_options.bfile.empty()) // ignore the remaining validation - this indicates that we built LD structure
+    return;
+
   // Validate trait1 option
   if (bgmg_options.trait1.empty() || !boost::filesystem::exists(bgmg_options.trait1))
     throw std::invalid_argument(std::string("ERROR: Either --trait1 file does not exist: " + bgmg_options.trait1));
@@ -157,6 +163,7 @@ int main(int argc, char *argv[]) {
     po::options_description po_options("BGMG " VERSION " - Univariate and Bivariate causal mixture models for GWAS");
     po_options.add_options()
       ("help,h", "produce this help message")
+      ("bfile", po::value(&bgmg_options.bfile), "Path to .fam/.bim/.bed file that defines the reference genotypes for LD structure estimatiion.")
       ("bim", po::value(&bgmg_options.bim), "Path to .bim file that defines the reference set of SNPs. Optionally, if input files are split per chromosome, use @ to specify location of chromosome label.")
       ("frq", po::value(&bgmg_options.frq), "Path to .frq file that defines the minor allele frequency for the reference set of SNPs. Optionally, if input files are split per chromosome, use @ to specify location of chromosome label.")
       ("plink-ld", po::value(&bgmg_options.plink_ld), "Path to plink .ld.gz file to convert into BGMG binary format.")
@@ -167,6 +174,7 @@ int main(int argc, char *argv[]) {
         ("trait1", po::value(&bgmg_options.trait1), "Path to .sumstats.gz file for the trait to analyze")
       ("exclude", po::value(&bgmg_options.exclude)->default_value(""), "File with a set of SNP rs# to exclude from the analysis")
       ("extract", po::value(&bgmg_options.extract)->default_value(""), "File with a set of SNP rs# to use in the analysis; this is optional, by default use all available markers")
+      ("r2min", po::value(&bgmg_options.r2min)->default_value(0.05), "Threshold for LD r2 estimation.")
     ;
 
     po::variables_map vm;
@@ -190,12 +198,17 @@ int main(int argc, char *argv[]) {
       fix_and_validate(bgmg_options, vm);
       describe_bgmg_options(bgmg_options);
 
-      const int context_id = 0;
-      BgmgCpp bgmg_cpp_interface(context_id);
-      bgmg_cpp_interface.init(bgmg_options.bim, bgmg_options.frq, bgmg_options.chr_labels, bgmg_options.trait1, std::string(), bgmg_options.exclude, bgmg_options.extract);
+      if (!bgmg_options.bfile.empty()) {
+        bgmg_calc_ld_matrix(bgmg_options.bfile.c_str(), bgmg_options.frq.c_str(),
+                            bgmg_options.out.c_str(), bgmg_options.r2min);
+      } else {
+        const int context_id = 0;
+        BgmgCpp bgmg_cpp_interface(context_id);
+        bgmg_cpp_interface.init(bgmg_options.bim, bgmg_options.frq, bgmg_options.chr_labels, bgmg_options.trait1, std::string(), bgmg_options.exclude, bgmg_options.extract);
 
-      if (!bgmg_options.plink_ld.empty()) {
-        bgmg_cpp_interface.convert_plink_ld(bgmg_options.plink_ld, bgmg_options.out);
+        if (!bgmg_options.plink_ld.empty()) {
+          bgmg_cpp_interface.convert_plink_ld(bgmg_options.plink_ld, bgmg_options.out);
+        }
       }
 
       auto analysis_finished = boost::posix_time::second_clock::local_time();

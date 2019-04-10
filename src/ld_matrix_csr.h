@@ -35,20 +35,21 @@
 #define LD_TAG_COMPONENT_BELOW_R2MIN 0
 #define LD_TAG_COMPONENT_ABOVE_R2MIN 1
 
-class packed_r2_value {
+class packed_r_value {
  public:
-   packed_r2_value() : value_(0) {}
-   packed_r2_value(float value) {
-    assert((value >= 0.0f) && (value <= 1.0f));
-    value_ = static_cast<uint16_t>(roundf(value * 65535.0f));
+   packed_r_value() : value_(0) {}
+   packed_r_value(float value) {
+    assert((value >= -1.0f) && (value <= 1.0f));
+    value_ = static_cast<uint16_t>(roundf((0.5f + 0.5f * value) * 65535.0f));
   }
 
+  uint16_t raw_value() const { return value_; };
   float get() const {
     static float data_[65536];
     static bool initialized;
     if (!initialized) {
       initialized = true;
-      for (int i = 0; i < 65536; i++) data_[i] = static_cast<float>(i) / 65535.0f;
+      for (int i = 0; i < 65536; i++) data_[i] = -1.0f + 2.0f * static_cast<float>(i) / 65535.0f;
     }
 
     return data_[value_];
@@ -56,10 +57,10 @@ class packed_r2_value {
 
  private:
   uint16_t value_;
-  friend inline bool operator <(const packed_r2_value& lhs, const packed_r2_value& rhs);
+  friend inline bool operator <(const packed_r_value& lhs, const packed_r_value& rhs);
 };
 
-inline bool operator <(const packed_r2_value& lhs, const packed_r2_value& rhs)
+inline bool operator <(const packed_r_value& lhs, const packed_r_value& rhs)
 {
   return lhs.value_ < rhs.value_;
 }
@@ -100,8 +101,10 @@ public:
   }
 
   void store(int ld_component, int tag_index, float r2_times_hval) {
-    ld_tag_sum_r2_[ld_component][tag_index] += r2_times_hval;
-    ld_tag_sum_r4_[ld_component][tag_index] += (r2_times_hval * r2_times_hval);
+    if (ld_component >= 0) {
+      ld_tag_sum_r2_[ld_component][tag_index] += r2_times_hval;
+      ld_tag_sum_r4_[ld_component][tag_index] += (r2_times_hval * r2_times_hval);
+    }
 
     ld_tag_sum_r2_[total_ld_component][tag_index] += r2_times_hval;
     ld_tag_sum_r4_[total_ld_component][tag_index] += (r2_times_hval * r2_times_hval);
@@ -125,19 +128,19 @@ private:
 // Class to store LD matrix for a given chromosome (or chunk) in CSR format
 class LdMatrixCsrChunk {
  public:
-  std::vector<std::tuple<int, int, packed_r2_value>> coo_ld_; // snp, tag, r2
+  std::vector<std::tuple<int, int, packed_r_value>> coo_ld_; // snp, tag, r
 
   // csr_ld_snp_index_.size() == num_snps_in_chunk() + 1; 
   // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
-  // csr_ld_tag_index_.size() == csr_ld_r2_.size() == number of non-zero LD r2 values
+  // csr_ld_tag_index_.size() == csr_ld_r_.size() == number of non-zero LD r values
   // csr_ld_tag_index_ contains values from 0 to num_tag_-1
-  // csr_ld_r2_ contains values from 0 to 1, indicating LD r2 between snp and tag variants
+  // csr_ld_r_ contains values from -1 to 1, indicating LD allelic correlation (r) between snp and tag variants
   std::vector<int64_t> csr_ld_snp_index_;
   std::vector<uint64_t> csr_ld_tag_index_offset_;      // pointers to csr_ld_tag_index_packed_ (location where to decompress)
                                                        // number of elements to decompress can be deduced from csr_ld_snp_index_
   std::vector<unsigned char> csr_ld_tag_index_packed_;  // packed csr_ld_tag_index (delta-encoded, then compressed with TurboPFor vsenc32 algorithm).
                                                         // The buffer has some extra capacity (as required by TurboPFor vsenc32/vdec32 algorithms).
-  std::vector<packed_r2_value> csr_ld_r2_;
+  std::vector<packed_r_value> csr_ld_r_;
   
   unsigned char* csr_ld_tag_index_packed(int snp_index) {
     return &csr_ld_tag_index_packed_[csr_ld_tag_index_offset_[snp_index - snp_index_from_inclusive_]];
@@ -163,7 +166,7 @@ class LdMatrixCsrChunk {
   int num_snps_in_chunk() const { return snp_index_to_exclusive_ - snp_index_from_inclusive_; }
   bool is_empty() const { return snp_index_to_exclusive_ == snp_index_from_inclusive_; }
 
-  int64_t set_ld_r2_csr(TagToSnpMapping& mapping);
+  int64_t set_ld_r2_csr(TagToSnpMapping* mapping);
   int64_t validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_tag_index, TagToSnpMapping& mapping);  // validate
   float find_and_retrieve_ld_r2(int snp_index, int tag_index, const std::vector<uint32_t>& csr_ld_tag_index);  // nan if doesn't exist.
 
@@ -178,6 +181,7 @@ public:
   LdMatrixIterator(int64_t ld_index, const LdMatrixRow* parent) : ld_index_(ld_index), parent_(parent) {}
 
   int tag_index() const;
+  float r() const;
   float r2() const;
 
   LdMatrixIterator& operator++ () {
@@ -213,7 +217,7 @@ public:
   LdMatrixIterator end() { return LdMatrixIterator(tag_index_.size(), this); }
 private:
   std::vector<int> tag_index_;
-  std::vector<packed_r2_value> r2_;
+  std::vector<packed_r_value> r_;
   friend class LdMatrixIterator;
   friend class LdMatrixCsr;
 };
@@ -228,7 +232,7 @@ class LdMatrixCsr {
    int64_t set_ld_r2_csr(float r2_min, int chr_label);  // finalize
 
    bool is_ready() { return !empty() && std::all_of(chunks_.begin(), chunks_.end(), [](LdMatrixCsrChunk& chunk) { return chunk.coo_ld_.empty(); }); }
-   int64_t size() { return std::accumulate(chunks_.begin(), chunks_.end(), 0, [](int64_t sum, LdMatrixCsrChunk& chunk) {return sum + chunk.csr_ld_r2_.size(); }); }
+   int64_t size() { return std::accumulate(chunks_.begin(), chunks_.end(), 0, [](int64_t sum, LdMatrixCsrChunk& chunk) {return sum + chunk.csr_ld_r_.size(); }); }
    bool empty() { return (size() == 0); }
 
    void extract_row(int snp_index, LdMatrixRow* row);  // retrieve all LD r2 entries for given snp_index
@@ -247,4 +251,3 @@ private:
   std::shared_ptr<LdTagSum> ld_tag_sum_adjust_for_hvec_;
   std::shared_ptr<LdTagSum> ld_tag_sum_;
 };
-

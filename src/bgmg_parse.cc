@@ -205,7 +205,7 @@ void FrqFile::read(const BimFile& bim, std::string filename) {
     boost::trim_if(str, boost::is_any_of(separators));
     boost::split(tokens, str, boost::is_any_of(separators), boost::token_compress_on);
     try {
-      snp = snp = tokens[1];
+      snp = tokens[1];
       frq = stof(tokens[4]);
     }
     catch (...) {
@@ -526,7 +526,7 @@ void FamFile::read(std::string filename) {
     pheno_.push_back(pheno);
   }
 
-  LOG << " Found " << fid_.size() << " variants in " << filename;
+  LOG << " Found " << fid_.size() << " individuals in " << filename;
 }
 
 void BedFileInMemory::read(std::string filename) {

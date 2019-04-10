@@ -56,8 +56,9 @@ public:
 // A class that wraps a chunk of a plink BED file, and stores it into a format suitable for computing LD allelic correlation.
 class PlinkLdBedFileChunk {
  public:
-  explicit PlinkLdBedFileChunk(int num_subjects, int snp_start_index, int num_snps_in_chunk, FILE* bedfile);
-  virtual ~PlinkLdBedFileChunk() {}
+ PlinkLdBedFileChunk() {}
+  explicit PlinkLdBedFileChunk(int num_subjects, int snp_start_index, int num_snps_in_chunk, FILE* bedfile) { init(num_subjects, snp_start_index, num_snps_in_chunk, bedfile); }
+  uint32_t init(int num_subjects, int snp_start_index, int num_snps_in_chunk, FILE* bedfile);
 
   uintptr_t* geno() {return &geno_vec[0];}
   uintptr_t* geno_masks() {return &geno_masks_vec[0];}
@@ -73,4 +74,3 @@ class PlinkLdBedFileChunk {
   std::vector<uintptr_t> geno_masks_vec;
   std::vector<uint32_t> ld_missing_cts_vec;
 };
-

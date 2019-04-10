@@ -128,5 +128,8 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_get_loglike_cache_size(int context_id);
   DLL_PUBLIC int64_t bgmg_get_loglike_cache_univariate_entry(int context_id, int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost);
   DLL_PUBLIC int64_t bgmg_get_loglike_cache_bivariate_entry(int context_id, int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost);
+
+  // estimate LD structure
+  DLL_PUBLIC int64_t bgmg_calc_ld_matrix(const char* bfile, const char* frqfile, const char* outfile, double r2min);
 }
 

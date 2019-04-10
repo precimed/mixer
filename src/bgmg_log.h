@@ -9,7 +9,7 @@
 
 #define LOG Logger::singleton()
 #define MAX_LOG_LINES 10000000
-#define BGMG_THROW_EXCEPTION(x) throw x
+#define BGMG_THROW_EXCEPTION(x) throw (x)
 
 // A timer that fire an event each X milliseconds.
 class SimpleTimer {

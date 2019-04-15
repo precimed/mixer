@@ -2576,7 +2576,7 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
       auto iter_end = ld_matrix_row.end();
       for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
         const int tag_index = iter.tag_index();
-        const float r_value = sqrt(iter.r2());  // <BUG-BUG, here we must take into account signed r, not r2.
+        const float r_value = iter.r();
         delta_local[tag_index] += r_value * sqrt(sqrt_hvec[causal_index]) * causalbetavec[causal_index];
       }
     }

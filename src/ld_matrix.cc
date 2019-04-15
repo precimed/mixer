@@ -68,7 +68,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, std::string frqfile, fl
       BGMG_THROW_EXCEPTION(::std::runtime_error("error while reading .bed file"));
 
     for (int block_jdx = block_idx; block_jdx < num_blocks; block_jdx++) {
-    LOG << " processing block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "... ";
+    LOG << " processing block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << "... ";
 
       const int block_jstart = block_jdx * block_size;
       const int block_jend = std::min(block_jstart + block_size, num_snps);
@@ -99,8 +99,8 @@ void generate_ld_matrix_from_bed_file(std::string bfile, std::string frqfile, fl
           if (ld_r2 < r2_min) {
             local_ld_tag_sum[global_snp_index] += ld_r2;
             local_ld_tag_sum[global_snp_jndex] += ld_r2;
-            local_ld_tag_sum_adjust_for_hvec[global_snp_index] += ld_r2 * hvec[global_snp_index];
-            local_ld_tag_sum_adjust_for_hvec[global_snp_jndex] += ld_r2 * hvec[global_snp_jndex];
+            local_ld_tag_sum_adjust_for_hvec[global_snp_index] += ld_r2 * hvec[global_snp_jndex];  // note that i-th SNP is adjusted for het of j-th SNP
+            local_ld_tag_sum_adjust_for_hvec[global_snp_jndex] += ld_r2 * hvec[global_snp_index];  // and vice versa.
           }
           else {
             local_coo_ld.push_back(std::make_tuple(global_snp_index, global_snp_jndex, ld_corr));

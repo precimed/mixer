@@ -292,6 +292,14 @@ int64_t bgmg_retrieve_causalbetavec(int context_id, int trait, int length, float
   } CATCH_EXCEPTIONS;
 }
 
+int64_t bgmg_retrieve_fixed_effect_delta(int context_id, int trait, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
+    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_fixed_effect_delta(trait, length, buffer);
+  } CATCH_EXCEPTIONS;
+}
+
 int64_t bgmg_retrieve_mafvec(int context_id, int length, float* buffer) {
   try {
     set_last_error(std::string());

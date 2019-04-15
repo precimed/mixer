@@ -296,6 +296,7 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
   int64_t retrieve_ld_tag_r2_sum(int length, float* buffer);
   int64_t retrieve_ld_tag_r4_sum(int length, float* buffer);
+  int64_t retrieve_fixed_effect_delta(int trait_index, int length, float* delta);
   
   // Calculate and retrieve weighted_causal_r2, wcr2[i], i runs from 0 to num_snp
   // wcr2[i] = sum_j w_j r^2_ij, where the sum runs across all tag variants, and 
@@ -392,7 +393,7 @@ class BgmgCalculator : public TagToSnpMapping {
   double cubature_rel_error_;
   int cubature_max_evals_;
   std::vector<double> k_pdf_;  // the log-likelihood cost calculated independently for each of 0...k_max-1 selections of causal variants.            
-  bool calc_k_pdf_;            // a flag indicating whether we should calculate k_pdf_
+  bool calc_k_pdf_;            // a calc_fixed_effect_delta_from_causalbetavecflag indicating whether we should calculate k_pdf_
   void check_num_snp(int length);
   void check_num_tag(int length);
   double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);

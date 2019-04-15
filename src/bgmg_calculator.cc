@@ -2545,12 +2545,20 @@ int64_t BgmgCalculator::retrieve_ld_r2_snp_range(int snp_index_from, int snp_ind
   return (length < 0) ? num_r2 : 0;
 }
 
+int64_t BgmgCalculator::retrieve_fixed_effect_delta(int trait_index, int length, float* delta) {
+  check_num_tag(length);
+  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
+  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
+  for (int i = 0; i < num_tag_; i++) delta[i] = fixed_effect_delta[i];
+}
+
 void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index, std::valarray<float>* delta) {
   if (delta->size() != num_tag_) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_fixed_effect_delta_from_causalbetavec expect delta to be already initialized"));
   *delta = 0.0f;
 
   const std::vector<float>& causalbetavec(*get_causalbetavec(trait_index));
   if (causalbetavec.empty()) return;
+  check_num_snp(causalbetavec.size());
 
   LOG << ">calc_fixed_effect_delta_from_causalbetavec(trait_index=" << trait_index << ")";
 
@@ -2575,7 +2583,7 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
       for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
         const int tag_index = iter.tag_index();
         const float r_value = iter.r();
-        delta_local[tag_index] += r_value * sqrt(sqrt_hvec[causal_index]) * causalbetavec[causal_index];
+        delta_local[tag_index] += r_value * sqrt_hvec[causal_index] * causalbetavec[causal_index];
       }
     }
 #pragma omp critical
@@ -2583,7 +2591,7 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
   }
 
   const std::vector<float>& nvec(*get_nvec(trait_index));
-  for (int i = 0; i < nvec.size(); i++) delta[i] *= sqrt(nvec[i]);
+  for (int i = 0; i < nvec.size(); i++) (*delta)[i] *= sqrt(nvec[i]);
 
   LOG << "<calc_fixed_effect_delta_from_causalbetavec(trait_index=" << trait_index  << "), elapsed time " << timer.elapsed_ms() << "ms";
 }

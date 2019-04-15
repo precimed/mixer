@@ -49,6 +49,7 @@ class LibBgmg(object):
         self.cdll.bgmg_retrieve_nvec.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_set_causalbetavec.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_retrieve_causalbetavec.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type]
+        self.cdll.bgmg_retrieve_fixed_effect_delta.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_set_snp_order.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_longlong, int32_pointer_type]
         self.cdll.bgmg_retrieve_snp_order.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_longlong, int32_pointer_type]
         self.cdll.bgmg_retrieve_k_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float64_pointer_type]
@@ -184,6 +185,9 @@ class LibBgmg(object):
 
     def get_causalbetavec(self, trait):
         return self._get_vec_impl(self.cdll.bgmg_retrieve_causalbetavec, np.float32, self.num_snp, trait=trait)
+
+    def get_fixedeffectdelta(self, trait):
+        return self._get_vec_impl(self.cdll.bgmg_retrieve_fixed_effect_delta, np.float32, self.num_snp, trait=trait)
 
     def get_snp_order(self, component_id):
         return self._get_vec_impl(self.cdll.bgmg_retrieve_snp_order, np.int32, self.k_max * self.max_causals, trait=component_id).reshape((self.k_max, self.max_causals))

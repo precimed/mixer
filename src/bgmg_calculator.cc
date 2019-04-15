@@ -2554,8 +2554,6 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
 
   LOG << ">calc_fixed_effect_delta_from_causalbetavec(trait_index=" << trait_index << ")";
 
-  BGMG_THROW_EXCEPTION(::std::runtime_error("calc_fixed_effect_delta_from_causalbetavec is not yet fully implemented; sign information is lost in r2 - need to refactor storage of LD r2 matrix"));
-
   SimpleTimer timer(-1);
 
   std::vector<float> sqrt_hvec;

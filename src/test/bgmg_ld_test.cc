@@ -135,6 +135,7 @@ TEST(TestLd, DifferentChunks) {
   fclose(bedfile);
 }
 
+// --gtest_filter=TestLd.GatherLdMatrix
 TEST(TestLd, GatherLdMatrix) {
   std::string fname = DataFolder + "/test.ld.bin2";
   generate_ld_matrix_from_bed_file(DataFolder + "/test", DataFolder + "/test.frq", 0.05, fname);
@@ -153,8 +154,8 @@ TEST(TestLd, GatherLdMatrix) {
   ASSERT_EQ(ld_tag_sum_adjust_for_hvec.size(), 2011);
 
   ASSERT_FLOAT_EQ(ld_tag_sum[0], 4.89746904);
-  ASSERT_FLOAT_EQ(ld_tag_sum_adjust_for_hvec[0], 0.769919276);
+  ASSERT_FLOAT_EQ(ld_tag_sum_adjust_for_hvec[0], 1.1495708);
 
   ASSERT_FLOAT_EQ(ld_tag_sum[2010], 8.81037998);
-  ASSERT_FLOAT_EQ(ld_tag_sum_adjust_for_hvec[2010], 2.07691956);
+  ASSERT_FLOAT_EQ(ld_tag_sum_adjust_for_hvec[2010], 1.8912569);
 }

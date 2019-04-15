@@ -125,6 +125,8 @@ private:
   const int total_ld_component;
 };
 
+class LdMatrixRow; 
+
 // Class to store LD matrix for a given chromosome (or chunk) in CSR format
 class LdMatrixCsrChunk {
  public:
@@ -169,12 +171,11 @@ class LdMatrixCsrChunk {
   int64_t set_ld_r2_csr(TagToSnpMapping* mapping);
   int64_t validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_tag_index, TagToSnpMapping& mapping);  // validate
   float find_and_retrieve_ld_r2(int snp_index, int tag_index, const std::vector<uint32_t>& csr_ld_tag_index);  // nan if doesn't exist.
+  void extract_row(int snp_index, LdMatrixRow* row);
 
   size_t log_diagnostics();
   void clear();
 };
-
-class LdMatrixRow; 
 
 class LdMatrixIterator {
 public:
@@ -220,6 +221,7 @@ private:
   std::vector<packed_r_value> r_;
   friend class LdMatrixIterator;
   friend class LdMatrixCsr;
+  friend class LdMatrixCsrChunk;
 };
 
 // Class for sparse LD matrix stored in CSR format (Compressed Sparse Row Format)
@@ -227,8 +229,8 @@ class LdMatrixCsr {
  public:
    LdMatrixCsr(TagToSnpMapping& mapping) : mapping_(mapping) {}
 
-   int64_t set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2, float r2_min);
-   int64_t set_ld_r2_coo(const std::string& filename, float r2_min);
+   int64_t set_ld_r2_coo(int chr_label, int64_t length, int* snp_index, int* tag_index, float* r, float r2_min);
+   int64_t set_ld_r2_coo(int chr_label, const std::string& filename, float r2_min);
    int64_t set_ld_r2_csr(float r2_min, int chr_label);  // finalize
 
    bool is_ready() { return !empty() && std::all_of(chunks_.begin(), chunks_.end(), [](LdMatrixCsrChunk& chunk) { return chunk.coo_ld_.empty(); }); }

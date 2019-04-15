@@ -254,8 +254,8 @@ class BgmgCalculator : public TagToSnpMapping {
   // must be called after set_tag_indices
   // must be called one for each chromosome, sequentially, starting from lowest chromosome number
   // non-tag variants will be ignored
-  int64_t set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2);
-  int64_t set_ld_r2_coo(const std::string& filename);
+  int64_t set_ld_r2_coo(int chr_label, int64_t length, int* snp_index, int* tag_index, float* r);
+  int64_t set_ld_r2_coo(int chr_label, const std::string& filename);
   int64_t set_ld_r2_csr(int chr_label = -1);  // finalize
 
   int64_t num_ld_r2_snp(int snp_index);

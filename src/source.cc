@@ -173,19 +173,19 @@ int64_t bgmg_retrieve_tag_indices(int context_id, int num_tag, int* tag_indices)
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_ld_r2_coo(int context_id, int64_t length, int* snp_index, int* tag_index, float* r2) {
+int64_t bgmg_set_ld_r2_coo(int context_id, int chr_label, int64_t length, int* snp_index, int* tag_index, float* r) {
   try {
     set_last_error(std::string());
-    check_is_positive(length); check_is_not_null(snp_index); check_is_not_null(tag_index); check_is_not_null(r2);
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(length, snp_index, tag_index, r2);
+    check_is_positive(length); check_is_not_null(snp_index); check_is_not_null(tag_index); check_is_not_null(r);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(length, chr_label, snp_index, tag_index, r);
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_ld_r2_coo_from_file(int context_id, const char* filename) {
+int64_t bgmg_set_ld_r2_coo_from_file(int context_id, int chr_label, const char* filename) {
   try {
     set_last_error(std::string());
     check_is_not_null(filename);
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(filename);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(chr_label, filename);
   } CATCH_EXCEPTIONS;
 }
 

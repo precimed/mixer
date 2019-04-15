@@ -82,15 +82,10 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_retrieve_mafvec(int context_id, int length, float* buffer);
 
   // API to populate LD structure
-  // "from_file" expect a binary file of the following structure:
-  // First 8 bytes - an integer, numel, that says how many LD r2 is in the file.
-  // size(int32)*numel bytes - vector of snp indices, snpA
-  // size(int32)*numel bytes - vector of snp indices, snpB
-  // size(float)*numel bytes - vector of LDr2 between snpA and snpB
-  // NB. snp indices must be zero-based.
+  // "from_file" expect a binary file produced by bgmg_calc_ld_matrix.
   // NB. we expect that this data originates from plink, where LD matrix is lower triangular, diagonal not included. So snpA must be always lower than snpB.
-  DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int64_t length, int* snp_index, int* tag_index, float* r2);
-  DLL_PUBLIC int64_t bgmg_set_ld_r2_coo_from_file(int context_id, const char* filename);
+  DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int chr_label, int64_t length, int* snp_index, int* tag_index, float* r);
+  DLL_PUBLIC int64_t bgmg_set_ld_r2_coo_from_file(int context_id, int chr_label, const char* filename);
   DLL_PUBLIC int64_t bgmg_set_ld_r2_csr(int context_id, int chr_label);
 
   // query LD structure of a given SNP or for a given chromosome

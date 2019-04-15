@@ -53,7 +53,7 @@ class LibBgmg(object):
         self.cdll.bgmg_retrieve_snp_order.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_longlong, int32_pointer_type]
         self.cdll.bgmg_retrieve_k_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float64_pointer_type]
         self.cdll.bgmg_set_option.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_double]
-        self.cdll.bgmg_set_ld_r2_coo_from_file.argtypes = [ctypes.c_int, ctypes.c_char_p]
+        self.cdll.bgmg_set_ld_r2_coo_from_file.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
         self.cdll.bgmg_set_ld_r2_csr.argtypes = [ctypes.c_int, ctypes.c_int]
         self.cdll.bgmg_set_weights_randprune.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float]
         self.cdll.bgmg_retrieve_ld_tag_r2_sum.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
@@ -103,8 +103,8 @@ class LibBgmg(object):
     def convert_plink_ld(self, plink_ld_gz, plink_ld_bin):
         return self._check_error(self.cdll.bgmg_convert_plink_ld(self._context_id, _p2n(plink_ld_gz), _p2n(plink_ld_bin)))
 
-    def set_ld_r2_coo_from_file(self, filename):
-        return self._check_error(self.cdll.bgmg_set_ld_r2_coo_from_file(self._context_id, _p2n(filename)))
+    def set_ld_r2_coo_from_file(self, chr_label, filename):
+        return self._check_error(self.cdll.bgmg_set_ld_r2_coo_from_file(self._context_id, chr_label, _p2n(filename)))
 
     def set_ld_r2_csr(self, chr_label=-1):  # -1 means to finalize all chromosomes
         return self._check_error(self.cdll.bgmg_set_ld_r2_csr(self._context_id, chr_label))

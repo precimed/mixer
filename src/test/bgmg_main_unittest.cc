@@ -76,7 +76,7 @@ public:
   void make_r2(int num_r2, std::vector<int>* snp_index, std::vector<int>* tag_index, std::vector<float>* r2) {
     std::uniform_real_distribution<> dis2(0.0f, 1.0f);
     std::vector<float> rand_list;
-    for (int i = 0; i < 1000; i++) rand_list.push_back(dis2(g_));
+    for (int i = 0; i < 1000; i++) rand_list.push_back(((i%3==0) ? -1.0f : 1.0f) * dis2(g_));
     
     std::set<std::tuple<int, int>> pairs;
 
@@ -115,6 +115,7 @@ TEST(LdTest, ValidateMultipleChromosomes) {
   int num_tag = 40;
   int kmax = 20; // #permutations
   int N = 100;  // gwas sample size, constant across all variants
+  int chr_label = 1;
   TestMother tm(60, 40, N);
   
   std::vector<int> chrnumvec; 
@@ -135,7 +136,7 @@ TEST(LdTest, ValidateMultipleChromosomes) {
   std::vector<int> snp_index, tag_index;
   std::vector<float> r2;
   tm.make_r2(200, &snp_index, &tag_index, &r2);
-  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
 
   calc.set_ld_r2_csr();  // finalize csr structure
 
@@ -155,6 +156,7 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
   int num_tag = 5;
   int kmax = 20; // #permutations
   int N = 100;  // gwas sample size, constant across all variants
+  int chr_label = 1;
   TestMother tm(num_snp, num_tag, N);
   BgmgCalculator calc;
   calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
@@ -175,7 +177,7 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
   
   calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
   calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
-  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
 
   if (true) {
@@ -227,8 +229,8 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
 
   calc.calc_univariate_power(trait_index, 0.2, 1.2, 0.1, zthresh, nvec.size(), &nvec[0], &svec[0]);
   for (int i = 1; i < svec.size(); i++) ASSERT_TRUE(svec[i] > svec[i-1]);
-  if (r2min != 0) { ASSERT_NEAR(svec.front(), 5.83319888e-05, 1e-6); ASSERT_NEAR(svec.back(), 0.708118141, 1e-6); }
-  else {            ASSERT_NEAR(svec.front(), 5.78380204e-05, 1e-6); ASSERT_NEAR(svec.back(), 0.706565797, 1e-6); }
+  if (r2min != 0) { ASSERT_NEAR(svec.front(), 5.36914813e-05, 1e-6); ASSERT_NEAR(svec.back(), 0.685004711, 1e-6); }
+  else {            ASSERT_NEAR(svec.front(), 5.23356393e-05, 1e-6); ASSERT_NEAR(svec.back(), 0.682822824, 1e-6); }
 
   std::vector<float> c0(num_tag, 0.0), c1(num_tag, 0.0), c2(num_tag, 0.0);
   calc.calc_univariate_delta_posterior(trait_index, 0.2, 1.2, 0.1, num_tag, &c0[0], &c1[0], &c2[0]);
@@ -236,6 +238,7 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
     ASSERT_TRUE(c0[i] > 0);
     ASSERT_TRUE(c1[i] != 0);
     ASSERT_TRUE(c2[i] > 0);
+    break;
   }
 
   calc.set_option("fast_cost", 1);
@@ -263,6 +266,7 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index) {
   int num_tag = 10;
   int kmax = 20000; // #permutations
   int N = 100;  // gwas sample size, constant across all variants
+  int chr_label = 1;
   TestMother tm(num_snp, num_tag, N);
   BgmgCalculator calc;
   calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
@@ -285,7 +289,7 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index) {
   
   calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
   calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
-  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
 
   calc.set_option("cost_calculator", 0);
@@ -334,6 +338,7 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min) {
   calc.set_option("threads", 1);
 
   int trait = 1;
+  int chr_label = 1;
   calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
   calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
 
@@ -349,7 +354,7 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min) {
 
   calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
   calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
-  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
   calc.set_weights_randprune(20, 0.25);
 
@@ -389,6 +394,7 @@ void BgmgTest_CalcLikelihood(float r2min) {
   calc.set_option("r2min", r2min);
 
   int trait = 1;
+  int chr_label = 1;
   calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
   calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
 
@@ -404,7 +410,7 @@ void BgmgTest_CalcLikelihood(float r2min) {
 
   calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
   calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
-  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
   calc.set_weights_randprune(20, 0.25);
 
@@ -518,6 +524,7 @@ TEST(Test, RandomSeedAndThreading) {
       ASSERT_EQ(num_threads_real, num_threads);
 
       int trait = 1;
+      int chr_label = 1;
       calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
       calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
       trait = 2;
@@ -526,7 +533,7 @@ TEST(Test, RandomSeedAndThreading) {
 
       calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
       calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
-      calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+      calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
       calc.set_ld_r2_csr();  // finalize csr structure
       calc.set_weights_randprune(20, 0.25);
 
@@ -609,6 +616,7 @@ void test_tag_r2_caching() {
   calc.set_option("cache_tag_r2sum", 1);
   calc.set_seed(123123123);
   int trait = 1;
+  int chr_label = 1;
   calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
   calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
 
@@ -619,7 +627,7 @@ void test_tag_r2_caching() {
   
   calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
   calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
-  calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
   calc.set_weights_randprune(20, 0.25);
 
@@ -681,12 +689,13 @@ TEST(Test, performance) {
     calc.set_option("threads", 32);
     calc.set_seed(123123123);
     int trait = 1;
+    int chr_label = 1;
     calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
     calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
 
     calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
     calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
-    calc.set_ld_r2_coo(r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+    calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
     calc.set_ld_r2_csr();  // finalize csr structure
     calc.set_weights_randprune(20, 0.25);
 

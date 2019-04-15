@@ -25,6 +25,8 @@
 #include "TurboPFor/vsimple.h"
 #include "FastDifferentialCoding/fastdelta.h"
 
+#include "ld_matrix.h"
+
 // Very important to use correct sizes for output buffers.
 // There boundaries were suggested in https://github.com/powturbo/TurboPFor/issues/31
 #define VSENC_BOUND(n, size) ((n + 32) * ((size)+1) )
@@ -39,29 +41,36 @@ void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec) {
   }
 }
 
-int64_t LdMatrixCsr::set_ld_r2_coo(const std::string& filename, float r2_min) {
-  std::ifstream is(filename, std::ifstream::binary);
-  if (!is) BGMG_THROW_EXCEPTION(::std::runtime_error("can't open" + filename));
-  if (sizeof(int) != 4) BGMG_THROW_EXCEPTION("sizeof(int) != 4, internal error in BGMG cpp"); // int -> int32_t
+int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label, const std::string& filename, float r2_min) {
+  LdMatrixCsrChunk chunk;
+  std::vector<float> ld_tag_sum, ld_tag_sum_adjust_for_hvec;
+  load_ld_matrix(filename, &chunk, &ld_tag_sum, &ld_tag_sum_adjust_for_hvec);
 
-  int64_t numel;
-  is.read(reinterpret_cast<char*>(&numel), sizeof(int64_t));
-  LOG << " set_ld_r2_coo(filename=" << filename << "), reading " << numel << " elements...";
+  LOG << " set_ld_r2_coo(filename=" << filename << ")...";
+  int64_t numel = chunk.csr_ld_r_.size();
 
   std::vector<int> snp_index(numel, 0), tag_index(numel, 0);
-  std::vector<float> r2(numel, 0.0f);
+  std::vector<float> r(numel, 0.0f);
 
-  is.read(reinterpret_cast<char*>(&snp_index[0]), numel * sizeof(int));
-  is.read(reinterpret_cast<char*>(&tag_index[0]), numel * sizeof(int));
-  is.read(reinterpret_cast<char*>(&r2[0]), numel * sizeof(float));
+  LdMatrixRow ld_matrix_row;
+  int64_t elem_index = 0;
+  for (int chunk_snp_index = chunk.snp_index_from_inclusive_; chunk_snp_index < chunk.snp_index_to_exclusive_; chunk_snp_index++) {
+    chunk.extract_row(chunk_snp_index, &ld_matrix_row);
+    auto iter_end = ld_matrix_row.end();
+    for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+      snp_index[elem_index] = chunk_snp_index;
+      tag_index[elem_index] = iter.tag_index();
+      r[elem_index] = iter.r();
+      elem_index++;
+    }
+  }
 
-  if (!is) BGMG_THROW_EXCEPTION(::std::runtime_error("can't read from " + filename));
-  is.close();
-
-  return set_ld_r2_coo(numel, &snp_index[0], &tag_index[0], &r2[0], r2_min);
+  if (elem_index != numel) BGMG_THROW_EXCEPTION(::std::runtime_error("internal error, elem_index != numel"));
+  chunk.clear();  // all information is extracted to snp_index, tag_index and r. 
+  return set_ld_r2_coo(chr_label, numel, &snp_index[0], &tag_index[0], &r[0], r2_min);
 }
 
-int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2, float r2_min) {
+int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_index_data, int* tag_index_data, float* r, float r2_min) {
   if (mapping_.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_mafvec"));
   if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_chrnumvec"));
   LOG << ">set_ld_r2_coo(length=" << length << "); ";
@@ -72,11 +81,11 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
   }
 
   for (int64_t i = 0; i < length; i++)
-    if (snp_index[i] == tag_index[i])
+    if (snp_index_data[i] == tag_index_data[i])
       BGMG_THROW_EXCEPTION(::std::runtime_error("snp_index[i] == tag_index[i] --- unexpected for ld files created via plink"));
 
   for (int64_t i = 0; i < length; i++) {
-    if (!std::isfinite(r2[i]) || r2[i] < 0.0 || r2[i] > 1.0f) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined, negative or above 1.0 values"));
+    if (!std::isfinite(r[i]) || r[i] < -1.0f || r[i] > 1.0f) BGMG_THROW_EXCEPTION(::std::runtime_error("encounter undefined, below -1.0 or above 1.0 values"));
   }
 
   SimpleTimer timer(-1);
@@ -117,22 +126,29 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_inde
 
   int64_t new_elements = 0;
   int64_t elements_on_different_chromosomes = 0;
+
+  if (chr_label_data < 0 || chr_label_data >= chunks_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("invalid value for chr_label argument"));
+  const int index0 = chunks_[chr_label_data].snp_index_from_inclusive_;
+
   for (int64_t i = 0; i < length; i++) {
-    CHECK_SNP_INDEX(mapping_, snp_index[i]); CHECK_SNP_INDEX(mapping_, tag_index[i]);
+    const int snp_index = snp_index_data[i] + index0;
+    const int tag_index = tag_index_data[i] + index0;
+    CHECK_SNP_INDEX(mapping_, snp_index); CHECK_SNP_INDEX(mapping_, tag_index);
 
-    int chr_label = mapping_.chrnumvec()[tag_index[i]];
-    if (chr_label != mapping_.chrnumvec()[snp_index[i]]) { elements_on_different_chromosomes++;  continue; }
+    int chr_label = mapping_.chrnumvec()[tag_index];
+    if (chr_label != mapping_.chrnumvec()[snp_index]) { elements_on_different_chromosomes++;  continue; }
 
-    int ld_component = (r2[i] < r2_min) ? LD_TAG_COMPONENT_BELOW_R2MIN : LD_TAG_COMPONENT_ABOVE_R2MIN;
-    if (mapping_.is_tag()[tag_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[tag_index[i]], r2[i] * hvec[snp_index[i]]);
-    if (mapping_.is_tag()[snp_index[i]]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[snp_index[i]], r2[i] * hvec[tag_index[i]]);
+    const float r2 = r[i] * r[i];
+    int ld_component = (r2 < r2_min) ? LD_TAG_COMPONENT_BELOW_R2MIN : LD_TAG_COMPONENT_ABOVE_R2MIN;
+    if (mapping_.is_tag()[tag_index]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[tag_index], r2 * hvec[snp_index]);
+    if (mapping_.is_tag()[snp_index]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[snp_index], r2 * hvec[tag_index]);
 
-    if (mapping_.is_tag()[tag_index[i]]) ld_tag_sum_->store(ld_component, mapping_.snp_to_tag()[tag_index[i]], r2[i]);
-    if (mapping_.is_tag()[snp_index[i]]) ld_tag_sum_->store(ld_component, mapping_.snp_to_tag()[snp_index[i]], r2[i]);
+    if (mapping_.is_tag()[tag_index]) ld_tag_sum_->store(ld_component, mapping_.snp_to_tag()[tag_index], r2);
+    if (mapping_.is_tag()[snp_index]) ld_tag_sum_->store(ld_component, mapping_.snp_to_tag()[snp_index], r2);
 
-    if (r2[i] < r2_min) continue;
-    if (mapping_.is_tag()[tag_index[i]]) { chunks_[chr_label].coo_ld_.push_back(std::make_tuple(snp_index[i], mapping_.snp_to_tag()[tag_index[i]], r2[i])); new_elements++; }
-    if (mapping_.is_tag()[snp_index[i]]) { chunks_[chr_label].coo_ld_.push_back(std::make_tuple(tag_index[i], mapping_.snp_to_tag()[snp_index[i]], r2[i])); new_elements++; }
+    if (r2 < r2_min) continue;
+    if (mapping_.is_tag()[tag_index]) { chunks_[chr_label].coo_ld_.push_back(std::make_tuple(snp_index, mapping_.snp_to_tag()[tag_index], r[i])); new_elements++; }
+    if (mapping_.is_tag()[snp_index]) { chunks_[chr_label].coo_ld_.push_back(std::make_tuple(tag_index, mapping_.snp_to_tag()[snp_index], r[i])); new_elements++; }
   }
   for (int i = 0; i < chunks_.size(); i++) chunks_[i].coo_ld_.shrink_to_fit();
   if (elements_on_different_chromosomes > 0) LOG << " ignore " << elements_on_different_chromosomes << " r2 elements on between snps located on different chromosomes";
@@ -331,10 +347,8 @@ void LdMatrixCsrChunk::clear() {
   coo_ld_.clear();
 }
 
-void LdMatrixCsr::extract_row(int snp_index, LdMatrixRow* row) {
-  const int chr_label = mapping_.chrnumvec()[snp_index];
-  LdMatrixCsrChunk& chunk = chunks_[chr_label];
-  const int64_t num_ld_r2 = chunk.num_ld_r2(snp_index);
+void LdMatrixCsrChunk::extract_row(int snp_index, LdMatrixRow* row) {
+  const int64_t num_ld_r2 = this->num_ld_r2(snp_index);
   row->tag_index_.reserve(VSDEC_NUMEL(num_ld_r2));
   row->tag_index_.resize(num_ld_r2);  // std::vector.resize() never reduce capacity
   row->r_.resize(num_ld_r2);
@@ -342,15 +356,21 @@ void LdMatrixCsr::extract_row(int snp_index, LdMatrixRow* row) {
   // empty LD entry
   if (num_ld_r2 == 0) return;
 
-  vsdec32(chunk.csr_ld_tag_index_packed(snp_index), num_ld_r2, reinterpret_cast<unsigned int*>(&row->tag_index_[0]));
+  vsdec32(this->csr_ld_tag_index_packed(snp_index), num_ld_r2, reinterpret_cast<unsigned int*>(&row->tag_index_[0]));
 
   compute_prefix_sum_inplace(reinterpret_cast<uint32_t*>(&row->tag_index_[0]), num_ld_r2, 0);
 
-  const int64_t ld_index_begin = chunk.ld_index_begin(snp_index);
-  const int64_t ld_index_end = chunk.ld_index_end(snp_index);
+  const int64_t ld_index_begin = this->ld_index_begin(snp_index);
+  const int64_t ld_index_end = this->ld_index_end(snp_index);
   for (int64_t ld_index = ld_index_begin; ld_index < ld_index_end; ld_index++) {
-    row->r_.at(ld_index - ld_index_begin) = chunk.csr_ld_r_[ld_index];
+    row->r_.at(ld_index - ld_index_begin) = this->csr_ld_r_[ld_index];
   }
+}
+
+void LdMatrixCsr::extract_row(int snp_index, LdMatrixRow* row) {
+  const int chr_label = mapping_.chrnumvec()[snp_index];
+  LdMatrixCsrChunk& chunk = chunks_[chr_label];
+  chunk.extract_row(snp_index, row);
 }
 
 int LdMatrixCsr::num_ld_r2(int snp_index) {

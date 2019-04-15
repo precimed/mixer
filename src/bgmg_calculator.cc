@@ -227,12 +227,12 @@ int64_t BgmgCalculator::set_tag_indices(int num_snp, int num_tag, int* tag_indic
   return 0;
 }
 
-int64_t BgmgCalculator::set_ld_r2_coo(int64_t length, int* snp_index, int* tag_index, float* r2) {
-  return ld_matrix_csr_.set_ld_r2_coo(length, snp_index, tag_index, r2, r2_min_);
+int64_t BgmgCalculator::set_ld_r2_coo(int chr_label, int64_t length, int* snp_index, int* tag_index, float* r) {
+  return ld_matrix_csr_.set_ld_r2_coo(chr_label, length, snp_index, tag_index, r, r2_min_);
 }
 
-int64_t BgmgCalculator::set_ld_r2_coo(const std::string& filename) {
-  return ld_matrix_csr_.set_ld_r2_coo(filename, r2_min_);
+int64_t BgmgCalculator::set_ld_r2_coo(int chr_label, const std::string& filename) {
+  return ld_matrix_csr_.set_ld_r2_coo(chr_label, filename, r2_min_);
 }
 
 int64_t BgmgCalculator::set_ld_r2_csr(int chr_label) {

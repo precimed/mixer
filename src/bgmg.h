@@ -81,6 +81,8 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_retrieve_causalbetavec(int context_id, int trait, int length, float* buffer);
   DLL_PUBLIC int64_t bgmg_retrieve_mafvec(int context_id, int length, float* buffer);
 
+  DLL_PUBLIC int64_t bgmg_retrieve_fixed_effect_delta(int context_id, int trait, int length, float* buffer);
+
   // API to populate LD structure
   // "from_file" expect a binary file produced by bgmg_calc_ld_matrix.
   // NB. we expect that this data originates from plink, where LD matrix is lower triangular, diagonal not included. So snpA must be always lower than snpB.

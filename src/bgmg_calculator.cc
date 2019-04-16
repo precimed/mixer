@@ -2311,7 +2311,7 @@ int64_t BgmgCalculator::retrieve_ld_r2_snp(int snp_index, int length, int* tag_i
   int r2_index = 0;
   for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
     tag_index[r2_index] = iter.tag_index();
-    r2[r2_index] = iter.r2();
+    r2[r2_index] = iter.r();
     r2_index++;
   }
 
@@ -2343,7 +2343,7 @@ int64_t BgmgCalculator::retrieve_ld_r2_chr(int chr_label, int64_t length, int* s
     for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
       snp_index[r2_index] = causal_index;
       tag_index[r2_index] = iter.tag_index();
-      r2[r2_index] = iter.r2();
+      r2[r2_index] = iter.r();
       r2_index++;
     }
   }
@@ -2538,7 +2538,7 @@ int64_t BgmgCalculator::retrieve_ld_r2_snp_range(int snp_index_from, int snp_ind
       if (num_r2 > length) BGMG_THROW_EXCEPTION(::std::runtime_error("insufficient length for retrieve_ld_r2_snp_range"));
       snp_index[num_r2 - 1] = iter_snp_index;
       tag_index[num_r2 - 1] = iter_tag_index;
-      r2[num_r2 - 1] = iter.r2(); // here we are interested in r2 (hvec is irrelevant)
+      r2[num_r2 - 1] = iter.r(); // here we are interested in r2 (hvec is irrelevant)
     }
   }
   LOG << ((length < 0) ? " num_ld_r2_snp_range(" : " retrieve_ld_r2_snp_range(from=") << snp_index_from << ", to=" << snp_index_to << "), return " << num_r2;

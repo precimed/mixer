@@ -305,10 +305,10 @@ class LibBgmg(object):
         return svec    
 
     def calc_univariate_delta_posterior(self, trait, pi_vec, sig2_zero, sig2_beta):
-        raise(RuntimeError('Disable calc_univariate_delta_posterior - for some reason it crashes in native c++ plugin'))
-        c0 = np.zeros(shape=(np.size(self.num_tag),), dtype=np.float32)
-        c1 = np.zeros(shape=(np.size(self.num_tag),), dtype=np.float32)
-        c2 = np.zeros(shape=(np.size(self.num_tag),), dtype=np.float32)
+        # beta_posterior = delta_posterior / sqrt(H_j N_j)
+        c0 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c1 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c2 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
         self._check_error(self.cdll.bgmg_calc_univariate_delta_posterior(self._context_id, trait, pi_vec, sig2_zero, sig2_beta, self.num_tag, c0, c1, c2))
         return (c0, c1, c2)
 

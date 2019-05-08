@@ -119,7 +119,9 @@ extern "C" {
   // Calc bivariate cost function and pdf
   DLL_PUBLIC double bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   DLL_PUBLIC int64_t bgmg_calc_bivariate_pdf(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
-  
+  DLL_PUBLIC int64_t bgmg_calc_bivariate_delta_posterior(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero,
+                                                         int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02);
+
   // functions to work with loglikelihood cache
   DLL_PUBLIC int64_t bgmg_clear_loglike_cache(int context_id);
   DLL_PUBLIC int64_t bgmg_get_loglike_cache_size(int context_id);

@@ -379,7 +379,20 @@ int64_t bgmg_calc_bivariate_pdf(int context_id, int pi_vec_len, float* pi_vec, i
     check_is_positive(length); check_is_not_null(zvec1); check_is_not_null(zvec2); check_is_not_null(pdf);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_pdf(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, length, zvec1, zvec2, pdf);
   } CATCH_EXCEPTIONS;
+}
 
+int64_t bgmg_calc_bivariate_delta_posterior(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero,
+                                            int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
+  try {
+    set_last_error(std::string());
+    check_is_positive(pi_vec_len); check_is_positive(sig2_beta_len); check_is_positive(sig2_zero_len);
+    for (int i = 0; i < pi_vec_len; i++) fix_pi_vec(&pi_vec[i]);
+    for (int i = 0; i < sig2_beta_len; i++) check_is_positive(&sig2_beta[i]);
+    for (int i = 0; i < sig2_zero_len; i++) check_is_positive(&sig2_zero[i]);
+    fix_rho(&rho_beta); fix_rho(&rho_zero);
+    check_is_positive(length); check_is_not_null(c00); check_is_not_null(c10); check_is_not_null(c01); check_is_not_null(c20); check_is_not_null(c11); check_is_not_null(c02);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_delta_posterior(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, length, c00, c10, c01, c20, c11, c02);
+  } CATCH_EXCEPTIONS;
 }
 
 int64_t bgmg_set_weights_randprune(int context_id, int n, float r2) {

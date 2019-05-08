@@ -456,6 +456,18 @@ void BgmgTest_CalcLikelihood(float r2min) {
 
   calc.calc_bivariate_pdf(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero, zvec_pdf.size(), &zvec1_grid[0], &zvec2_grid[0], &zvec_pdf[0]);
 
+  std::vector<float> c00(num_tag, 0.0), c10(num_tag, 0.0), c01(num_tag, 0.0), c20(num_tag, 0.0), c11(num_tag, 0.0), c02(num_tag, 0.0);
+  calc.calc_bivariate_delta_posterior(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero, num_tag, &c00[0], &c10[0], &c01[0], &c20[0], &c11[0], &c02[0]);
+  for (int i = 0; i < num_tag; i++) {
+    ASSERT_TRUE(c00[i] > 0);
+    ASSERT_TRUE(c10[i] != 0);
+    ASSERT_TRUE(c01[i] != 0);
+    ASSERT_TRUE(c20[i] > 0);
+    ASSERT_TRUE(c11[i] != 0);
+    ASSERT_TRUE(c02[i] > 0);
+    break;
+  }
+
   calc.set_option("cache_tag_r2sum", 0);
   calc.calc_bivariate_pdf(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero, zvec_pdf.size(), &zvec1_grid[0], &zvec2_grid[0], &zvec_pdf_nocache[0]);
 

@@ -273,7 +273,6 @@ int64_t BgmgCalculator::find_snp_order() {
   if (snp_order_.size() > 0) BGMG_THROW_EXCEPTION(::std::runtime_error("find_snp_order: called twice"));
 
   LOG << ">find_snp_order(num_components_=" << num_components_ << ", k_max_=" << k_max_ << ", max_causals_=" << max_causals_ << ")";
-
   SimpleTimer timer(-1);
 
   // Right now all SNPs must be included in snp_can_be_causal_.
@@ -345,14 +344,13 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   const float last_num_causals_original = last_num_causals;
   
   LOG << ">find_tag_r2sum(component_id=" << component_id << ", num_causals=" << num_causals << ", last_num_causals=" << last_num_causals << ")";
+  SimpleTimer timer(-1);
 
   // if num_causal is more than twice lower than last_num_causals we should re-calculate tag_r2sum from scratch.
   if (num_causals < (last_num_causals / 2)) {
     clear_tag_r2sum(component_id);
     last_num_causals = 0.0f;
   }
-
-  SimpleTimer timer(-1);
 
   // changeset contains a list of indices with corresponding weight
   // indices apply to snp_order_[component_id] array.
@@ -599,13 +597,12 @@ int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float
   const int component_id = 0;   // univariate is always component 0.
 
   LOG << ">calc_univariate_pdf(trait_index="<< trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(zvec)=" << length << ")";
+  SimpleTimer timer(-1);
 
   if (snp_order_.empty()) find_snp_order();
   if (cache_tag_r2sum_) {
     find_tag_r2sum(component_id, num_causals);
   }
-
-  SimpleTimer timer(-1);
 
   const double pi_k = 1.0 / static_cast<double>(k_max_);
 
@@ -678,13 +675,12 @@ int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, flo
   const int component_id = 0;   // univariate is always component 0.
 
   LOG << ">calc_univariate_power(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", zthresh=" << zthresh << ", length(nvec)=" << length << ")";
+  SimpleTimer timer(-1);
 
   if (snp_order_.empty()) find_snp_order();
   if (cache_tag_r2sum_) {
     find_tag_r2sum(component_id, num_causals);
   }
-
-  SimpleTimer timer(-1);
 
   const double pi_k = 1.0 / static_cast<double>(k_max_);
 
@@ -756,13 +752,12 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
   if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
 
   LOG << ">calc_univariate_delta_posterior(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(nvec)=" << length << ")";
+  SimpleTimer timer(-1);
 
   if (snp_order_.empty()) find_snp_order();
   if (cache_tag_r2sum_) {
     find_tag_r2sum(component_id, num_causals);
   }
-
-  SimpleTimer timer(-1);
 
   std::valarray<double> c0_global(0.0f, num_tag_);
   std::valarray<double> c1_global(0.0f, num_tag_);
@@ -785,24 +780,24 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
       else {
         find_tag_r2sum_no_cache(0, num_causals, k_index, &tag_r2sum);
       }
-    }
 
-    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-     if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+        if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
 
-      const float tag_r2sum_value = tag_r2sum[tag_index];
-      const float delta2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta;  // S^2_kj
-      const float sig2eff = delta2eff + sig2_zero;
-      const float sig2eff_1_2 = sqrt(sig2eff);
-      const float sig2eff_3_2 = sig2eff_1_2 * sig2eff;
-      const float sig2eff_5_2 = sig2eff_3_2 * sig2eff;
+        const float tag_r2sum_value = tag_r2sum[tag_index];
+        const float delta2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta;  // S^2_kj
+        const float sig2eff = delta2eff + sig2_zero;
+        const float sig2eff_1_2 = sqrt(sig2eff);
+        const float sig2eff_3_2 = sig2eff_1_2 * sig2eff;
+        const float sig2eff_5_2 = sig2eff_3_2 * sig2eff;
 
-      const float z = zvec[tag_index];
-      const float exp_common = std::exp(-0.5f*z*z / sig2eff);
+        const float z = zvec[tag_index];
+        const float exp_common = std::exp(-0.5f*z*z / sig2eff);
 
-      c0_local[tag_index] += (exp_common / sig2eff_1_2);
-      c1_local[tag_index] += (exp_common / sig2eff_3_2) * z * delta2eff;
-      c2_local[tag_index] += (exp_common / sig2eff_5_2) *     delta2eff * (sig2_zero*sig2_zero + sig2_zero*delta2eff + z*z*delta2eff);
+        c0_local[tag_index] += (exp_common / sig2eff_1_2);
+        c1_local[tag_index] += (exp_common / sig2eff_3_2) * z * delta2eff;
+        c2_local[tag_index] += (exp_common / sig2eff_5_2) *     delta2eff * (sig2_zero*sig2_zero + sig2_zero*delta2eff + z*z*delta2eff);
+      }
     }
 
 #pragma omp critical
@@ -822,7 +817,6 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
     c1[tag_index] = pi_k * inv_sqrt_2pi * c1_global[tag_index];
     c2[tag_index] = pi_k * inv_sqrt_2pi * c2_global[tag_index];
   }
-
 
   LOG << "<calc_univariate_delta_posterior(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(nvec)=" << length << "), elapsed time " << timer.elapsed_ms() << "ms";
 }
@@ -853,9 +847,9 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
   const int component_id = 0;   // univariate is always component 0.
     
   LOG << ">calc_univariate_cost(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
-  find_tag_r2sum(component_id, num_causals);
-
   SimpleTimer timer(-1);
+
+  find_tag_r2sum(component_id, num_causals);
 
   std::valarray<float> fixed_effect_delta(0.0, num_tag_);
   calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
@@ -924,9 +918,9 @@ double BgmgCalculator::calc_univariate_cost_cache_deriv(int trait_index, float p
   const int component_id = 0;   // univariate is always component 0.
 
   LOG << ">calc_univariate_cost_deriv(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
-  find_tag_r2sum(component_id, num_causals);
-
   SimpleTimer timer(-1);
+
+  find_tag_r2sum(component_id, num_causals);
 
   const float pi_k = 1. / static_cast<float>(k_max_);
 
@@ -1007,7 +1001,6 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
   if (rhs.snp_order_.empty()) rhs.find_snp_order();
 
   LOG << ">calc_univariate_cost_nocache(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
-  
   SimpleTimer timer(-1);
 
   const double pi_k = 1.0 / static_cast<double>(rhs.k_max_);
@@ -1110,6 +1103,7 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
 
   std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
   LOG << ">calc_bivariate_cost(" << ss << ")";
+  SimpleTimer timer(-1);
 
   float num_causals[3];
   for (int component_id = 0; component_id < 3; component_id++) {
@@ -1120,8 +1114,6 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
   for (int component_id = 0; component_id < 3; component_id++) {
     find_tag_r2sum(component_id, num_causals[component_id]);
   }
-
-  SimpleTimer timer(-1);
 
   std::valarray<float> fixed_effect_delta1(0.0, num_tag_), fixed_effect_delta2(0.0, num_tag_);
   calc_fixed_effect_delta_from_causalbetavec(1, &fixed_effect_delta1);
@@ -1187,6 +1179,7 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
 double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
   std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
   LOG << ">calc_bivariate_cost_nocache(" << ss << ")";
+  SimpleTimer timer(-1);
 
   float num_causals[3];
   for (int component_id = 0; component_id < 3; component_id++) {
@@ -1195,8 +1188,6 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
   }
 
   if (snp_order_.empty()) find_snp_order();
-
-  SimpleTimer timer(-1);
 
   std::valarray<float> fixed_effect_delta1(0.0, num_tag_), fixed_effect_delta2(0.0, num_tag_);
   calc_fixed_effect_delta_from_causalbetavec(1, &fixed_effect_delta1);
@@ -1293,6 +1284,7 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
 
   std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, length);
   LOG << ">calc_bivariate_pdf(" << ss << ")";
+  SimpleTimer timer(-1);
 
   float num_causals[3];
   for (int component_id = 0; component_id < 3; component_id++) {
@@ -1306,8 +1298,6 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
       find_tag_r2sum(component_id, num_causals[component_id]);
     }
   }
-
-  SimpleTimer timer(-1);
 
   // Sigma0  = [a0 b0; b0 c0];
   const float a0 = sig2_zero[0];
@@ -1378,6 +1368,206 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
 
   for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);
   LOG << "<calc_bivariate_pdf(" << ss << "), elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}
+
+void calc_bivariate_delta_posterior_integrals(float a, float b, float c, float i, float j, float k, float z1, float z2,
+                                              float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
+  // [a b; b c] is variance-covariance matrix of eps in "z=delta+eps"
+  // [i j; j k] is variance-covariance matrix of delta for a specific choice of causal variants in sampling
+  // here we are calculating moments cPQ = E[delta1^P delta2^Q | z1, z2].
+  // the formulas are pretty tricky to derive - loads of integrals involved.
+
+  static const float inv_sqrt2_pi = 0.2250790790392765f;
+  const float z12 = z1*z1;
+  const float z22 = z2*z2;
+  const float z1z2 = z1*z2;
+
+  const float ci = c*i;
+  const float bj = b*j;
+  const float j2 = j*j;
+  const float ik = i*k;
+  const float bi = b*i;
+  const float aj = a*j;
+  const float cj = c*j;
+  const float bk = b*k;
+  const float ak = a*k;
+  const float ij = i*j;
+  const float i2 = i*i;
+  const float k2 = k*k;
+  const float jk = j*k;
+
+  const float ci2 = ci*i;
+  const float bij = bi*j;
+  const float aj2 = aj*j;
+  const float ij2 = ij*j;
+  const float i2k = i2*k;
+  const float cj2 = cj*j;
+  const float bjk = bj*k;
+  const float j2k = j2*k;
+  const float ak2 = ak*k;
+  const float ik2 = ik*k;
+  const float cij = ci*j;
+  const float bj2 = bj*j;
+  const float bik = bi*k;
+  const float ajk = aj*k;
+  const float ijk = ij*k;
+
+  const float j3 = j2*j;
+
+  const float eN = (c + k) * z12 - 2 * (b + j) * z1z2 + (a + i) * z22;
+  const float eD = -2.0f * (b + j)*(b + j) + 2.0f * (a + i) * (c + k);
+
+  const float eD2 = eD*eD;
+  const float inv_eD = 1.0f / eD;
+  const float inv_eD2 = inv_eD*inv_eD;
+  const float x2eD = 2.0f*eD;
+  const float x2eD_x4eN = x2eD - 4.0f*eN;
+
+  const float c00_tmp = inv_sqrt2_pi * exp(-eN * inv_eD) * sqrt(inv_eD);
+
+  const float c10_pol = ci * z1 - bj * z1 - j2 * z1 + ik * z1 - bi * z2 + aj * z2;
+  const float c01_pol = cj * z1 - bk * z1 - bj * z2 - j2 * z2 + ak * z2 + ik * z2;
+  const float c20_pol = eD2*i + x2eD_x4eN*(bij + bij - ci2 - aj2 + ij2 - i2k) - x2eD*(j2*z12 - 2.0f*ij*z1z2           + i2*z22);
+  const float c02_pol = eD2*k + x2eD_x4eN*(bjk + bjk - cj2 - ak2 + j2k - ik2) - x2eD*(k2*z12 - 2.0f*jk*z1z2           + j2*z22);
+  const float c11_pol = eD2*j + x2eD_x4eN*(bj2 + j3  - cij - ajk + bik - ijk) - x2eD*(jk*z12 -      j2*z1z2 - ik*z1z2 + ij*z22);
+
+  (*c00) = c00_tmp;
+  (*c10) = c00_tmp * 2.0f * inv_eD  * c10_pol;
+  (*c01) = c00_tmp * 2.0f * inv_eD  * c01_pol;
+  (*c20) = c00_tmp *        inv_eD2 * c20_pol;
+  (*c11) = c00_tmp *        inv_eD2 * c11_pol;
+  (*c02) = c00_tmp *        inv_eD2 * c02_pol;  
+}
+
+int64_t BgmgCalculator::calc_bivariate_delta_posterior(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero,
+                                                       int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
+  // where c(i,j) = \int_{\delta1, \delta2} \delta1^i \delta2^j P(z1, z2 | delta1, delta2) P(delta1, delta2)
+  if (zvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
+  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  if (zvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec2 is not set"));
+  if (nvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec2 is not set"));
+  if (num_components_ != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: require num_components == 3. Remember to call set_option('num_components', 3)."));
+  if (sig2_beta_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_beta_len != 2"));
+  if (sig2_zero_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
+  if (pi_vec_len != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: pi_vec_len != 3"));
+  if ((length == 0) || (length != num_tag_)) BGMG_THROW_EXCEPTION(::std::runtime_error("length != num_tag_"));
+
+  std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, length);
+  LOG << ">calc_bivariate_delta_posterior(" << ss << ")";
+  SimpleTimer timer(-1);
+
+  float num_causals[3];
+  for (int component_id = 0; component_id < 3; component_id++) {
+    num_causals[component_id] = pi_vec[component_id] * static_cast<float>(num_snp_);
+    if ((int)num_causals[component_id] >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
+  }
+
+  if (snp_order_.empty()) find_snp_order();
+  if (cache_tag_r2sum_) {
+    for (int component_id = 0; component_id < 3; component_id++) {
+      find_tag_r2sum(component_id, num_causals[component_id]);
+    }
+  }
+
+  // Sigma0  = [a0 b0; b0 c0];
+  const float a0 = sig2_zero[0];
+  const float c0 = sig2_zero[1];
+  const float b0 = sqrt(a0 * c0) * rho_zero;
+
+  std::valarray<double> c00_global(0.0f, num_tag_);
+  std::valarray<double> c10_global(0.0f, num_tag_);
+  std::valarray<double> c01_global(0.0f, num_tag_);
+  std::valarray<double> c20_global(0.0f, num_tag_);
+  std::valarray<double> c11_global(0.0f, num_tag_);
+  std::valarray<double> c02_global(0.0f, num_tag_);
+
+#pragma omp parallel
+  {
+    std::vector<float> tag_r2sum0(num_tag_, 0.0f);
+    std::vector<float> tag_r2sum1(num_tag_, 0.0f);
+    std::vector<float> tag_r2sum2(num_tag_, 0.0f);
+    std::valarray<double> c00_local(0.0f, num_tag_);
+    std::valarray<double> c10_local(0.0f, num_tag_);
+    std::valarray<double> c01_local(0.0f, num_tag_);
+    std::valarray<double> c20_local(0.0f, num_tag_);
+    std::valarray<double> c11_local(0.0f, num_tag_);
+    std::valarray<double> c02_local(0.0f, num_tag_);
+
+#pragma omp for schedule(static)
+    for (int k_index = 0; k_index < k_max_; k_index++) {
+      if (cache_tag_r2sum_) {
+        for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+          tag_r2sum0[tag_index] = (*tag_r2sum_[0])(tag_index, k_index);
+          tag_r2sum1[tag_index] = (*tag_r2sum_[1])(tag_index, k_index);
+          tag_r2sum2[tag_index] = (*tag_r2sum_[2])(tag_index, k_index);
+        }
+      } else {
+        find_tag_r2sum_no_cache(0, num_causals[0], k_index, &tag_r2sum0);
+        find_tag_r2sum_no_cache(1, num_causals[1], k_index, &tag_r2sum1);
+        find_tag_r2sum_no_cache(2, num_causals[2], k_index, &tag_r2sum2);
+      }
+
+      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+        if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
+        if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+
+        const float n1 = nvec1_[tag_index];
+        const float n2 = nvec2_[tag_index];
+        const float z1 = zvec1_[tag_index];
+        const float z2 = zvec2_[tag_index];
+
+        const float tag_r2sum_c1 = tag_r2sum0[tag_index];
+        const float tag_r2sum_c2 = tag_r2sum1[tag_index];
+        const float tag_r2sum_c3 = tag_r2sum2[tag_index];
+
+        // Sigma  = [A1+A3  B3;  B3  C2+C3] + Sigma0 = ...
+        //        = [a11    a12; a12   a22]
+        const float A1 = tag_r2sum_c1 * n1 * sig2_beta[0];
+        const float C2 = tag_r2sum_c2 * n2 * sig2_beta[1];
+        const float A3 = tag_r2sum_c3 * n1 * sig2_beta[0];
+        const float C3 = tag_r2sum_c3 * n2 * sig2_beta[1];
+        const float B3 = sqrt(A3*C3) * rho_beta;
+
+        const float A = A1 + A3;
+        const float C = C2 + C3;
+        const float B = B3;
+
+        float c00buf, c10buf, c01buf, c20buf, c11buf, c02buf;
+        calc_bivariate_delta_posterior_integrals(a0, b0, c0, A, B, C, z1, z2, &c00buf, &c10buf, &c01buf, &c20buf, &c11buf, &c02buf);
+        c00_local[tag_index] += static_cast<double>(c00buf);
+        c10_local[tag_index] += static_cast<double>(c10buf);
+        c01_local[tag_index] += static_cast<double>(c01buf);
+        c20_local[tag_index] += static_cast<double>(c20buf);
+        c11_local[tag_index] += static_cast<double>(c11buf);
+        c02_local[tag_index] += static_cast<double>(c02buf);
+      }
+    }
+#pragma omp critical
+    {
+      c00_global += c00_local;
+      c10_global += c10_local;
+      c01_global += c01_local;
+      c20_global += c20_local;
+      c11_global += c11_local;
+      c02_global += c02_local;
+    }
+  }
+
+  // save results to output buffers
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+    c00[tag_index] = pi_k * c00_global[tag_index];
+    c10[tag_index] = pi_k * c10_global[tag_index];
+    c01[tag_index] = pi_k * c01_global[tag_index];    
+    c20[tag_index] = pi_k * c20_global[tag_index];
+    c11[tag_index] = pi_k * c11_global[tag_index];
+      c02[tag_index] = pi_k * c02_global[tag_index];    
+  }
+
+  LOG << "<calc_bivariate_delta_posterior(" << ss << "), elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
@@ -2561,7 +2751,6 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
   check_num_snp(causalbetavec.size());
 
   LOG << ">calc_fixed_effect_delta_from_causalbetavec(trait_index=" << trait_index << ")";
-
   SimpleTimer timer(-1);
 
   std::vector<float> sqrt_hvec;

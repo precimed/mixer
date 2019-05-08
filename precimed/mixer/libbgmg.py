@@ -73,6 +73,7 @@ class LibBgmg(object):
         self.cdll.bgmg_calc_bivariate_cost.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float]
         self.cdll.bgmg_calc_bivariate_cost.restype = ctypes.c_double
         self.cdll.bgmg_calc_bivariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type]
+        self.cdll.bgmg_calc_bivariate_delta_posterior.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type]
 
     def get_last_error(self):
         return _n2p(self.cdll.bgmg_get_last_error())
@@ -331,6 +332,19 @@ class LibBgmg(object):
         pdf = np.zeros(shape=(np.size(zvec1),), dtype=np.float32)
         self._check_error(self.cdll.bgmg_calc_bivariate_pdf(self._context_id, np.size(pi_vec), pi_vec, np.size(sig2_beta), sig2_beta, rho_beta, np.size(sig2_zero), sig2_zero, rho_zero, np.size(zvec1), zvec1, zvec2, pdf))
         return pdf
+
+    def calc_bivariate_delta_posterior(self, pi_vec, sig2_beta, rho_beta, sig2_zero, rho_zero):
+        pi_vec = (pi_vec if isinstance(pi_vec, np.ndarray) else np.array(pi_vec)).astype(np.float32)
+        sig2_beta = (sig2_beta if isinstance(sig2_beta, np.ndarray) else np.array(sig2_beta)).astype(np.float32)
+        sig2_zero = (sig2_zero if isinstance(sig2_zero, np.ndarray) else np.array(sig2_zero)).astype(np.float32)
+        c00 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c10 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c01 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c20 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c11 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c02 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        self._check_error(self.cdll.bgmg_calc_bivariate_delta_posterior(self._context_id, np.size(pi_vec), pi_vec, np.size(sig2_beta), sig2_beta, rho_beta, np.size(sig2_zero), sig2_zero, rho_zero, self.num_tag, c00, c10, c01, c20, c11, c02))
+        return (c00, c10, c01, c20, c11, c02)
 
     def __str__(self):
         description = []

@@ -147,13 +147,13 @@ The argument to matlab call has to be in one string; or, start matlab and enter 
 To update access: ``setfacl -R -m u:<user>:rx /home/oleksand/GitHub/precimed``.
 
 
-** Building for MiXeR python wrapper on Abel
+**Building for MiXeR python wrapper on Abel**
 
 ```
 module load cmake/3.7.1 python2/2.7.15.gnu
 wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz 
 tar -xzvf boost_1_69_0.tar.gz && cd boost_1_69_0
-./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --j12
+./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --clean && ./b2 --j12 -a
 cmake .. -DBOOST_ROOT=/usit/abel/u1/oleksanf/boost_1_69_0 
 make -j16 
 ```
@@ -163,4 +163,13 @@ The toolchains are almost equal so it should make no difference when re-compile 
 ```
   1) binutils/2.26        2) gcc/6.1.0            3) openmpi.gnu/1.10.6   4) python2/2.7.15.gnu
   1) binutils/2.26        2) gcc/6.1.0            3) openmpi.gnu/1.10.6   4) openssl/1_1_1        5) python3/3.7.0.gnu
+```
+
+**Build on XSEDE Comet**
+
+```
+export MODULEPATH=$MODULEPATH:/share/apps/compute/modulefiles
+module purge && module load gnutools/2.69 cmake/3.9.1 gnu/7.2.0  # gnutools/2.69 must go before gnu/7.2.0
+cmake .. -DBOOST_ROOT=/home/oleksanf/boost_1_69_0 
+cmake -DBOOST_ROOT=/home/oleksanf/boost_1_69_0 -DCMAKE_C_COMPILER="$(which gcc)" -DCMAKE_CXX_COMPILER="$(which g++)" ..
 ```

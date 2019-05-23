@@ -53,6 +53,31 @@ def _logit_logistic_converter(x, invflag=False):
 def _arctanh_tanh_converter(x, invflag=False):
     return (2.0 * _logistic_bounded(2.0 * x) - 1.0) if invflag else 0.5*_logit_bounded(0.5*x + 0.5)
 
+class MixerOptimizeResult(object):
+    def __init__(self, optimize_result, cost_n):
+        self._r = optimize_result  # an instance of scipy.optimize.OptimizeResult
+        self._cost_n = float(cost_n)    # number of genetic variants effectively contributing to the cost (sum of weights)
+        
+        cost_df = len(self._r.x); cost = self._r.fun
+
+        self._BIC = np.log(self._cost_n) * cost_df + 2 * cost  # lower is better
+        self._AIC =                    2 * cost_df + 2 * cost
+
+    def as_dict(self):
+        return { 'cost' : self._r.fun, 'cost_df': len(self._r.x), 'cost_n' : self._cost_n,
+                 'AIC' : self._AIC, 'BIC': self._BIC,
+                 'nfev' : self._r.nfev, 'nit': self._r.nit,
+                 'status' : self._r.status, 'success': self._r.success,
+                 'message' : self._r.message }
+
+    def __str__(self):
+        description = []
+        self_dict = self.as_dict()
+        for attr_name in 'cost', 'cost_df', 'cost_n', 'nfev', 'nit', 'status', 'success', 'message':
+            description.append('{}: {}'.format(attr_name, self_dict[attr_name]))
+        return 'MixerOptimizeResult({})'.format(', '.join(description))
+    __repr__ = __str__
+
 class UnivariateParams(object):
     def __init__(self, pi, sig2_beta, sig2_zero):
         self._pi = pi
@@ -76,6 +101,9 @@ class UnivariateParams(object):
                 pass
         return 'UnivariateParams({})'.format(', '.join(description))
     __repr__ = __str__
+
+    def as_dict(self):
+        return {'pi': self._pi, 'sig2_beta': self._sig2_beta, 'sig2_zero': self._sig2_zero}
     
     def cost(self, lib, trait):
         return lib.calc_univariate_cost(trait, self._pi, self._sig2_zero, self._sig2_beta)
@@ -122,6 +150,10 @@ class BivariateParams(object):
         return 'BivariateParams({})'.format(', '.join(description))
     __repr__ = __str__
     
+    def as_dict(self):
+        return {'pi': self._pi, 'sig2_beta': self._sig2_beta, 'sig2_zero': self._sig2_zero,
+                'rho_zero': self._rho_zero, 'rho_beta': self._rho_beta}
+
     def cost(self, lib):
         return lib.calc_bivariate_cost(self._pi, self._sig2_beta, self._rho_beta, self._sig2_zero, self._rho_zero)
 

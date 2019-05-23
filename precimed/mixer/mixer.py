@@ -14,6 +14,7 @@ import logging
 import json
 
 from libbgmg import LibBgmg
+from utils import MixerOptimizeResult
 from utils import UnivariateParams
 from utils import BivariateParams
 from utils import _log_exp_converter
@@ -108,14 +109,16 @@ def parse_args(args):
     parser.add_argument('--full-cost-calc', type=str, default='sampling', choices=['sampling', 'convolve'],
         help="calculator for the full cost function; note that 'convolve' is only recommended for the univariate fit.")
     parser.add_argument('--fit-sequence', type=str, default=['init', 'constrained'], nargs='+',
-        choices=['load', 'init', 'inflation', 'constrained', 'full'],
+        choices=['load', 'init', 'inflation', 'infinitesimal', 'constrained', 'full'],
         help="Specify fit sequence: "
              "'load' reads previosly fitted parameters from a file; "
              "'init' initialize fit using 'fast model'; "
              "'inflation' fits sig2zero (univariate) and rho_zero (bivariate), typically useful when adjusting parameters to another reference; "
+             "'infinitesimal' fits a model with pi1=1 (univariate) or pi12=1 (bivariate) constrains; " 
              "'constrained' fits a model with constrained h2 (univariate) or rg (bivariate); "
              "'full' jointly fits the three parameters: sig2_zero, sig2_beta, pi (univariate) or rho_zero, rho_beta, pi12 (bivariate); " 
              "Note that bivariate fit is always constrained on univariate parameters, except for 'inflation' fit which adjust rho_zero and sig2_zero. "
+             "All fit sequences must start with 'init' or 'load'. "
              "Typical sequences: 'init', 'init constrained', 'init full', 'load inflation'")
 
     parser.add_argument('--extract', type=str, default="", help="File with variants to include in the fit procedure")
@@ -173,8 +176,8 @@ def load_bivariate_params_file(fname):
             UnivariateParams(pi=p['pi'][1]+p['pi'][2], sig2_beta=p['sig2_beta'][1], sig2_zero=p['sig2_zero'][1]))
 
 def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fit_sequence, init_params=None, trait=1):
-    # 'load', 'init', 'inflation', 'constrained', 'full'
-    params=init_params
+    # 'load', 'init', 'inflation', 'infinitesimal', 'constrained', 'full'
+    params=init_params; optimization_result=None
     for fit_type in fit_sequence:
         if fit_type == 'load':
             libbgmg.log_message("fit_type==load: {}".format(args.load_params_file))
@@ -194,34 +197,50 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
             libbgmg.log_message("fit_type==init: intermediate {}".format(params))
             libbgmg.log_message("fit_type==init: UnivariateParametrization.fit() with 'fast model'...")
             params, details = UnivariateParametrization(init_params=params, lib=libbgmg, trait=trait).fit(optimizer)
-            libbgmg.log_message("fit_type==init: Done, {}".format(params))
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==init: Done, {}, {}".format(params, optimization_result))
         elif fit_type == 'constrained':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "constrained" fit'))
             libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
             libbgmg.log_message("fit_type==constrained, UnivariateParametrization_constH2_constSIG2ZERO.fit(), 'full model...'")
             params, details = UnivariateParametrization_constH2_constSIG2ZERO(init_pi=params._pi, const_params=params,
                 lib=libbgmg, trait=trait).fit(optimizer)
-            libbgmg.log_message("fit_type==constrained: Done, {}".format(params))
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==constrained: Done, {}, {}".format(params, optimization_result))
         elif fit_type == 'full':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
             libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
             libbgmg.log_message("fit_type==full: UnivariateParametrization.fit(), 'full model'...")
             params, details = UnivariateParametrization(init_params=params, lib=libbgmg, trait=trait).fit(optimizer)
-            libbgmg.log_message("fit_type==full: Done, {}".format(params))
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==full: Done, {}, {}".format(params, optimization_result))
         elif fit_type == 'inflation':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "inflation" fit'))
             libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
             libbgmg.log_message("fit_type==inflation: UnivariateParametrization_constPI_constSIG2BETA.fit(), 'fast model'...")
             params, details = UnivariateParametrization_constPI_constSIG2BETA(
                 init_sig2_zero=params._sig2_zero, const_params=params, lib=libbgmg, trait=trait).fit(optimizer)
-            libbgmg.log_message("fit_type==inflation: Done, {}".format(params))
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==inflation: Done, {}, {}".format(params, optimization_result))
+        elif fit_type == 'infinitesimal':
+            if params == None: raise(RuntimeError('params == None, unable to proceed apply "infinitesimal" fit'))
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+            libbgmg.log_message("fit_type==infinitesimal: UnivariateParametrization_constPI.fit(const_pi=1.0) with 'fast model'...")
+            params, details = UnivariateParametrization_constPI(
+                const_pi=1.0, init_sig2_zero=params._sig2_zero,
+                init_sig2_beta=params._sig2_beta * params._pi,
+                lib=libbgmg, trait=trait).fit(optimizer)
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==infinitesimal: Done, {}, {}".format(params, optimization_result))
         else:
             libbgmg.log_message("Unable to apply {} in univariate fit".format(fit_type))
+
     if params == None: raise(RuntimeError('Empty --fit-sequence'))
-    return params
+    
+    return params, optimization_result
 
 def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
-    # 'load', 'init', 'inflation', 'constrained', 'full'
+    # 'load', 'init', 'inflation', 'infinitesimal', 'constrained', 'full'
 
     if args.trait1_params_file or args.trait2_params_file:
         libbgmg.log_message("Loading univariate constrains for bivariate analysis...")
@@ -234,7 +253,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
         libbgmg.log_message("WARNING: 'full' fit may behave weird after 'init' in bivariate optimization; "
             "instead, we recommend to apply the following sequence: 'init'->'constrained'->'full'")
 
-    params = None
+    params = None; optimization_result = None
     for fit_type in args.fit_sequence:
         if fit_type == 'load':
             libbgmg.log_message("fit_type==load: {}".format(args.load_params_file))
@@ -252,7 +271,8 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
                 init_pi12=min(params1._pi, params2._pi)*0.1,
                 init_rho_beta=zcorr, init_rho_zero=zcorr,
                 lib=libbgmg).fit(optimizer)
-            libbgmg.log_message("fit_type==init: Done, {}".format(params))
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==init: Done, {}, {}".format(params, optimization_result))
             
         elif fit_type == 'constrained':
             # Constrained optimization intgentionally does params._pi[2] to initialize,
@@ -272,7 +292,9 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
                 const_rg=params._rg(), const_rho_zero=params._rho_zero,
                 init_pi12=init_pi12,
                 lib=libbgmg).fit(optimizer)
-            libbgmg.log_message("fit_type==constrained: Done {}".format(params))
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==constrained: Done {}".format(params, optimization_result))
+
         elif fit_type == 'full':
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
@@ -282,25 +304,43 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
                 const_params1=params1, const_params2=params2,
                 init_pi12=params._pi[2], init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
                 lib=libbgmg).fit(optimizer)
-            libbgmg.log_message("fit_type==full: Done, {}".format(params))
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==full: Done, {}, {}".format(params, optimization_result))
+
         elif fit_type == 'inflation':
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "inflation" fit'))
-            params1 = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params1, trait=1)
-            params2 = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params2, trait=2)
+            params1, _ = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params1, trait=1)
+            params2, _ = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params2, trait=2)
             libbgmg.log_message("fit_type==inflation: BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI.fit(), 'fast model'...")
             libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
             params, details = BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI(
                 const_params1=params1, const_params2=params2,
                 const_pi12=params._pi[2], const_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
                 lib=libbgmg).fit(optimizer)
-            libbgmg.log_message("fit_type==inflation: Done, {}".format(params))
-            pass
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==inflation: Done, {}, {}".format(params, optimization_result))
+
+        elif fit_type == 'infinitesimal':
+            if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
+            if params == None: raise(RuntimeError('params == None, unable to proceed apply "infinitesimal" fit'))
+            libbgmg.log_message("fit_type==infinitesimal: BivariateParametrization_constSIG2BETA_constSIG2ZERO_infPI_maxRG.fit(), 'fast model'...")
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+            params, details = BivariateParametrization_constSIG2BETA_constSIG2ZERO_infPI_maxRG(
+                const_sig2_beta=[params1._sig2_beta, params2._sig2_beta],
+                const_sig2_zero=[params1._sig2_zero, params2._sig2_zero],
+                max_rg = 1,
+                init_rho_beta = params._rho_beta,
+                init_rho_zero = params._rho_zero,
+                lib=libbgmg).fit(optimizer)
+            optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
+            libbgmg.log_message("fit_type==infinitesimal: Done, {}, {}".format(params, optimization_result))
+
         else:
             libbgmg.log_message("Unable to apply {} in bivariate fit".format(fit_type))
 
     if params == None: raise(RuntimeError('Empty --fit-sequence'))
-    return (params, params1, params2)
+    return (params, params1, params2, optimization_result)
 
 # helper function to debug non-json searizable types...
 def print_types(results, libbgmg):
@@ -350,8 +390,15 @@ if __name__ == "__main__":
 
     if not args.trait2_file:
         results['analysis'] = 'univariate'
-        params = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, args.fit_sequence)
-        results['params'] = {'pi': params._pi, 'sig2_beta': params._sig2_beta, 'sig2_zero': params._sig2_zero}
+        params, optimization_result = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, args.fit_sequence)
+        results['params'] = params.as_dict()
+        results['optimization'] = optimization_result.as_dict()
+
+        libbgmg.log_message('Calculate AIC/BIC w.r.t. infinitesimal model (fast cost function)...')
+        params_inft, optimization_result_inft = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, ['infinitesimal'], init_params=params)
+        results['inft_params'] = params_inft.as_dict()
+        results['inft_optimization'] = optimization_result_inft.as_dict()
+
         if np.isfinite(args.ci_alpha):
             libbgmg.log_message("Uncertainty estimation...")
             libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
@@ -362,8 +409,8 @@ if __name__ == "__main__":
     else:
         results['analysis'] = 'bivariate'
         results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
-        params, params1, params2 = apply_bivariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer)
-        results['params'] = {'pi': params._pi, 'sig2_beta': params._sig2_beta, 'sig2_zero': params._sig2_zero, 'rho_zero': params._rho_zero, 'rho_beta': params._rho_beta}
+        params, params1, params2, optimization_result = apply_bivariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer)
+        results['params'] = params.as_dict()
         if np.isfinite(args.ci_alpha):
             libbgmg.log_message("Uncertainty estimation...")
             libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)

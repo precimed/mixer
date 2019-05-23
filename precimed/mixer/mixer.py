@@ -61,14 +61,26 @@ def fix_and_validate_args(args):
     if np.any([not x.isdigit() for x in chr2use]): raise ValueError('Chromosome labels must be integer')
     arg_dict["chr2use"] = [int(x) for x in chr2use]
 
-def convert_args_to_libbgmg_options(args):
+def convert_args_to_libbgmg_options(args, num_snp):
     libbgmg_options = {
-        'r2min': args.r2min, 'kmax': args.kmax, 'max_causals': args.max_causals,
+        'r2min': args.r2min, 'kmax': args.kmax, 
+        'max_causals': args.max_causals if (args.max_causals > 1) else (args.max_causals * num_snp),
         'num_components': 1 if (not args.trait2_file) else 3,
         'cache_tag_r2sum': args.cache_tag_r2sum, 'threads': args.threads, 'seed': args.seed,
-        'z1max': args.z1max, 'z2max': args.z2max, 'cubature_rel_error': 1e-6, 'cubature_max_evals':100 
+        'z1max': args.z1max, 'z2max': args.z2max, 'cubature_rel_error': args.cubature_rel_error, 'cubature_max_evals':args.cubature_max_evals
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
+
+# https://stackoverflow.com/questions/27433316/how-to-get-argparse-to-read-arguments-from-a-file-with-an-option-rather-than-pre
+class LoadFromFile (argparse.Action):
+    def __call__ (self, parser, namespace, values, option_string=None):
+        with values as f:
+            contents = f.read()
+
+        data = parser.parse_args(contents.split(), namespace=namespace)
+        for k, v in vars(data).items():
+            if v and k != option_string.lstrip('-'):
+                setattr(namespace, k, v)
 
 def parse_args(args):
     parser = argparse.ArgumentParser(description="MiXeR: Univariate and Bivariate Causal Mixture for GWAS.")
@@ -76,6 +88,7 @@ def parse_args(args):
     parser.add_argument("--out", type=str, default="mixer", help="prefix for the output files")
     parser.add_argument("--lib", type=str, default="libbgmg.so", help="path to libbgmg.so plugin")
     parser.add_argument("--log", type=str, default=None, help="file to output log, defaults to <out>.log")
+    parser.add_argument('--argsfile', type=open, action=LoadFromFile, default=None, help="file with additional command-line arguments")
 
     parser.add_argument("--bim-file", type=str, default=None, help="Plink bim file. "
         "Defines the reference set of SNPs used for the analysis. "
@@ -92,6 +105,8 @@ def parse_args(args):
     parser.add_argument("--trait1-file", type=str, default=None, help="GWAS summary statistics for the first trait. ")
     parser.add_argument("--trait2-file", type=str, default="", help="GWAS summary statistics for the first trait. "
         "Specifying this argument triggers cross-trait analysis.")
+    parser.add_argument('--full-cost-calc', type=str, default='sampling', choices=['sampling', 'convolve'],
+        help="calculator for the full cost function; note that 'convolve' is only recommended for the univariate fit.")
     parser.add_argument('--fit-sequence', type=str, default=['init', 'constrained'], nargs='+',
         choices=['load', 'init', 'inflation', 'constrained', 'full'],
         help="Specify fit sequence: "
@@ -112,13 +127,15 @@ def parse_args(args):
     parser.add_argument('--seed', type=int, default=123, help="Random seed")
 
     parser.add_argument('--cache-tag-r2sum', default=False, action="store_true", help="enable tag-r2sum caching")
-    parser.add_argument('--max-causals', type=int, default=300000, help="upper limit for the total number of causal variants in the reference")
+    parser.add_argument('--max-causals', type=float, default=0.03, help="upper limit for the total number of causal variants in the reference; a number between 0 and 1 represents a fraction of the total number SNPs in the reference")
     parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
     parser.add_argument('--ci-alpha', type=float, default=0.05, help="significance level for the confidence interval estimation")
     parser.add_argument('--ci-samples', type=int, default=10000, help="number of samples in uncertainty estimation")
     parser.add_argument('--threads', type=int, default=None, help="specify how many threads to use (concurrency). None will default to the total number of CPU cores. ")
     parser.add_argument('--tol-x', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
     parser.add_argument('--tol-func', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
+    parser.add_argument('--cubature-rel-error', type=float, default=1e-6, help="relative error for cubature stop criteria (only relevant for --full-cost-calc convolve). ")
+    parser.add_argument('--cubature-max-evals', type=float, default=100, help="max evaluations for cubature stop criteria (only relevant for --full-cost-calc convolve). Bivariate cubature require in the order of 10^4 evaluations and thus is much slower than sampling. ")
 
     parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
     parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
@@ -180,16 +197,14 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
             libbgmg.log_message("fit_type==init: Done, {}".format(params))
         elif fit_type == 'constrained':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "constrained" fit'))
-            libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
-            libbgmg.set_option('cubature_max_evals', 100)
+            libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
             libbgmg.log_message("fit_type==constrained, UnivariateParametrization_constH2_constSIG2ZERO.fit(), 'full model...'")
             params, details = UnivariateParametrization_constH2_constSIG2ZERO(init_pi=params._pi, const_params=params,
                 lib=libbgmg, trait=trait).fit(optimizer)
             libbgmg.log_message("fit_type==constrained: Done, {}".format(params))
         elif fit_type == 'full':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
-            libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
-            libbgmg.set_option('cubature_max_evals', 100)
+            libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
             libbgmg.log_message("fit_type==full: UnivariateParametrization.fit(), 'full model'...")
             params, details = UnivariateParametrization(init_params=params, lib=libbgmg, trait=trait).fit(optimizer)
             libbgmg.log_message("fit_type==full: Done, {}".format(params))
@@ -251,8 +266,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             min_pi12 = abs(params._rg()) * np.sqrt(params1._pi * params2._pi)
             init_pi12 = np.sqrt(np.max([min_pi12, np.min([max_pi12/2.0, 1e-6])]) * max_pi12)
             libbgmg.log_message("fit_type==constrained: BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO.fit(init_pi12={}), 'full model'...".format(init_pi12))
-            libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
-            libbgmg.set_option('cubature_max_evals', 1000)
+            libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
             params, details = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(
                 const_params1=params1, const_params2=params2,
                 const_rg=params._rg(), const_rho_zero=params._rho_zero,
@@ -263,8 +277,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
             libbgmg.log_message("fit_type==full: BivariateParametrization_constUNIVARIATE.fit(), 'full model'...")
-            libbgmg.set_option('cost_calculator', _cost_calculator_convolve)
-            libbgmg.set_option('cubature_max_evals', 1000)
+            libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
             params, details = BivariateParametrization_constUNIVARIATE(
                 const_params1=params1, const_params2=params2,
                 init_pi12=params._pi[2], init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
@@ -310,11 +323,11 @@ if __name__ == "__main__":
     libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, args.trait2_file,
         args.exclude, args.extract)
 
-    for opt, val in convert_args_to_libbgmg_options(args):
+    for opt, val in convert_args_to_libbgmg_options(args, libbgmg.num_snp):
         libbgmg.set_option(opt, val)
 
     for chr_label in args.chr2use: 
-        libbgmg.set_ld_r2_coo_from_file(args.plink_ld_bin.replace('@', str(chr_label)))
+        libbgmg.set_ld_r2_coo_from_file(chr_label, args.plink_ld_bin.replace('@', str(chr_label)))
         libbgmg.set_ld_r2_csr(chr_label)
 
     libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2)

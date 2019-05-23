@@ -170,6 +170,5 @@ The toolchains are almost equal so it should make no difference when re-compile 
 ```
 export MODULEPATH=$MODULEPATH:/share/apps/compute/modulefiles
 module purge && module load gnutools/2.69 cmake/3.9.1 gnu/7.2.0  # gnutools/2.69 must go before gnu/7.2.0
-cmake .. -DBOOST_ROOT=/home/oleksanf/boost_1_69_0 
 cmake -DBOOST_ROOT=/home/oleksanf/boost_1_69_0 -DCMAKE_C_COMPILER="$(which gcc)" -DCMAKE_CXX_COMPILER="$(which g++)" ..
 ```

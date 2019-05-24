@@ -391,11 +391,13 @@ if __name__ == "__main__":
     if not args.trait2_file:
         results['analysis'] = 'univariate'
         params, optimization_result = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, args.fit_sequence)
+        optimization_result._cost_df = 3       # three free parameters
         results['params'] = params.as_dict()
         results['optimization'] = optimization_result.as_dict()
 
         libbgmg.log_message('Calculate AIC/BIC w.r.t. infinitesimal model (fast cost function)...')
         params_inft, optimization_result_inft = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, ['infinitesimal'], init_params=params)
+        optimization_result_inft._cost_df = 2  # two free parameters        
         results['inft_params'] = params_inft.as_dict()
         results['inft_optimization'] = optimization_result_inft.as_dict()
 
@@ -410,6 +412,7 @@ if __name__ == "__main__":
         results['analysis'] = 'bivariate'
         results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
         params, params1, params2, optimization_result = apply_bivariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer)
+        optimization_result._cost_df = 9  # nice free parameters (incl. univariate)
         results['params'] = params.as_dict()
         if np.isfinite(args.ci_alpha):
             libbgmg.log_message("Uncertainty estimation...")

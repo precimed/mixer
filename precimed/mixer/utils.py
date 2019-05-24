@@ -55,17 +55,22 @@ def _arctanh_tanh_converter(x, invflag=False):
 
 class MixerOptimizeResult(object):
     def __init__(self, optimize_result, cost_n):
-        self._r = optimize_result  # an instance of scipy.optimize.OptimizeResult
+        self._r = optimize_result       # an instance of scipy.optimize.OptimizeResult
         self._cost_n = float(cost_n)    # number of genetic variants effectively contributing to the cost (sum of weights)
-        
-        cost_df = len(self._r.x); cost = self._r.fun
+        self._cost_df = len(self._r.x)
+        self._cost = self._r.fun
 
-        self._BIC = np.log(self._cost_n) * cost_df + 2 * cost  # lower is better
-        self._AIC =                    2 * cost_df + 2 * cost
+    @property
+    def BIC(self):
+        return np.log(self._cost_n) * self._cost_df + 2 * self._cost
+
+    @property
+    def AIC(self):
+        return 2 * self._cost_df + 2 * self._cost
 
     def as_dict(self):
-        return { 'cost' : self._r.fun, 'cost_df': len(self._r.x), 'cost_n' : self._cost_n,
-                 'AIC' : self._AIC, 'BIC': self._BIC,
+        return { 'cost' : self._cost, 'cost_df': self._cost_df, 'cost_n' : self._cost_n,
+                 'AIC' : self.AIC, 'BIC': self.BIC,
                  'nfev' : self._r.nfev, 'nit': self._r.nit,
                  'status' : self._r.status, 'success': self._r.success,
                  'message' : self._r.message }

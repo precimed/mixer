@@ -189,7 +189,7 @@ def make_qq_plot(qq, ci=True):
         x2=ma.filled(-ma.log10(q-dq), np.nan)  #right CI bound
         if True:
             y2 = np.empty(hv_logp.shape); y2[:]=np.nan;
-            y2[x2<max(x1)]=interp1d(x1, y1)(x2[x2<max(x1)])                #upper CI bound
+            y2[x2<np.nanmax(x1)]=interp1d(x1, y1)(x2[x2<np.nanmax(x1)])                #upper CI bound
             y2[np.isnan(y2)]=ylim_data  
             plt.fill_between(x2, y1, y2, color=(0.1843, 0.3098, 0.3098), alpha=0.25)
         else:

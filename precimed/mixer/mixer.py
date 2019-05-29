@@ -49,6 +49,12 @@ _cost_calculator_sampling = 0
 _cost_calculator_gaussian = 1
 _cost_calculator_convolve = 2
 
+_cost_calculator = {
+    'gaussian': _cost_calculator_gaussian, 
+    'sampling': _cost_calculator_sampling,
+    'convolve': _cost_calculator_convolve,
+}
+
 def fix_and_validate_args(args):
     arg_dict = vars(args)
     chr2use_arg = arg_dict["chr2use"]
@@ -106,7 +112,7 @@ def parse_args(args):
     parser.add_argument("--trait1-file", type=str, default=None, help="GWAS summary statistics for the first trait. ")
     parser.add_argument("--trait2-file", type=str, default="", help="GWAS summary statistics for the first trait. "
         "Specifying this argument triggers cross-trait analysis.")
-    parser.add_argument('--full-cost-calc', type=str, default='sampling', choices=['sampling', 'convolve'],
+    parser.add_argument('--full-cost-calc', type=str, default='sampling', choices=['sampling', 'convolve', 'gaussian'],
         help="calculator for the full cost function; note that 'convolve' is only recommended for the univariate fit.")
     parser.add_argument('--fit-sequence', type=str, default=['init', 'constrained'], nargs='+',
         choices=['load', 'init', 'inflation', 'infinitesimal', 'constrained', 'full'],
@@ -120,6 +126,9 @@ def parse_args(args):
              "Note that bivariate fit is always constrained on univariate parameters, except for 'inflation' fit which adjust rho_zero and sig2_zero. "
              "All fit sequences must start with 'init' or 'load'. "
              "Typical sequences: 'init', 'init constrained', 'init full', 'load inflation'")
+    parser.add_argument('--preliminary', default=False, action="store_true",
+        help="perform an additional run using fast model to generate preliminary data. "
+        "After preliminary run fit sequence is applied from scratch using full model.")
 
     parser.add_argument('--extract', type=str, default="", help="File with variants to include in the fit procedure")
     parser.add_argument('--exclude', type=str, default="", help="File with variants to exclude from the fit procedure")
@@ -201,7 +210,7 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
             libbgmg.log_message("fit_type==init: Done, {}, {}".format(params, optimization_result))
         elif fit_type == 'constrained':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "constrained" fit'))
-            libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
+            libbgmg.set_option('cost_calculator', _cost_calculator[args.full_cost_calc])
             libbgmg.log_message("fit_type==constrained, UnivariateParametrization_constH2_constSIG2ZERO.fit(), 'full model...'")
             params, details = UnivariateParametrization_constH2_constSIG2ZERO(init_pi=params._pi, const_params=params,
                 lib=libbgmg, trait=trait).fit(optimizer)
@@ -209,7 +218,7 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
             libbgmg.log_message("fit_type==constrained: Done, {}, {}".format(params, optimization_result))
         elif fit_type == 'full':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
-            libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
+            libbgmg.set_option('cost_calculator', _cost_calculator[args.full_cost_calc])
             libbgmg.log_message("fit_type==full: UnivariateParametrization.fit(), 'full model'...")
             params, details = UnivariateParametrization(init_params=params, lib=libbgmg, trait=trait).fit(optimizer)
             optimization_result = MixerOptimizeResult(details, cost_n=np.sum(libbgmg.weights))
@@ -237,6 +246,8 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
 
     if params == None: raise(RuntimeError('Empty --fit-sequence'))
     
+    libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+    optimization_result._cost_fast = params.cost(libbgmg, trait)
     return params, optimization_result
 
 def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
@@ -286,7 +297,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             min_pi12 = abs(params._rg()) * np.sqrt(params1._pi * params2._pi)
             init_pi12 = np.sqrt(np.max([min_pi12, np.min([max_pi12/2.0, 1e-6])]) * max_pi12)
             libbgmg.log_message("fit_type==constrained: BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO.fit(init_pi12={}), 'full model'...".format(init_pi12))
-            libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
+            libbgmg.set_option('cost_calculator', _cost_calculator[args.full_cost_calc])
             params, details = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(
                 const_params1=params1, const_params2=params2,
                 const_rg=params._rg(), const_rho_zero=params._rho_zero,
@@ -299,7 +310,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             if (params1==None) or (params2==None): raise(RuntimeError('params1==None or params2==None, unable to proceed apply "init" fit'))
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
             libbgmg.log_message("fit_type==full: BivariateParametrization_constUNIVARIATE.fit(), 'full model'...")
-            libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (args.full_cost_calc == 'convolve') else _cost_calculator_sampling)
+            libbgmg.set_option('cost_calculator', _cost_calculator[args.full_cost_calc])
             params, details = BivariateParametrization_constUNIVARIATE(
                 const_params1=params1, const_params2=params2,
                 init_pi12=params._pi[2], init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
@@ -340,6 +351,8 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
             libbgmg.log_message("Unable to apply {} in bivariate fit".format(fit_type))
 
     if params == None: raise(RuntimeError('Empty --fit-sequence'))
+    libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+    optimization_result._cost_fast = params.cost(libbgmg)
     return (params, params1, params2, optimization_result)
 
 # helper function to debug non-json searizable types...
@@ -380,52 +393,63 @@ if __name__ == "__main__":
    
     totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))
 
-    results = {}
-    results['options'] = vars(args).copy()
-    results['options']['totalhet'] = totalhet
-    results['options']['num_snp'] = float(libbgmg.num_snp)
-    results['options']['num_tag'] = float(libbgmg.num_tag)
-    results['options']['sum_weights'] = float(np.sum(libbgmg.weights))
-    results['options']['trait1_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=1)))
+    full_cost_calc = args.full_cost_calc
+    fit_sequence = args.fit_sequence.copy()
+    for repeat in range(2):
+        if (repeat == 0) and (not args.preliminary): continue
+        args.full_cost_calc = 'gaussian' if (repeat == 0) else full_cost_calc
+        if (repeat == 0) and (args.fit_sequence[-1] != 'full'): args.fit_sequence.append('full')
+        else: args.fit_sequence = fit_sequence
+        libbgmg.log_message('Apply fit sequence with {} full cost calculator{}...'.format(args.full_cost_calc, ' (preliminary data)' if (repeat == 0) else '' ))
 
-    if not args.trait2_file:
-        results['analysis'] = 'univariate'
-        params, optimization_result = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, args.fit_sequence)
-        optimization_result._cost_df = 3       # three free parameters
-        results['params'] = params.as_dict()
-        results['optimization'] = optimization_result.as_dict()
+        results = {}
+        results['options'] = vars(args).copy()
+        results['options']['totalhet'] = totalhet
+        results['options']['num_snp'] = float(libbgmg.num_snp)
+        results['options']['num_tag'] = float(libbgmg.num_tag)
+        results['options']['sum_weights'] = float(np.sum(libbgmg.weights))
+        results['options']['trait1_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=1)))
 
-        libbgmg.log_message('Calculate AIC/BIC w.r.t. infinitesimal model (fast cost function)...')
-        params_inft, optimization_result_inft = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, ['infinitesimal'], init_params=params)
-        optimization_result_inft._cost_df = 2  # two free parameters        
-        results['inft_params'] = params_inft.as_dict()
-        results['inft_optimization'] = optimization_result_inft.as_dict()
+        if not args.trait2_file:
+            results['analysis'] = 'univariate'
 
-        if np.isfinite(args.ci_alpha):
-            libbgmg.log_message("Uncertainty estimation...")
-            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-            results['ci'], _ = _calculate_univariate_uncertainty(UnivariateParametrization(params, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-            for k, v in results['ci'].items():
-                libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
-            libbgmg.log_message("Uncertainty estimation done.")
-    else:
-        results['analysis'] = 'bivariate'
-        results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
-        params, params1, params2, optimization_result = apply_bivariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer)
-        optimization_result._cost_df = 9  # nice free parameters (incl. univariate)
-        results['params'] = params.as_dict()
-        if np.isfinite(args.ci_alpha):
-            libbgmg.log_message("Uncertainty estimation...")
-            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-            _, ci_sample1 = _calculate_univariate_uncertainty(UnivariateParametrization(params1, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-            _, ci_sample2 = _calculate_univariate_uncertainty(UnivariateParametrization(params2, libbgmg, trait=2), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-            results['ci'], _ = _calculate_bivariate_uncertainty(BivariateParametrization_constUNIVARIATE(
-                const_params1=params1, const_params2=params2, init_pi12=params._pi[2],
-                init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
-                lib=libbgmg), [ci_sample1, ci_sample2], args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-            for k, v in results['ci'].items():
-                libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
-            libbgmg.log_message("Uncertainty estimation done.")
+            params, optimization_result = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, args.fit_sequence)
+            optimization_result._cost_df = 3       # three free parameters
+            results['params'] = params.as_dict()
+            results['optimization'] = optimization_result.as_dict()
 
-    with open(args.out + '.json', 'w') as outfile:  
-        json.dump(results, outfile)
+            libbgmg.log_message('Calculate AIC/BIC w.r.t. infinitesimal model (fast cost function)...')
+            params_inft, optimization_result_inft = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, ['infinitesimal'], init_params=params)
+            optimization_result_inft._cost_df = 2  # two free parameters        
+            results['inft_params'] = params_inft.as_dict()
+            results['inft_optimization'] = optimization_result_inft.as_dict()
+
+            if np.isfinite(args.ci_alpha):
+                libbgmg.log_message("Uncertainty estimation...")
+                libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+                results['ci'], _ = _calculate_univariate_uncertainty(UnivariateParametrization(params, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+                for k, v in results['ci'].items():
+                    libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
+                libbgmg.log_message("Uncertainty estimation done.")
+        else:
+            results['analysis'] = 'bivariate'
+            results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
+
+            params, params1, params2, optimization_result = apply_bivariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer)
+            optimization_result._cost_df = 9  # nine free parameters (incl. univariate)
+            results['params'] = params.as_dict()
+            if np.isfinite(args.ci_alpha):
+                libbgmg.log_message("Uncertainty estimation...")
+                libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+                _, ci_sample1 = _calculate_univariate_uncertainty(UnivariateParametrization(params1, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+                _, ci_sample2 = _calculate_univariate_uncertainty(UnivariateParametrization(params2, libbgmg, trait=2), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+                results['ci'], _ = _calculate_bivariate_uncertainty(BivariateParametrization_constUNIVARIATE(
+                    const_params1=params1, const_params2=params2, init_pi12=params._pi[2],
+                    init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
+                    lib=libbgmg), [ci_sample1, ci_sample2], args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+                for k, v in results['ci'].items():
+                    libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
+                libbgmg.log_message("Uncertainty estimation done.")
+
+        with open(args.out + ('.preliminary' if (repeat == 0) else '')+ '.json', 'w') as outfile:  
+            json.dump(results, outfile)

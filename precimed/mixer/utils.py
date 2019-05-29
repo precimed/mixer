@@ -59,6 +59,7 @@ class MixerOptimizeResult(object):
         self._cost_n = float(cost_n)    # number of genetic variants effectively contributing to the cost (sum of weights)
         self._cost_df = len(self._r.x)
         self._cost = self._r.fun
+        self._cost_fast = np.nan
 
     @property
     def BIC(self):
@@ -70,6 +71,7 @@ class MixerOptimizeResult(object):
 
     def as_dict(self):
         return { 'cost' : self._cost, 'cost_df': self._cost_df, 'cost_n' : self._cost_n,
+                 'cost_fast' : self._cost_fast,
                  'AIC' : self.AIC, 'BIC': self.BIC,
                  'nfev' : self._r.nfev, 'nit': self._r.nit,
                  'status' : self._r.status, 'success': self._r.success,

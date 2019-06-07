@@ -65,22 +65,29 @@ THREADS=-1;                         % specify how many threads to use (concurren
 TolX = 1e-2; TolFun = 1e-2;         % fminserach tolerance (stop criteria)
 z1max = nan;                        % enable right-censoring for z scores above certain threshold
 
-init_from_params_file = 'H:\GitHub\mixer\comet\PGC_SCZ_2014_EUR_qc_noMHC.fit.params.mat'
 %}
 
-if ~exist('out_file', 'var'), out_file = 'UGMG_result'; end;
+if ~exist('trait1_mask', 'var'), error('trait1_mask is required'); end;
 if ~exist('bim_file', 'var'), error('bim_file is required'); end;
 if ~exist('frq_file', 'var'), error('frq_file is required'); end;
-if ~exist('trait1_file', 'var'), error('trait1_file is required'); end;
+if ~exist('out_folder', 'var'), out_folder = 'UGMG_result'; end;
+if ~exist('out_suffix', 'var'), out_suffix = 'ugmg.fit'; end;
 
 % full path to bgmg shared library
 if ~exist('bgmg_shared_library', 'var'), error('bgmg_shared_library is required'); end;
 if ~exist('bgmg_shared_library_header', 'var'), [a,b,c]=fileparts(bgmg_shared_library); bgmg_shared_library_header = [fullfile(a, b), '.h']; clear('a', 'b','c'); end;
 
+trait1_folder = fileparts(trait1_mask)
+trait1_files = dir(trait1_mask)
+if length(trait1_files) == 0, error('no files match trait1_mask'); end;
+trait1_file = fullfile(trait1_folder, trait1_files(1).name)
+
 BGMG_cpp.unload(); 
 BGMG_cpp.load(bgmg_shared_library, bgmg_shared_library_header);
-BGMG_cpp.init_log([out_file, '.bgmglib.log']);
-BGMG_cpp.log('out file: %s\n', out_file);
+BGMG_cpp.init_log(fullfile(out_folder, sprintf('%s.bgmglib.log', out_suffix)));
+BGMG_cpp.log('out folder: %s\n', out_folder);
+BGMG_cpp.log('out suffix: %s\n', out_suffix);
+BGMG_cpp.log('total sumstats: %i\n', length(trait1_files));
 
 % plink_ld_mat is a file containing information about the LD structure. One
 % file per chromosome. Each file should have index_A, index_B, r2
@@ -105,7 +112,6 @@ num_components = 1;  % univariate
 % after DO_FIT, and use it to produce QQ plots, etc.
 % Allows to fir BGMG with already fitted univaraite estimates
 if ~exist('DO_FIT_UGMG', 'var'), DO_FIT_UGMG = true; end;               % perform univariate fit
-if ~exist('init_from_params_file', 'var'), init_from_params_file = ''; end;
 
 % Setup tolerance for fminsearch
 if ~exist('TolX', 'var'), TolX = 1e-2; end;
@@ -151,6 +157,12 @@ bgmglib.set_option('diag', 0);
 % Preparation is done, BGMG library is fully setup. Now we can use it to
 % calculate model QQ plots and univariate or bivariate cost function.
 
+for trait1_file_index=1:length(trait1_files)
+
+trait1_file = fullfile(trait1_folder, trait1_files(trait1_file_index).name)
+out_file = fullfile(out_folder, sprintf('%s.%s', trait1_files(trait1_file_index).name, out_suffix))
+bgmglib.load_gwas(1, trait1_file)
+
 options = [];
 options.total_het = sum(2*bgmglib.mafvec.*(1-bgmglib.mafvec));
 options.verbose = true;
@@ -162,7 +174,8 @@ options.trait1_nval = median(bgmglib.nvec1);
 disp(options)
 
 % Load params from previous runs.
-if ~isempty(init_from_params_file)
+if false
+    % not yet supported in UGMG_cpp_run_multiple.
     BGMG_cpp.log('Loading params from %s...\n', init_from_params_file);
     trait1_params = load(init_from_params_file);
     trait1_params = BGMG_cpp_fit_univariate_fast_constrained(1, trait1_params);
@@ -195,8 +208,6 @@ result.params = trait1_params;
 % (this overrides previously saved file)
 save([out_file '.params.mat'], '-struct', 'trait1_params');
 BGMG_cpp.log('Params saved to %s.params.mat\n', out_file);
-
-bgmglib.set_option('diag', 0);
 
 % Produce power plots
 try
@@ -267,8 +278,6 @@ catch err
     result.univariate{trait_index}.delta_posterior_error = err;
 end
 
-bgmglib.set_option('diag', 0);
-
 % Save the result in .mat file
 % (this overrides previously saved file)
 save([out_file '.mat'], 'result');
@@ -283,3 +292,5 @@ if exist('jsonencode')
 else
     warning('jsonencode does not exist, cannot convert resulting mat files to json')
 end
+
+end % for trait1_file_index=1:length(trait1_files)

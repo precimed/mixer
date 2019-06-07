@@ -39,6 +39,11 @@ classdef BGMG_cpp
         calllib('bgmg', 'bgmg_init', obj.Context, bim_file, frq_file, chr_labels, trait1_file, trait2_file, exclude, extract); obj.check();
     end
 
+    % load_gwas
+    function load_gwas(obj, trait_index, trait_file)
+        calllib('bgmg', 'bgmg_load_gwas', obj.Context, trait_index, trait_file); obj.check();
+    end
+    
     % set/get defvec
     function obj = set.defvec(obj, val)
         calllib('bgmg', 'bgmg_set_tag_indices', obj.Context, length(val), sum(val), find(val)-1); obj.check();

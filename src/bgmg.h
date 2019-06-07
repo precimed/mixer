@@ -44,6 +44,7 @@ extern "C" {
   // - set_zvec, set_nvec (if trait1_file and/or trait2_file is available)
   // - set_mafvec (if frq file is specified)
   DLL_PUBLIC int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, const char* chr_labels, const char* trait1_file, const char* trait2_file, const char* exclude, const char* extract);
+  DLL_PUBLIC int64_t bgmg_load_gwas(int context_id, int trait, const char* trait_file);
   DLL_PUBLIC int64_t bgmg_convert_plink_ld(int context_id, const char* plink_ld_gz, const char* plink_ld_bin);
 
   // API to work with "defvec". Here 

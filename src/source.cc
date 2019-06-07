@@ -407,6 +407,15 @@ int64_t bgmg_init(int context_id, const char* bim_file, const char* frq_file, co
   } CATCH_EXCEPTIONS;
 }
 
+int64_t bgmg_load_gwas(int context_id, int trait, const char* trait_file) {
+  try {
+    set_last_error(std::string());
+    check_trait_index(trait);
+    check_is_not_null(trait_file);
+    return BgmgCalculatorManager::singleton().Get(context_id)->load_gwas(trait, trait_file);
+  } CATCH_EXCEPTIONS;
+}
+
 int64_t bgmg_convert_plink_ld(int context_id, const char* plink_ld_gz, const char* plink_ld_bin) {
   try {
     set_last_error(std::string());

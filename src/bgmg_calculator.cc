@@ -2030,6 +2030,28 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
   return 0;
 }
 
+int64_t BgmgCalculator::load_gwas(int trait_index, std::string trait_file) {
+  if ((trait_index != 1) && (trait_index != 2)) BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
+  if (trait_file.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("trait_file can not be an empty string"));
+  if (!boost::filesystem::exists(trait_file)) BGMG_THROW_EXCEPTION(std::runtime_error(trait_file + " does not exist"));
+  if (num_snp_ != bim_file_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("num_snp_ != bim_file_.size()"));
+
+  LOG << ">load_gwas(trait=" << trait_index << ", trait_file=" << trait_file << "); ";
+
+  SumstatFile trait_file_object;
+  trait_file_object.read(bim_file_, trait_file);
+
+  std::vector<float> zvec(num_tag_, 0), nvec(num_tag_, 0);
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    zvec[tag_index] = trait_file_object.zscore()[tag_to_snp_[tag_index]];
+    nvec[tag_index] = trait_file_object.sample_size()[tag_to_snp_[tag_index]];
+  }
+  set_zvec(trait_index, num_tag_, &zvec[0]);
+  set_nvec(trait_index, num_tag_, &nvec[0]);  
+
+  LOG << "<load_gwas(trait=" << trait_index << ", trait_file=" << trait_file << "); ";
+}
+
 int64_t BgmgCalculator::convert_plink_ld(std::string plink_ld_gz, std::string plink_ld_bin) {
   PlinkLdFile plink_ld_file(bim_file_, plink_ld_gz);
   plink_ld_file.save_as_binary(plink_ld_bin);

@@ -2,4 +2,5 @@
 *.pyc
 *.log
 /.metadata/
+src/build/*
 *__pycache__*

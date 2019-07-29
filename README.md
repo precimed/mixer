@@ -30,7 +30,7 @@ We encourage all users to familiarize themselves with US patent https://www.goog
 
 ### Prerequisites
 
-* MiXeR was tested on Linux (CentOS release 6.9) and Windows 10 (build 10.0.17134) operating systems
+* MiXeR was tested on Linux (CentOS release 6.9)
 * Matlab (Release R2017a). Other versions of the Matlab may work as well, but as of today they are not guarantied to be compatible with pre-built MiXeR binaries (C/C++ code).
 * Python 2.7 (for LD score regression)
 * Python 3.5 (for MiXeR results visualization)
@@ -88,13 +88,6 @@ This procedure was tested on
     * ``Matlab R2017b (9.3.0.713579) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
     * ``Matlab R2016b (9.1.0.441655) 64-bit (glnxa64)`` - all works but matlab crashes upon exit
 
-### Install on Windows using pre-built binaries
-
-* Download "Windows_x64.7z" file from the latest MiXeR release (https://github.com/precimed/mixer/releases)
-* Extract "Windows_x64.7z" to a new folder. Below we refer to this folder as ``MIXER_ROOT``.
-* Test that MiXeR executable runs smoothly, as described in [Install on Linux using pre-built binaries](#install-on-linux-using-pre-built-binaries) section
-* Test that MiXeR C++ plugin is loaded correctly, as described in [Install on Linux using pre-built binaries](#install-on-linux-using-pre-built-binaries) section
-
 ### Build from source - Linux
 
 We build release package on Abel supercomputer.
@@ -124,7 +117,7 @@ Further notes are available in [src/README.md](src/README.md).
 		
 ### Build from source - Windows
 
-Preliminary notes are available in [src/README.md](src/README.md).
+Preliminary and incomplete notes are available in [src/README.md](src/README.md).
 
 ## Data downloads
 

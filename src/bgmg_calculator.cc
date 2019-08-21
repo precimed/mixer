@@ -76,7 +76,7 @@ std::vector<float>* BgmgCalculator::get_causalbetavec(int trait_index) {
 }
 
 BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), 
-    use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), num_components_(1), 
+    use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), ld_format_version_(-1), num_components_(1), 
     max_causals_(100000), cost_calculator_(CostCalculator_Sampling), cache_tag_r2sum_(false), ld_matrix_csr_(*this),
     cubature_abs_error_(0), cubature_rel_error_(1e-4), cubature_max_evals_(0), calc_k_pdf_(false) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
@@ -190,6 +190,8 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
   } else if (!strcmp(option, "z2max")) {
     if (value <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("zmax must be positive"));
     z2max_ = value; return 0;
+  } else if (!strcmp(option, "ld_format_version")) {
+    ld_format_version_ = int(value); return 0;
   } else if (!strcmp(option, "use_complete_tag_indices")) {
     use_complete_tag_indices_ = (value != 0); return 0;
   } else if (!strcmp(option, "threads")) {
@@ -232,6 +234,9 @@ int64_t BgmgCalculator::set_ld_r2_coo(int chr_label, int64_t length, int* snp_in
 }
 
 int64_t BgmgCalculator::set_ld_r2_coo(int chr_label, const std::string& filename) {
+  if (ld_format_version_ == 0)
+    return ld_matrix_csr_.set_ld_r2_coo_version0(chr_label, filename, r2_min_);
+
   return ld_matrix_csr_.set_ld_r2_coo(chr_label, filename, r2_min_);
 }
 
@@ -1640,6 +1645,7 @@ void BgmgCalculator::log_diagnostics() {
   LOG << " diag: options.cubature_rel_error_=" << (cubature_rel_error_);
   LOG << " diag: options.cubature_max_evals_=" << (cubature_max_evals_);
   LOG << " diag: options.calc_k_pdf_=" << (calc_k_pdf_);
+  LOG << " diag: options.ld_format_version_=" << (ld_format_version_);
   LOG << " diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
 }
 

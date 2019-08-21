@@ -41,6 +41,29 @@ void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec) {
   }
 }
 
+int64_t LdMatrixCsr::set_ld_r2_coo_version0(int chr_label_data, const std::string& filename, float r2_min) {
+  std::vector<int> snp_index;
+  std::vector<int> tag_index;
+  std::vector<float> r;
+
+  // the old-format file contains r2 values, so we take a square root in the next line
+  load_ld_matrix_version0(filename, &snp_index, &tag_index, &r);
+  for (int i = 0; i < r.size(); i++) r[i] = sqrt(r[i]);
+
+  init_chunks();
+  if (chr_label_data < 0 || chr_label_data >= chunks_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("invalid value for chr_label argument"));
+  const int index0 = chunks_[chr_label_data].snp_index_from_inclusive_;
+
+  LOG << " set_ld_r2_coo_version0 takes square root of input r2 values, and offset all indices by " << index0;
+
+  // the following operation expects all indices to be 0-based within chunk, but that's not the case in version0 format.
+  // version0 all indices were with respect to the overal reference.
+  for (int i = 0; i < snp_index.size(); i++) snp_index[i] -= index0;
+  for (int i = 0; i < tag_index.size(); i++) tag_index[i] -= index0;
+
+  return set_ld_r2_coo(chr_label_data, r.size(), &snp_index[0], &tag_index[0], &r[0], r2_min);
+}
+
 int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label, const std::string& filename, float r2_min) {
   LdMatrixCsrChunk chunk;
   std::vector<float> ld_tag_r2_sum, ld_tag_r2_sum_adjust_for_hvec;  // these are ignored for now
@@ -71,15 +94,54 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label, const std::string& filename, f
   return set_ld_r2_coo(chr_label, numel, &snp_index[0], &tag_index[0], &r[0], r2_min);
 }
 
-int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_index_data, int* tag_index_data, float* r, float r2_min) {
-  if (mapping_.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_mafvec"));
-  if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_chrnumvec"));
-  LOG << ">set_ld_r2_coo(length=" << length << "); ";
+void LdMatrixCsr::init_chunks() {
+  if (mapping_.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call init_chunks() before set_mafvec"));
+  if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call init_chunks() before set_chrnumvec"));
+
+  if (!chunks_.empty()) return;
 
   if (ld_tag_sum_adjust_for_hvec_ == nullptr) {
     ld_tag_sum_adjust_for_hvec_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
     ld_tag_sum_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
   }
+
+  std::vector<float> hvec;
+  find_hvec(mapping_, &hvec);
+
+  int max_chr_label = 0;
+  for (int i = 0; i < mapping_.chrnumvec().size(); i++) {
+    int chr_label = mapping_.chrnumvec()[i];
+    if (chr_label >= max_chr_label) max_chr_label = chr_label;
+  }
+  chunks_.resize(max_chr_label + 1);  // here we most likely create one useless LD structure for chr_label==0. But that's fine, it'll just stay empty.
+  LOG << " highest chr label: " << max_chr_label;
+
+  // Find where each chunk starts and ends
+  std::vector<int> chunk_snp_count(max_chr_label + 1, 0);
+  for (int i = 0; i < mapping_.chrnumvec().size(); i++) {
+    int chr_label = mapping_.chrnumvec()[i];
+    chunk_snp_count[chr_label]++;
+  }
+  for (int chr_label = 0, snp_count_on_previous_chromosomes = 0; chr_label <= max_chr_label; chr_label++) {
+    chunks_[chr_label].snp_index_from_inclusive_ = snp_count_on_previous_chromosomes;
+    chunks_[chr_label].snp_index_to_exclusive_ = snp_count_on_previous_chromosomes + chunk_snp_count[chr_label];
+    chunks_[chr_label].chr_label_ = chr_label;
+    snp_count_on_previous_chromosomes += chunk_snp_count[chr_label];
+  }
+
+  LOG << " set_ld_r2_coo adds " << mapping_.tag_to_snp().size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
+  for (int i = 0; i < mapping_.tag_to_snp().size(); i++) {
+    int snp_index = mapping_.tag_to_snp()[i];
+    chunks_[mapping_.chrnumvec()[snp_index]].coo_ld_.push_back(std::make_tuple(snp_index, i, 1.0f));
+    ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec[mapping_.tag_to_snp()[i]]);
+    ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f);
+  }
+}
+
+int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_index_data, int* tag_index_data, float* r, float r2_min) {
+  if (mapping_.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_mafvec"));
+  if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_chrnumvec"));
+  LOG << ">set_ld_r2_coo(length=" << length << "); ";
 
   for (int64_t i = 0; i < length; i++)
     if (snp_index_data[i] == tag_index_data[i])
@@ -94,36 +156,7 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_
   std::vector<float> hvec;
   find_hvec(mapping_, &hvec);
 
-  if (chunks_.empty()) {
-    int max_chr_label = 0;
-    for (int i = 0; i < mapping_.chrnumvec().size(); i++) {
-      int chr_label = mapping_.chrnumvec()[i];
-      if (chr_label >= max_chr_label) max_chr_label = chr_label;
-    }
-    chunks_.resize(max_chr_label + 1);  // here we most likely create one useless LD structure for chr_label==0. But that's fine, it'll just stay empty.
-    LOG << " highest chr label: " << max_chr_label;
-
-    // Find where each chunk starts and ends
-    std::vector<int> chunk_snp_count(max_chr_label + 1, 0);
-    for (int i = 0; i < mapping_.chrnumvec().size(); i++) {
-      int chr_label = mapping_.chrnumvec()[i];
-      chunk_snp_count[chr_label]++;
-    }
-    for (int chr_label = 0, snp_count_on_previous_chromosomes = 0; chr_label <= max_chr_label; chr_label++) {
-      chunks_[chr_label].snp_index_from_inclusive_ = snp_count_on_previous_chromosomes;
-      chunks_[chr_label].snp_index_to_exclusive_ = snp_count_on_previous_chromosomes + chunk_snp_count[chr_label];
-      chunks_[chr_label].chr_label_ = chr_label;
-      snp_count_on_previous_chromosomes += chunk_snp_count[chr_label];
-    }
-
-    LOG << " set_ld_r2_coo adds " << mapping_.tag_to_snp().size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
-    for (int i = 0; i < mapping_.tag_to_snp().size(); i++) {
-      int snp_index = mapping_.tag_to_snp()[i];
-      chunks_[mapping_.chrnumvec()[snp_index]].coo_ld_.push_back(std::make_tuple(snp_index, i, 1.0f));
-      ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f * hvec[mapping_.tag_to_snp()[i]]);
-      ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, i, 1.0f);
-    }
-  }
+  init_chunks();
 
   int64_t new_elements = 0;
   int64_t elements_on_different_chromosomes = 0;

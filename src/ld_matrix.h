@@ -38,3 +38,8 @@ void load_ld_matrix(std::string filename,
                     std::vector<float>* ld_tag_r2_sum_adjust_for_hvec,
                     std::vector<float>* ld_tag_r4_sum,
                     std::vector<float>* ld_tag_r4_sum_adjust_for_hvec);
+
+void load_ld_matrix_version0(std::string filename,
+                             std::vector<int>* snp_index,
+                             std::vector<int>* tag_index,
+                             std::vector<float>* r2);

@@ -394,6 +394,7 @@ class BgmgCalculator : public TagToSnpMapping {
   double cubature_abs_error_;
   double cubature_rel_error_;
   int cubature_max_evals_;
+  int ld_format_version_;      // overwrite format version for LD matrix files. Default -1. Set this to 0 to read from MiXeR v1.0 LD files.
   std::vector<double> k_pdf_;  // the log-likelihood cost calculated independently for each of 0...k_max-1 selections of causal variants.            
   bool calc_k_pdf_;            // a calc_fixed_effect_delta_from_causalbetavecflag indicating whether we should calculate k_pdf_
   void check_num_snp(int length);

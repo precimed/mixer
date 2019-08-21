@@ -106,6 +106,7 @@ def parse_args(args):
     parser.add_argument("--plink-ld-bin", type=str, default=None, help="File with linkage disequilibrium information, "
         "converted from plink format as described in the README.md file. "
         "May contain simbol '@', similarly to --bim-file argument. ")
+    parser.add_argument("--plink-ld-bin0", type=str, default=None, help="File with linkage disequilibrium information in an old format (deprecated)")
     parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
          "(e.g. 1,2,3 or 1-4,12,16-20 or 19-22,X,Y). "
          "Chromosomes with non-integer ids should be indicated separately. ")
@@ -378,6 +379,11 @@ if __name__ == "__main__":
 
     for opt, val in convert_args_to_libbgmg_options(args, libbgmg.num_snp):
         libbgmg.set_option(opt, val)
+
+    if args.plink_ld_bin0 is not None:
+        libbgmg.set_option('ld_format_version', 0)
+        args.plink_ld_bin = args.plink_ld_bin0
+        args.plink_ld_bin0 = None
 
     for chr_label in args.chr2use: 
         libbgmg.set_ld_r2_coo_from_file(chr_label, args.plink_ld_bin.replace('@', str(chr_label)))

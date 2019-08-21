@@ -130,6 +130,8 @@ def parse_args(args):
     parser.add_argument('--preliminary', default=False, action="store_true",
         help="perform an additional run using fast model to generate preliminary data. "
         "After preliminary run fit sequence is applied from scratch using full model.")
+    parser.add_argument('--use-complete-tag-indices', default=False, action="store_true",
+        help="enforce complete storage of the LD matrice (required for 'convolve' cost calculator). ")
 
     parser.add_argument('--extract', type=str, default="", help="File with variants to include in the fit procedure")
     parser.add_argument('--exclude', type=str, default="", help="File with variants to exclude from the fit procedure")
@@ -373,7 +375,8 @@ if __name__ == "__main__":
 
     fix_and_validate_args(args)
 
-    libbgmg.set_option('use_complete_tag_indices', 1)
+    if args.use_complete_tag_indices:
+        libbgmg.set_option('use_complete_tag_indices', 1)
     libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, args.trait2_file,
         args.exclude, args.extract)
 

@@ -74,13 +74,13 @@ class MixerOptimizeResult(object):
                  'cost_fast' : self._cost_fast,
                  'AIC' : self.AIC, 'BIC': self.BIC,
                  'nfev' : self._r.nfev, 'nit': self._r.nit,
-                 'status' : self._r.status, 'success': self._r.success,
+                 'success': self._r.success,
                  'message' : self._r.message }
 
     def __str__(self):
         description = []
         self_dict = self.as_dict()
-        for attr_name in 'cost', 'cost_df', 'cost_n', 'nfev', 'nit', 'status', 'success', 'message':
+        for attr_name in 'cost', 'cost_df', 'cost_n', 'nfev', 'nit', 'success', 'message':
             description.append('{}: {}'.format(attr_name, self_dict[attr_name]))
         return 'MixerOptimizeResult({})'.format(', '.join(description))
     __repr__ = __str__
@@ -116,11 +116,16 @@ class UnivariateParams(object):
         return lib.calc_univariate_cost(trait, self._pi, self._sig2_zero, self._sig2_beta)
 
 class BivariateParams(object):
-    def __init__(self, pi, sig2_beta, rho_beta, sig2_zero, rho_zero):
-        self._pi = pi
-        self._sig2_beta = sig2_beta
+    def __init__(self, pi=None, sig2_beta=None, rho_beta=None, sig2_zero=None, rho_zero=None, params1=None, params2=None, pi12=None):
+        if (params1 is not None) and (params2 is not None) and (pi12 is not None):
+            self._pi = [params1._pi - pi12, params2._pi - pi12, pi12]
+            self._sig2_beta = [params1._sig2_beta, params2._sig2_beta]
+            self._sig2_zero = [params1._sig2_zero, params2._sig2_zero]
+        else:
+            self._pi = pi
+            self._sig2_beta = sig2_beta
+            self._sig2_zero = sig2_zero
         self._rho_beta = rho_beta
-        self._sig2_zero = sig2_zero
         self._rho_zero = rho_zero
         self._validate()
 
@@ -184,6 +189,7 @@ class UnivariateParametrization_constPI(object):
     def _calc_cost(self, vec):
         return self._vec_to_params(vec).cost(self._lib, self._trait)
     
+    # optimizer should return a result which contains an "x" field
     def fit(self, optimizer):
         result = optimizer(self._calc_cost, self._init_vec)
         return self._vec_to_params(result.x), result
@@ -287,6 +293,29 @@ class UnivariateParametrization(object):
         result = optimizer(self._calc_cost, self._init_vec)
         return self._vec_to_params(result.x), result
 
+# Standard univariate parametrization
+#   x1 = log(sig2_zero)
+#   x2 = log(sig2_beta)
+#   x3 = logit(pi)
+class UnivariateParametrization_natural_axis(object):
+    def __init__(self, lib, trait):
+        self._lib = lib
+        self._trait = trait
+
+    def params_to_vec(self, params):
+        return [_log_exp_converter(params._sig2_zero, invflag=False),
+                _log_exp_converter(params._sig2_beta, invflag=False),
+                _logit_logistic_converter(params._pi, invflag=False)]
+        
+    def vec_to_params(self, vec):
+        sig2_zero=_log_exp_converter(vec[0], invflag=True)
+        sig2_beta=_log_exp_converter(vec[1], invflag=True)
+        pi = _logit_logistic_converter(vec[2], invflag=True)
+        return UnivariateParams(pi=pi, sig2_beta=sig2_beta, sig2_zero=sig2_zero)
+    
+    def calc_cost(self, vec):
+        return self.vec_to_params(vec).cost(self._lib, self._trait)
+    
 def _max_rg(pi1u, pi2u):
     return min(pi1u, pi2u) / np.sqrt(pi1u * pi2u)
 
@@ -354,19 +383,23 @@ class BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO_boundedPI(ob
 # The difference from the above function (....boundedPI) is that here we map params into [-inf,+inf],
 # while ...boundedPI is parametrized directly with PI.
 class BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(object):
-    def __init__(self, const_params1, const_params2, const_rg, const_rho_zero, init_pi12, lib):
+    def __init__(self, const_params1, const_params2, const_rg, const_rho_zero, lib):
         self._max_pi12 = min([const_params1._pi, const_params2._pi])
         self._min_pi12 = abs(const_rg) * np.sqrt(const_params1._pi * const_params2._pi)
-        assert self._min_pi12 < self._max_pi12
-        assert (self._min_pi12 <= init_pi12) and (init_pi12 <= self._max_pi12)
-        self._init_vec = [_logit_logistic_converter((init_pi12 - self._min_pi12) / (self._max_pi12 - self._min_pi12), invflag=False)]
+        assert self._min_pi12 <= self._max_pi12
         self._const_params1 = const_params1
         self._const_params2 = const_params2
         self._const_rg = const_rg
         self._const_rho_zero = const_rho_zero
         self._lib = lib
-        
-    def _vec_to_params(self, vec):
+
+    def params_to_vec(self, params):
+        assert(params._pi[2] >= self._min_pi12)
+        assert(params._pi[2] <= self._max_pi12)
+        return [_logit_logistic_converter((params._pi[2] - self._min_pi12) / (self._max_pi12 - self._min_pi12), invflag=False)]
+
+    def vec_to_params(self, vec):
+        if not hasattr(vec, "__len__"): vec = [vec]
         pi12 = self._min_pi12 + _logit_logistic_converter(vec[0], invflag=True) * (self._max_pi12 - self._min_pi12) 
         rho_beta = self._const_rg * np.sqrt(self._const_params1._pi * self._const_params2._pi) / pi12
         assert abs(rho_beta) <= 1
@@ -376,12 +409,8 @@ class BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(object):
                                rho_beta=rho_beta,
                                rho_zero=self._const_rho_zero)
 
-    def _calc_cost(self, vec):
-        return self._vec_to_params(vec).cost(self._lib)
-    
-    def fit(self, optimizer):
-        result = optimizer(self._calc_cost, self._init_vec)
-        return self._vec_to_params(result.x), result
+    def calc_cost(self, vec):
+        return self.vec_to_params(vec).cost(self._lib)
 
 # Bivariate parametrization with "independent axis", i.e.
 #   x1 =     atanh(pi12/pi12max) *     atanh(rho_beta) 
@@ -433,45 +462,30 @@ class BivariateParametrization_constUNIVARIATE(object):
         return self._vec_to_params(result.x), result
 
 class BivariateParametrization_constUNIVARIATE_natural_axis(object):
-    def __init__(self, const_params1, const_params2, init_pi12, init_rho_beta, init_rho_zero, lib):
-        max_pi12 = min(const_params1._pi, const_params2._pi)
-        assert((init_pi12 >= 0) and (init_pi12 < max_pi12))
-        assert(abs(init_rho_beta) <= 1.0)
-        assert(abs(init_rho_zero) <= 1.0)
-        self._init_vec = [_arctanh_tanh_converter(init_rho_beta, invflag=False),
-                          _arctanh_tanh_converter(init_rho_zero, invflag=False),
-                          _logit_logistic_converter(init_pi12, invflag=False)]
+    def __init__(self, const_params1, const_params2, lib):
         self._const_params1 = const_params1
         self._const_params2 = const_params2
         self._lib = lib
 
-    def _vec_to_params(self, vec, params1=None, params2=None):
-        _params1 = params1 if params1 is not None else self._const_params1
-        _params2 = params2 if params2 is not None else self._const_params2
-        max_pi12 = min(_params1._pi, _params2._pi)
+    def params_to_vec(self, params):
+        max_pi12 = min(self._const_params1._pi, self._const_params2._pi)
+        return [_arctanh_tanh_converter(params._rho_beta, invflag=False),
+                _arctanh_tanh_converter(params._rho_zero, invflag=False),
+                _logit_logistic_converter(params._pi[2] / max_pi12, invflag=False)]
+
+    def vec_to_params(self, vec):
+        max_pi12 = min(self._const_params1._pi, self._const_params2._pi)
         rho_beta = _arctanh_tanh_converter(vec[0], invflag=True)
         rho_zero = _arctanh_tanh_converter(vec[1], invflag=True)
-        pi12 = min(max_pi12, _logit_logistic_converter(vec[2], invflag=True))
-        return BivariateParams(pi=[_params1._pi - pi12, _params2._pi - pi12, pi12], 
-                               sig2_beta=[_params1._sig2_beta, _params2._sig2_beta],
-                               sig2_zero=[_params1._sig2_zero, _params2._sig2_zero],
-                               rho_beta=rho_beta,
-                               rho_zero=rho_zero)
+        pi12 = max_pi12 * _logit_logistic_converter(vec[2], invflag=True)
+        return BivariateParams(pi=[self._const_params1._pi - pi12, self._const_params2._pi - pi12, pi12], 
+                               sig2_beta=[self._const_params1._sig2_beta, self._const_params2._sig2_beta],
+                               sig2_zero=[self._const_params1._sig2_zero, self._const_params2._sig2_zero],
+                               rho_beta=rho_beta, rho_zero=rho_zero)
 
-    def _calc_cost(self, vec):
-        return self._vec_to_params(vec).cost(self._lib)
+    def calc_cost(self, vec):
+        return self.vec_to_params(vec).cost(self._lib)
     
-    def fit(self, optimizer):
-        result = optimizer(self._calc_cost, self._init_vec)
-        return self._vec_to_params(result.x), result
-
-
-
-
-
-
-
-
 # BGMG_cpp_fit_bivariate_fast_constrained (fits rho_zero to adapt to another reference)
 class BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI(object):
     def __init__(self, const_params1, const_params2, const_pi12, const_rho_beta, init_rho_zero, lib):

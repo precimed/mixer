@@ -53,38 +53,6 @@ def _logit_logistic_converter(x, invflag=False):
 def _arctanh_tanh_converter(x, invflag=False):
     return (2.0 * _logistic_bounded(2.0 * x) - 1.0) if invflag else 0.5*_logit_bounded(0.5*x + 0.5)
 
-class MixerOptimizeResult(object):
-    def __init__(self, optimize_result, cost_n):
-        self._r = optimize_result       # an instance of scipy.optimize.OptimizeResult
-        self._cost_n = float(cost_n)    # number of genetic variants effectively contributing to the cost (sum of weights)
-        self._cost_df = len(self._r.x)
-        self._cost = self._r.fun
-        self._cost_fast = np.nan
-
-    @property
-    def BIC(self):
-        return np.log(self._cost_n) * self._cost_df + 2 * self._cost
-
-    @property
-    def AIC(self):
-        return 2 * self._cost_df + 2 * self._cost
-
-    def as_dict(self):
-        return { 'cost' : self._cost, 'cost_df': self._cost_df, 'cost_n' : self._cost_n,
-                 'cost_fast' : self._cost_fast,
-                 'AIC' : self.AIC, 'BIC': self.BIC,
-                 'nfev' : self._r.nfev, 'nit': self._r.nit,
-                 'success': self._r.success,
-                 'message' : self._r.message }
-
-    def __str__(self):
-        description = []
-        self_dict = self.as_dict()
-        for attr_name in 'cost', 'cost_df', 'cost_n', 'nfev', 'nit', 'success', 'message':
-            description.append('{}: {}'.format(attr_name, self_dict[attr_name]))
-        return 'MixerOptimizeResult({})'.format(', '.join(description))
-    __repr__ = __str__
-
 class UnivariateParams(object):
     def __init__(self, pi, sig2_beta, sig2_zero):
         self._pi = pi
@@ -526,7 +494,7 @@ def _hessian_robust(hessian, hessdiag):
     return hessian
 
 def _calculate_univariate_uncertainty(parametrization, alpha, totalhet, num_snps, num_samples):
-    NCKoef = 0.226 # this koef gives proportion of causal variants that explain 90% of heritability. 
+    NCKoef = 0.319 # this koef gives proportion of causal variants that explain 90% of heritability. 
                    # it is specific to BGMG with single gaussian, with MAF specific model
     funcs = [('pi', lambda x: x._pi),
              ('nc', lambda x: x._pi * num_snps),

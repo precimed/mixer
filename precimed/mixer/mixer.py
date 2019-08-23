@@ -64,7 +64,10 @@ def enhance_optimize_result(r, cost_n, cost_df=None, cost_fast=None):
 
 def fix_and_validate_args(args):
     if not args.fit_sequence:
-        raise ValueError('--fit-sequence is empty; did you intend to use "--fit-sequence load"?')
+        if not args.trait2_file: # univariate fit
+            args.fit_sequence = ['diffevo-fast', 'neldermead']
+        else:                    # bivariate fit
+            args.fit_sequence = ['diffevo', 'neldermead', 'brute1' 'brent1']
     if args.trait2_file and (args.fit_sequence[0] != 'load'):
         if (not args.trait2_params_file) or (not args.trait1_params_file):
             raise ValueError('--trait1-params-file and --trait2-params-file are required for bivariate analysis (i.e. with --trait2-file argument), unless --fit-sequence starts with "load" step' )
@@ -395,12 +398,6 @@ if __name__ == "__main__":
     libbgmg.dispose()
 
     fix_and_validate_args(args)
-
-    if not args.fit_sequence:
-        if not args.trait2_file: # univariate fit
-            args.fit_sequence = ['diffevo-fast', 'neldermead']
-        else:                    # bivariate fit
-            args.fit_sequence = ['diffevo', 'neldermead', 'brute1' 'brent1']
 
     # for univariate optimization, if fit steps involve "diffevo" or "neldermead", set "use_complete_tag_indices" (to enable convolution cost calculator)
     if not args.trait2_file:

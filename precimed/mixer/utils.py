@@ -137,6 +137,13 @@ class BivariateParams(object):
     def cost(self, lib):
         return lib.calc_bivariate_cost(self._pi, self._sig2_beta, self._rho_beta, self._sig2_zero, self._rho_zero)
 
+# TBD: there is some inconsistency across "Parametrization" classes.
+# The following classes are OK:
+#   - UnivariateParametrization_natural_axis
+#   - BivariateParametrization_constUNIVARIATE_natural_axis
+#   - BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO
+# All other classes should be corrected by removing the "fit" function, and moving this logic into mixer.py apply_fit_sequence
+
 # Parametrization that constrains polygenicity
 # Typical usage is as follows:
 #   optimizer = lambda func, x0: scipy.optimize.minimize(func, x0, method='Nelder-Mead')

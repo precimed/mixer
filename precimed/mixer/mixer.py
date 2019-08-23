@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 '''
-(c) 2018 Oleksandr Frei
+(c) 2018-2019 Oleksandr Frei
 Univariate and Bivariate Causal Mixture for GWAS
 '''
 
@@ -19,17 +19,15 @@ from utils import BivariateParams
 from utils import _log_exp_converter
 from utils import _logit_logistic_converter
 from utils import _arctanh_tanh_converter
-from utils import UnivariateParametrization_constPI
-from utils import UnivariateParametrization_constH2_constSIG2ZERO
-from utils import UnivariateParametrization_constH2_constSIG2ZERO_boundedPI
-from utils import UnivariateParametrization_constPI_constSIG2BETA
-from utils import UnivariateParametrization_natural_axis
-from utils import UnivariateParametrization
-from utils import BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO
-from utils import BivariateParametrization_constSIG2BETA_constSIG2ZERO_infPI_maxRG
-from utils import BivariateParametrization_constUNIVARIATE
-from utils import BivariateParametrization_constUNIVARIATE_natural_axis
-from utils import BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI
+from utils import UnivariateParametrization_natural_axis		                    # diffevo, neldermead
+from utils import UnivariateParametrization_constPI_constSIG2BETA                   # inflation
+from utils import UnivariateParametrization_constPI		                            # infinitesimal
+from utils import UnivariateParametrization                                         # uncertainty
+from utils import BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI     # inflation
+from utils import BivariateParametrization_constSIG2BETA_constSIG2ZERO_infPI_maxRG  # infinitesimal
+from utils import BivariateParametrization_constUNIVARIATE_natural_axis             # diffevo, neldermead
+from utils import BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO     # brute1, brent1
+from utils import BivariateParametrization_constUNIVARIATE                          # uncertainty
 from utils import _hessian_robust
 from utils import _max_rg
 from utils import _calculate_univariate_uncertainty
@@ -83,9 +81,6 @@ def fix_and_validate_args(args):
     if np.any([not x.isdigit() for x in chr2use]): raise ValueError('Chromosome labels must be integer')
     arg_dict["chr2use"] = [int(x) for x in chr2use]
 
-    if args.full_cost_calc == 'convolve': args.use_complete_tag_indices = True
-
-
 def convert_args_to_libbgmg_options(args, num_snp):
     libbgmg_options = {
         'r2min': args.r2min, 'kmax': args.kmax, 
@@ -131,26 +126,24 @@ def parse_args(args):
     parser.add_argument("--trait1-file", type=str, default=None, help="GWAS summary statistics for the first trait. ")
     parser.add_argument("--trait2-file", type=str, default="", help="GWAS summary statistics for the first trait. "
         "Specifying this argument triggers cross-trait analysis.")
-    parser.add_argument('--full-cost-calc', type=str, default='sampling', choices=['sampling', 'convolve', 'gaussian'],
-        help="calculator for the full cost function; note that 'convolve' is only recommended for the univariate fit.")
-    parser.add_argument('--fit-sequence', type=str, default=['init', 'constrained'], nargs='+',
-        choices=['load', 'init', 'inflation', 'infinitesimal', 'constrained', 'full', 'diffevo', 'diffevo-fast', 'neldermead', 'neldermead-fast', 'brute1', 'brute1-fast', 'brent1', 'brent1-fast'],
+    parser.add_argument('--fit-sequence', type=str, default=[], nargs='+',
+        choices=['load', 'inflation', 'infinitesimal', 'diffevo', 'diffevo-fast', 'neldermead', 'neldermead-fast', 'brute1', 'brute1-fast', 'brent1', 'brent1-fast'],
         help="Specify fit sequence: "
              "'load' reads previosly fitted parameters from a file (--load-params-file); "
-             "'init' initialize fit using 'fast model'; "
-             "'diffevo' and 'diffevo-fast' performs a single iteration of differential evolution, using convolve and fast cost functions; "
-             "'inflation' fits sig2zero (univariate) and rho_zero (bivariate), typically useful when adjusting parameters to another reference; "
-             "'infinitesimal' fits a model with pi1=1 (univariate) or pi12=1 (bivariate) constrains; " 
-             "'constrained' fits a model with constrained h2 (univariate) or rg (bivariate); "
-             "'full' jointly fits the three parameters: sig2_zero, sig2_beta, pi (univariate) or rho_zero, rho_beta, pi12 (bivariate); " 
+             "'diffevo' performs a single iteration of differential evolution, which is the right way to setup an initial approximation; "
+             "'neldermead' applies Nelder-Mead downhill simplex search; "             
+             "'brute1' applies only to bivariate optimization; it performs brute-force for one-dimentional optimization, searching optimal pi12 value constrained on genetic correlation (rg) and intercept (rho0); "
+             "'brent1' is similar to brute1, but it uses brent method (inverse parabolic interpolation); "
+             "'inflation' fits sig2zero (univariate) and rho_zero (bivariate), using fast cost function; this is quite special optimization step, typically useful for adjusting inflation parameters to another reference; "
+             "'infinitesimal' fits a model with pi1=1 (univariate) or pi12=1 (bivariate) constrains, using fast cost function; this is quite special optimization step, typically used internally for AIC/BIC computation; " 
              "Note that bivariate fit is always constrained on univariate parameters, except for 'inflation' fit which adjust rho_zero and sig2_zero. "
-             "All fit sequences must start with 'init' or 'load'. "
-             "Typical sequences: 'init', 'init constrained', 'init full', 'load inflation'")
+             "The '...-fast' optimizations use fast cost function. This is not recommended for bivariate optimization. "
+             "Note that univariate optimization uses 'convolve' cost calculator, bivariate optimization uses 'sampling' cost calculator. "
+             "Typical univariate sequence: 'diffevo-fast neldermead'"
+             "Typical bivariate sequence: 'diffevo neldermead brute1 brent1'")
     parser.add_argument('--preliminary', default=False, action="store_true",
-        help="perform an additional run using fast model to generate preliminary data. "
+        help="perform an additional run using fast model with 'diffevo-fast nelderead-fast' to generate preliminary data. "
         "After preliminary run fit sequence is applied from scratch using full model.")
-    parser.add_argument('--use-complete-tag-indices', default=False, action="store_true",
-        help="enforce complete storage of the LD matrice. This will be enabled automatically if --full-cost-calc is used. ")
 
     parser.add_argument('--extract', type=str, default="", help="File with variants to include in the fit procedure")
     parser.add_argument('--exclude', type=str, default="", help="File with variants to exclude from the fit procedure")
@@ -168,8 +161,9 @@ def parse_args(args):
     parser.add_argument('--threads', type=int, default=None, help="specify how many threads to use (concurrency). None will default to the total number of CPU cores. ")
     parser.add_argument('--tol-x', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
     parser.add_argument('--tol-func', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
-    parser.add_argument('--cubature-rel-error', type=float, default=1e-5, help="relative error for cubature stop criteria (only relevant for --full-cost-calc convolve). ")
-    parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (only relevant for --full-cost-calc convolve). Bivariate cubature require in the order of 10^4 evaluations and thus is much slower than sampling. ")
+    parser.add_argument('--cubature-rel-error', type=float, default=1e-5, help="relative error for cubature stop criteria (applies to 'convolve' cost calculator). ")
+    parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). "
+        "Bivariate cubature require in the order of 10^4 evaluations and thus is much slower than sampling, therefore it is not exposed via mixer.py command-line interface. ")
 
     parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
     parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
@@ -206,7 +200,7 @@ def load_bivariate_params_file(fname):
             UnivariateParams(pi=p['pi'][0]+p['pi'][2], sig2_beta=p['sig2_beta'][0], sig2_zero=p['sig2_zero'][0]),
             UnivariateParams(pi=p['pi'][1]+p['pi'][2], sig2_beta=p['sig2_beta'][1], sig2_zero=p['sig2_zero'][1]))
 
-def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fit_sequence, init_params=None, trait=1):
+def apply_univariate_fit_sequence(args, libbgmg, fit_sequence, init_params=None, trait=1):
     params=init_params; optimize_result_sequence=[]
     for fit_type in fit_sequence:
         libbgmg.log_message("fit_type=={}...".format(fit_type))
@@ -214,21 +208,6 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
         if fit_type == 'load':
             params = load_univariate_params_file(args.load_params_file)
             libbgmg.log_message("fit_type==load: Done, {}".format(params))
-
-        elif fit_type == 'init':
-            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-            libbgmg.log_message("fit_type==init: UnivariateParametrization_constPI.fit(const_pi=1.0) with 'fast model'...")
-            params, optimize_result = UnivariateParametrization_constPI(
-                const_pi=1.0, init_sig2_zero=np.ma.var(np.ma.masked_invalid(libbgmg.get_zvec(trait))),
-                init_sig2_beta=1.0/np.nanmean(libbgmg.get_nvec(trait)),
-                lib=libbgmg, trait=trait).fit(optimizer)
-            libbgmg.log_message("fit_type==init: intermediate {}".format(params))
-            libbgmg.log_message("fit_type==init: UnivariateParametrization_constH2_constSIG2ZERO.fit() with 'fast model'...")
-            params, optimize_result = UnivariateParametrization_constH2_constSIG2ZERO(init_pi=0.01, const_params=params,
-                lib=libbgmg, trait=trait).fit(optimizer)
-            libbgmg.log_message("fit_type==init: intermediate {}".format(params))
-            libbgmg.log_message("fit_type==init: UnivariateParametrization.fit() with 'fast model'...")
-            params, optimize_result = UnivariateParametrization(init_params=params, lib=libbgmg, trait=trait).fit(optimizer)
 
         elif (fit_type == 'diffevo') or fit_type == ('diffevo-fast'):
             libbgmg.set_option('cost_calculator', _cost_calculator_convolve if (fit_type == 'diffevo') else _cost_calculator_gaussian)
@@ -248,26 +227,17 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
                 method='Nelder-Mead', options={'maxiter':1200, 'fatol':1e-7, 'xatol':1e-4, 'adaptive':True})
             params = parametrization.vec_to_params(optimize_result.x)
 
-        elif fit_type == 'constrained':
-            if params == None: raise(RuntimeError('params == None, unable to proceed apply "constrained" fit'))
-            libbgmg.set_option('cost_calculator', _cost_calculator[args.full_cost_calc])
-            params, optimize_result = UnivariateParametrization_constH2_constSIG2ZERO(init_pi=params._pi, const_params=params,
-                lib=libbgmg, trait=trait).fit(optimizer)
-
-        elif fit_type == 'full':
-            if params == None: raise(RuntimeError('params == None, unable to proceed apply "full" fit'))
-            libbgmg.set_option('cost_calculator', _cost_calculator[args.full_cost_calc])
-            params, optimize_result = UnivariateParametrization(init_params=params, lib=libbgmg, trait=trait).fit(optimizer)
-
         elif fit_type == 'inflation':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "inflation" fit'))
             libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+            optimizer = lambda func, x0: scipy.optimize.minimize(func, x0, method='Nelder-Mead')
             params, optimize_result = UnivariateParametrization_constPI_constSIG2BETA(
                 init_sig2_zero=params._sig2_zero, const_params=params, lib=libbgmg, trait=trait).fit(optimizer)
 
         elif fit_type == 'infinitesimal':
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "infinitesimal" fit'))
             libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+            optimizer = lambda func, x0: scipy.optimize.minimize(func, x0, method='Nelder-Mead')
             params, optimize_result = UnivariateParametrization_constPI(
                 const_pi=1.0, init_sig2_zero=params._sig2_zero,
                 init_sig2_beta=params._sig2_beta * params._pi,
@@ -285,7 +255,7 @@ def apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, fi
     if params == None: raise(RuntimeError('Empty --fit-sequence'))
     return params, optimize_result_sequence
 
-def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
+def apply_bivariate_fit_sequence(args, libbgmg):
     if args.trait1_params_file or args.trait2_params_file:
         libbgmg.log_message("Loading univariate constrains for bivariate analysis...")
         params1 = load_univariate_params_file(args.trait1_params_file)
@@ -299,49 +269,21 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
 
         if fit_type == 'load':
             params, params1, params2 = load_bivariate_params_file(args.load_params_file)
+            if args.trait1_params_file or args.trait2_params_file:
+                libbgmg.log_message("overwrite params previously loaded from --trait1-params-file, --trait2-params-file")
             libbgmg.log_message("fit_type==load... trait1 params: {}".format(params1))            
             libbgmg.log_message("fit_type==load... trait2 params: {}".format(params2))    
             libbgmg.log_message("fit_type=={} done ({})".format(fit_type, params))
             continue
 
-        elif fit_type == 'init':
-            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-            zcorr = np.ma.corrcoef(np.ma.masked_invalid(libbgmg.zvec1), np.ma.masked_invalid(libbgmg.zvec2))[0, 1]
-            params, optimize_result = BivariateParametrization_constUNIVARIATE(
-                const_params1=params1, const_params2=params2,
-                init_pi12=min(params1._pi, params2._pi)*0.1,
-                init_rho_beta=zcorr, init_rho_zero=zcorr,
-                lib=libbgmg).fit(optimizer)
-
-        elif fit_type == 'constrained':
-            # Constrained optimization intgentionally does params._pi[2] to initialize,
-            # because "fast cost" function used in 'init' sometimes leads to biased estimates,
-            # which give to bad initial guess for the "full cost".
-            # Hense we use scalar_optimizer (golden search on bounded interval) which does not require x0.
-            if params == None: raise(RuntimeError('params == None, unable to proceed with "{}" fit'.format(fit_type)))
-            max_pi12 = np.min([params1._pi, params2._pi])
-            min_pi12 = abs(params._rg()) * np.sqrt(params1._pi * params2._pi)
-            init_pi12 = np.sqrt(np.max([min_pi12, np.min([max_pi12/2.0, 1e-6])]) * max_pi12)
-            libbgmg.set_option('cost_calculator', _cost_calculator[args.full_cost_calc])
-            params, optimize_result = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(
-                const_params1=params1, const_params2=params2,
-                const_rg=params._rg(), const_rho_zero=params._rho_zero,
-                init_pi12=init_pi12,
-                lib=libbgmg).fit(optimizer)
-
-        elif fit_type == 'full':
-            if params == None: raise(RuntimeError('params == None, unable to proceed with "{}" fit'.format(fit_type)))
-            libbgmg.set_option('cost_calculator', _cost_calculator[args.full_cost_calc])
-            params, optimize_result = BivariateParametrization_constUNIVARIATE(
-                const_params1=params1, const_params2=params2,
-                init_pi12=params._pi[2], init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
-                lib=libbgmg).fit(optimizer)
-
         elif fit_type == 'inflation':
             if params == None: raise(RuntimeError('params == None, unable to proceed with "{}" fit'.format(fit_type)))
-            params1, _ = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params1, trait=1)
-            params2, _ = apply_univariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer, ['inflation'], init_params=params2, trait=2)
+            params1, ors1 = apply_univariate_fit_sequence(args, libbgmg, ['inflation'], init_params=params1, trait=1)
+            optimize_result_sequence.extend(ors1)
+            params2, ors2 = apply_univariate_fit_sequence(args, libbgmg, ['inflation'], init_params=params2, trait=2)
+            optimize_result_sequence.extend(ors2)
             libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+            optimizer = lambda func, x0: scipy.optimize.minimize(func, x0, method='Nelder-Mead')
             params, optimize_result = BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI(
                 const_params1=params1, const_params2=params2,
                 const_pi12=params._pi[2], const_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
@@ -350,6 +292,7 @@ def apply_bivariate_fit_sequence(args, libbgmg, optimizer, scalar_optimizer):
         elif fit_type == 'infinitesimal':
             if params == None: raise(RuntimeError('params == None, unable to proceed with "{}" fit'.format(fit_type)))
             libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+            optimizer = lambda func, x0: scipy.optimize.minimize(func, x0, method='Nelder-Mead')
             params, optimize_result = BivariateParametrization_constSIG2BETA_constSIG2ZERO_infPI_maxRG(
                 const_sig2_beta=[params1._sig2_beta, params2._sig2_beta],
                 const_sig2_zero=[params1._sig2_zero, params2._sig2_zero],
@@ -453,8 +396,18 @@ if __name__ == "__main__":
 
     fix_and_validate_args(args)
 
-    if args.use_complete_tag_indices:
-        libbgmg.set_option('use_complete_tag_indices', 1)
+    if not args.fit_sequence:
+        if not args.trait2_file: # univariate fit
+            args.fit_sequence = ['diffevo-fast', 'neldermead']
+        else:                    # bivariate fit
+            args.fit_sequence = ['diffevo', 'neldermead', 'brute1' 'brent1']
+
+    # for univariate optimization, if fit steps involve "diffevo" or "neldermead", set "use_complete_tag_indices" (to enable convolution cost calculator)
+    if not args.trait2_file:
+        for fit_type in args.fit_sequence:
+            if fit_type in ['diffevo', 'neldermead']:
+                libbgmg.set_option('use_complete_tag_indices', 1)
+                break
 
     libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, args.trait2_file,
         args.exclude, args.extract)
@@ -474,21 +427,13 @@ if __name__ == "__main__":
     libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2)
     libbgmg.set_option('diag', 0)
 
-    # TBD: specify stop criteria
-    nelder_optimizer = lambda func, x0: scipy.optimize.minimize(func, x0, method='Nelder-Mead')
-    #scalar_optimizer = lambda func, xLeft, xRight: scipy.optimize.minimize_scalar(func,  method='bounded', bounds=[xLeft, xRight])
-    scalar_optimizer = lambda func, xLeft, xRight: scipy.optimize.minimize_scalar(func,  method='Brent', bracket=[xLeft, xRight], options={'maxiter':50})
-
     totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))
 
-    full_cost_calc = args.full_cost_calc
     fit_sequence = args.fit_sequence.copy()
     for repeat in range(2):
-        if (repeat == 0) and (not args.preliminary): continue
-        args.full_cost_calc = 'gaussian' if (repeat == 0) else full_cost_calc
-        if (repeat == 0) and (args.fit_sequence[-1] != 'full'): args.fit_sequence.append('full')
-        else: args.fit_sequence = fit_sequence
-        libbgmg.log_message('Apply fit sequence with {} full cost calculator{}...'.format(args.full_cost_calc, ' (preliminary data)' if (repeat == 0) else '' ))
+        if (repeat == 0) and (not args.preliminary): continue # skip generating preliminary data
+        args.fit_sequence = ['diffevo-fast', 'neldermead-fast'] if (repeat==0) else fit_sequence
+        libbgmg.log_message('Apply fit sequence: {}{}...'.format(args.fit_sequence, ' (--preliminary)' if (repeat == 0) else '' ))
 
         results = {}
         results['options'] = vars(args).copy()
@@ -501,12 +446,12 @@ if __name__ == "__main__":
         if not args.trait2_file:
             results['analysis'] = 'univariate'
 
-            params, optimize_result = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, args.fit_sequence)
+            params, optimize_result = apply_univariate_fit_sequence(args, libbgmg, args.fit_sequence)
             results['params'] = params.as_dict()
             results['optimize'] = optimize_result
 
             libbgmg.log_message('Calculate AIC/BIC w.r.t. infinitesimal model (fast cost function)...')
-            params_inft, optimize_result_inft = apply_univariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer, ['infinitesimal'], init_params=params)
+            params_inft, optimize_result_inft = apply_univariate_fit_sequence(args, libbgmg, ['infinitesimal'], init_params=params)
             results['inft_params'] = params_inft.as_dict()
             results['inft_optimize'] = optimize_result_inft
 
@@ -521,7 +466,7 @@ if __name__ == "__main__":
             results['analysis'] = 'bivariate'
             results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
 
-            params, params1, params2, optimize_result = apply_bivariate_fit_sequence(args, libbgmg, nelder_optimizer, scalar_optimizer)
+            params, params1, params2, optimize_result = apply_bivariate_fit_sequence(args, libbgmg)
             results['params'] = params.as_dict()
             results['optimize'] = optimize_result
             if args.ci_alpha and np.isfinite(args.ci_alpha):

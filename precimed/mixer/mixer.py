@@ -67,7 +67,7 @@ def fix_and_validate_args(args):
         if not args.trait2_file: # univariate fit
             args.fit_sequence = ['diffevo-fast', 'neldermead']
         else:                    # bivariate fit
-            args.fit_sequence = ['diffevo', 'neldermead', 'brute1' 'brent1']
+            args.fit_sequence = ['diffevo', 'neldermead', 'brute1', 'brent1']
     if args.trait2_file and (args.fit_sequence[0] != 'load'):
         if (not args.trait2_params_file) or (not args.trait1_params_file):
             raise ValueError('--trait1-params-file and --trait2-params-file are required for bivariate analysis (i.e. with --trait2-file argument), unless --fit-sequence starts with "load" step' )

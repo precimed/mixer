@@ -252,7 +252,7 @@ def apply_univariate_fit_sequence(args, libbgmg, fit_sequence, init_params=None,
 
         libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
         enhance_optimize_result(optimize_result, cost_n=np.sum(libbgmg.weights), cost_fast=params.cost(libbgmg, trait))
-        optimize_result['params']=params   # params after optimization
+        optimize_result['params']=params.as_dict()   # params after optimization
         optimize_result_sequence.append((fit_type, optimize_result))
         libbgmg.log_message("fit_type=={} done ({}, {})".format(fit_type, params, optimize_result))
 
@@ -369,7 +369,7 @@ def apply_bivariate_fit_sequence(args, libbgmg):
         libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
         # cost_df=9 --- nine free parameters (incl. univariate)
         enhance_optimize_result(optimize_result, cost_df=9, cost_n=np.sum(libbgmg.weights), cost_fast=params.cost(libbgmg))
-        optimize_result['params']=params   # params after optimization
+        optimize_result['params']=params.as_dict()   # params after optimization
         optimize_result_sequence.append((fit_type, optimize_result))
         libbgmg.log_message("fit_type=={} done ({}, {})".format(fit_type, params, optimize_result))
 

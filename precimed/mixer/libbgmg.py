@@ -1,3 +1,7 @@
+'''
+(c) 2018-2019 Oleksandr Frei, Alexey A. Shadrin
+MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
+'''
 import os
 import sys
 import ctypes

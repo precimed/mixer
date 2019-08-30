@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 '''
-(c) 2018-2019 Oleksandr Frei
-Univariate and Bivariate Causal Mixture for GWAS
+(c) 2018-2019 Oleksandr Frei, Alexey A. Shadrin
+MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
 '''
 
 import sys
@@ -37,7 +37,7 @@ __version__ = '1.0.0'
 MASTHEAD = "***********************************************************************\n"
 MASTHEAD += "* mixer.py: Univariate and Bivariate Causal Mixture for GWAS\n"
 MASTHEAD += "* Version {V}\n".format(V=__version__)
-MASTHEAD += "* (C) 2018 Oleksandr Frei\n"
+MASTHEAD += "* (c) 2018-2019 Oleksandr Frei, Alexey A. Shadrin\n"
 MASTHEAD += "* Norwegian Centre for Mental Disorders Research / University of Oslo\n"
 MASTHEAD += "* GNU General Public License v3\n"
 MASTHEAD += "***********************************************************************\n"

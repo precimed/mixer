@@ -1,3 +1,7 @@
+'''
+(c) 2018-2019 Oleksandr Frei, Alexey A. Shadrin
+MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
+'''
 # Utility classes for univariate and bivariate fit
 # Contains
 # _log_exp_converter, _logit_logistic_converter, _arctanh_tanh_converter - converters to map bounded parameters into -inf, +inf range

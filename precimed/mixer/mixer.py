@@ -67,7 +67,7 @@ def fix_and_validate_args(args):
         if not args.trait2_file: # univariate fit
             args.fit_sequence = ['diffevo-fast', 'neldermead']
         else:                    # bivariate fit
-            args.fit_sequence = ['diffevo', 'neldermead', 'brute1', 'brent1']
+            args.fit_sequence = ['diffevo-fast', 'neldermead-fast', 'brute1', 'brent1']
     if args.trait2_file and (args.fit_sequence[0] != 'load'):
         if (not args.trait2_params_file) or (not args.trait1_params_file):
             raise ValueError('--trait1-params-file and --trait2-params-file are required for bivariate analysis (i.e. with --trait2-file argument), unless --fit-sequence starts with "load" step' )
@@ -140,7 +140,7 @@ def parse_args(args):
              "'inflation' fits sig2zero (univariate) and rho_zero (bivariate), using fast cost function; this is quite special optimization step, typically useful for adjusting inflation parameters to another reference; "
              "'infinitesimal' fits a model with pi1=1 (univariate) or pi12=1 (bivariate) constrains, using fast cost function; this is quite special optimization step, typically used internally for AIC/BIC computation; " 
              "Note that bivariate fit is always constrained on univariate parameters, except for 'inflation' fit which adjust rho_zero and sig2_zero. "
-             "The '...-fast' optimizations use fast cost function. This is not recommended for bivariate optimization. "
+             "The '...-fast' optimizations use fast cost function. "
              "Note that univariate optimization uses 'convolve' cost calculator, bivariate optimization uses 'sampling' cost calculator. "
              "Typical univariate sequence: 'diffevo-fast neldermead'"
              "Typical bivariate sequence: 'diffevo neldermead brute1 brent1'")

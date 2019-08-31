@@ -483,3 +483,5 @@ if __name__ == "__main__":
 
         with open(args.out + ('.preliminary' if (repeat == 0) else '')+ '.json', 'w') as outfile:  
             json.dump(results, outfile, cls=NumpyEncoder)
+
+    libbgmg.set_option('diag', 0)

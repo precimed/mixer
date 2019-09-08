@@ -90,7 +90,8 @@ def convert_args_to_libbgmg_options(args, num_snp):
         'max_causals': args.max_causals if (args.max_causals > 1) else (args.max_causals * num_snp),
         'num_components': 1 if (not args.trait2_file) else 3,
         'cache_tag_r2sum': args.cache_tag_r2sum, 'threads': args.threads, 'seed': args.seed,
-        'z1max': args.z1max, 'z2max': args.z2max, 'cubature_rel_error': args.cubature_rel_error, 'cubature_max_evals':args.cubature_max_evals
+        'cubature_rel_error': args.cubature_rel_error, 'cubature_max_evals':args.cubature_max_evals,
+        # 'z1max': args.z1max, 'z2max': args.z2max, 
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
 
@@ -105,13 +106,10 @@ class LoadFromFile (argparse.Action):
             if v and k != option_string.lstrip('-'):
                 setattr(namespace, k, v)
 
-def parse_args(args):
-    parser = argparse.ArgumentParser(description="MiXeR: Univariate and Bivariate Causal Mixture for GWAS.")
-
+def parser_fit_add_arguments(args, func, parser):
     parser.add_argument("--out", type=str, default="mixer", help="prefix for the output files")
     parser.add_argument("--lib", type=str, default="libbgmg.so", help="path to libbgmg.so plugin")
     parser.add_argument("--log", type=str, default=None, help="file to output log, defaults to <out>.log")
-    parser.add_argument('--argsfile', type=open, action=LoadFromFile, default=None, help="file with additional command-line arguments")
 
     parser.add_argument("--bim-file", type=str, default=None, help="Plink bim file. "
         "Defines the reference set of SNPs used for the analysis. "
@@ -168,22 +166,43 @@ def parse_args(args):
     parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). "
         "Bivariate cubature require in the order of 10^4 evaluations and thus is much slower than sampling, therefore it is not exposed via mixer.py command-line interface. ")
 
-    parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
-    parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
+    # NB! zmax won't apply in univariate fit because it uses convolution cost function. This must be fixed.
+    # parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
+    # parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
 
     parser.add_argument('--load-params-file', type=str, default=None, help="initial params for the optimization. ")
     parser.add_argument('--trait1-params-file', type=str, default=None, help="univariate params for the first trait (for the cross-trait analysis only). ")
     parser.add_argument('--trait2-params-file', type=str, default=None, help="univariate params for the second trait (for the cross-trait analysis only). ")
 
+    parser.add_argument('--plot-power', default=False, action="store_true", help="generate power plots ")
+    parser.add_argument('--plot-qq', default=False, action="store_true", help="generate qq plots ")
+    parser.add_argument('--plot-qq-bins', default=False, action="store_true", help="generate qq plots, stratified by 3x3 MAF and LD score bins ")
+    parser.add_argument('--plot-qq-cond', default=False, action="store_true", help="generate conditional qq plots (bivariate analysis only)")
+    parser.add_argument('--plot-downscale', type=float, default=100, help=
+        "the effect of '--plot-downscale N' is that all --power-xxx use one out of N datapoints"
+        " in estimating posterior probability density given model parameters")
+
+    parser.set_defaults(func=func)
+
+def parse_args(args):
+    parser = argparse.ArgumentParser(description="MiXeR: Univariate and Bivariate Causal Mixture for GWAS.")
+
+    parent_parser = argparse.ArgumentParser(add_help=False)
+    parent_parser.add_argument('--argsfile', type=open, action=LoadFromFile, default=None, help="file with additional command-line arguments")
+    
+    subparsers = parser.add_subparsers()
+
+    parser_fit_add_arguments(args=args, func=execute_fit_parser, parser=subparsers.add_parser("fit", parents=[parent_parser], help='fit MiXeR model'))
+
     return parser.parse_args(args)
 
 def log_header(args, lib):
-    defaults = vars(parse_args([]))
+    defaults = vars(parse_args([sys.argv[1]]))
     opts = vars(args)
     non_defaults = [x for x in opts.keys() if opts[x] != defaults[x]]
     header = MASTHEAD
     header += "Call: \n"
-    header += './mixer.py \\\n'
+    header += './mixer.py {} \\\n'.format(sys.argv[1])
     options = ['\t--'+x.replace('_','-')+' '+str(opts[x]).replace('\t', '\\t')+' \\' for x in non_defaults]
     header += '\n'.join(options).replace('True','').replace('False','')
     header = header[0:-1]+'\n'
@@ -385,15 +404,16 @@ def print_types(results, libbgmg):
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
+        if callable(obj):
+            return str(obj)
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         if isinstance(obj, np.float32):
             return np.float64(obj)
         return json.JSONEncoder.default(self, obj)
 
-if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
-    args = parse_args(sys.argv[1:])
+
+def execute_fit_parser(args):
     libbgmg = LibBgmg(args.lib)
     libbgmg.init_log(args.log if args.log else args.out + '.log')
     log_header(args, libbgmg)
@@ -485,3 +505,10 @@ if __name__ == "__main__":
             json.dump(results, outfile, cls=NumpyEncoder)
 
     libbgmg.set_option('diag', 0)
+
+
+
+if __name__ == "__main__":
+    logging.getLogger().setLevel(logging.INFO)
+    args = parse_args(sys.argv[1:])
+    args.func(args)

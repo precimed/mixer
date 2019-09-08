@@ -166,7 +166,7 @@ Not available yet.
 ### Univariate analysis
 
 ```
-python3 <MIXER_ROOT>/python/precimed/mixer/mixer.py ld \
+python3 <MIXER_ROOT>/python/precimed/mixer/mixer.py fit \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --out SSGAC_EDU_2018_no23andMe_noMHC.fit \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \

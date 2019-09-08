@@ -11,7 +11,8 @@
 ## Introduction
 
 This folder contains a Python port of MiXeR, wrapping the same C/C++ core as we previously used from MATLAB.
-This should singificantly improve user experience, as Python allows much simpler  installation procedures,
+This is work in progress, but eventually it should singificantly improve user experience,
+as Python allows much simpler  installation procedures,
 makes it less error prone, allows to implement well-documented command-line interface (``python mixer.py --help``),
 and it with visualization.
 
@@ -338,4 +339,5 @@ TBD.
 
 ### MiXeR results format
 
+TBD.
 All MiXeR results are stored in a single ``.json`` file.

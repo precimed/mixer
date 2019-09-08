@@ -63,14 +63,15 @@ def enhance_optimize_result(r, cost_n, cost_df=None, cost_fast=None):
     if cost_fast is not None: r['cost_fast'] = cost_fast
 
 def fix_and_validate_args(args):
-    if not args.fit_sequence:
-        if not args.trait2_file: # univariate fit
-            args.fit_sequence = ['diffevo-fast', 'neldermead']
-        else:                    # bivariate fit
-            args.fit_sequence = ['diffevo-fast', 'neldermead-fast', 'brute1', 'brent1']
-    if args.trait2_file and (args.fit_sequence[0] != 'load'):
-        if (not args.trait2_params_file) or (not args.trait1_params_file):
-            raise ValueError('--trait1-params-file and --trait2-params-file are required for bivariate analysis (i.e. with --trait2-file argument), unless --fit-sequence starts with "load" step' )
+    if 'fit_sequence' in args:
+        if not args.fit_sequence:
+            if not args.trait2_file: # univariate fit
+                args.fit_sequence = ['diffevo-fast', 'neldermead']
+            else:                    # bivariate fit
+                args.fit_sequence = ['diffevo-fast', 'neldermead-fast', 'brute1', 'brent1']
+        if args.trait2_file and (args.fit_sequence[0] != 'load'):
+            if (not args.trait2_params_file) or (not args.trait1_params_file):
+                raise ValueError('--trait1-params-file and --trait2-params-file are required for bivariate analysis (i.e. with --trait2-file argument), unless --fit-sequence starts with "load" step' )
 
     arg_dict = vars(args)
     chr2use_arg = arg_dict["chr2use"]
@@ -90,7 +91,7 @@ def convert_args_to_libbgmg_options(args, num_snp):
         'max_causals': args.max_causals if (args.max_causals > 1) else (args.max_causals * num_snp),
         'num_components': 1 if (not args.trait2_file) else 3,
         'cache_tag_r2sum': args.cache_tag_r2sum, 'threads': args.threads, 'seed': args.seed,
-        'cubature_rel_error': args.cubature_rel_error, 'cubature_max_evals':args.cubature_max_evals,
+        'cubature_rel_error': args.cubature_rel_error, 'cubature_max_evals':args.cubature_max_evals
         # 'z1max': args.z1max, 'z2max': args.z2max, 
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
@@ -107,10 +108,6 @@ class LoadFromFile (argparse.Action):
                 setattr(namespace, k, v)
 
 def parser_fit_add_arguments(args, func, parser):
-    parser.add_argument("--out", type=str, default="mixer", help="prefix for the output files")
-    parser.add_argument("--lib", type=str, default="libbgmg.so", help="path to libbgmg.so plugin")
-    parser.add_argument("--log", type=str, default=None, help="file to output log, defaults to <out>.log")
-
     parser.add_argument("--bim-file", type=str, default=None, help="Plink bim file. "
         "Defines the reference set of SNPs used for the analysis. "
         "Marker names must not have duplicated entries. "
@@ -122,8 +119,7 @@ def parser_fit_add_arguments(args, func, parser):
         "May contain simbol '@', similarly to --bim-file argument. ")
     parser.add_argument("--plink-ld-bin0", type=str, default=None, help="File with linkage disequilibrium information in an old format (deprecated)")
     parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
-         "(e.g. 1,2,3 or 1-4,12,16-20 or 19-22,X,Y). "
-         "Chromosomes with non-integer ids should be indicated separately. ")
+         "(e.g. 1,2,3 or 1-4,12,16-20). Chromosome must be labeled by integer, i.e. X and Y are not acceptable. ")
     parser.add_argument("--trait1-file", type=str, default=None, help="GWAS summary statistics for the first trait. ")
     parser.add_argument("--trait2-file", type=str, default="", help="GWAS summary statistics for the first trait. "
         "Specifying this argument triggers cross-trait analysis.")
@@ -181,7 +177,16 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--plot-downscale', type=float, default=100, help=
         "the effect of '--plot-downscale N' is that all --power-xxx use one out of N datapoints"
         " in estimating posterior probability density given model parameters")
+    parser.set_defaults(func=func)
 
+def parser_ld_add_arguments(args, func, parser):
+    parser.add_argument("--plink-ld", type=str, default=None, help="Path to plink .ld.gz file to convert into BGMG binary format. ")
+    parser.add_argument("--bim-file", type=str, default=None, help="Plink bim file. "
+        "Defines the reference set of SNPs used for the analysis. "
+        "Marker names must not have duplicated entries. "
+        "May contain simbol '@', which will be replaced with the actual chromosome label. ")
+    parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
+         "(e.g. 1,2,3 or 1-4,12,16-20). Chromosome must be labeled by integer, i.e. X and Y are not acceptable. ")
     parser.set_defaults(func=func)
 
 def parse_args(args):
@@ -189,10 +194,14 @@ def parse_args(args):
 
     parent_parser = argparse.ArgumentParser(add_help=False)
     parent_parser.add_argument('--argsfile', type=open, action=LoadFromFile, default=None, help="file with additional command-line arguments")
+    parent_parser.add_argument("--out", type=str, default="mixer", help="prefix for the output files")
+    parent_parser.add_argument("--lib", type=str, default="libbgmg.so", help="path to libbgmg.so plugin")
+    parent_parser.add_argument("--log", type=str, default=None, help="file to output log, defaults to <out>.log")
     
     subparsers = parser.add_subparsers()
 
     parser_fit_add_arguments(args=args, func=execute_fit_parser, parser=subparsers.add_parser("fit", parents=[parent_parser], help='fit MiXeR model'))
+    parser_ld_add_arguments(args=args, func=execute_ld_parser, parser=subparsers.add_parser("ld", parents=[parent_parser], help='prepare files with linkage disequilibrium information'))
 
     return parser.parse_args(args)
 
@@ -412,6 +421,17 @@ class NumpyEncoder(json.JSONEncoder):
             return np.float64(obj)
         return json.JSONEncoder.default(self, obj)
 
+def execute_ld_parser(args):
+    libbgmg = LibBgmg(args.lib)
+    libbgmg.init_log(args.log if args.log else args.out + '.log')
+    log_header(args, libbgmg)
+    libbgmg.dispose()
+
+    fix_and_validate_args(args)
+
+    libbgmg.init(args.bim_file, "", args.chr2use, "", "", "", "")
+    libbgmg.convert_plink_ld(args.plink_ld, args.out + '.bin')
+    libbgmg.log_message('Done')
 
 def execute_fit_parser(args):
     libbgmg = LibBgmg(args.lib)
@@ -505,7 +525,6 @@ def execute_fit_parser(args):
             json.dump(results, outfile, cls=NumpyEncoder)
 
     libbgmg.set_option('diag', 0)
-
 
 
 if __name__ == "__main__":

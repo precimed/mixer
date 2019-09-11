@@ -7,31 +7,30 @@ MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
 import sys
 import os
 import argparse
-import pandas as pd
 import numpy as np
 import scipy.optimize
 import logging
 import json
 
-from libbgmg import LibBgmg
-from utils import UnivariateParams
-from utils import BivariateParams
-from utils import _log_exp_converter
-from utils import _logit_logistic_converter
-from utils import _arctanh_tanh_converter
-from utils import UnivariateParametrization_natural_axis		                    # diffevo, neldermead
-from utils import UnivariateParametrization_constPI_constSIG2BETA                   # inflation
-from utils import UnivariateParametrization_constPI		                            # infinitesimal
-from utils import UnivariateParametrization                                         # uncertainty
-from utils import BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI     # inflation
-from utils import BivariateParametrization_constSIG2BETA_constSIG2ZERO_infPI_maxRG  # infinitesimal
-from utils import BivariateParametrization_constUNIVARIATE_natural_axis             # diffevo, neldermead
-from utils import BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO     # brute1, brent1
-from utils import BivariateParametrization_constUNIVARIATE                          # uncertainty
-from utils import _hessian_robust
-from utils import _max_rg
-from utils import _calculate_univariate_uncertainty
-from utils import _calculate_bivariate_uncertainty
+from .libbgmg import LibBgmg
+from .utils import UnivariateParams
+from .utils import BivariateParams
+from .utils import _log_exp_converter
+from .utils import _logit_logistic_converter
+from .utils import _arctanh_tanh_converter
+from .utils import UnivariateParametrization_natural_axis		                     # diffevo, neldermead
+from .utils import UnivariateParametrization_constPI_constSIG2BETA                   # inflation
+from .utils import UnivariateParametrization_constPI		                         # infinitesimal
+from .utils import UnivariateParametrization                                         # uncertainty
+from .utils import BivariateParametrization_constUNIVARIATE_constRHOBETA_constPI     # inflation
+from .utils import BivariateParametrization_constSIG2BETA_constSIG2ZERO_infPI_maxRG  # infinitesimal
+from .utils import BivariateParametrization_constUNIVARIATE_natural_axis             # diffevo, neldermead
+from .utils import BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO     # brute1, brent1
+from .utils import BivariateParametrization_constUNIVARIATE                          # uncertainty
+from .utils import _hessian_robust
+from .utils import _max_rg
+from .utils import _calculate_univariate_uncertainty
+from .utils import _calculate_bivariate_uncertainty
 
 __version__ = '1.0.0'
 MASTHEAD = "***********************************************************************\n"
@@ -170,13 +169,10 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--trait1-params-file', type=str, default=None, help="univariate params for the first trait (for the cross-trait analysis only). ")
     parser.add_argument('--trait2-params-file', type=str, default=None, help="univariate params for the second trait (for the cross-trait analysis only). ")
 
-    parser.add_argument('--plot-power', default=False, action="store_true", help="generate power plots ")
-    parser.add_argument('--plot-qq', default=False, action="store_true", help="generate qq plots ")
-    parser.add_argument('--plot-qq-bins', default=False, action="store_true", help="generate qq plots, stratified by 3x3 MAF and LD score bins ")
-    parser.add_argument('--plot-qq-cond', default=False, action="store_true", help="generate conditional qq plots (bivariate analysis only)")
-    parser.add_argument('--plot-downscale', type=float, default=100, help=
-        "the effect of '--plot-downscale N' is that all --power-xxx use one out of N datapoints"
-        " in estimating posterior probability density given model parameters")
+    parser.add_argument('--downscale-factor', default=100, type=int, help="Applies to --power-curve. "
+        "'--downscale-factor N' imply that only 1 out of N available z-score values will be used in calculations.")
+    parser.add_argument('--power-curve', default=False, action="store_true", help="generate power curves")
+
     parser.set_defaults(func=func)
 
 def parser_ld_add_arguments(args, func, parser):
@@ -205,13 +201,13 @@ def parse_args(args):
 
     return parser.parse_args(args)
 
-def log_header(args, lib):
-    defaults = vars(parse_args([sys.argv[1]]))
+def log_header(args, subparser_name, lib):
+    defaults = vars(parse_args([subparser_name]))
     opts = vars(args)
     non_defaults = [x for x in opts.keys() if opts[x] != defaults[x]]
     header = MASTHEAD
     header += "Call: \n"
-    header += './mixer.py {} \\\n'.format(sys.argv[1])
+    header += './mixer.py {} \\\n'.format(subparser_name)
     options = ['\t--'+x.replace('_','-')+' '+str(opts[x]).replace('\t', '\\t')+' \\' for x in non_defaults]
     header += '\n'.join(options).replace('True','').replace('False','')
     header = header[0:-1]+'\n'
@@ -238,6 +234,7 @@ def apply_univariate_fit_sequence(args, libbgmg, fit_sequence, init_params=None,
 
         if fit_type == 'load':
             params = load_univariate_params_file(args.load_params_file)
+            optimize_result = {}
             libbgmg.log_message("fit_type==load: Done, {}".format(params))
 
         elif (fit_type == 'diffevo') or fit_type == ('diffevo-fast'):
@@ -279,7 +276,8 @@ def apply_univariate_fit_sequence(args, libbgmg, fit_sequence, init_params=None,
             libbgmg.log_message("Unable to apply {} in univariate fit".format(fit_type))
 
         libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-        enhance_optimize_result(optimize_result, cost_n=np.sum(libbgmg.weights), cost_fast=params.cost(libbgmg, trait))
+        if optimize_result:
+            enhance_optimize_result(optimize_result, cost_n=np.sum(libbgmg.weights), cost_fast=params.cost(libbgmg, trait))
         optimize_result['params']=params.as_dict()   # params after optimization
         optimize_result_sequence.append((fit_type, optimize_result))
         libbgmg.log_message("fit_type=={} done ({}, {})".format(fit_type, params, optimize_result))
@@ -404,6 +402,24 @@ def apply_bivariate_fit_sequence(args, libbgmg):
     if params == None: raise(RuntimeError('Empty --fit-sequence'))
     return (params, params1, params2, optimize_result_sequence)
 
+def calc_power_curve(libbgmg, params, trait_index, downscale):
+    power_nvec = np.power(10, np.arange(3, 8, 0.1))
+
+    original_weights = libbgmg.weights
+    model_weights = libbgmg.weights
+
+    mask = np.zeros((len(model_weights), ), dtype=bool)
+    mask[range(0, len(model_weights), downscale)] = 1
+    model_weights[~mask] = 0
+    model_weights = model_weights/np.sum(model_weights)
+
+    libbgmg.weights = model_weights     # temporary set downscaled weights
+    power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
+    libbgmg.weights = original_weights  # restore original weights
+
+    return power_nvec, power_svec
+
+
 # helper function to debug non-json searizable types...
 def print_types(results, libbgmg):
     if isinstance(results, dict):
@@ -423,10 +439,6 @@ class NumpyEncoder(json.JSONEncoder):
 
 def execute_ld_parser(args):
     libbgmg = LibBgmg(args.lib)
-    libbgmg.init_log(args.log if args.log else args.out + '.log')
-    log_header(args, libbgmg)
-    libbgmg.dispose()
-
     fix_and_validate_args(args)
 
     libbgmg.init(args.bim_file, "", args.chr2use, "", "", "", "")
@@ -435,10 +447,6 @@ def execute_ld_parser(args):
 
 def execute_fit_parser(args):
     libbgmg = LibBgmg(args.lib)
-    libbgmg.init_log(args.log if args.log else args.out + '.log')
-    log_header(args, libbgmg)
-    libbgmg.dispose()
-
     fix_and_validate_args(args)
 
     # for univariate optimization, if fit steps involve "diffevo" or "neldermead", set "use_complete_tag_indices" (to enable convolution cost calculator)
@@ -501,6 +509,11 @@ def execute_fit_parser(args):
                 for k, v in results['ci'].items():
                     libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
                 libbgmg.log_message("Uncertainty estimation done.")
+
+            if args.power_curve:
+                trait_index = 1
+                power_nvec, power_svec = calc_power_curve(libbgmg, params, trait_index, args.downscale_factor)
+                results['power'] = {'nvec': power_nvec, 'svec': power_svec}
         else:
             results['analysis'] = 'bivariate'
             results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
@@ -530,4 +543,10 @@ def execute_fit_parser(args):
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     args = parse_args(sys.argv[1:])
+
+    libbgmg = LibBgmg(args.lib)
+    libbgmg.init_log(args.log if args.log else args.out + '.log')
+    log_header(args, sys.argv[1], libbgmg)
+    libbgmg.dispose()
+
     args.func(args)

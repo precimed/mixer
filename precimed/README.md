@@ -81,6 +81,11 @@ Not available yet.
   cmake .. -DBOOST_ROOT=$HOME/boost_1_69_0 && make -j16 
   ```
 
+* Recommended combination of modules on different HPC systems:
+  ```
+  module load cmake/3.7.1 python3/3.7.0.gnu   # UiO Abel
+  ```
+
 ## Data downloads
 
 
@@ -95,7 +100,7 @@ Not available yet.
   tar -xzvf 1000G_Phase3_plinkfiles.tgz
   bzip2 -d w_hm3.snplist.bz2
   ```
-
+  
 ## Data preparation
 
 * Summary statistics (NIRD: ``/projects/NS9114K/MMIL/SUMSTAT/TMP/nomhc/``)

@@ -76,7 +76,7 @@ Not available yet.
   ```
 * Clone and compile MiXeR repository
   ```
-  cd ~ && git clone https://github.com/precimed/mixer.git
+  cd ~ && git clone --recurse-submodules -j8 https://github.com/precimed/mixer.git
   mkdir mixer/src/build && cd mixer/src/build
   cmake .. -DBOOST_ROOT=$HOME/boost_1_69_0 && make -j16 
   ```

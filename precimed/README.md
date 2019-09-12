@@ -135,7 +135,7 @@ Not available yet.
    * Run ``python mixer.py ld`` to convert plink output into a binary format. The following command must be run once for each chromosome. 
     Note that ``--bim`` argument is the same, e.g. ``1000G.EUR.QC.@.bim`` (with ``@``) regardless of the actual chromosome that you use in ``--plink-ld`` and ``--out``.
     ```
-    python3 <MIXER_ROOT>/python/precimed/mixer/mixer.py ld \
+    python3 <MIXER_ROOT>/python/precimed/mixer.py ld \
        --lib <MIXER_ROOT>/src/build/lib/bgmglib.so
        --bim LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
        --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.gz \
@@ -171,7 +171,7 @@ Not available yet.
 ### Univariate analysis
 
 ```
-python3 <MIXER_ROOT>/python/precimed/mixer/mixer.py fit \
+python3 <MIXER_ROOT>/python/precimed/mixer.py fit \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --out SSGAC_EDU_2018_no23andMe_noMHC.fit \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
@@ -187,7 +187,7 @@ Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.csv.
 
 ### Bivariate (cross-trait) analysis
 ```
-python3 <MIXER_ROOT>/python/precimed/mixer/mixer.py fit \
+python3 <MIXER_ROOT>/python/mixer.py fit \
       --trait1-file PGC_SCZ_2014_EUR_qc_noMHC.csv.gz \
       --trait2-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit \

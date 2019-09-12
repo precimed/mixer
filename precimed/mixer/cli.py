@@ -8,9 +8,12 @@ import sys
 import os
 import argparse
 import numpy as np
+from numpy import ma
 import scipy.optimize
 import logging
 import json
+import scipy.stats
+from scipy.interpolate import interp1d
 
 from .libbgmg import LibBgmg
 from .utils import UnivariateParams
@@ -170,9 +173,10 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--trait1-params-file', type=str, default=None, help="univariate params for the first trait (for the cross-trait analysis only). ")
     parser.add_argument('--trait2-params-file', type=str, default=None, help="univariate params for the second trait (for the cross-trait analysis only). ")
 
-    parser.add_argument('--downscale-factor', default=100, type=int, help="Applies to --power-curve. "
-        "'--downscale-factor N' imply that only 1 out of N available z-score values will be used in calculations.")
+    parser.add_argument('--downsample-factor', default=50, type=int, help="Applies to --power-curve. "
+        "'--downsample-factor N' imply that only 1 out of N available z-score values will be used in calculations.")
     parser.add_argument('--power-curve', default=False, action="store_true", help="generate power curves")
+    parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
 
     parser.set_defaults(func=func)
 
@@ -403,7 +407,7 @@ def apply_bivariate_fit_sequence(args, libbgmg):
     if params == None: raise(RuntimeError('Empty --fit-sequence'))
     return (params, params1, params2, optimize_result_sequence)
 
-def calc_power_curve(libbgmg, params, trait_index, downscale):
+def calc_power_curve(libbgmg, params, trait_index, downsample):
     power_nvec = np.power(10, np.arange(3, 8, 0.1))
 
     original_weights = libbgmg.weights
@@ -412,15 +416,66 @@ def calc_power_curve(libbgmg, params, trait_index, downscale):
     model_weights = libbgmg.weights
 
     mask = np.zeros((len(model_weights), ), dtype=bool)
-    mask[range(0, len(model_weights), downscale)] = 1
+    mask[range(0, len(model_weights), downsample)] = 1
     model_weights[~mask] = 0
     model_weights = model_weights/np.sum(model_weights)
 
-    libbgmg.weights = model_weights     # temporary set downscaled weights
+    libbgmg.weights = model_weights     # temporary set downsampled weights
     power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
     libbgmg.weights = original_weights  # restore original weights
 
     return power_nvec, power_svec
+
+def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None):
+    # mask can subset SNPs that are going into QQ curve, for example LDxMAF bin.
+    if mask is None:
+        mask = np.ones((libbgmg.num_tag, ), dtype=bool)
+
+    # Empirical (data) QQ plot
+    # Step 0. calculate weights for all data poitns
+    # Step 1. convert zvec to -log10(pvec)
+    # Step 2. sort pval from large (1.0) to small (0.0), and take empirical cdf of this distribution
+    # Step 3. interpolate (data_x, data_y) curve, as we don't need 10M data points on QQ plots
+    data_weights = libbgmg.weights                                      # step 0 
+    data_weights = data_weights[mask] / np.sum(data_weights[mask])      # step 0
+    zvec = libbgmg.get_zvec(trait_index)
+    data_y = -np.log10(2*scipy.stats.norm.cdf(-np.abs(zvec[mask])))     # step 1
+    si = np.argsort(data_y); data_y = data_y[si]                        # step 2
+    data_x=-np.log10(np.flip(np.cumsum(np.flip(data_weights[si]))))     # step 2
+    hv_z = np.linspace(0, np.min([np.max(np.abs(zvec)), 38.0]), 1000)   # step 3
+    hv_logp = -np.log10(2*scipy.stats.norm.cdf(-hv_z))                  # step 3
+    data_idx = np.not_equal(data_y, np.concatenate((data_y[1:], [np.Inf])))
+    data_logpvec = interp1d(data_y[data_idx], data_x[data_idx],
+                            bounds_error=False, fill_value=np.nan)(hv_logp) 
+    #plt.plot(data_logpvec, hv_logp, '.')
+    #plt.plot(data_x, data_y, '-')
+
+    # Estimated (model) QQ plots
+    model_weights = libbgmg.weights
+    mask_indices = np.nonzero(mask)[0]
+    model_mask = np.zeros((len(model_weights), ), dtype=bool)
+    model_mask[mask_indices[range(0, len(mask_indices), downsample)]] = 1
+    model_weights[~model_mask] = 0
+    model_weights = model_weights/np.sum(model_weights)
+
+    zgrid = np.arange(0, 38.0, 0.05, np.float32)
+
+    original_weights = libbgmg.weights
+    libbgmg.weights = model_weights
+    pdf = libbgmg.calc_univariate_pdf(trait_index, params._pi, params._sig2_zero, params._sig2_beta, zgrid)
+    libbgmg.weights = original_weights
+
+    pdf = pdf / np.sum(model_weights)
+    zgrid = np.concatenate((np.flip(-zgrid[1:]), zgrid))  # extend [0, 38] to [-38, 38]
+    pdf = np.concatenate((np.flip(pdf[1:]), pdf))
+    model_cdf = np.cumsum(pdf)  * (zgrid[1] - zgrid[0])
+    model_cdf = 0.5 * (np.concatenate(([0.0], model_cdf[:-1])) + np.concatenate((model_cdf[:-1], [1.0])))
+    model_logpvec = -np.log10(2*interp1d(-zgrid[zgrid<=0], model_cdf[zgrid<=0])(hv_z))
+    #plt.plot(model_logpvec, hv_logp, '-')
+    #plt.plot(data_logpvec, hv_logp, '-')
+    #plt.plot(hv_logp, hv_logp, '--k')
+
+    return hv_logp, data_logpvec, model_logpvec
 
 
 # helper function to debug non-json searizable types...
@@ -515,8 +570,29 @@ def execute_fit_parser(args):
 
             if args.power_curve:
                 trait_index = 1
-                power_nvec, power_svec = calc_power_curve(libbgmg, params, trait_index, args.downscale_factor)
+                power_nvec, power_svec = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
                 results['power'] = {'nvec': power_nvec, 'svec': power_svec}
+            if args.qq_plots:
+                trait_index = 1
+                mask = np.ones((libbgmg.num_tag, ), dtype=bool)
+                hv_logp, data_logpvec, model_logpvec = calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask)
+                results['qqplot'] = {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
+                                     'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])),
+                                     'title' : 'maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf)}
+                mafvec = libbgmg.mafvec[libbgmg.defvec]
+                tldvec = libbgmg.ld_tag_r2_sum
+                maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec, [1/3, 2/3]), [np.inf]))
+                tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec, [1/3, 2/3]), [np.inf]))
+                results['qqplot_bins'] = []
+                for i in range(0, 3):
+                    for j in range(0, 3):
+                        mask = ((mafvec>=maf_bins[i]) & (mafvec<maf_bins[i+1]) & (tldvec >= tld_bins[j]) &  (tldvec < tld_bins[j+1]))
+                        hv_logp, data_logpvec, model_logpvec = calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask)
+                        results['qqplot_bins'].append(
+                            {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
+                             'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])),
+                             'title' : 'maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])}
+                        )
         else:
             results['analysis'] = 'bivariate'
             results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))

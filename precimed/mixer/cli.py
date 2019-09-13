@@ -154,7 +154,7 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--seed', type=int, default=123, help="Random seed")
 
     parser.add_argument('--cache-tag-r2sum', default=False, action="store_true", help="enable tag-r2sum caching")
-    parser.add_argument('--max-causals', type=float, default=0.03, help="upper limit for the total number of causal variants in the reference; a number between 0 and 1 represents a fraction of the total number SNPs in the reference")
+    parser.add_argument('--max-causals', type=float, default=0.02, help="upper limit for the total number of causal variants in the reference; a number between 0 and 1 represents a fraction of the total number SNPs in the reference")
     parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
     parser.add_argument('--ci-alpha', type=float, default=None, help="significance level for the confidence interval estimation")
     parser.add_argument('--ci-samples', type=int, default=10000, help="number of samples in uncertainty estimation")

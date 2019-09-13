@@ -48,7 +48,7 @@ We encourage all users to familiarize themselves with US patent https://www.goog
 ### Prerequisites
 
 * Linux environment (tested on CentOS release 6.9, Ubuntu 18.04).
-* Python 3 (tested with Python 3.7), with numpy, scipy, numdifftools
+* Python 3 (tested with Python 3.7), with numpy, scipy, numdifftools, matplotlib_venn
 * Reasonably new GCC compiler (tested with gcc/6.1.0)
 
 If you are an experienced C++ programmer it shouldn't be difficult to compile MiXeR core in MAC or Windows.

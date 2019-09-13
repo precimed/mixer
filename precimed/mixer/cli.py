@@ -426,29 +426,40 @@ def calc_power_curve(libbgmg, params, trait_index, downsample):
 
     return power_nvec, power_svec
 
-def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None):
-    # mask can subset SNPs that are going into QQ curve, for example LDxMAF bin.
-    if mask is None:
-        mask = np.ones((libbgmg.num_tag, ), dtype=bool)
-
-    # Empirical (data) QQ plot
+def calc_qq_data(zvec, weights, hv_logp):
     # Step 0. calculate weights for all data poitns
     # Step 1. convert zvec to -log10(pvec)
     # Step 2. sort pval from large (1.0) to small (0.0), and take empirical cdf of this distribution
     # Step 3. interpolate (data_x, data_y) curve, as we don't need 10M data points on QQ plots
-    data_weights = libbgmg.weights                                      # step 0 
-    data_weights = data_weights[mask] / np.sum(data_weights[mask])      # step 0
-    zvec = libbgmg.get_zvec(trait_index)
-    data_y = -np.log10(2*scipy.stats.norm.cdf(-np.abs(zvec[mask])))     # step 1
+    data_weights = weights / np.sum(weights)                            # step 0
+    data_y = -np.log10(2*scipy.stats.norm.cdf(-np.abs(zvec)))           # step 1
     si = np.argsort(data_y); data_y = data_y[si]                        # step 2
     data_x=-np.log10(np.flip(np.cumsum(np.flip(data_weights[si]))))     # step 2
-    hv_z = np.linspace(0, np.min([np.max(np.abs(zvec)), 38.0]), 1000)   # step 3
-    hv_logp = -np.log10(2*scipy.stats.norm.cdf(-hv_z))                  # step 3
     data_idx = np.not_equal(data_y, np.concatenate((data_y[1:], [np.Inf])))
-    data_logpvec = interp1d(data_y[data_idx], data_x[data_idx],
-                            bounds_error=False, fill_value=np.nan)(hv_logp) 
-    #plt.plot(data_logpvec, hv_logp, '.')
-    #plt.plot(data_x, data_y, '-')
+    data_logpvec = interp1d(data_y[data_idx], data_x[data_idx],         # step 3
+                            bounds_error=False, fill_value=np.nan)(hv_logp)
+    return data_logpvec
+
+def calc_qq_model(zgrid, pdf, hv_z):
+    model_cdf = np.cumsum(pdf) * (zgrid[1] - zgrid[0])
+    model_cdf = 0.5 * (np.concatenate(([0.0], model_cdf[:-1])) + np.concatenate((model_cdf[:-1], [1.0])))
+    model_logpvec = -np.log10(2*interp1d(-zgrid[zgrid<=0], model_cdf[zgrid<=0],
+                                         bounds_error=False, fill_value=np.nan)(hv_z))
+    return model_logpvec
+
+def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None, title=''):
+    # mask can subset SNPs that are going into QQ curve, for example LDxMAF bin.
+    if mask is None:
+        mask = np.ones((libbgmg.num_tag, ), dtype=bool)
+
+    zvec = libbgmg.get_zvec(trait_index)[mask]
+
+    # Regular grid (vertical axis of the QQ plots)
+    hv_z = np.linspace(0, np.min([np.max(np.abs(zvec)), 38.0]), 1000)
+    hv_logp = -np.log10(2*scipy.stats.norm.cdf(-hv_z))
+
+    # Empirical (data) QQ plot
+    data_logpvec = calc_qq_data(zvec, libbgmg.weights[mask], hv_logp)
 
     # Estimated (model) QQ plots
     model_weights = libbgmg.weights
@@ -468,15 +479,77 @@ def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None):
     pdf = pdf / np.sum(model_weights)
     zgrid = np.concatenate((np.flip(-zgrid[1:]), zgrid))  # extend [0, 38] to [-38, 38]
     pdf = np.concatenate((np.flip(pdf[1:]), pdf))
-    model_cdf = np.cumsum(pdf)  * (zgrid[1] - zgrid[0])
-    model_cdf = 0.5 * (np.concatenate(([0.0], model_cdf[:-1])) + np.concatenate((model_cdf[:-1], [1.0])))
-    model_logpvec = -np.log10(2*interp1d(-zgrid[zgrid<=0], model_cdf[zgrid<=0])(hv_z))
+    model_logpvec = calc_qq_model(zgrid, pdf, hv_z)
     #plt.plot(model_logpvec, hv_logp, '-')
     #plt.plot(data_logpvec, hv_logp, '-')
     #plt.plot(hv_logp, hv_logp, '--k')
 
-    return hv_logp, data_logpvec, model_logpvec
+    return {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
+            'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])), 'title' : title}
+    
+def calc_bivariate_pdf(libbgmg, params, downsample):
+    original_weights = libbgmg.weights
+    if not np.all(np.isfinite(original_weights)): raise(RuntimeError('undefined weights not supported'))
+    if not np.all(np.isfinite(libbgmg.zvec1)): raise(RuntimeError('undefined weights not supported'))
+    if not np.all(np.isfinite(libbgmg.zvec2)): raise(RuntimeError('undefined weights not supported'))
 
+    model_weights = libbgmg.weights
+    mask = np.zeros((len(model_weights), ), dtype=bool)
+    mask[range(0, len(model_weights), downsample)] = 1
+    model_weights[~mask] = 0
+    model_weights = model_weights/np.sum(model_weights)
+
+    zgrid = np.arange(-25, 25.00001, 0.05)
+    [zgrid1, zgrid2] = np.meshgrid(zgrid, zgrid)
+    zgrid1=zgrid1[zgrid>=0, :]; zgrid2=zgrid2[zgrid>=0, :]
+
+    libbgmg.weights = model_weights     # temporary set downsampled weights
+    pdf = libbgmg.calc_bivariate_pdf(params._pi, params._sig2_beta, params._rho_beta, params._sig2_zero, params._rho_zero, zgrid1.flatten(), zgrid2.flatten())
+    libbgmg.weights = original_weights  # restore original weights
+    pdf = pdf.reshape(zgrid1.shape)
+    pdf = np.concatenate((np.fliplr(np.flipud(pdf[1:, :])), pdf))
+    pdf = pdf/np.sum(model_weights)
+
+    return zgrid, pdf
+
+def calc_bivariate_qq(libbgmg, zgrid, pdf):
+    zgrid_fine = np.arange(-25, 25.00001, 0.005)   # project to a finer grid
+    pdf_fine=scipy.interpolate.interp2d(zgrid, zgrid, pdf)(zgrid_fine, zgrid_fine)
+    pthresh_vec = [1, 0.1, 0.01, 0.001]
+    zthresh_vec = -scipy.stats.norm.ppf(np.array(pthresh_vec)/2)
+
+    zvec1=libbgmg.zvec1
+    zvec2=libbgmg.zvec2
+
+    # Regular grid (vertical axis of the QQ plots)
+    hv_z = np.linspace(0, np.min([np.max(np.abs(np.concatenate((zvec1, zvec2)))), 38.0]), 1000)
+    hv_logp = -np.log10(2*scipy.stats.norm.cdf(-hv_z))
+
+    result = []
+    for zthresh, pthresh in zip(zthresh_vec, pthresh_vec):
+        mask = abs(zvec2)>=zthresh
+        data_logpvec = calc_qq_data(zvec1[mask], libbgmg.weights[mask], hv_logp)
+
+        pd_cond = np.sum(pdf_fine[abs(zgrid_fine) >= zthresh, :], axis=0)
+        pd_cond = pd_cond / np.sum(pd_cond) / (zgrid_fine[1]-zgrid_fine[0])
+        model_logpvec = calc_qq_model(zgrid_fine, pd_cond, hv_z)
+
+        title = 'T1|T2|{}'.format(pthresh)
+        result.append({'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
+                       'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])), 'title' : title})
+
+    for zthresh in zthresh_vec:
+        mask = abs(zvec1)>=zthresh
+        data_logpvec = calc_qq_data(zvec2[mask], libbgmg.weights[mask], hv_logp)
+
+        pd_cond = np.sum(pdf_fine[:, abs(zgrid_fine) >= zthresh], axis=1)
+        pd_cond = pd_cond / np.sum(pd_cond) / (zgrid_fine[1]-zgrid_fine[0])
+        model_logpvec = calc_qq_model(zgrid_fine, pd_cond, hv_z)
+
+        title = 'T2|T1|{}'.format(pthresh)
+        result.append({'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
+                       'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])), 'title' : title})
+    return result
 
 # helper function to debug non-json searizable types...
 def print_types(results, libbgmg):
@@ -572,13 +645,13 @@ def execute_fit_parser(args):
                 trait_index = 1
                 power_nvec, power_svec = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
                 results['power'] = {'nvec': power_nvec, 'svec': power_svec}
+
             if args.qq_plots:
                 trait_index = 1
                 mask = np.ones((libbgmg.num_tag, ), dtype=bool)
-                hv_logp, data_logpvec, model_logpvec = calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask)
-                results['qqplot'] = {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
-                                     'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])),
-                                     'title' : 'maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf)}
+                results['qqplot'] = calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
+                    title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
+ 
                 mafvec = libbgmg.mafvec[libbgmg.defvec]
                 tldvec = libbgmg.ld_tag_r2_sum
                 maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec, [1/3, 2/3]), [np.inf]))
@@ -587,12 +660,8 @@ def execute_fit_parser(args):
                 for i in range(0, 3):
                     for j in range(0, 3):
                         mask = ((mafvec>=maf_bins[i]) & (mafvec<maf_bins[i+1]) & (tldvec >= tld_bins[j]) &  (tldvec < tld_bins[j+1]))
-                        hv_logp, data_logpvec, model_logpvec = calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask)
-                        results['qqplot_bins'].append(
-                            {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
-                             'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])),
-                             'title' : 'maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])}
-                        )
+                        results['qqplot_bins'].append(calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
+                            title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
         else:
             results['analysis'] = 'bivariate'
             results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
@@ -612,6 +681,12 @@ def execute_fit_parser(args):
                 for k, v in results['ci'].items():
                     libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
                 libbgmg.log_message("Uncertainty estimation done.")
+
+            if args.qq_plots:
+                zgrid, pdf = calc_bivariate_pdf(libbgmg, params, args.downsample_factor)
+                results['pdf_zgrid'] = zgrid
+                results['pdf'] = pdf
+                results['qqplot'] = calc_bivariate_qq(libbgmg, zgrid, pdf)
 
         with open(args.out + ('.preliminary' if (repeat == 0) else '')+ '.json', 'w') as outfile:  
             json.dump(results, outfile, cls=NumpyEncoder)

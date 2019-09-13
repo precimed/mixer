@@ -5,14 +5,23 @@ MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
 '''
 
 import argparse
-import numpy as np
-from numpy import ma
-import matplotlib.pyplot as plt
-from matplotlib_venn import venn2
-import matplotlib.patches as patches
-from scipy.interpolate import interp1d
 import json
 import os
+import itertools
+
+import numpy as np
+from numpy import ma
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import matplotlib.colors
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+from matplotlib_venn import venn2
+
+from scipy.interpolate import interp1d
+from scipy.stats import multivariate_normal
 
 __version__ = '1.0.0'
 MASTHEAD = "***********************************************************************\n"
@@ -76,7 +85,7 @@ def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], co
     plt.title(traits[0] +' & ' + newline + traits[1], y=-0.18)
 
     clr = plt.cm.get_cmap('seismic')((rg+1)/2)
-    plt.gca().add_patch(patches.Rectangle(((-abs(0.7*row.rg) if (rg < 0) else 0) , -0.7), abs(0.7 * rg), 0.15, fill=True, clip_on=False, color=clr))
+    plt.gca().add_patch(patches.Rectangle(((-abs(0.7*rg) if (rg < 0) else 0) , -0.7), abs(0.7 * rg), 0.15, fill=True, clip_on=False, color=clr))
     plt.gca().add_patch(patches.Rectangle((-0.70, -0.7), 1.4, 0.15, fill=False, clip_on=False))
     plt.gca().add_patch(patches.Rectangle((0, -0.7), 0, 0.15, fill=False, clip_on=False, linewidth=3))
     plt.gca().text(-0.35 if (rg>0) else 0.35, -0.7+0.15/2, '$r_g$={:.2f}'.format(rg), fontsize=11, horizontalalignment='center',         verticalalignment='center')
@@ -91,6 +100,133 @@ def make_strat_qq_plots(data, flip=False, traits=['Trait1', 'Trait2'], do_legend
         hModel = plt.plot(data['qqplot'][i]['model_logpvec'], data['qqplot'][i]['hv_logp'], color=cm.colors[i % 4], linestyle='dashed')
     plt.ylim(0, 7.3); plt.xlim(0, 7.3); 
     plt.title('{} | {}'.format(traits[0], traits[1]))
+
+def merge_z_vs_z(df1, df2):
+    import pandas as pd
+
+    _N_CHR = 22
+    # complementary bases
+    COMPLEMENT = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
+    # bases
+    BASES = COMPLEMENT.keys()
+    # true iff strand ambiguous
+    STRAND_AMBIGUOUS = {''.join(x): x[0] == COMPLEMENT[x[1]]
+                        for x in itertools.product(BASES, BASES)
+                        if x[0] != x[1]}
+    # SNPS we want to keep (pairs of alleles)
+    VALID_SNPS = {x for x in map(lambda y: ''.join(y), itertools.product(BASES, BASES))
+                  if x[0] != x[1] and not STRAND_AMBIGUOUS[x]}
+    # T iff SNP 1 has the same alleles as SNP 2 (allowing for strand or ref allele flip).
+    MATCH_ALLELES = {x for x in map(lambda y: ''.join(y), itertools.product(VALID_SNPS, VALID_SNPS))
+                     # strand and ref match
+                     if ((x[0] == x[2]) and (x[1] == x[3])) or
+                     # ref match, strand flip
+                     ((x[0] == COMPLEMENT[x[2]]) and (x[1] == COMPLEMENT[x[3]])) or
+                     # ref flip, strand match
+                     ((x[0] == x[3]) and (x[1] == x[2])) or
+                     ((x[0] == COMPLEMENT[x[3]]) and (x[1] == COMPLEMENT[x[2]]))}  # strand and ref flip
+    # T iff SNP 1 has the same alleles as SNP 2 w/ ref allele flip.
+    FLIP_ALLELES = {''.join(x):
+                    ((x[0] == x[3]) and (x[1] == x[2])) or  # strand match
+                    # strand flip
+                    ((x[0] == COMPLEMENT[x[3]]) and (x[1] == COMPLEMENT[x[2]]))
+                    for x in MATCH_ALLELES} 
+
+    df1 = df1[['SNP', 'A1', 'A2', 'Z']].rename(columns={'Z': 'Z1'}).copy()
+    df2 = df2[['SNP', 'A1', 'A2', 'Z']].rename(columns={'Z': 'Z2', 'A1': 'A1x', 'A2': 'A2x'}).copy()
+    df = pd.merge(df1, df2, how='inner', on='SNP')
+    df = df.dropna(how='any')
+    alleles = df.A1 + df.A2 + df.A1x + df.A2x
+    df = df[alleles.apply(lambda y: y in MATCH_ALLELES)]
+    alleles = df.A1 + df.A2 + df.A1x + df.A2x
+    flip_status = alleles.apply(lambda y: FLIP_ALLELES[y])
+    df.Z2 *= (-1) ** alleles.apply(lambda y: FLIP_ALLELES[y])
+    df = df.drop(['A1', 'A1x', 'A2', 'A2x'], axis=1)
+    return df
+
+def plot_z_vs_z_data(df, traits=['Trait1', 'Trait2'], plot_limits=15, bins=100):
+    '''
+        # input can be generated as follows:
+        import pandas as pd
+        df1 = pd.read_csv(fname1, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
+        df2 = pd.read_csv(fname2, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
+        df = precimed.mixer.figures.merge_z_vs_z(df1, df2)
+    '''
+    plot_extent = [-plot_limits, plot_limits, -plot_limits, plot_limits]
+    z, _, _ = np.histogram2d(df['Z2'], df['Z1'], bins=bins, range=[[-plot_limits, plot_limits], [-plot_limits, plot_limits]])
+    im=plt.imshow(np.maximum(1,z),interpolation='none', origin='lower', cmap='hot', norm=matplotlib.colors.LogNorm(), vmin=1, vmax=1e4,extent=plot_extent)
+    plt.xlabel('$z_{'+traits[0]+'}$')
+    plt.ylabel('$z_{'+traits[1]+'}$')
+    plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
+
+def plot_predicted_zscore(data, num_snps, flip=False, traits=['Trait1', 'Trait2'], plot_limits=15, bins=100):
+    pdf = np.array(data['pdf'])
+    zgrid = np.array(data['pdf_zgrid'])
+    data_limits = max(zgrid)
+    data_extent = [-data_limits, data_limits, -data_limits, data_limits]
+    
+    # zDATA histogram is 100x100 grid, while zBGMG histogram is 1000x1000 grid.
+    # Therefore counts in zBGMG are 10 times smaller, and we need to adjust for it.
+    nbins_to_pdfsize_scale = len(zgrid) / bins
+    plot_step = zgrid[1] - zgrid[0]
+    zBGMG = (nbins_to_pdfsize_scale*nbins_to_pdfsize_scale) * pdf * plot_step * plot_step * num_snps
+    
+    im=plt.imshow(np.maximum(1, zBGMG.T if flip else zBGMG),
+                  interpolation='none', origin='lower', cmap='hot', norm=matplotlib.colors.LogNorm(),
+                  vmin=1, vmax=1e4, extent=data_extent)
+    
+    plt.axis([-plot_limits, plot_limits, -plot_limits, plot_limits])
+    plt.xlabel('$\\hat z_{'+traits[0]+'}$')
+    plt.ylabel('$\\hat z_{'+traits[1]+'}$')
+    plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
+
+def plot_causal_density(data, flip=False, traits=['Trait1', 'Trait2'], vmax=1e3, plot_limits=0.025):
+    params = data['params']
+    sb1, sb2 = params['sig2_beta'][0], params['sig2_beta'][1]
+    pi1, pi2, pi12 = tuple(params['pi'])
+    rho = max(min(params['rho_beta'], 0.98), -0.98)
+    cov = rho * np.sqrt(sb1*sb2)
+    factor = 1; sb_null = 1e-7
+    rv1 = multivariate_normal([0, 0], [[sb1, 0], [0, sb_null]])
+    rv2 = multivariate_normal([0, 0], [[sb_null, 0], [0, sb2]])
+    rv12 = multivariate_normal([0, 0], [[sb1, cov], [cov, sb2]])
+    grid_step=plot_limits/50
+    x, y = np.mgrid[-plot_limits:plot_limits:grid_step, -plot_limits:plot_limits:grid_step]
+    pos = np.empty(x.shape + (2,))
+    pos[:, :, 0] = x; pos[:, :, 1] = y
+    z=factor*1e7*grid_step*grid_step*(pi1*rv1.pdf(pos)+pi2*rv2.pdf(pos)+pi12*rv12.pdf(pos))
+    plot_extent = [-plot_limits, plot_limits, -plot_limits, plot_limits]
+    im=plt.imshow(np.maximum(1,z if flip else z.T),interpolation='none', origin='lower', cmap='magma', norm=matplotlib.colors.LogNorm(), vmin=1, vmax=vmax,extent=plot_extent)
+    plt.xlabel('$\\beta_{'+traits[0]+'}$')
+    plt.ylabel('$\\beta_{'+traits[1]+'}$')
+    plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
+
+def make_power_plot(data_vec, colors=None, traits=None):
+    if colors is None: colors = list(range(0, len(data_vec)))
+    if traits is None: traits = ['trait{}'.format(i) for i in range(1, len(data_vec) + 1)]
+    leg_labels = []
+    current_n = []
+    current_s = []
+    
+    cm = plt.cm.get_cmap('tab10')
+    for data, color, trait in zip(data_vec, colors, traits):
+        ax=plt.plot(np.log10(data['power']['nvec']), data['power']['svec'], color=cm.colors[color % 10], linestyle='solid' )
+        current_n.append(data['options']['trait1_nval'])
+        cs = interp1d(np.log10(data['power']['nvec']),data['power']['svec'])(np.log10(data['options']['trait1_nval']))
+        current_s.append(cs)
+        leg_labels.append('{0} ({1:.1f}%)'.format(trait, 100 * cs))
+
+    for cn, cs, trait in zip(current_n, current_s, traits):
+        plt.plot([np.log10(cn)], [cs], '*k', markersize=8)
+    leg_labels.append('Current N')
+    
+    plt.legend(leg_labels, loc='upper left',frameon=False, numpoints=1)
+    plt.xlabel('Sample size')
+    plt.ylabel('Estimated percent variance explained\nby genome-wide significant SNPs')
+    plt.xlim([4, 8])
+    plt.ylim([0, 1])
+    plt.locator_params(axis='x', nbins=5)
+    plt.axes().set_xticklabels(labels=['10K', '100K', '1M', '10M', '100M'])
 
 # https://stackoverflow.com/questions/27433316/how-to-get-argparse-to-read-arguments-from-a-file-with-an-option-rather-than-pre
 class LoadFromFile (argparse.Action):

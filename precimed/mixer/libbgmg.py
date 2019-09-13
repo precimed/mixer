@@ -26,7 +26,7 @@ def _n2p(res_value):  # native2python
 # - extract_bivariate_loglike_trajectory
 
 class LibBgmg(object):
-    def __init__(self, lib_name=None, context_id=0):
+    def __init__(self, lib_name=None, context_id=0, init_log=None, dispose=False):
         self._context_id = context_id
         self.cdll, self._lib_name = self._load_cdll(lib_name)
         logging.info('__init__(lib_name={}, context_id={})'.format(self._lib_name, context_id))
@@ -78,6 +78,9 @@ class LibBgmg(object):
         self.cdll.bgmg_calc_bivariate_cost.restype = ctypes.c_double
         self.cdll.bgmg_calc_bivariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_calc_bivariate_delta_posterior.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type]
+
+        if init_log: self.init_log(init_log)
+        if dispose: self.dispose()
 
     def get_last_error(self):
         return _n2p(self.cdll.bgmg_get_last_error())

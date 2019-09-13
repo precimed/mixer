@@ -115,14 +115,9 @@ target_include_directories(bgmg-static PUBLIC ${PROJECT_SOURCE_DIR}/zlib)
 target_compile_definitions(bgmg-static PRIVATE USE_SSE)
 
 add_library(bgmg SHARED source.cc)
-add_executable(bgmg-cli source.cc bgmg_main.cc)
 if (MSVC)
-	target_link_libraries(bgmg-cli bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
 	target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
-	target_compile_definitions(bgmg-cli PRIVATE BGMG_STATIC_DEFINE)
 else (MSVC)
-	set_target_properties(bgmg-cli PROPERTIES LINK_FLAGS "-static" )
-	target_link_libraries(bgmg-cli bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
 	target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
 endif (MSVC)
 
@@ -138,17 +133,9 @@ set(SRC_TEST_LIST
 	test/bgmg_math_test.cc
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )
-add_executable(bgmg-test ${SRC_TEST_LIST})
-target_link_libraries(bgmg-test bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS}) 
-target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest/include)
-target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest)
-target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR})
-target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/semt)
-target_compile_definitions(bgmg-test PRIVATE BGMG_STATIC_DEFINE)
 
 include(GenerateExportHeader)
 generate_export_header(bgmg
 		EXPORT_MACRO_NAME DLL_PUBLIC)
 
 install( TARGETS bgmg DESTINATION bin )
-install( TARGETS bgmg-cli DESTINATION bin )

@@ -78,7 +78,7 @@ Not available yet.
   ```
   cd ~ && git clone --recurse-submodules -j8 https://github.com/precimed/mixer.git
   mkdir mixer/src/build && cd mixer/src/build
-  cmake .. -DBOOST_ROOT=$HOME/boost_1_69_0 && make -j16 
+  cmake .. -DBOOST_ROOT=$HOME/boost_1_69_0 && make bgmg -j16 
   ```
 
 * Recommended combination of modules on different HPC systems:
@@ -169,7 +169,7 @@ Not available yet.
 ## Run MiXeR
 
 ### Univariate analysis
-
+More details are coming soon.
 ```
 python3 <MIXER_ROOT>/python/precimed/mixer.py fit \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
@@ -186,6 +186,7 @@ The results will be saved ``<out_file>.json`` file.
 Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.csv.gz``).
 
 ### Bivariate (cross-trait) analysis
+More details are coming soon.
 ```
 python3 <MIXER_ROOT>/python/mixer.py fit \
       --trait1-file PGC_SCZ_2014_EUR_qc_noMHC.csv.gz \

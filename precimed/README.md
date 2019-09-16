@@ -120,7 +120,7 @@ Not available yet.
     ```
   * We note that for case/control ``munge_sumstats.py`` generate sample size as a sum ``n = ncase + ncontrol``. We recommend to use ``neff = 4 / (1/ncase + 1/ncontrol)`` to account for imbalanced classes. Additionaly, we recommend to keep summary statistics for the entire set of SNPs available in GWAS, without filtering by HapMap3 SNPs). HapMap3 constraint can be applied later during fit procedure.
 
-* Reference panel (NIRD: ``/projects/NS9114K/users/oleksanf/public_file_share/mixer``)
+* Reference panel (alternatively, download [this](https://1drv.ms/u/s!Ai1YZmdFa9ati40Inztrv_4erqcdWw?e=ixWDUe) or take it from NIRD (``/projects/NS9114K/users/oleksanf/public_file_share/mixer``). NB! Download size is ``24 GB``.
   * Run ``plink`` to calculate allele frequencies and pairwise LD r2 for each chromosome
     ```
     plink \

@@ -531,7 +531,7 @@ def _calculate_univariate_uncertainty(parametrization, alpha, totalhet, num_snps
     return result, sample
 
 def _calculate_bivariate_uncertainty(parametrization, ci_samples, alpha, totalhet, num_snps, num_samples):
-    NCKoef = 0.226 # this koef gives proportion of causal variants that explain 90% of heritability. 
+    NCKoef = 0.319 # this koef gives proportion of causal variants that explain 90% of heritability. 
                    # it is specific to BGMG with single gaussian, with MAF specific model
     
     funcs = [('sig2_zero_T1', lambda x: x._sig2_zero[0]),

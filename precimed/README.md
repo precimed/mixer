@@ -198,7 +198,10 @@ python3 <MIXER_ROOT>/python/precimed/mixer.py fit \
 The results will be saved ``<out_file>.json`` file.
 Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.csv.gz``).
 
-To visualize the results
+To visualize the results:
+```
+python precimed/mixer_figures.py one --json <out_file>.json --out <out_file>
+```
 
 
 ### Bivariate (cross-trait) analysis
@@ -234,6 +237,11 @@ python3 <MIXER_ROOT>/python/mixer.py fit \
 
 Note that these parameters point to the results of univariate analysis for both traits, so those must be generated first.
 The results will be saved ``<out_file>.json`` file.
+
+To visualize the results:
+```
+python precimed/mixer_figures.py two --json <out_file>.json --out <out_file>
+```
 
 ## MiXeR options
 

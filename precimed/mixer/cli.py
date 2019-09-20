@@ -640,6 +640,11 @@ def execute_fit_parser(args):
                 for k, v in results['ci'].items():
                     libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
                 libbgmg.log_message("Uncertainty estimation done.")
+            elif args.load_params_file:
+                data = json.loads(open(args.load_params_file).read())
+                if 'ci' in data:
+                    libbgmg.log_message('copy "ci" results from --load-params-file')
+                    results['ci'] = data['i']
 
             if args.power_curve:
                 trait_index = 1
@@ -681,6 +686,11 @@ def execute_fit_parser(args):
                 for k, v in results['ci'].items():
                     libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
                 libbgmg.log_message("Uncertainty estimation done.")
+            elif args.load_params_file:
+                data = json.loads(open(args.load_params_file).read())
+                if 'ci' in data:
+                    libbgmg.log_message('copy "ci" results from --load-params-file')
+                    results['ci'] = data['i']
 
             if args.qq_plots:
                 zgrid, pdf = calc_bivariate_pdf(libbgmg, params, args.downsample_factor)

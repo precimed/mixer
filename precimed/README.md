@@ -169,41 +169,71 @@ Not available yet.
 ## Run MiXeR
 
 ### Univariate analysis
-More details are coming soon.
+
+Fit the model:
 ```
 python3 <MIXER_ROOT>/python/precimed/mixer.py fit \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --out SSGAC_EDU_2018_no23andMe_noMHC.fit \
+      --extract LDSR/w_hm3.justrs --ci-alpha 0.05 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
-      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin' \
-      --extract LDSR/w_hm3.justrs \
+      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
       --lib  <MIXER_ROOT>/src/build/lib/bgmglib.so \
-      --ci-alpha 0.05 \
+```
+
+Apply the model to the entire set of SNPs, without constraining to ``LDSR/w_hm3.justrs``:
+```
+python3 <MIXER_ROOT>/python/precimed/mixer.py fit \
+      --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
+      --load-params-file SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
+      --out SSGAC_EDU_2018_no23andMe_noMHC.test \
+      --fit-sequence load inflation --power-curve --qq-plots --kmax 100 \
+      --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
+      --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
+      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
+      --lib  <MIXER_ROOT>/src/build/lib/bgmglib.so \
 ```
 
 The results will be saved ``<out_file>.json`` file.
 Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.csv.gz``).
 
+To visualize the results
+
+
 ### Bivariate (cross-trait) analysis
-More details are coming soon.
+
+Fit the model:
 ```
 python3 <MIXER_ROOT>/python/mixer.py fit \
       --trait1-file PGC_SCZ_2014_EUR_qc_noMHC.csv.gz \
       --trait2-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
-      --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit \
       --trait1-params-file PGC_SCZ_2014_EUR_qc_noMHC.fit.json \
       --trait2-params-file SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
+      --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit \
+      --extract LDSR/w_hm3.justrs --ci-alpha 0.05 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
-      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin' \
-      --extract LDSR/w_hm3.justrs \
+      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
       --lib  <MIXER_ROOT>/src/build/lib/bgmglib.so \
-      --ci-alpha 0.05 \
 ```
+
+Apply the model to the entire set of SNPs, without constraining to ``LDSR/w_hm3.justrs``:
+```
+python3 <MIXER_ROOT>/python/mixer.py fit \
+      --trait1-file PGC_SCZ_2014_EUR_qc_noMHC.csv.gz \
+      --trait2-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
+      --load-params-file PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
+      --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test \
+      --fit-sequence load inflation --power-curve --qq-plots --kmax 100 \
+      --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
+      --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
+      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
+      --lib  <MIXER_ROOT>/src/build/lib/bgmglib.so \
+```
+
 Note that these parameters point to the results of univariate analysis for both traits, so those must be generated first.
 The results will be saved ``<out_file>.json`` file.
-
 
 ## MiXeR options
 
@@ -342,8 +372,8 @@ TBD. MiXeR is still using a lot of memory, but we are working on making it bette
 
 TBD.
 
-
 ### MiXeR results format
 
 TBD.
+
 All MiXeR results are stored in a single ``.json`` file.

@@ -1,3 +1,10 @@
+A new version of MiXeR is now available here as a python package. 
+The instructions on this page refer to an old MiXeR, implemented in MATLAB.
+Instead, we suggest to follow new instructions provided
+[here](https://github.com/precimed/mixer/tree/master/precimed).
+
+-----------------------------------------------------
+
 ## Contents
 
 * [Introduction](#introduction)

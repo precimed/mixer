@@ -8,7 +8,9 @@ import argparse
 import json
 import os
 import itertools
+import glob
 
+import pandas as pd
 import numpy as np
 from numpy import ma
 
@@ -276,20 +278,43 @@ def execute_two_parser(args):
     make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
     for ext in args.ext: plt.savefig(args.out + '.' + ext, bbox_inches='tight')
 
+def insert_key_to_dictionary_as_list(df_data, key, value):
+    if key not in df_data:
+        df_data[key] = []
+    df_data[key].append(value)
+
 def execute_one_parser(args):
+
+    df_data = {}
+    files = glob.glob(args.json)
+    for fname in files:
+        data = json.loads(open(fname).read())
+        insert_key_to_dictionary_as_list(df_data, 'fname', fname)
+        for k in 'pi sig2_beta sig2_zero h2 nc@p9'.split():
+            insert_key_to_dictionary_as_list(df_data, k, data['ci'][k]['point_estimate'])
+            insert_key_to_dictionary_as_list(df_data, k + '_SE', data['ci'][k]['std'])
+    pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
+
+    if len(files) > 1:
+        exit(0)
+
     data = json.loads(open(args.json).read())
-    plt.figure()
-    make_qq_plot(data['qqplot'], ci=True)
-    for ext in args.ext: plt.savefig(args.out + '.qq.' + ext, bbox_inches='tight')
+    if 'qqplot' in data:
+        plt.figure()
+        make_qq_plot(data['qqplot'], ci=True)
+        for ext in args.ext: plt.savefig(args.out + '.qq.' + ext, bbox_inches='tight')
 
-    plt.figure()
-    make_power_plot([data], traits=[args.trait1])
-    for ext in args.ext: plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')
+    if 'power' in data:
+        plt.figure()
+        make_power_plot([data], traits=[args.trait1])
+        for ext in args.ext: plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')
 
-    plt.figure(figsize=[12, 12])
-    for i in range(0, 3):
-        for j in range(0, 3):
-            plt.subplot(3,3,i*3+j+1)
-            make_qq_plot(data['qqplot_bins'][i*3+j])
-            plt.title(data['qqplot_bins'][i*3+j]['title'].replace(';', '\n'))
-    for ext in args.ext: plt.savefig(args.out + '.qqbin.' + ext, bbox_inches='tight')
+    if 'qqplot_bins' in data:
+        plt.figure(figsize=[12, 12])
+        for i in range(0, 3):
+            for j in range(0, 3):
+                plt.subplot(3,3,i*3+j+1)
+                make_qq_plot(data['qqplot_bins'][i*3+j])
+                plt.title(data['qqplot_bins'][i*3+j]['title'].replace(';', '\n'))
+        for ext in args.ext: plt.savefig(args.out + '.qqbin.' + ext, bbox_inches='tight')
+  

@@ -883,7 +883,7 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
     }
     double increment = -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
     if (!std::isfinite(increment)) num_infinite++;
-    log_pdf_total += increment;
+    else log_pdf_total += increment;
   }
 
   if (num_infinite > 0)
@@ -982,7 +982,7 @@ double BgmgCalculator::calc_univariate_cost_cache_deriv(int trait_index, float p
     if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
     double increment = -std::log(pdf_double[tag_index]) * weights_[tag_index];
     if (!std::isfinite(increment)) num_infinite++;
-    log_pdf_total += increment;
+    else log_pdf_total += increment;
     pi_vec_io += (-pdf_deriv_pivec[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
     sig2_zero_io += (-pdf_deriv_sig2zero[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
     sig2_beta_io += (-pdf_deriv_sig2beta[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
@@ -1052,7 +1052,7 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
     if (!std::isfinite(zvec[tag_index])) continue;
     double increment = -std::log(pdf_double[tag_index]) * rhs.weights_[tag_index];
     if (!std::isfinite(increment)) num_infinite++;
-    log_pdf_total += increment;
+    else log_pdf_total += increment;
   }
 
   if (num_infinite > 0)
@@ -1171,7 +1171,7 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
 
     double increment = static_cast<double>(-std::log(pdf_tag) * weights_[tag_index]);
     if (!std::isfinite(increment)) num_infinite++;
-    log_pdf_total += increment;
+    else log_pdf_total += increment;
   }
 
   if (num_infinite > 0)
@@ -1266,7 +1266,7 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
     if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
     double increment = -std::log(pdf_double[tag_index]) * weights_[tag_index];
     if (!std::isfinite(increment)) num_infinite++;
-    log_pdf_total += increment;
+    else log_pdf_total += increment;
   }
 
   if (num_infinite > 0)
@@ -1701,7 +1701,7 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
     const double tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
     const double increment = (-std::log(tag_pdf) * tag_weight);
     if (!std::isfinite(increment)) num_infinite++;
-    log_pdf_total += increment;
+    else log_pdf_total += increment;
   }
 
   if (num_zero_tag_r2 > 0)
@@ -1795,7 +1795,7 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
 
     double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
     if (!std::isfinite(increment)) num_infinite++;
-    log_pdf_total += increment;
+    else log_pdf_total += increment;
   }
 
   if (num_zero_tag_r2 > 0)
@@ -1938,7 +1938,7 @@ double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_v
 
       double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
       if (!std::isfinite(increment)) num_infinite++;
-      log_pdf_total += increment;
+      else log_pdf_total += increment;
     }
   }    
 
@@ -2115,7 +2115,7 @@ double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_ve
 
       double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
       if (!std::isfinite(increment)) num_infinite++;
-      log_pdf_total += increment;
+      else log_pdf_total += increment;
     }
   }    
 

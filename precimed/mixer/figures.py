@@ -8,7 +8,9 @@ import argparse
 import json
 import os
 import itertools
+import glob
 
+import pandas as pd
 import numpy as np
 from numpy import ma
 
@@ -61,7 +63,7 @@ def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], co
     if factor=='K': scale_factor=1000
     elif factor=='': scale_factor=1
     else: raise(ValueError('Unknow factor: {}'.format(factor)))
-        
+
     n1 = data['ci']['nc1@p9']['point_estimate']/scale_factor; n1_se = data['ci']['nc1@p9']['std']/scale_factor
     n2 = data['ci']['nc2@p9']['point_estimate']/scale_factor; n2_se = data['ci']['nc2@p9']['std']/scale_factor
     n12 = data['ci']['nc12@p9']['point_estimate']/scale_factor; n12_se = data['ci']['nc12@p9']['std']/scale_factor
@@ -241,13 +243,13 @@ class LoadFromFile (argparse.Action):
 
 def parser_one_add_arguments(args, func, parser):
     parser.add_argument('--json', type=str, default="", help="json file from univariate analysis")    
-    parser.add_argument('--trait1', type=str, default="Trait1", help="name of the first trait")    
+    parser.add_argument('--trait1', type=str, default="trait1", help="name of the first trait")
     parser.set_defaults(func=func)
 
 def parser_two_add_arguments(args, func, parser):
     parser.add_argument('--json', type=str, default="", help="json file from cross-trait analysis")    
-    parser.add_argument('--trait1', type=str, default="Trait1", help="name of the first trait")    
-    parser.add_argument('--trait2', type=str, default="Trait2", help="name of the second trait")    
+    parser.add_argument('--trait1', type=str, default="trait1", help="name of the first trait")    
+    parser.add_argument('--trait2', type=str, default="trait2", help="name of the second trait")    
     parser.set_defaults(func=func)
 
 def parse_args(args):
@@ -269,18 +271,50 @@ def execute_two_parser(args):
     plt.figure()
     plt.figure(figsize=[12, 3])
     plt.subplot(1,3,1)
-    make_venn_plot(data, flip=False, traits=['SCZ', 'BIP'])
+    make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
     plt.subplot(1,3,2)
-    make_strat_qq_plots(data, flip=False, traits=['SCZ', 'BIP'], do_legend=False)
+    make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
     plt.subplot(1,3,3)
-    make_strat_qq_plots(data, flip=True, traits=['BIP', 'SCZ'], do_legend=True)
-    for ext in args.ext:
-        plt.savefig(args.out + '.' + ext, bbox_inches='tight')
+    make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
+    for ext in args.ext: plt.savefig(args.out + '.' + ext, bbox_inches='tight')
+
+def insert_key_to_dictionary_as_list(df_data, key, value):
+    if key not in df_data:
+        df_data[key] = []
+    df_data[key].append(value)
 
 def execute_one_parser(args):
-    data = json.loads(open(args.json).read())
-    plt.figure()
-    make_qq_plot(data['qqplot'], ci=True)
-    for ext in args.ext:
-        plt.savefig(args.out + '.' + ext, bbox_inches='tight')
 
+    df_data = {}
+    files = glob.glob(args.json)
+    for fname in files:
+        data = json.loads(open(fname).read())
+        insert_key_to_dictionary_as_list(df_data, 'fname', fname)
+        for k in 'pi sig2_beta sig2_zero h2 nc@p9'.split():
+            insert_key_to_dictionary_as_list(df_data, k, data['ci'][k]['point_estimate'])
+            insert_key_to_dictionary_as_list(df_data, k + '_SE', data['ci'][k]['std'])
+    pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
+
+    if len(files) > 1:
+        exit(0)
+
+    data = json.loads(open(args.json).read())
+    if 'qqplot' in data:
+        plt.figure()
+        make_qq_plot(data['qqplot'], ci=True)
+        for ext in args.ext: plt.savefig(args.out + '.qq.' + ext, bbox_inches='tight')
+
+    if 'power' in data:
+        plt.figure()
+        make_power_plot([data], traits=[args.trait1])
+        for ext in args.ext: plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')
+
+    if 'qqplot_bins' in data:
+        plt.figure(figsize=[12, 12])
+        for i in range(0, 3):
+            for j in range(0, 3):
+                plt.subplot(3,3,i*3+j+1)
+                make_qq_plot(data['qqplot_bins'][i*3+j])
+                plt.title(data['qqplot_bins'][i*3+j]['title'].replace(';', '\n'))
+        for ext in args.ext: plt.savefig(args.out + '.qqbin.' + ext, bbox_inches='tight')
+  

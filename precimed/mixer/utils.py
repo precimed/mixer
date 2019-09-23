@@ -85,7 +85,8 @@ class UnivariateParams(object):
         return {'pi': self._pi, 'sig2_beta': self._sig2_beta, 'sig2_zero': self._sig2_zero}
     
     def cost(self, lib, trait):
-        return lib.calc_univariate_cost(trait, self._pi, self._sig2_zero, self._sig2_beta)
+        value = lib.calc_univariate_cost(trait, self._pi, self._sig2_zero, self._sig2_beta)
+        return value if np.isfinite(value) else 1e100
 
 class BivariateParams(object):
     def __init__(self, pi=None, sig2_beta=None, rho_beta=None, sig2_zero=None, rho_zero=None, params1=None, params2=None, pi12=None):
@@ -139,7 +140,8 @@ class BivariateParams(object):
                 'rho_zero': self._rho_zero, 'rho_beta': self._rho_beta}
 
     def cost(self, lib):
-        return lib.calc_bivariate_cost(self._pi, self._sig2_beta, self._rho_beta, self._sig2_zero, self._rho_zero)
+        value = lib.calc_bivariate_cost(self._pi, self._sig2_beta, self._rho_beta, self._sig2_zero, self._rho_zero)
+        return value if np.isfinite(value) else 1e100
 
 # TBD: there is some inconsistency across "Parametrization" classes.
 # The following classes are OK:
@@ -499,7 +501,10 @@ def _hessian_robust(hessian, hessdiag):
     hessdiag[hessdiag < 0] = 1e15
     hessdiag = np.diag(hessdiag)
     if not np.isfinite(hessian).all(): return hessdiag
-    hessinv = np.linalg.inv(hessian)
+    try:
+        hessinv = np.linalg.inv(hessian)
+    except np.linalg.LinAlgError as err:
+        return hessdiag
     if not np.isfinite(hessinv).all(): return hessdiag
     if np.less_equal(np.linalg.eigvals(hessinv), 0).any(): return hessdiag
     return hessian

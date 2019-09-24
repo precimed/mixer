@@ -267,16 +267,50 @@ def parse_args(args):
     return parser.parse_args(args)
 
 def execute_two_parser(args):
+    df_data = {}
+    files = glob.glob(args.json)
+    print('generate {}.csv from {} json files...'.format(args.out, len(files)))
+
+    for fname in files:
+        keys = 'pi1 pi2 pi12 nc1@p9 nc2@p9 nc12@p9 rho_zero rho_beta rg'.split()
+        try:
+            data = json.loads(open(fname).read())
+            trait1 = os.path.basename(data['options']['trait1_file']).replace('.sumstats.gz', '')
+            trait2 = os.path.basename(data['options']['trait2_file']).replace('.sumstats.gz', '')
+            for k in keys:   # test that all keys are available
+                val = data['ci'][k]['point_estimate']
+                val = data['ci'][k]['std']
+        except:
+            print('error reading from {}, skip'.format(fname))
+            continue
+
+        insert_key_to_dictionary_as_list(df_data, 'fname', fname)
+        insert_key_to_dictionary_as_list(df_data, 'trait1', trait1)
+        insert_key_to_dictionary_as_list(df_data, 'trait2', trait2)
+        for k in keys: insert_key_to_dictionary_as_list(df_data, k, data['ci'][k]['point_estimate'])
+        for k in keys: insert_key_to_dictionary_as_list(df_data, k + '_SE', data['ci'][k]['std'])
+    pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
+    print('Done.')
+
+    if len(files) > 1:
+        print('--json argument is a wild-card (contains *), skip figures generation')
+        return
+
     data = json.loads(open(args.json).read())
-    plt.figure()
     plt.figure(figsize=[12, 3])
     plt.subplot(1,3,1)
     make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
-    plt.subplot(1,3,2)
-    make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
-    plt.subplot(1,3,3)
-    make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
-    for ext in args.ext: plt.savefig(args.out + '.' + ext, bbox_inches='tight')
+    if 'qqplot' in data:
+        plt.subplot(1,3,2)
+        make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
+        plt.subplot(1,3,3)
+        make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
+    else:
+        print('Skip generating stratified QQ plots, data not available. Did you include --qq-plots in your "python mixer.py fit" command?')
+
+    for ext in args.ext:
+        plt.savefig(args.out + '.' + ext, bbox_inches='tight')
+        print('Generated ' + args.out + '.' + ext)
 
 def insert_key_to_dictionary_as_list(df_data, key, value):
     if key not in df_data:
@@ -287,27 +321,47 @@ def execute_one_parser(args):
 
     df_data = {}
     files = glob.glob(args.json)
+    print('generate {}.csv from {} json files...'.format(args.out, len(files)))
     for fname in files:
-        data = json.loads(open(fname).read())
+        keys = 'pi sig2_beta sig2_zero h2 nc@p9'.split()
+        try:
+            data = json.loads(open(fname).read())
+            for k in keys:   # test that all keys are available
+                val = data['ci'][k]['point_estimate']
+                val = data['ci'][k]['std']
+        except:
+            print('error reading from {}, skip'.format(fname))
+            continue
+
         insert_key_to_dictionary_as_list(df_data, 'fname', fname)
-        for k in 'pi sig2_beta sig2_zero h2 nc@p9'.split():
+        for k in keys:
             insert_key_to_dictionary_as_list(df_data, k, data['ci'][k]['point_estimate'])
             insert_key_to_dictionary_as_list(df_data, k + '_SE', data['ci'][k]['std'])
     pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
+    print('Done.')
 
     if len(files) > 1:
-        exit(0)
+        print('--json argument is a wild-card (contains *), skip figures generation')        
+        return
 
     data = json.loads(open(args.json).read())
     if 'qqplot' in data:
         plt.figure()
         make_qq_plot(data['qqplot'], ci=True)
-        for ext in args.ext: plt.savefig(args.out + '.qq.' + ext, bbox_inches='tight')
+        for ext in args.ext:
+            plt.savefig(args.out + '.qq.' + ext, bbox_inches='tight')
+            print('Generated ' + args.out + '.qq.' + ext)
+    else:
+        print('Skip generating QQ plots, data not available. Did you include --qq-plots in your "python mixer.py fit" command?')
 
     if 'power' in data:
         plt.figure()
         make_power_plot([data], traits=[args.trait1])
-        for ext in args.ext: plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')
+        for ext in args.ext:
+            plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')
+            print('Generated ' + args.out + '.power.' + ext)
+    else:
+        print('Skip generating power plots, data not available. Did you include --power-curve in your "python mixer.py fit" command?')
 
     if 'qqplot_bins' in data:
         plt.figure(figsize=[12, 12])
@@ -316,5 +370,9 @@ def execute_one_parser(args):
                 plt.subplot(3,3,i*3+j+1)
                 make_qq_plot(data['qqplot_bins'][i*3+j])
                 plt.title(data['qqplot_bins'][i*3+j]['title'].replace(';', '\n'))
-        for ext in args.ext: plt.savefig(args.out + '.qqbin.' + ext, bbox_inches='tight')
+        for ext in args.ext:
+            plt.savefig(args.out + '.qqbin.' + ext, bbox_inches='tight')
+            print('Generated ' + args.out + '.qqbin.' + ext)            
+    else:
+        print('Skip generating qq plots (3x3 bins of MAF and LD score), data not available. Did you include --qq-plots in your "python mixer.py fit" command?')
   

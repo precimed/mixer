@@ -260,7 +260,7 @@ TEST(UgmgTest, CalcLikelihood_with_r2min) {
   UgmgTest_CalcLikelihood(r2min, trait_index);
 }
 
-void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index) {
+void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float pi_val) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 10;
@@ -292,31 +292,63 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index) {
   calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
 
+  const float sig2_beta = 0.1f;
+  const float sig2_zeroL = pi_val * sig2_beta;
+  const float sig2_zeroA = 1.2f;
+  const float sig2_zeroC = 1.0f;
+
   calc.set_option("cost_calculator", 0);
-  double cost_sampling = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
+  double cost_sampling = calc.calc_univariate_cost(trait_index, pi_val, sig2_zeroA, sig2_beta);
   calc.set_option("cost_calculator", 1);
-  double cost_gaussian = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
+  double cost_gaussian = calc.calc_univariate_cost(trait_index, pi_val, sig2_zeroA, sig2_beta);
   calc.set_option("cost_calculator", 2);
-  double cost_convolve = calc.calc_univariate_cost(trait_index, 0.2, 1.2, 0.1);
+  double cost_convolve = calc.calc_univariate_cost(trait_index, pi_val, sig2_zeroA, sig2_beta);
+
+  std::vector<float> pi_vec(num_snp, pi_val);
+  std::vector<float> sig2_vec(num_snp, sig2_beta);
+  double cost_unified_gaussian = calc.calc_unified_univariate_cost_gaussian(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL);
 
   ASSERT_TRUE(std::isfinite(cost_sampling));
   ASSERT_TRUE(std::isfinite(cost_gaussian));
   ASSERT_TRUE(std::isfinite(cost_convolve));
-  std::cout << cost_sampling << ", " << (cost_gaussian-cost_sampling) << ", " << (cost_convolve-cost_sampling) << std::endl;
+  ASSERT_TRUE(std::isfinite(cost_unified_gaussian));
+  
+  // compare that unified gaussian approximation gives the same answer as fast cost function
+  // there is a subtle difference here in how do we model inflation arrising form truncated LD structure,
+  // therefore with r2min the answer is not precisely the same when r2min!=0.
+  if ((r2min==0) || (pi_val==1.0f)) {
+    ASSERT_FLOAT_EQ(cost_gaussian, cost_unified_gaussian); 
+  }
+
+  std::cout << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_unified_gaussian << std::endl;
 }
 
-// --gtest_filter=UgmgTest.CalcLikelihood
+// --gtest_filter=UgmgTest.CalcConvolveLikelihood
 TEST(UgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; 
   const int trait_index = 2; // use second trait for calculations; should work...
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f);
 }
 
-// --gtest_filter=UgmgTest.CalcLikelihood_with_r2min
+// --gtest_filter=UgmgTest.CalcConvolveLikelihoodInft
+TEST(UgmgTest, CalcConvolveLikelihoodInft) {
+  const float r2min = 0.0; 
+  const int trait_index = 2; // use second trait for calculations; should work...
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f);
+}
+
+// --gtest_filter=UgmgTest.CalcConvolveLikelihood_with_r2min
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2;
   const int trait_index = 1;
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f);
+}
+
+// --gtest_filter=UgmgTest.CalcConvolveLikelihood_with_r2min_inft
+TEST(UgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
+  const float r2min = 0.2;
+  const int trait_index = 1;
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f);
 }
 
 void BgmgTest_CalcLikelihood_testConvolution(float r2min) {
@@ -374,7 +406,7 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min) {
   ASSERT_TRUE(std::isfinite(cost_sampling));
   ASSERT_TRUE(std::isfinite(cost_gaussian));
   ASSERT_TRUE(std::isfinite(cost_convolve));
-  std::cout << cost_sampling << ", " << (cost_gaussian-cost_sampling) << ", " << (cost_convolve-cost_sampling) << std::endl;
+  std::cout << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << std::endl;
 }
 
 void BgmgTest_CalcLikelihood(float r2min) {

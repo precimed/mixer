@@ -322,6 +322,13 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
   void log_diagnostics();
  
+  double calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL);
+  double calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL);
+  double calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL);
+  int64_t calc_unified_univariate_pdf(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf);
+  int64_t calc_unified_univariate_power(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float zthresh, int length, float* nvec, float* svec);
+  int64_t calc_unified_univariate_delta_posterior(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* c0, float* c1, float* c2);
+
   int64_t seed() { return seed_; }
   void set_seed(int64_t seed) { seed_ = seed; }
 
@@ -365,7 +372,7 @@ class BgmgCalculator : public TagToSnpMapping {
 
   std::vector<float> causalbetavec1_;  // assumed causal betas, added as fixed effects component in the model
   std::vector<float> causalbetavec2_;  // e.g. delta_j = \sqrt N_j \sum_i \sqrt H_i r_ij \beta_i   <- here "beta_i" is causalbetavec
-
+  
   std::vector<float>* get_zvec(int trait_index);
   std::vector<float>* get_nvec(int trait_index);
   std::vector<float>* get_causalbetavec(int trait_index);

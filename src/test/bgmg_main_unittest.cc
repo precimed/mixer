@@ -260,7 +260,7 @@ TEST(UgmgTest, CalcLikelihood_with_r2min) {
   UgmgTest_CalcLikelihood(r2min, trait_index);
 }
 
-void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float pi_val) {
+void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float pi_val, double costvec[4]) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 10;
@@ -312,7 +312,7 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
   ASSERT_TRUE(std::isfinite(cost_gaussian));
   ASSERT_TRUE(std::isfinite(cost_convolve));
   ASSERT_TRUE(std::isfinite(cost_unified_gaussian));
-  
+
   // compare that unified gaussian approximation gives the same answer as fast cost function
   // there is a subtle difference here in how do we model inflation arrising form truncated LD structure,
   // therefore with r2min the answer is not precisely the same when r2min!=0.
@@ -320,35 +320,44 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
     ASSERT_FLOAT_EQ(cost_gaussian, cost_unified_gaussian); 
   }
 
-  std::cout << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_unified_gaussian << std::endl;
+  std::cout << std::setprecision(9) << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_unified_gaussian << std::endl;
+
+  ASSERT_FLOAT_EQ(costvec[0], cost_sampling);
+  ASSERT_FLOAT_EQ(costvec[1], cost_gaussian);
+  ASSERT_FLOAT_EQ(costvec[2], cost_convolve);
+  ASSERT_FLOAT_EQ(costvec[3], cost_unified_gaussian);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood
 TEST(UgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; 
   const int trait_index = 2; // use second trait for calculations; should work...
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f);
+  double costvec[4] = {16.0114786, 15.8589964, 15.9299297, 15.8589949};
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f, costvec);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihoodInft
 TEST(UgmgTest, CalcConvolveLikelihoodInft) {
   const float r2min = 0.0; 
   const int trait_index = 2; // use second trait for calculations; should work...
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f);
+  double costvec[4] = {1e+100, 20.5189491, 20.5189537, 20.518953};
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f, costvec);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood_with_r2min
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2;
   const int trait_index = 1;
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f);
+  double costvec[4] = {16.00285, 15.8589964, 15.9186396, 15.8402427};  
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f, costvec);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood_with_r2min_inft
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
   const float r2min = 0.2;
   const int trait_index = 1;
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f);
+  double costvec[4] = {1e+100, 20.5189491, 20.5189472, 20.5189468};  
+  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f, costvec);
 }
 
 void BgmgTest_CalcLikelihood_testConvolution(float r2min) {

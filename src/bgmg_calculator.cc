@@ -1810,9 +1810,13 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
 
 class UnivariateCharacteristicFunctionData {
  public:
-  float pi_vec;
-  float sig2_zero;
-  float sig2_beta;
+  int num_components;
+  int num_snp;
+  float* pi_vec;
+  float* sig2_vec;
+  float sig2_zeroA;
+  float sig2_zeroC;
+  float sig2_zeroL;
   int tag_index;  // for which SNP to calculate the characteristic function
                   // note that use_complete_tag_indices_ must be enabled for "convolve" calculator, 
                   // so "tag" and "snp" are in the same indexing
@@ -1831,16 +1835,12 @@ int calc_univariate_characteristic_function_times_cosinus(unsigned ndim, const d
   const float t = (float)x[0];
   const float minus_tsqr_half = -t*t/2.0;
   UnivariateCharacteristicFunctionData* data = (UnivariateCharacteristicFunctionData *)raw_data;
-  const float pi1 = data->pi_vec;
-  const float pi0 = 1.0 - pi1;
-  const float sig2beta_times_nval = (*data->nvec)[data->tag_index] * data->sig2_beta;
+  const float nval = (*data->nvec)[data->tag_index];
   const float zval = (*data->zvec)[data->tag_index] - (*data->fixed_effect_delta)[data->tag_index];  // apply causalbetavec
-  
-    // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
-  const float inf_adj = pi1 * (*data->ld_tag_sum_r2_below_r2min_adjust_for_hvec)[data->tag_index] * sig2beta_times_nval;
+  const float sig2_zero = data->sig2_zeroA + (*data->ld_tag_sum_r2_below_r2min_adjust_for_hvec)[data->tag_index] * nval * data->sig2_zeroL;
   const float m_1_pi = M_1_PI;
 
-  double result = m_1_pi * cos(t * zval) * std::exp(minus_tsqr_half * (data->sig2_zero + inf_adj));
+  double result = m_1_pi * cos(t * zval) * std::exp(minus_tsqr_half * sig2_zero);
   
   auto iter_end = data->ld_matrix_row->end();
   for (auto iter = data->ld_matrix_row->begin(); iter < iter_end; iter++) {
@@ -1850,9 +1850,21 @@ int calc_univariate_characteristic_function_times_cosinus(unsigned ndim, const d
                                        // however, for for "convolve" we are interested in mapping from a tag SNP "j"
                                        // to all causal SNPs "i" in LD with "j". To make this work we store a complete
                                        // LD matrix (e.g. _num_snp == _num_tag), and explore symmetry of the matrix. 
-    float r2 = iter.r2();
-    float hval = (*data->hvec)[snp_index];
-    result *= (double)(pi0 + pi1 * std::exp(minus_tsqr_half * sig2beta_times_nval * r2 * hval));
+    const float r2 = iter.r2();
+    const float hval = (*data->hvec)[snp_index];
+    const float minus_tsqr_half_r2_hval_nval = minus_tsqr_half * r2 * hval * nval * (data->sig2_zeroC);
+    float factor = 0.0f;
+    float pi_complement = 1.0f;        // handle a situation where pi0 N(0, 0) is not specified as a column in pi_vec and sig2_vec.
+    for (int comp_index = 0; comp_index < data->num_components; comp_index++) {
+      const int index = (comp_index*data->num_snp + snp_index);
+      const float pi_val = data->pi_vec[index];
+      const float sig2_val = data->sig2_vec[index];
+      factor += pi_val * std::exp(minus_tsqr_half_r2_hval_nval * sig2_val);
+      pi_complement -= pi_val;
+    }
+    factor += pi_complement;
+
+    result *= (double)(factor);
   }
 
   data->func_evals++;
@@ -1869,16 +1881,24 @@ int calc_univariate_characteristic_function_for_integration(unsigned ndim, const
   (*fval) *= jacob;
   return retval;
 }
-
 double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
+  std::vector<float> pi_vec_constant_vector(num_snp_, pi_vec);
+  std::vector<float> sig2_vec_constant_vector(num_snp_, sig2_beta);
+  const float sig2_zeroA = sig2_zero;
+  const float sig2_zeroC = 1.0f;
+  const float sig2_zeroL = pi_vec * sig2_beta;
+  return calc_unified_univariate_cost_convolve(trait_index, 1, num_snp_, &pi_vec_constant_vector[0], &sig2_vec_constant_vector[0], sig2_zeroA, sig2_zeroC, sig2_zeroL);
+}
+
+double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
 
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));
 
   std::stringstream ss;
-  ss << "trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta;
-  LOG << ">calc_univariate_cost_convolve(" << ss.str() << ")";
+  ss << "trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL;
+  LOG << ">calc_unified_univariate_cost_convolve(" << ss.str() << ")";
 
   double log_pdf_total = 0.0;
   int num_snp_failed = 0;
@@ -1906,9 +1926,13 @@ double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_v
   {
     LdMatrixRow ld_matrix_row;
     UnivariateCharacteristicFunctionData data;
+    data.num_components = num_components;
+    data.num_snp = num_snp_;
     data.pi_vec = pi_vec;
-    data.sig2_zero = sig2_zero;
-    data.sig2_beta = sig2_beta;
+    data.sig2_vec = sig2_vec;
+    data.sig2_zeroA = sig2_zeroA;
+    data.sig2_zeroC = sig2_zeroC;
+    data.sig2_zeroL = sig2_zeroL;
     data.ld_matrix_row = &ld_matrix_row;
     data.hvec = &hvec;
     data.zvec = &zvec;
@@ -1952,7 +1976,7 @@ double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_v
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) total_weight += weights_[tag_index];
   func_evals /= total_weight;
 
-  LOG << "<calc_univariate_cost_convolve(" << ss.str() << "), cost=" << log_pdf_total << ", evals=" << func_evals << ", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<calc_unified_univariate_cost_convolve(" << ss.str() << "), cost=" << log_pdf_total << ", evals=" << func_evals << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 
@@ -2921,9 +2945,6 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
   return log_pdf_total;
 }
 
-double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL) {
-  BGMG_THROW_EXCEPTION(::std::runtime_error("not implemented"));
-}
 int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf) {
 
 }

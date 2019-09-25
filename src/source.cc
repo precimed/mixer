@@ -52,6 +52,7 @@ catch (const std::runtime_error& e) {                                          \
 
 // validation logic
 template<typename T> void fix_pi_vec(T *pi_vec) { if (*pi_vec < 0) { LOG << " FIX: pi_vec < 0"; *pi_vec = 0; } }
+template<typename T> void fix_pi_vec(int numel, T *pi_vec) { for (int i = 0; i < numel; i++) if (pi_vec[i] < 0) { LOG << " FIX: pi_vec < 0"; pi_vec[i] = 0; } }
 template<typename T> void fix_num_causal(T *num_causal) { if (*num_causal < 0) { LOG << " FIX: num_causal < 0"; *num_causal = 0; } }
 template<typename T> void fix_rho(T *rho) { 
   if (*rho < -1) { LOG << " FIX: rho < -1"; *rho = -1; }; 
@@ -61,6 +62,7 @@ template<typename T> void fix_rho(T *rho) {
 void check_trait_index(int trait_index) { if ((trait_index != 1) && (trait_index != 2)) { BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2")); } }
 template<typename T> void check_is_positive(T arg) { if (arg <= 0) { BGMG_THROW_EXCEPTION(::std::runtime_error("arg <= 0")); } }
 template<typename T> void check_is_nonnegative(T arg) { if (arg < 0) { BGMG_THROW_EXCEPTION(::std::runtime_error("arg < 0")); } }
+template<typename T> void check_is_nonnegative(int numel, T* arg) { for (int i = 0; i < numel; i++)  if (arg[i] < 0) { BGMG_THROW_EXCEPTION(::std::runtime_error("arg < 0")); } }
 template<typename T> void check_is_not_null(T* ptr) { if (ptr == nullptr) { BGMG_THROW_EXCEPTION(::std::runtime_error("ptr == nullptr")); } }
 template<typename T> void check_r2(T arg) { if (arg < 0 | arg > 1) { BGMG_THROW_EXCEPTION(::std::runtime_error("arg < 0 | arg > 1")); } }
 
@@ -513,5 +515,27 @@ int64_t bgmg_calc_ld_matrix(const char* bfile, const char* frqfile, const char* 
     check_is_not_null(bfile); check_is_not_null(frqfile); check_is_not_null(outfile);
     generate_ld_matrix_from_bed_file(bfile, frqfile, r2min, outfile);
     return 0;
+  } CATCH_EXCEPTIONS;
+}
+
+void check_and_fix_unified(int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL) {
+  check_is_positive(num_components); check_is_positive(num_snp); 
+  fix_pi_vec(num_snp*num_components, pi_vec); check_is_nonnegative(num_snp*num_components, sig2_vec);
+  check_is_positive(sig2_zeroA); check_is_positive(sig2_zeroC); check_is_positive(sig2_zeroL); 
+}
+
+double bgmg_calc_unified_univariate_cost(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL) {
+  try {
+    set_last_error(std::string());
+    check_trait_index(trait_index); check_and_fix_unified(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_cost(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL);
+  } CATCH_EXCEPTIONS;
+}
+  
+int64_t bgmg_calc_unified_univariate_pdf(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf) {
+  try {
+    set_last_error(std::string());
+    check_trait_index(trait_index); check_and_fix_unified(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL); check_is_positive(length); check_is_not_null(zvec); check_is_not_null(pdf);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_pdf(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, length, zvec, pdf);
   } CATCH_EXCEPTIONS;
 }

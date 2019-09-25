@@ -411,6 +411,7 @@ class BgmgCalculator : public TagToSnpMapping {
   double calc_univariate_cost_convolve(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_bivariate_cost_convolve(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   void calc_fixed_effect_delta_from_causalbetavec(int trait_index, std::valarray<float>* delta);
+  void find_unified_tag_delta_sampling(int num_components, float* pi_vec, float* sig2_vec, float sig2_zeroC, int k_index, const float* nvec, const float* hvec, std::vector<float>* tag_delta2);
 
   BimFile bim_file_;
 

@@ -2945,9 +2945,95 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
   return log_pdf_total;
 }
 
-int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf) {
+void BgmgCalculator::find_unified_tag_delta_sampling(int num_components, float* pi_vec, float* sig2_vec, float sig2_zeroC, int k_index, const float* nvec, const float* hvec, std::vector<float>* tag_delta2) {
+  std::mt19937_64 random_engine;
+  random_engine.seed(seed_ + k_index);
+  std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
+  tag_delta2->assign(num_tag_, 0.0f);
 
+  LdMatrixRow ld_matrix_row;
+  for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
+    // example: pi_vec = [0.1, 0.2, 0.3], and prob = 0.25
+    // * comp_index=0, prob changes from 0.25 to  0.15; still positive, continue (line (1))
+    // * comp_index=1, prob changes from 0.15 to -0.05; negative - bingo, we have a causal SNP. Append effects to tag SNPs in LD.
+    // * comp_index=2 - never executed due to break (see line (1))
+    float prob = distribution(random_engine);
+    for (int comp_index = 0; comp_index < num_components; comp_index++) {
+      const int index = (comp_index*num_snp_ + snp_index);
+      const float pi_val = pi_vec[index];
+      prob -= pi_val;
+      if (prob > 0) continue;   // line 1
+
+      const float sig2_val = sig2_vec[index];
+      
+      ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+      auto iter_end = ld_matrix_row.end();
+      for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+        int tag_index = iter.tag_index();
+        float nval = nvec[tag_index];
+        float r2 = iter.r2();
+        float hval = hvec[snp_index];
+        (*tag_delta2)[tag_index] += (r2 * hval * sig2_val * nval * sig2_zeroC);
+      }
+      break;   // line 2
+    }
+  }
 }
+
+int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf) {
+  check_num_snp(num_snp);
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+
+  std::stringstream ss;
+  ss << "calc_unified_univariate_pdf(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ", length=" << length << ")";
+  LOG << ">" << ss.str();
+
+  SimpleTimer timer(-1);
+
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
+  std::valarray<double> pdf_double(0.0, length);
+
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+
+  std::vector<float> hvec;
+  find_hvec(*this, &hvec);
+
+#pragma omp parallel
+  {
+    std::valarray<double> pdf_double_local(0.0, length);
+    std::vector<float> tag_delta2(num_tag_, 0.0f);
+
+#pragma omp for schedule(static)
+    for (int k_index = 0; k_index < k_max_; k_index++) {
+      find_unified_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, k_index, &nvec[0], &hvec[0], &tag_delta2);
+
+      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+        if (weights_[tag_index] == 0) continue;
+        if (!std::isfinite(nvec[tag_index])) continue;
+
+        const double tag_weight = static_cast<double>(weights_[tag_index]);
+
+        const float tag_delta2_value = tag_delta2[tag_index];
+        const float sig2_zero = sig2_zeroA + ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index] * nvec[tag_index] * sig2_zeroL;
+        float s = sqrt(tag_delta2_value + sig2_zero);
+
+        for (int z_index = 0; z_index < length; z_index++) {
+          double pdf_tmp = static_cast<double>(gaussian_pdf<FLOAT_TYPE>(zvec[z_index], s));
+          pdf_double_local[z_index] += pi_k * pdf_tmp * tag_weight;
+        }
+      }
+    }
+#pragma omp critical
+    pdf_double += pdf_double_local;
+  }
+
+  for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);
+  LOG << ">" << ss.str() << ", elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}
+
 int64_t BgmgCalculator::calc_unified_univariate_power(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float zthresh, int length, float* nvec, float* svec) {
 
 }

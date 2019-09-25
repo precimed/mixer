@@ -204,21 +204,36 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
   ASSERT_TRUE(std::isfinite(deriv[1]));
   ASSERT_TRUE(std::isfinite(deriv[2]));
 
-  std::vector<float> zvec_grid, zvec_pdf, zvec_pdf_nocache;
+  std::vector<float> zvec_grid, zvec_pdf, zvec_pdf_nocache, zvec_pdf_unified;
   for (float z = 0; z < 15; z += 0.1) {
     zvec_grid.push_back(z);
     zvec_pdf.push_back(0.0f);
     zvec_pdf_nocache.push_back(0.0f);
+    zvec_pdf_unified.push_back(0.0f);
   }
 
-  calc.calc_univariate_pdf(trait_index, 0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf[0]);
+  const float sig2_beta = 0.1f;
+  const float pi_val = 0.2f;
+  const float sig2_zeroL = pi_val * sig2_beta;
+  const float sig2_zeroA = 1.2f;
+  const float sig2_zeroC = 1.0f;
+  std::vector<float> pi_vec(num_snp, pi_val);
+  std::vector<float> sig2_vec(num_snp, sig2_beta);
+
+  calc.calc_univariate_pdf(trait_index, pi_val, sig2_zeroA, sig2_beta, zvec_grid.size(), &zvec_grid[0], &zvec_pdf[0]);
   calc.set_option("diag", 0.0);
 
   calc.set_option("cache_tag_r2sum", 0);
-  calc.calc_univariate_pdf(trait_index, 0.2, 1.2, 0.1, zvec_grid.size(), &zvec_grid[0], &zvec_pdf_nocache[0]);
+  calc.calc_univariate_pdf(trait_index, pi_val, sig2_zeroA, sig2_beta, zvec_grid.size(), &zvec_grid[0], &zvec_pdf_nocache[0]);
 
   for (int i = 0; i < zvec_pdf_nocache.size(); i++) {
     ASSERT_NEAR(zvec_pdf[i], zvec_pdf_nocache[i], 2e-7);  // 4.93722e-05 vs 4.9372218e-05 due to approximation of float as uint16_t
+  }
+
+  calc.calc_unified_univariate_pdf(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, zvec_grid.size(), &zvec_grid[0], &zvec_pdf_unified[0]);
+  for (int i = 0; i < zvec_pdf_unified.size(); i++) {
+    ASSERT_TRUE(std::isfinite(zvec_pdf_unified[i]));
+    //  std::cout << zvec_pdf_nocache[i] << ", " << zvec_pdf_unified[i] << "\n";
   }
 
   //int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec) {

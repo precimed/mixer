@@ -319,4 +319,3 @@ end
 % DLL_PUBLIC int64_t bgmg_retrieve_ld_tag_r2_sum(int context_id, int length, float* buffer);  // LD scores (r2 and r4)
 % DLL_PUBLIC int64_t bgmg_retrieve_ld_tag_r4_sum(int context_id, int length, float* buffer);
 % DLL_PUBLIC int64_t bgmg_retrieve_weighted_causal_r2(int context_id, int length, float* buffer);
-% DLL_PUBLIC double bgmg_calc_univariate_cost_with_deriv(int context_id, int trait_index, double pi_vec, double sig2_zero, double sig2_beta, int deriv_length, double* deriv);

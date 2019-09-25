@@ -461,14 +461,6 @@ int64_t bgmg_get_loglike_cache_bivariate_entry(int context_id, int entry_index, 
   } CATCH_EXCEPTIONS;
 }
 
-double bgmg_calc_univariate_cost_with_deriv(int context_id, int trait_index, double pi_vec, double sig2_zero, double sig2_beta, int deriv_length, double* deriv) {
-  try {
-    set_last_error(std::string());
-    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta);
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost_cache_deriv(trait_index, pi_vec, sig2_zero, sig2_beta, deriv_length, deriv);
-  } CATCH_EXCEPTIONS;
-}
-
 int64_t bgmg_set_chrnumvec(int context_id, int length, int* values) {
   try {
     set_last_error(std::string());

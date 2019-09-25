@@ -306,7 +306,6 @@ class BgmgCalculator : public TagToSnpMapping {
 
   double calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_univariate_cost_cache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
-  double calc_univariate_cost_cache_deriv(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int deriv_length, double* deriv); // find cost and first derivatives; arguments will be replaced with derivative values
   double calc_univariate_cost_nocache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)
   double calc_univariate_cost_nocache_float(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);  // for testing single vs double precision
   double calc_univariate_cost_nocache_double(int trait_index, float pi_vec, float sig2_zero, float sig2_beta); // for testing single vs double precision

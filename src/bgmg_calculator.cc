@@ -45,12 +45,6 @@
 
 #include "cubature/cubature.h"
 
-// Include namespace SEMT & global operators.
-#define SEMT_DISABLE_PRINT 0
-#include "semt/Semt.h"
-// Include macros: INT, DINT, VAR, DVAR, PARAM, DPARAM
-#include "semt/Shortcuts.h"
-
 #include "bgmg_log.h"
 #include "bgmg_parse.h"
 #include "bgmg_math.h"
@@ -890,108 +884,6 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
     LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   LOG << "<calc_univariate_cost(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
-  return log_pdf_total;
-}
-
-struct pi_struct
-{
-  constexpr static SEMT_PRECISION value = 3.14159265358979323846;
-};
-struct inv_sqrt_2pi_struct
-{
-  constexpr static SEMT_PRECISION value = 0.3989422804014327;
-};
-
-SEMT::Expr<SEMT::Literal<pi_struct>> pi_value;
-SEMT::Expr<SEMT::Literal<inv_sqrt_2pi_struct>> inv_sqrt_2pi_value;
-
-
-double BgmgCalculator::calc_univariate_cost_cache_deriv(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int deriv_length, double* deriv) {
-  // NB! censoring is not implemented in calc_univariate_cost_cache_deriv
-  // NB! causalbetavec is not supported in calc_univariate_cost_cache_deriv
-  std::vector<float>& nvec(*get_nvec(trait_index));
-  std::vector<float>& zvec(*get_zvec(trait_index));
-
-  if (deriv_length != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("deriv_length != 3"));
-  if (zvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec is not set"));
-  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
-  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
-  if (!cache_tag_r2sum_) BGMG_THROW_EXCEPTION(::std::runtime_error("bgmg_calc_univariate_cost_with_deriv only works with cache_tag_r2sum")); 
-
-  float num_causals = pi_vec * static_cast<float>(num_snp_);
-  if ((int)num_causals >= max_causals_) return 1e100; // too large pi_vec
-  const int component_id = 0;   // univariate is always component 0.
-
-  LOG << ">calc_univariate_cost_deriv(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
-  SimpleTimer timer(-1);
-
-  find_tag_r2sum(component_id, num_causals);
-
-  const float pi_k = 1. / static_cast<float>(k_max_);
-
-  std::valarray<double> pdf_double(0.0, num_tag_);
-  std::valarray<double> pdf_deriv_sig2zero(0.0, num_tag_);
-  std::valarray<double> pdf_deriv_sig2beta(0.0, num_tag_);
-  std::valarray<double> pdf_deriv_pivec(0.0, num_tag_);
-
-#pragma omp parallel
-  {
-    std::valarray<double> pdf_double_local(0.0, num_tag_);
-    std::valarray<double> pdf_deriv_sig2zero_local(0.0, num_tag_);
-    std::valarray<double> pdf_deriv_sig2beta_local(0.0, num_tag_);
-    std::valarray<double> pdf_deriv_pivec_local(0.0, num_tag_);
-
-#pragma omp for schedule(static)
-    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-      if (weights_[tag_index] == 0) continue;
-      if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
-
-      for (int k_index = 0; k_index < k_max_; k_index++) {
-        float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
-
-        DVAR(semt_sig2zero, 0); DVAR(semt_sig2beta, 1); DVAR(semt_pivec, 2); DVAR(zvec2, 3); DVAR(r2eff_times_n, 4);
-        auto s = semt_sig2zero + r2eff_times_n * semt_sig2beta * semt_pivec;
-        auto f = inv_sqrt_2pi_value * pow(s, RAT(-1, 2)) * exp(RAT(-1, 2) * zvec2 / s);
-        auto f_sig2zero = SEMT::deriv_t(f, semt_sig2zero);
-        auto f_sig2beta = SEMT::deriv_t(f, semt_sig2beta);
-        auto f_pivec = SEMT::deriv_t(f, semt_pivec);
-        SEMT::CAR semt_params = { sig2_zero, sig2_beta, pi_vec, zvec[tag_index] * zvec[tag_index], tag_r2sum * nvec[tag_index] / pi_vec };
-        pdf_double_local[tag_index] += pi_k * f.apply(semt_params);
-        pdf_deriv_sig2zero_local[tag_index] += pi_k * f_sig2zero.apply(semt_params);
-        pdf_deriv_sig2beta_local[tag_index] += pi_k * f_sig2beta.apply(semt_params);
-        pdf_deriv_pivec_local[tag_index] += pi_k * f_pivec.apply(semt_params);
-      }
-    }
-
-#pragma omp critical
-    {
-      pdf_double += pdf_double_local;
-      pdf_deriv_sig2zero += pdf_deriv_sig2zero_local;
-      pdf_deriv_sig2beta += pdf_deriv_sig2beta_local;
-      pdf_deriv_pivec += pdf_deriv_pivec_local;
-    }
-  }
-
-  double log_pdf_total = 0.0;
-  double& pi_vec_io = deriv[0]; pi_vec_io = 0;
-  double& sig2_zero_io = deriv[1]; sig2_zero_io = 0;
-  double& sig2_beta_io = deriv[2]; sig2_beta_io = 0;
-  int num_infinite = 0;
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
-    double increment = -std::log(pdf_double[tag_index]) * weights_[tag_index];
-    if (!std::isfinite(increment)) num_infinite++;
-    else log_pdf_total += increment;
-    pi_vec_io += (-pdf_deriv_pivec[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
-    sig2_zero_io += (-pdf_deriv_sig2zero[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
-    sig2_beta_io += (-pdf_deriv_sig2beta[tag_index] / pdf_double[tag_index]) * weights_[tag_index];
-  }
-
-  if (num_infinite > 0)
-    LOG << " warning: infinite increments encountered " << num_infinite << " times";
-
-  LOG << "<calc_univariate_cost_deriv(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << "), cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 

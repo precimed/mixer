@@ -416,19 +416,6 @@ classdef BGMG_util
         BGMG_cpp.log('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost);
     end
     
-    function [cost, gradient] = UGMG_fminsearch_cost_with_gradient(ov, trait_index)
-        if nargout == 1
-          cost = BGMG_util.UGMG_fminsearch_cost(ov, trait_index);
-          return
-        end
-        
-        pBuffer = libpointer('doublePtr', zeros(3, 1, 'double'));
-        cost = calllib('bgmg', 'bgmg_calc_univariate_cost_with_deriv', 0, trait_index, ov.pi_vec, ov.sig2_zero, ov.sig2_beta, 3, pBuffer);
-        gradient = pBuffer.value;
-        clear pBuffer
-        BGMG_cpp.log('pi_vec=%.5e, sig2_zero=%.3f, sig2_beta=%.5e, cost=%.3f, deriv=%s\n', ov.pi_vec, ov.sig2_zero, ov.sig2_beta, cost, mat2str(gradient));
-    end
-    
     function cost = BGMG_fminsearch_cost(ov)
         if (length(ov.pi_vec) == 1)
             % pleiotropic model (one component with shared effects)

@@ -74,6 +74,9 @@ class LibBgmg(object):
         self.cdll.bgmg_calc_univariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_calc_univariate_power.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_calc_univariate_delta_posterior.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type]
+        self.cdll.bgmg_calc_unified_univariate_cost.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type, float32_pointer_type, ctypes.c_float, ctypes.c_float, ctypes.c_float]
+        self.cdll.bgmg_calc_unified_univariate_cost.restype = ctypes.c_double
+        self.cdll.bgmg_calc_unified_univariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, float32_pointer_type, float32_pointer_type, ctypes.c_float, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_calc_bivariate_cost.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float]
         self.cdll.bgmg_calc_bivariate_cost.restype = ctypes.c_double
         self.cdll.bgmg_calc_bivariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type]
@@ -304,6 +307,23 @@ class LibBgmg(object):
         zgrid_data = (zgrid if isinstance(zgrid, np.ndarray) else np.array(zgrid)).astype(np.float32)
         pdf = np.zeros(shape=(np.size(zgrid),), dtype=np.float32)
         self._check_error(self.cdll.bgmg_calc_univariate_pdf(self._context_id, trait, pi_vec, sig2_zero, sig2_beta, np.size(zgrid), zgrid_data, pdf))
+        return pdf
+
+    def calc_unified_univariate_cost(self, trait, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL):
+        # TBD: promote vectors with (N, ) shape to 2D arrays (N, 1)
+        num_component = pi_vec.shape[1]
+        num_snp = pi_vec.shape[0]
+        cost = self.cdll.bgmg_calc_unified_univariate_cost(self._context_id, trait, num_component, num_snp, pi_vec.flatten(), sig2_vec.flatten(), sig2_zeroA, sig2_zeroC, sig2_zeroL)
+        self._check_error()
+        return cost
+
+    def calc_unified_univariate_pdf(self, trait, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, zgrid):
+        # TBD: promote vectors with (N, ) shape to 2D arrays (N, 1)
+        num_component = pi_vec.shape[1]
+        num_snp = pi_vec.shape[0]
+        zgrid_data = (zgrid if isinstance(zgrid, np.ndarray) else np.array(zgrid)).astype(np.float32)
+        pdf = np.zeros(shape=(np.size(zgrid),), dtype=np.float32)
+        self._check_error(self.cdll.bgmg_calc_unified_univariate_pdf(self._context_id, trait, num_component, num_snp, pi_vec.flatten(), sig2_vec.flatten(), sig2_zeroA, sig2_zeroC, sig2_zeroL, np.size(zgrid), zgrid_data, pdf))
         return pdf
 
     def calc_univariate_power(self, trait, pi_vec, sig2_zero, sig2_beta, zthresh, ngrid):

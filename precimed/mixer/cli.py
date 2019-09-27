@@ -473,7 +473,7 @@ def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None, title=''):
 
     original_weights = libbgmg.weights
     libbgmg.weights = model_weights
-    pdf = libbgmg.calc_univariate_pdf(trait_index, params._pi, params._sig2_zero, params._sig2_beta, zgrid)
+    pdf = params.pdf(libbgmg, trait_index, zgrid)
     libbgmg.weights = original_weights
 
     pdf = pdf / np.sum(model_weights)

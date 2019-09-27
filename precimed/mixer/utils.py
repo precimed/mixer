@@ -88,6 +88,9 @@ class UnivariateParams(object):
         value = lib.calc_univariate_cost(trait, self._pi, self._sig2_zero, self._sig2_beta)
         return value if np.isfinite(value) else 1e100
 
+    def pdf(self, lib, trait, zgrid):
+        return lib.calc_univariate_pdf(trait, self._pi, self._sig2_zero, self._sig2_beta, zgrid)
+
 class BivariateParams(object):
     def __init__(self, pi=None, sig2_beta=None, rho_beta=None, sig2_zero=None, rho_zero=None, params1=None, params2=None, pi12=None):
         if (params1 is not None) and (params2 is not None) and (pi12 is not None):

@@ -336,6 +336,43 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
   ASSERT_FLOAT_EQ(costvec[3], cost_unified_gaussian);
 }
 
+double calcLikelihoodUnifiedGaussian(float r2min, int trait_index, bool use_complete_tag_indices, float pi_val) {
+  // Tests calculation of log likelihood, assuming that all data is already set
+  int num_snp = 5;
+  int num_tag = 5;  // ideally we should with num_tag < num_snp (i.e. some SNPs having undefined values), but for that it'll be easier to use "init" method
+  int N = 100;  // gwas sample size, constant across all variants
+  int chr_label = 1;
+  TestMother tm(num_snp, num_tag, N);
+  BgmgCalculator calc;
+  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_option("seed", 0);
+  calc.set_option("r2min", r2min);
+  calc.set_option("use_complete_tag_indices", use_complete_tag_indices);
+  calc.set_option("threads", 1);
+
+  calc.set_zvec(trait_index, num_tag, &tm.zvec()->at(0));
+  calc.set_nvec(trait_index, num_tag, &tm.nvec()->at(0));
+  calc.set_weights(num_tag, &tm.weights()->at(0));
+
+  std::vector<int> snp_index, tag_index;
+  std::vector<float> r2;
+  tm.make_r2(5, &snp_index, &tag_index, &r2);
+  
+  calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
+  calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
+  calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_csr();  // finalize csr structure
+
+  const float sig2_beta = 0.1f;
+  const float sig2_zeroL = pi_val * sig2_beta;
+  const float sig2_zeroA = 1.2f;
+  const float sig2_zeroC = 1.0f;
+
+  std::vector<float> pi_vec(num_snp, pi_val);
+  std::vector<float> sig2_vec(num_snp, sig2_beta);
+  return calc.calc_unified_univariate_cost_gaussian(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL);
+}
+
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood
 TEST(UgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; 
@@ -366,6 +403,25 @@ TEST(UgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
   const int trait_index = 1;
   double costvec[4] = {1e+100, 20.5189491, 20.5189472, 20.5189468};  
   UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f, costvec);
+}
+
+// --gtest_filter=UgmgTest.CalcUnifiedGaussianLikelihood
+TEST(UgmgTest, CalcUnifiedGaussianLikelihood) {
+  float v1 = calcLikelihoodUnifiedGaussian(0.0, 1, true, 0.2f);
+  float v2 = calcLikelihoodUnifiedGaussian(0.0, 1, false, 0.2f);
+  ASSERT_FLOAT_EQ(v1, v2);
+
+  v1 = calcLikelihoodUnifiedGaussian(0.0, 1, true, 1.0f);
+  v2 = calcLikelihoodUnifiedGaussian(0.0, 1, false, 1.0f);
+  ASSERT_FLOAT_EQ(v1, v2);
+
+  v1 = calcLikelihoodUnifiedGaussian(0.2, 2, true, 0.2f);
+  v2 = calcLikelihoodUnifiedGaussian(0.2, 2, false, 0.2f);
+  ASSERT_FLOAT_EQ(v1, v2);
+
+  v1 = calcLikelihoodUnifiedGaussian(0.2, 2, true, 1.0f);
+  v2 = calcLikelihoodUnifiedGaussian(0.2, 2, false, 1.0f);
+  ASSERT_FLOAT_EQ(v1, v2);
 }
 
 void BgmgTest_CalcLikelihood_testConvolution(float r2min) {

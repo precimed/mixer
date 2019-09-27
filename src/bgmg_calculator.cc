@@ -2763,30 +2763,74 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
   std::valarray<float> Edelta2(0.0, num_tag_);
   std::valarray<float> Edelta4(0.0, num_tag_);  // Edelta4 is a simplified name - see comment for Ebeta4
 
-#pragma omp parallel
-  {
-    LdMatrixRow ld_matrix_row;
-    std::valarray<float> Edelta2_local(0.0, num_tag_);
-    std::valarray<float> Edelta4_local(0.0, num_tag_);
+  if (use_complete_tag_indices_) {
+    // Optimize implemnetation when LD matrix is rectangular
+    // In this case we may have SNPs with undefined zvec and nvec,
+    // and for those we don't need to compute Edelta2 and Edelta4.
+    // The alternative implementation (i.e. the "else" branch with !use_complete_tag_indices_)
+    // has to compute Edelta2 and Edelta4 for all tag snps, because 
+    // our LD matrix is stored as a mapping from causal to tag variants.
+    std::vector<int> deftag_indices;
+    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+      if (weights_[tag_index] == 0) continue;
+      if (!std::isfinite(zvec[tag_index]) || !std::isfinite(zvec[tag_index])) continue;
+      deftag_indices.push_back(tag_index);
+    }
+    const int num_deftag = deftag_indices.size();
 
-#pragma omp for schedule(static)
-    for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-      ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
-      auto iter_end = ld_matrix_row.end();
-      for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-        const int tag_index = iter.tag_index();
-        const float r2_value = iter.r2();
-        const float a2ij = sig2_zeroC * nvec[tag_index] * hvec[causal_index] * r2_value;
-        Edelta2_local[tag_index] += a2ij *        Ebeta2[causal_index];
-        Edelta4_local[tag_index] += a2ij * a2ij * Ebeta4[causal_index];
+#pragma omp parallel
+    {
+      LdMatrixRow ld_matrix_row;
+      std::valarray<float> Edelta2_local(0.0, num_tag_);
+      std::valarray<float> Edelta4_local(0.0, num_tag_);
+
+#pragma omp for schedule(static)    
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        int tag_index = deftag_indices[deftag_index];
+
+        const int snp_index = tag_index; // yes, snp==tag in this case -- same story here as in calc_univariate_characteristic_function_times_cosinus function.
+        ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+        auto iter_end = ld_matrix_row.end();
+        for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+          const int causal_index = iter.tag_index();   // tag_index on RHS can be misleading here
+          const float r2_value = iter.r2();
+          const float a2ij = sig2_zeroC * nvec[tag_index] * hvec[causal_index] * r2_value;
+          Edelta2_local[tag_index] += a2ij *        Ebeta2[causal_index];
+          Edelta4_local[tag_index] += a2ij * a2ij * Ebeta4[causal_index];
+        }
+      }
+#pragma omp critical
+      {
+        Edelta2 += Edelta2_local;
+        Edelta4 += Edelta4_local;
       }
     }
-#pragma omp critical
+  } else {  // use_complete_tag_indices_
+#pragma omp parallel
     {
-      Edelta2 += Edelta2_local;
-      Edelta4 += Edelta4_local;
+      LdMatrixRow ld_matrix_row;
+      std::valarray<float> Edelta2_local(0.0, num_tag_);
+      std::valarray<float> Edelta4_local(0.0, num_tag_);
+
+#pragma omp for schedule(static)
+      for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
+        ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
+        auto iter_end = ld_matrix_row.end();
+        for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+          const int tag_index = iter.tag_index();
+          const float r2_value = iter.r2();
+          const float a2ij = sig2_zeroC * nvec[tag_index] * hvec[causal_index] * r2_value;
+          Edelta2_local[tag_index] += a2ij *        Ebeta2[causal_index];
+          Edelta4_local[tag_index] += a2ij * a2ij * Ebeta4[causal_index];
+        }
+      }
+#pragma omp critical
+      {
+        Edelta2 += Edelta2_local;
+        Edelta4 += Edelta4_local;
+      }
     }
-  }
+  }  // use_complete_tag_indices_
 
   double log_pdf_total = 0.0;
   int num_zero_tag_r2 = 0;

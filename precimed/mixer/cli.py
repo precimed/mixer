@@ -644,7 +644,7 @@ def execute_fit_parser(args):
                 data = json.loads(open(args.load_params_file).read())
                 if 'ci' in data:
                     libbgmg.log_message('copy "ci" results from --load-params-file')
-                    results['ci'] = data['i']
+                    results['ci'] = data['ci']
 
             if args.power_curve:
                 trait_index = 1
@@ -690,7 +690,7 @@ def execute_fit_parser(args):
                 data = json.loads(open(args.load_params_file).read())
                 if 'ci' in data:
                     libbgmg.log_message('copy "ci" results from --load-params-file')
-                    results['ci'] = data['i']
+                    results['ci'] = data['ci']
 
             if args.qq_plots:
                 zgrid, pdf = calc_bivariate_pdf(libbgmg, params, args.downsample_factor)

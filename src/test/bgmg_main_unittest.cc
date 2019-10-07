@@ -314,7 +314,7 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
 
   std::vector<float> pi_vec(num_snp, pi_val);
   std::vector<float> sig2_vec(num_snp, sig2_beta);
-  double cost_unified_gaussian = calc.calc_unified_univariate_cost_gaussian(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL);
+  double cost_unified_gaussian = calc.calc_unified_univariate_cost_gaussian(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, nullptr);
 
   ASSERT_TRUE(std::isfinite(cost_sampling));
   ASSERT_TRUE(std::isfinite(cost_gaussian));
@@ -370,7 +370,7 @@ double calcLikelihoodUnifiedGaussian(float r2min, int trait_index, bool use_comp
 
   std::vector<float> pi_vec(num_snp, pi_val);
   std::vector<float> sig2_vec(num_snp, sig2_beta);
-  return calc.calc_unified_univariate_cost_gaussian(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL);
+  return calc.calc_unified_univariate_cost_gaussian(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, nullptr);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood

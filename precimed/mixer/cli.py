@@ -35,6 +35,10 @@ from .utils import _max_rg
 from .utils import _calculate_univariate_uncertainty
 from .utils import _calculate_bivariate_uncertainty
 
+from .utils import calc_qq_data
+from .utils import calc_qq_model
+from .utils import calc_qq_plot
+from .utils import NumpyEncoder
 
 __version__ = '1.0.0'
 MASTHEAD = "***********************************************************************\n"
@@ -426,67 +430,6 @@ def calc_power_curve(libbgmg, params, trait_index, downsample):
 
     return power_nvec, power_svec
 
-def calc_qq_data(zvec, weights, hv_logp):
-    # Step 0. calculate weights for all data poitns
-    # Step 1. convert zvec to -log10(pvec)
-    # Step 2. sort pval from large (1.0) to small (0.0), and take empirical cdf of this distribution
-    # Step 3. interpolate (data_x, data_y) curve, as we don't need 10M data points on QQ plots
-    data_weights = weights / np.sum(weights)                            # step 0
-    data_y = -np.log10(2*scipy.stats.norm.cdf(-np.abs(zvec)))           # step 1
-    si = np.argsort(data_y); data_y = data_y[si]                        # step 2
-    data_x=-np.log10(np.flip(np.cumsum(np.flip(data_weights[si]))))     # step 2
-    data_idx = np.not_equal(data_y, np.concatenate((data_y[1:], [np.Inf])))
-    data_logpvec = interp1d(data_y[data_idx], data_x[data_idx],         # step 3
-                            bounds_error=False, fill_value=np.nan)(hv_logp)
-    return data_logpvec
-
-def calc_qq_model(zgrid, pdf, hv_z):
-    model_cdf = np.cumsum(pdf) * (zgrid[1] - zgrid[0])
-    model_cdf = 0.5 * (np.concatenate(([0.0], model_cdf[:-1])) + np.concatenate((model_cdf[:-1], [1.0])))
-    model_logpvec = -np.log10(2*interp1d(-zgrid[zgrid<=0], model_cdf[zgrid<=0],
-                                         bounds_error=False, fill_value=np.nan)(hv_z))
-    return model_logpvec
-
-def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None, title=''):
-    # mask can subset SNPs that are going into QQ curve, for example LDxMAF bin.
-    if mask is None:
-        mask = np.ones((libbgmg.num_tag, ), dtype=bool)
-
-    zvec = libbgmg.get_zvec(trait_index)[mask]
-
-    # Regular grid (vertical axis of the QQ plots)
-    hv_z = np.linspace(0, np.min([np.max(np.abs(zvec)), 38.0]), 1000)
-    hv_logp = -np.log10(2*scipy.stats.norm.cdf(-hv_z))
-
-    # Empirical (data) QQ plot
-    data_logpvec = calc_qq_data(zvec, libbgmg.weights[mask], hv_logp)
-
-    # Estimated (model) QQ plots
-    model_weights = libbgmg.weights
-    mask_indices = np.nonzero(mask)[0]
-    model_mask = np.zeros((len(model_weights), ), dtype=bool)
-    model_mask[mask_indices[range(0, len(mask_indices), downsample)]] = 1
-    model_weights[~model_mask] = 0
-    model_weights = model_weights/np.sum(model_weights)
-
-    zgrid = np.arange(0, 38.0, 0.05, np.float32)
-
-    original_weights = libbgmg.weights
-    libbgmg.weights = model_weights
-    pdf = params.pdf(libbgmg, trait_index, zgrid)
-    libbgmg.weights = original_weights
-
-    pdf = pdf / np.sum(model_weights)
-    zgrid = np.concatenate((np.flip(-zgrid[1:]), zgrid))  # extend [0, 38] to [-38, 38]
-    pdf = np.concatenate((np.flip(pdf[1:]), pdf))
-    model_logpvec = calc_qq_model(zgrid, pdf, hv_z)
-    #plt.plot(model_logpvec, hv_logp, '-')
-    #plt.plot(data_logpvec, hv_logp, '-')
-    #plt.plot(hv_logp, hv_logp, '--k')
-
-    return {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
-            'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])), 'title' : title}
-    
 def calc_bivariate_pdf(libbgmg, params, downsample):
     original_weights = libbgmg.weights
     if not np.all(np.isfinite(original_weights)): raise(RuntimeError('undefined weights not supported'))
@@ -557,16 +500,6 @@ def print_types(results, libbgmg):
         for k, v in results.items():
             libbgmg.log_message('{}: {}'.format(k, type(v)))
             print_types(v, libbgmg)
-
-class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if callable(obj):
-            return str(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, np.float32):
-            return np.float64(obj)
-        return json.JSONEncoder.default(self, obj)
 
 def execute_ld_parser(args):
     libbgmg = LibBgmg(args.lib)
@@ -702,3 +635,4 @@ def execute_fit_parser(args):
             json.dump(results, outfile, cls=NumpyEncoder)
 
     libbgmg.set_option('diag', 0)
+    libbgmg.log_message('Done')

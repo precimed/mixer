@@ -2708,7 +2708,7 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
   LOG << "<calc_fixed_effect_delta_from_causalbetavec(trait_index=" << trait_index  << "), elapsed time " << timer.elapsed_ms() << "ms";
 }
 
-double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL) {
+double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* Ezvec2) {
   check_num_snp(num_snp);
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));
@@ -2717,14 +2717,14 @@ double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_com
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   double cost;
-  if (cost_calculator_ == CostCalculator_Gaussian) cost = calc_unified_univariate_cost_gaussian(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL);
+  if (cost_calculator_ == CostCalculator_Gaussian) cost = calc_unified_univariate_cost_gaussian(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, Ezvec2);
   else if (cost_calculator_ == CostCalculator_Convolve) cost = calc_unified_univariate_cost_convolve(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL);
   else BGMG_THROW_EXCEPTION(::std::runtime_error("unsupported cost calculator in calc_unified_univariate_cost"));
   
   return cost;
 }
 
-double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL) {
+double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* Ezvec2) {
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));
 
@@ -2855,6 +2855,11 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
 
     // additive inflation, plus contribution from small LD r2 (those below r2min)
     const float sig2_zero = sig2_zeroA + ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index] * nvec[tag_index] * sig2_zeroL;
+
+    // export the expected values of z^2 distribution
+    if (Ezvec2 != nullptr) {
+      Ezvec2[tag_index] = A + sig2_zero;
+    }
 
     const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec;
     const float tag_n = nvec[tag_index];

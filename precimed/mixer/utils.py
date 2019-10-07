@@ -10,7 +10,12 @@ MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
 # _calculate_univariate_uncertainty, _calculate_bivariate_uncertainty - estimates confidence intervals for parameters and their aggregates (like h2 or rg) 
  
 import numpy as np
+import numpy.matlib
 import numdifftools as nd
+import scipy.optimize
+import scipy.stats
+from scipy.interpolate import interp1d
+import json
 
 epsval = np.finfo(float).eps
 minval = np.finfo(float).min
@@ -90,6 +95,181 @@ class UnivariateParams(object):
 
     def pdf(self, lib, trait, zgrid):
         return lib.calc_univariate_pdf(trait, self._pi, self._sig2_zero, self._sig2_beta, zgrid)
+
+# somewhat useless class.. should be removed?
+class UnifiedUnivariateParams(object):
+    def __init__(self, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL):
+        self._pi_vec = pi_vec
+        self._sig2_vec = sig2_vec
+        self._sig2_zeroA = sig2_zeroA
+        self._sig2_zeroC = sig2_zeroC
+        self._sig2_zeroL = sig2_zeroL
+
+    def __str__(self):
+        description = []
+        for attr_name in '_pi_vec', '_sig2_vec', '_sig2_zeroA', '_sig2_zeroC', '_sig2_zeroL':
+            try:
+                attr_value = getattr(self, attr_name)
+                description.append('{}: {}'.format(attr_name, np.mean(attr_value)))
+            except RuntimeError:
+                pass
+        return 'UnifiedUnivariateParams({})'.format(', '.join(description))
+    __repr__ = __str__
+
+    def cost(self, lib, trait):
+        value = lib.calc_unified_univariate_cost(trait, self._pi_vec, self._sig2_vec, self._sig2_zeroA, self._sig2_zeroC, self._sig2_zeroL)
+        return value if np.isfinite(value) else 1e100
+
+    def pdf(self, lib, trait, zgrid):
+        return lib.calc_unified_univariate_pdf(trait, self._pi_vec, self._sig2_vec, self._sig2_zeroA, self._sig2_zeroC, self._sig2_zeroL, zgrid)
+
+# params for MAF-, LD-, and annotation-dependent architectures
+class AnnotUnivariateParams(object):
+    def __init__(self, pi=None, sig2_beta=None, sig2_annot=None, s=None, l=None, sig2_zeroA=None, annomat=None, annonames=None, mafvec=None, tldvec=None):
+        if annomat is not None: assert(annomat.ndim == 2) # 1D arrays don't work in np.dot as we want matrix multiplication
+        self._pi = pi
+        self._sig2_beta = sig2_beta
+        self._sig2_annot = sig2_annot
+        self._s = s
+        self._l = l
+        self._sig2_zeroA = sig2_zeroA
+
+        self._annomat = annomat
+        self._annonames = annonames
+        self._mafvec = mafvec
+        self._tldvec = tldvec
+
+    def as_string(self, attrs_list=['_pi', '_sig2_beta', '_sig2_annot', '_s', '_l', '_sig2_zeroA']):
+        description = []
+        for attr_name in attrs_list:
+            try:
+                attr_value = getattr(self, attr_name)
+                description.append('{}: {}'.format(attr_name, attr_value))
+            except RuntimeError:
+                pass
+        return 'AnnotUnivariateParams({})'.format(', '.join(description))
+
+    def __str__(self):
+        return self.as_string()
+
+    __repr__ = __str__
+
+    def as_dict(self):
+        return {'pi': self._pi, 'sig2_beta': self._sig2_beta, 'sig2_zeroA': self._sig2_zeroA,
+                's': self._s, 'l': self._l,
+                'sig2_annot': self._sig2_annot, 'annonames': self._annonames}
+
+    def fit_sig2_annot(self, lib, trait):
+        nnls_mat = self.nnls_mat(lib, trait=trait)
+
+        defvec = np.isfinite(lib.get_zvec(trait)) & (lib.weights > 0)
+        nnls_mat = nnls_mat[defvec, :]
+        nnls_mat1 = np.concatenate([np.ones(shape=(nnls_mat.shape[0], 1), dtype=np.float32), nnls_mat], 1)
+        z2 = np.square(lib.get_zvec(trait)[defvec])
+        w = lib.weights[defvec]
+
+        z2w = np.multiply(z2, np.sqrt(w))
+        nnls_mat1w = np.multiply(nnls_mat1, np.matlib.repmat(np.sqrt(w.reshape(-1, 1)), 1, nnls_mat1.shape[1]))
+        # note that in the above formulas the intercept is also weighted - that's correct 
+        # weighted least squares is equivalent to pre-conditioning by sqrt(w), as one can validate as follows:
+        # mod_wls = sm.WLS(z2, nnls_mat1, weights=w); res_wls = mod_wls.fit(); res_wls.params
+        # x, res, rank, s = np.linalg.lstsq(nnls_mat1w, z2w, rcond=None)
+
+        # https://en.wikipedia.org/wiki/Non-negative_least_squares
+        #sig2_annot, cost=scipy.optimize.nnls(nnls_mat1, z2)
+        sig2_annot, _=scipy.optimize.nnls(nnls_mat1w, z2w)
+
+        self._sig2_zeroA=sig2_annot[0]  # save intercept
+        self._sig2_annot=sig2_annot[1:]
+
+    def drop_zero_annot(self):
+        self._annomat=self._annomat[:, self._sig2_annot>0]
+        self._annonames=[a for a, s in zip(self._annonames, self._sig2_annot) if s>0]
+        self._sig2_annot=self._sig2_annot[self._sig2_annot > 0]
+    
+    def find_sig2_vec(self):
+        return np.multiply(np.dot(self._annomat, np.array(self._sig2_annot).astype(np.float32)),
+               np.multiply(np.power(np.float32(2.0) * self._mafvec * (1-self._mafvec), np.float32(self._s)),
+                           np.power(self._tldvec, np.float32(self._l)))) * self._sig2_beta
+
+    def find_annot_enrich(self, annomat):
+        sig2_vec = self.find_sig2_vec()
+        hetvec = np.float32(2.0) * self._mafvec * (1-self._mafvec)
+        h2_vec = self._pi * np.multiply(hetvec, sig2_vec)
+        h2_annot = np.matmul(h2_vec.reshape((1, len(h2_vec))), annomat)
+        h2_total = h2_annot[0][0]
+        snps_annot = np.sum(annomat, 0)
+        snps_total = snps_annot[0]
+        return np.divide(np.divide(h2_annot, h2_total), np.divide(snps_annot, snps_total))
+
+    def _cost_or_pdf(self, lib, trait, zgrid):
+        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
+        sig2_vec = np.multiply(np.dot(self._annomat, np.array(self._sig2_annot).astype(np.float32)),
+                   np.multiply(np.power(np.float32(2.0) * self._mafvec * (1-self._mafvec), np.float32(self._s)),
+                               np.power(self._tldvec, np.float32(self._l)))) * self._sig2_beta
+        sig2_zeroL = 0
+        sig2_zeroC = 1
+        if zgrid is None:
+            value = lib.calc_unified_univariate_cost(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC, sig2_zeroL)
+            return value if np.isfinite(value) else 1e100
+        else:
+            return lib.calc_unified_univariate_pdf(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC, sig2_zeroL, zgrid)
+
+    def nnls_mat(self, lib, trait):
+        num_annot = self._annomat.shape[1]
+
+        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
+        sig2_vec = np.multiply(np.power(np.float32(2.0) * self._mafvec * (1-self._mafvec), np.float32(self._s)),
+                               np.power(self._tldvec, np.float32(self._l))) * self._sig2_beta
+        sig2_zeroL = 0
+        sig2_zeroA = 0 # force sig2_zeroA to zero - otherwise this would be a common mistake
+        sig2_zeroC = 1
+        retval=np.zeros(shape=(lib.num_tag, num_annot), dtype=np.float32)
+        for annot_index in range(0, num_annot):
+            retval[:, annot_index] = lib.calc_unified_univariate_Ezvec2(1, pi_vec, np.multiply(self._annomat[:, annot_index], sig2_vec), sig2_zeroA, sig2_zeroC, sig2_zeroL)
+        return retval
+
+    def cost(self, lib, trait):
+        return self._cost_or_pdf(lib, trait, None)
+
+    def pdf(self, lib, trait, zgrid):
+        return self._cost_or_pdf(lib, trait, zgrid)
+
+
+class AnnotUnivariateParametrization(object):
+    def __init__(self, lib, trait, constraint):
+        self._lib = lib
+        self._trait = trait
+        self._constraint = constraint # of type AnnotUnivariateParams, None indicate files that must be searched
+
+    def params_to_vec(self, params):
+        vec = []
+        if self._constraint._pi is None: vec.append(_logit_logistic_converter(params._pi, invflag=False))
+        if self._constraint._sig2_beta is None: vec.append(_log_exp_converter(params._sig2_beta, invflag=False))
+        if self._constraint._s is None: vec.append(params._s)
+        if self._constraint._l is None: vec.append(params._l)
+        if self._constraint._sig2_zeroA is None: vec.append(_log_exp_converter(params._sig2_zeroA, invflag=False))
+        return vec
+
+    def vec_to_params(self, vec):
+        vec = list(vec)
+        return AnnotUnivariateParams(
+            pi=self._constraint._pi if (self._constraint._pi is not None) else _logit_logistic_converter(vec.pop(0), invflag=True),
+            sig2_beta=self._constraint._sig2_beta if (self._constraint._sig2_beta is not None) else _log_exp_converter(vec.pop(0), invflag=True),
+            sig2_annot=self._constraint._sig2_annot,
+            s=self._constraint._s if (self._constraint._s is not None) else vec.pop(0),
+            l=self._constraint._l if (self._constraint._l is not None) else vec.pop(0),
+            sig2_zeroA=self._constraint._sig2_zeroA if (self._constraint._sig2_zeroA is not None) else _log_exp_converter(vec.pop(0), invflag=True),
+            annomat=self._constraint._annomat,
+            annonames=self._constraint._annonames,
+            mafvec=self._constraint._mafvec,
+            tldvec=self._constraint._tldvec)
+
+    def calc_cost(self, vec):
+        params = self.vec_to_params(vec)
+        self._lib.log_message(params.as_string(attrs_list=['_pi', '_sig2_beta', '_s', '_l', '_sig2_zeroA']))
+        return params.cost(self._lib, self._trait)
+
 
 class BivariateParams(object):
     def __init__(self, pi=None, sig2_beta=None, rho_beta=None, sig2_zero=None, rho_zero=None, params1=None, params2=None, pi12=None):
@@ -597,6 +777,76 @@ def _calculate_bivariate_uncertainty(parametrization, ci_samples, alpha, totalhe
             result[func_name][stat_name] = stat(param_vector)
     return result, sample
 
+def calc_qq_data(zvec, weights, hv_logp):
+    # Step 0. calculate weights for all data poitns
+    # Step 1. convert zvec to -log10(pvec)
+    # Step 2. sort pval from large (1.0) to small (0.0), and take empirical cdf of this distribution
+    # Step 3. interpolate (data_x, data_y) curve, as we don't need 10M data points on QQ plots
+    data_weights = weights / np.sum(weights)                            # step 0
+    data_y = -np.log10(2*scipy.stats.norm.cdf(-np.abs(zvec)))           # step 1
+    si = np.argsort(data_y); data_y = data_y[si]                        # step 2
+    data_x=-np.log10(np.flip(np.cumsum(np.flip(data_weights[si]))))     # step 2
+    data_idx = np.not_equal(data_y, np.concatenate((data_y[1:], [np.Inf])))
+    data_logpvec = interp1d(data_y[data_idx], data_x[data_idx],         # step 3
+                            bounds_error=False, fill_value=np.nan)(hv_logp)
+    return data_logpvec
+
+def calc_qq_model(zgrid, pdf, hv_z):
+    model_cdf = np.cumsum(pdf) * (zgrid[1] - zgrid[0])
+    model_cdf = 0.5 * (np.concatenate(([0.0], model_cdf[:-1])) + np.concatenate((model_cdf[:-1], [1.0])))
+    model_logpvec = -np.log10(2*interp1d(-zgrid[zgrid<=0], model_cdf[zgrid<=0],
+                                         bounds_error=False, fill_value=np.nan)(hv_z))
+    return model_logpvec
+
+def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None, title=''):
+    # mask can subset SNPs that are going into QQ curve, for example LDxMAF bin.
+    if mask is None:
+        mask = np.ones((libbgmg.num_tag, ), dtype=bool)
+
+    zvec = libbgmg.get_zvec(trait_index)[mask]
+
+    # Regular grid (vertical axis of the QQ plots)
+    hv_z = np.linspace(0, np.min([np.max(np.abs(zvec)), 38.0]), 1000)
+    hv_logp = -np.log10(2*scipy.stats.norm.cdf(-hv_z))
+
+    # Empirical (data) QQ plot
+    data_logpvec = calc_qq_data(zvec, libbgmg.weights[mask], hv_logp)
+
+    # Estimated (model) QQ plots
+    model_weights = libbgmg.weights
+    mask_indices = np.nonzero(mask)[0]
+    model_mask = np.zeros((len(model_weights), ), dtype=bool)
+    model_mask[mask_indices[range(0, len(mask_indices), downsample)]] = 1
+    model_weights[~model_mask] = 0
+    model_weights = model_weights/np.sum(model_weights)
+
+    zgrid = np.arange(0, 38.0, 0.05, np.float32)
+
+    original_weights = libbgmg.weights
+    libbgmg.weights = model_weights
+    pdf = params.pdf(libbgmg, trait_index, zgrid)
+    libbgmg.weights = original_weights
+
+    pdf = pdf / np.sum(model_weights)
+    zgrid = np.concatenate((np.flip(-zgrid[1:]), zgrid))  # extend [0, 38] to [-38, 38]
+    pdf = np.concatenate((np.flip(pdf[1:]), pdf))
+    model_logpvec = calc_qq_model(zgrid, pdf, hv_z)
+    #plt.plot(model_logpvec, hv_logp, '-')
+    #plt.plot(data_logpvec, hv_logp, '-')
+    #plt.plot(hv_logp, hv_logp, '--k')
+
+    return {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
+            'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])), 'title' : title}
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if callable(obj):
+            return str(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, np.float32):
+            return np.float64(obj)
+        return json.JSONEncoder.default(self, obj)
 
 if False:
     '''

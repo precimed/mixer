@@ -69,7 +69,7 @@ std::vector<float>* BgmgCalculator::get_causalbetavec(int trait_index) {
   return (trait_index == 1) ? &causalbetavec1_ : &causalbetavec2_;
 }
 
-BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), 
+BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), aux_option_(AuxOption_Ezvec2),
     use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), ld_format_version_(-1), num_components_(1), 
     max_causals_(100000), cost_calculator_(CostCalculator_Sampling), cache_tag_r2sum_(false), ld_matrix_csr_(*this),
     cubature_abs_error_(0), cubature_rel_error_(1e-4), cubature_max_evals_(0), calc_k_pdf_(false) {
@@ -178,6 +178,10 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
     int int_value = (int)value;
     if (int_value < 0 || int_value > 2) BGMG_THROW_EXCEPTION(::std::runtime_error("cost_calculator value must be 0 (Sampling), 1 (Gaussian) or 2 (Convolve)"));
     cost_calculator_ = (CostCalculator)int_value; return 0;
+  } else if (!strcmp(option, "aux_option")) {
+    int int_value = (int)value;
+    if (int_value < 0 || int_value > 2) BGMG_THROW_EXCEPTION(::std::runtime_error("aux_option value must be 0 (None), 1 (Ezvec2) or 2 (TagPdf)"));
+    aux_option_ = (AuxOption)int_value; return 0;
   } else if (!strcmp(option, "z1max")) {
     if (value <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("zmax must be positive"));
     z1max_ = value; return 0;
@@ -1531,6 +1535,10 @@ void BgmgCalculator::log_diagnostics() {
     ((cost_calculator_==CostCalculator_Sampling) ? " (Sampling)" :
      (cost_calculator_==CostCalculator_Gaussian) ? " (Gaussian)" :
      (cost_calculator_==CostCalculator_Convolve) ? " (Convolve)" : " (Unknown)");
+  LOG << " diag: options.aux_option_=" << ((int)aux_option_) <<
+    ((aux_option_==AuxOption_None) ? " (None)" :
+     (aux_option_==AuxOption_Ezvec2) ? " (Ezvec2)" :
+     (aux_option_==AuxOption_TagPdf) ? " (TagPdf)" : " (Unknown)");
   LOG << " diag: options.cache_tag_r2sum_=" << (cache_tag_r2sum_ ? "yes" : "no");
   LOG << " diag: options.seed_=" << (seed_);
   LOG << " diag: options.cubature_abs_error_=" << (cubature_abs_error_);
@@ -1724,13 +1732,13 @@ class UnivariateCharacteristicFunctionData {
 int calc_univariate_characteristic_function_times_cosinus(unsigned ndim, const double *x, void *raw_data, unsigned fdim, double* fval) {
   assert(ndim == 1);
   assert(fdim == 1);
-  const float t = (float)x[0];
-  const float minus_tsqr_half = -t*t/2.0;
+  const double t = x[0];
+  const double minus_tsqr_half = -t*t/2.0;
   UnivariateCharacteristicFunctionData* data = (UnivariateCharacteristicFunctionData *)raw_data;
-  const float nval = (*data->nvec)[data->tag_index];
-  const float zval = (*data->zvec)[data->tag_index] - (*data->fixed_effect_delta)[data->tag_index];  // apply causalbetavec
-  const float sig2_zero = data->sig2_zeroA + (*data->ld_tag_sum_r2_below_r2min_adjust_for_hvec)[data->tag_index] * nval * data->sig2_zeroL;
-  const float m_1_pi = M_1_PI;
+  const double nval = (*data->nvec)[data->tag_index];
+  const double zval = (*data->zvec)[data->tag_index] - (*data->fixed_effect_delta)[data->tag_index];  // apply causalbetavec
+  const double sig2_zero = data->sig2_zeroA + (*data->ld_tag_sum_r2_below_r2min_adjust_for_hvec)[data->tag_index] * nval * data->sig2_zeroL;
+  const double m_1_pi = M_1_PI;
 
   double result = m_1_pi * cos(t * zval) * std::exp(minus_tsqr_half * sig2_zero);
   
@@ -1742,15 +1750,15 @@ int calc_univariate_characteristic_function_times_cosinus(unsigned ndim, const d
                                        // however, for for "convolve" we are interested in mapping from a tag SNP "j"
                                        // to all causal SNPs "i" in LD with "j". To make this work we store a complete
                                        // LD matrix (e.g. _num_snp == _num_tag), and explore symmetry of the matrix. 
-    const float r2 = iter.r2();
-    const float hval = (*data->hvec)[snp_index];
-    const float minus_tsqr_half_r2_hval_nval = minus_tsqr_half * r2 * hval * nval * (data->sig2_zeroC);
-    float factor = 0.0f;
-    float pi_complement = 1.0f;        // handle a situation where pi0 N(0, 0) is not specified as a column in pi_vec and sig2_vec.
+    const double r2 = iter.r2();
+    const double hval = (*data->hvec)[snp_index];
+    const double minus_tsqr_half_r2_hval_nval = minus_tsqr_half * r2 * hval * nval * (data->sig2_zeroC);
+    double factor = 0.0;
+    double pi_complement = 1.0;        // handle a situation where pi0 N(0, 0) is not specified as a column in pi_vec and sig2_vec.
     for (int comp_index = 0; comp_index < data->num_components; comp_index++) {
       const int index = (comp_index*data->num_snp + snp_index);
-      const float pi_val = data->pi_vec[index];
-      const float sig2_val = data->sig2_vec[index];
+      const double pi_val = data->pi_vec[index];
+      const double sig2_val = data->sig2_vec[index];
       factor += pi_val * std::exp(minus_tsqr_half_r2_hval_nval * sig2_val);
       pi_complement -= pi_val;
     }
@@ -1779,10 +1787,10 @@ double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_v
   const float sig2_zeroA = sig2_zero;
   const float sig2_zeroC = 1.0f;
   const float sig2_zeroL = pi_vec * sig2_beta;
-  return calc_unified_univariate_cost_convolve(trait_index, 1, num_snp_, &pi_vec_constant_vector[0], &sig2_vec_constant_vector[0], sig2_zeroA, sig2_zeroC, sig2_zeroL);
+  return calc_unified_univariate_cost_convolve(trait_index, 1, num_snp_, &pi_vec_constant_vector[0], &sig2_vec_constant_vector[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, nullptr);
 }
 
-double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL) {
+double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
 
   std::vector<float>& nvec(*get_nvec(trait_index));
@@ -1852,6 +1860,8 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
 
       if (tag_pdf <= 0)
         tag_pdf = 1e-100;
+
+      if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = tag_pdf;
 
       double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
       if (!std::isfinite(increment)) num_infinite++;
@@ -2708,7 +2718,7 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
   LOG << "<calc_fixed_effect_delta_from_causalbetavec(trait_index=" << trait_index  << "), elapsed time " << timer.elapsed_ms() << "ms";
 }
 
-double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* Ezvec2) {
+double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
   check_num_snp(num_snp);
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));
@@ -2717,14 +2727,14 @@ double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_com
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   double cost;
-  if (cost_calculator_ == CostCalculator_Gaussian) cost = calc_unified_univariate_cost_gaussian(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, Ezvec2);
-  else if (cost_calculator_ == CostCalculator_Convolve) cost = calc_unified_univariate_cost_convolve(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL);
+  if (cost_calculator_ == CostCalculator_Gaussian) cost = calc_unified_univariate_cost_gaussian(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
+  else if (cost_calculator_ == CostCalculator_Convolve) cost = calc_unified_univariate_cost_convolve(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
   else BGMG_THROW_EXCEPTION(::std::runtime_error("unsupported cost calculator in calc_unified_univariate_cost"));
   
   return cost;
 }
 
-double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* Ezvec2) {
+double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<float>& zvec(*get_zvec(trait_index));
 
@@ -2857,9 +2867,7 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
     const float sig2_zero = sig2_zeroA + ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index] * nvec[tag_index] * sig2_zeroL;
 
     // export the expected values of z^2 distribution
-    if (Ezvec2 != nullptr) {
-      Ezvec2[tag_index] = A + sig2_zero;
-    }
+    if ((aux != nullptr) && (aux_option_ == AuxOption_Ezvec2)) aux[tag_index] = A + sig2_zero;
 
     const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec;
     const float tag_n = nvec[tag_index];
@@ -2872,6 +2880,7 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
     const double tag_pdf0 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s1) : gaussian_pdf<FLOAT_TYPE>(tag_z, s1));
     const double tag_pdf1 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s2) : gaussian_pdf<FLOAT_TYPE>(tag_z, s2));
     const double tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
+    if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = tag_pdf;
     const double increment = (-std::log(tag_pdf) * tag_weight);
     if (!std::isfinite(increment)) num_infinite++;
     else log_pdf_total += increment;

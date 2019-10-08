@@ -201,8 +201,10 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
     results['annot_h2'] = params.find_annot_h2(annomat).flatten()
 
     lib.set_option('cost_calculator', _cost_calculator_convolve)
-    results['full_cost'] = params.cost(lib, trait_index)
+    results['full_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
+
     lib.set_option('cost_calculator', _cost_calculator_gaussian)
+    results['fast_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
 
     defvec = np.isfinite(lib.get_zvec(trait_index)) & (lib.weights > 0)
     results['qqplot'] = calc_qq_plot(lib, params, trait_index, args.downsample_factor, defvec,
@@ -266,6 +268,7 @@ def execute_fit_parser(args):
     results['options']['annonames'] = annonames
     results['options']['time_started'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     results['analysis'] = 'mixer-plsa'
+    results['weights'] = libbgmg.weights[libbgmg.weights>0]
 
     # overview of the models
     # params1 - basic infinitesimal model

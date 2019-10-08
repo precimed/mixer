@@ -207,16 +207,12 @@ class AnnotUnivariateParams(object):
 
     def _cost_or_pdf(self, lib, trait, zgrid):
         pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
-        sig2_vec = np.multiply(np.dot(self._annomat, np.array(self._sig2_annot).astype(np.float32)),
-                   np.multiply(np.power(np.float32(2.0) * self._mafvec * (1-self._mafvec), np.float32(self._s)),
-                               np.power(self._tldvec, np.float32(self._l)))) * self._sig2_beta
-        sig2_zeroL = 0
-        sig2_zeroC = 1
+        sig2_vec = self.find_sig2_vec()
         if zgrid is None:
-            value = lib.calc_unified_univariate_cost(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC, sig2_zeroL)
+            value = lib.calc_unified_univariate_cost(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
             return value if np.isfinite(value) else 1e100
         else:
-            return lib.calc_unified_univariate_pdf(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC, sig2_zeroL, zgrid)
+            return lib.calc_unified_univariate_pdf(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0, zgrid=zgrid)
 
     def nnls_mat(self, lib, trait):
         num_annot = self._annomat.shape[1]
@@ -228,16 +224,30 @@ class AnnotUnivariateParams(object):
         sig2_zeroA = 0 # force sig2_zeroA to zero - otherwise this would be a common mistake
         sig2_zeroC = 1
         retval=np.zeros(shape=(lib.num_tag, num_annot), dtype=np.float32)
+        lib.set_option('aux_option', 1)  # AuxOption_Ezvec2
         for annot_index in range(0, num_annot):
             retval[:, annot_index] = lib.calc_unified_univariate_Ezvec2(1, pi_vec, np.multiply(self._annomat[:, annot_index], sig2_vec), sig2_zeroA, sig2_zeroC, sig2_zeroL)
+        lib.set_option('aux_option', 0)  # AuxOption_None
         return retval
 
     def cost(self, lib, trait):
-        return self._cost_or_pdf(lib, trait, None)
+        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
+        sig2_vec = self.find_sig2_vec()
+        value = lib.calc_unified_univariate_cost(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
+        return value if np.isfinite(value) else 1e100
 
     def pdf(self, lib, trait, zgrid):
-        return self._cost_or_pdf(lib, trait, zgrid)
+        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
+        sig2_vec = self.find_sig2_vec()
+        return lib.calc_unified_univariate_pdf(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0, zgrid=zgrid)
 
+    def tag_pdf(self, lib, trait):
+        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
+        sig2_vec = self.find_sig2_vec()
+        lib.set_option('aux_option', 2)  # AuxOption_TagPdf
+        retval = lib.calc_unified_univariate_Ezvec2(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
+        lib.set_option('aux_option', 0)  # AuxOption_TagPdf
+        return retval
 
 class AnnotUnivariateParametrization(object):
     def __init__(self, lib, trait, constraint):

@@ -516,11 +516,11 @@ void check_and_fix_unified(int num_components, int num_snp, float* pi_vec, float
   check_is_nonnegative(sig2_zeroA); check_is_nonnegative(sig2_zeroC); check_is_nonnegative(sig2_zeroL); 
 }
 
-double bgmg_calc_unified_univariate_cost(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* Ezvec2) {
+double bgmg_calc_unified_univariate_cost(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
   try {
     set_last_error(std::string());
     check_trait_index(trait_index); check_and_fix_unified(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL);
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_cost(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, Ezvec2);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_cost(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
   } CATCH_EXCEPTIONS;
 }
   

@@ -40,6 +40,12 @@ enum CostCalculator {
   CostCalculator_Convolve = 2,
 }; 
 
+enum AuxOption {
+  AuxOption_None = 0,
+  AuxOption_Ezvec2 = 1,
+  AuxOption_TagPdf = 2,
+};
+
 // Singleton class to manage a collection of objects, identifiable with some integer ID.
 template<class Type>
 class TemplateManager : boost::noncopyable {
@@ -321,9 +327,9 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
   void log_diagnostics();
  
-  double calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* Ezvec2);
-  double calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* Ezvec2);
-  double calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL);
+  double calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
+  double calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
+  double calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
   int64_t calc_unified_univariate_pdf(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf);
   int64_t calc_unified_univariate_power(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float zthresh, int length, float* nvec, float* svec);
   int64_t calc_unified_univariate_delta_posterior(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* c0, float* c1, float* c2);
@@ -400,6 +406,7 @@ class BgmgCalculator : public TagToSnpMapping {
   double cubature_abs_error_;
   double cubature_rel_error_;
   int cubature_max_evals_;
+  AuxOption aux_option_;       // controls auxilary data stored in "aux" array of calc_unified_univariate_cost_*** calls
   int ld_format_version_;      // overwrite format version for LD matrix files. Default -1. Set this to 0 to read from MiXeR v1.0 LD files.
   std::vector<double> k_pdf_;  // the log-likelihood cost calculated independently for each of 0...k_max-1 selections of causal variants.            
   bool calc_k_pdf_;            // a calc_fixed_effect_delta_from_causalbetavecflag indicating whether we should calculate k_pdf_

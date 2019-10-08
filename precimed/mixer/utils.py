@@ -192,11 +192,14 @@ class AnnotUnivariateParams(object):
                np.multiply(np.power(np.float32(2.0) * self._mafvec * (1-self._mafvec), np.float32(self._s)),
                            np.power(self._tldvec, np.float32(self._l)))) * self._sig2_beta
 
-    def find_annot_enrich(self, annomat):
+    def find_annot_h2(self, annomat):
         sig2_vec = self.find_sig2_vec()
         hetvec = np.float32(2.0) * self._mafvec * (1-self._mafvec)
         h2_vec = self._pi * np.multiply(hetvec, sig2_vec)
-        h2_annot = np.matmul(h2_vec.reshape((1, len(h2_vec))), annomat)
+        return np.matmul(h2_vec.reshape((1, len(h2_vec))), annomat)
+
+    def find_annot_enrich(self, annomat):
+        h2_annot = self.find_annot_h2(annomat)
         h2_total = h2_annot[0][0]
         snps_annot = np.sum(annomat, 0)
         snps_total = snps_annot[0]

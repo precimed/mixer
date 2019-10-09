@@ -124,11 +124,14 @@ class UnifiedUnivariateParams(object):
         return lib.calc_unified_univariate_pdf(trait, self._pi_vec, self._sig2_vec, self._sig2_zeroA, self._sig2_zeroC, self._sig2_zeroL, zgrid)
 
 # params for MAF-, LD-, and annotation-dependent architectures
+# this also supports mixture of small and large effects (pass vector pi and sig2_beta)
+# NB! Trick #1 np.cumsum(sig2_beta) is what gives variance per SNP
+# NB! Trick #2 pi[0]==1 indicates that this component is responsible for "everything else"
 class AnnotUnivariateParams(object):
-    def __init__(self, pi=None, sig2_beta=None, sig2_annot=None, s=None, l=None, sig2_zeroA=None, annomat=None, annonames=None, mafvec=None, tldvec=None):
+    def __init__(self, pi=[None], sig2_beta=[None], sig2_annot=None, s=None, l=None, sig2_zeroA=None, annomat=None, annonames=None, mafvec=None, tldvec=None):
         if annomat is not None: assert(annomat.ndim == 2) # 1D arrays don't work in np.dot as we want matrix multiplication
-        self._pi = pi
-        self._sig2_beta = sig2_beta
+        self._pi = [pi] if isinstance(pi, (int, float)) else pi
+        self._sig2_beta = [sig2_beta] if isinstance(sig2_beta, (int, float)) else sig2_beta
         self._sig2_annot = sig2_annot
         self._s = s
         self._l = l
@@ -187,15 +190,22 @@ class AnnotUnivariateParams(object):
         self._annonames=[a for a, s in zip(self._annonames, self._sig2_annot) if s>0]
         self._sig2_annot=self._sig2_annot[self._sig2_annot > 0]
     
-    def find_sig2_vec(self):
-        return np.multiply(np.dot(self._annomat, np.array(self._sig2_annot).astype(np.float32)),
-               np.multiply(np.power(np.float32(2.0) * self._mafvec * (1-self._mafvec), np.float32(self._s)),
-                           np.power(self._tldvec, np.float32(self._l)))) * self._sig2_beta
+    def find_pi_mat(self, num_snp):
+        pi = ([np.max([0, 1-np.sum(self._pi[1:])])] + self._pi[1:]) if (self._pi[0]==1) else self._pi  # Trick #2
+        return np.matmul(np.ones(shape=(num_snp, 1), dtype=np.float32), np.array(pi, dtype=np.float32).reshape(1, -1))
+
+    def find_sig2_mat(self):
+        sig2_beta = np.cumsum(self._sig2_beta) # Trick #1 (all subsequent components have larger variance)
+        return np.matmul(
+                np.multiply(np.dot(self._annomat, np.array(self._sig2_annot).astype(np.float32)),
+                            np.multiply(np.power(np.float32(2.0) * self._mafvec * (1-self._mafvec), np.float32(self._s)),
+                                        np.power(self._tldvec, np.float32(self._l)))).reshape(-1, 1),
+                np.array(sig2_beta, dtype=np.float32).reshape(1, -1))
 
     def find_annot_h2(self, annomat):
-        sig2_vec = self.find_sig2_vec()
+        sig2_mat = self.find_sig2_mat()
         hetvec = np.float32(2.0) * self._mafvec * (1-self._mafvec)
-        h2_vec = self._pi * np.multiply(hetvec, sig2_vec)
+        h2_vec = np.multiply(hetvec, np.matmul(sig2_mat, self.find_pi_mat(num_snp=1).reshape([-1, 1])).flatten())
         return np.matmul(h2_vec.reshape((1, len(h2_vec))), annomat)
 
     def find_annot_enrich(self, annomat):
@@ -205,21 +215,15 @@ class AnnotUnivariateParams(object):
         snps_total = snps_annot[0]
         return np.divide(np.divide(h2_annot, h2_total), np.divide(snps_annot, snps_total))
 
-    def _cost_or_pdf(self, lib, trait, zgrid):
-        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
-        sig2_vec = self.find_sig2_vec()
-        if zgrid is None:
-            value = lib.calc_unified_univariate_cost(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
-            return value if np.isfinite(value) else 1e100
-        else:
-            return lib.calc_unified_univariate_pdf(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0, zgrid=zgrid)
-
     def nnls_mat(self, lib, trait):
-        num_annot = self._annomat.shape[1]
+        # NB! This function assumes an infinitesimal model
+        assert(len(self._sig2_beta) == 1)
 
-        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
+        num_annot = self._annomat.shape[1]
+        
+        pi_vec = np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
         sig2_vec = np.multiply(np.power(np.float32(2.0) * self._mafvec * (1-self._mafvec), np.float32(self._s)),
-                               np.power(self._tldvec, np.float32(self._l))) * self._sig2_beta
+                               np.power(self._tldvec, np.float32(self._l))) * self._sig2_beta[0]
         sig2_zeroL = 0
         sig2_zeroA = 0 # force sig2_zeroA to zero - otherwise this would be a common mistake
         sig2_zeroC = 1
@@ -231,21 +235,21 @@ class AnnotUnivariateParams(object):
         return retval
 
     def cost(self, lib, trait):
-        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
-        sig2_vec = self.find_sig2_vec()
-        value = lib.calc_unified_univariate_cost(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
+        pi_mat = self.find_pi_mat(lib.num_snp)
+        sig2_mat = self.find_sig2_mat()
+        value = lib.calc_unified_univariate_cost(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
         return value if np.isfinite(value) else 1e100
 
     def pdf(self, lib, trait, zgrid):
-        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
-        sig2_vec = self.find_sig2_vec()
-        return lib.calc_unified_univariate_pdf(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0, zgrid=zgrid)
+        pi_mat = self.find_pi_mat(lib.num_snp)
+        sig2_mat = self.find_sig2_mat()
+        return lib.calc_unified_univariate_pdf(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0, zgrid=zgrid)
 
     def tag_pdf(self, lib, trait):
-        pi_vec = self._pi * np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
-        sig2_vec = self.find_sig2_vec()
+        pi_mat = self.find_pi_mat(lib.num_snp)
+        sig2_mat = self.find_sig2_mat()
         lib.set_option('aux_option', 2)  # AuxOption_TagPdf
-        retval = lib.calc_unified_univariate_Ezvec2(trait, pi_vec, sig2_vec, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
+        retval = lib.calc_unified_univariate_Ezvec2(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
         lib.set_option('aux_option', 0)  # AuxOption_TagPdf
         return retval
 
@@ -257,8 +261,10 @@ class AnnotUnivariateParametrization(object):
 
     def params_to_vec(self, params):
         vec = []
-        if self._constraint._pi is None: vec.append(_logit_logistic_converter(params._pi, invflag=False))
-        if self._constraint._sig2_beta is None: vec.append(_log_exp_converter(params._sig2_beta, invflag=False))
+        for constraint_pi, params_pi in zip(self._constraint._pi, params._pi):
+            if constraint_pi is None: vec.append(_logit_logistic_converter(params_pi, invflag=False))
+        for constraint_s2b, params_s2b in zip(self._constraint._sig2_beta, params._sig2_beta):
+            if constraint_s2b is None: vec.append(_log_exp_converter(params_s2b, invflag=False))
         if self._constraint._s is None: vec.append(params._s)
         if self._constraint._l is None: vec.append(params._l)
         if self._constraint._sig2_zeroA is None: vec.append(_log_exp_converter(params._sig2_zeroA, invflag=False))
@@ -267,8 +273,8 @@ class AnnotUnivariateParametrization(object):
     def vec_to_params(self, vec):
         vec = list(vec)
         return AnnotUnivariateParams(
-            pi=self._constraint._pi if (self._constraint._pi is not None) else _logit_logistic_converter(vec.pop(0), invflag=True),
-            sig2_beta=self._constraint._sig2_beta if (self._constraint._sig2_beta is not None) else _log_exp_converter(vec.pop(0), invflag=True),
+            pi=[(constraint_pi if (constraint_pi is not None) else _logit_logistic_converter(vec.pop(0), invflag=True)) for constraint_pi in self._constraint._pi],
+            sig2_beta=[(constraint_s2b if (constraint_s2b is not None) else _log_exp_converter(vec.pop(0), invflag=True)) for constraint_s2b in self._constraint._sig2_beta],
             sig2_annot=self._constraint._sig2_annot,
             s=self._constraint._s if (self._constraint._s is not None) else vec.pop(0),
             l=self._constraint._l if (self._constraint._l is not None) else vec.pop(0),

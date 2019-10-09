@@ -111,6 +111,8 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--tol-func', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
     parser.add_argument('--cubature-rel-error', type=float, default=1e-5, help="relative error for cubature stop criteria (applies to 'convolve' cost calculator). ")
     parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). ")
+    parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
+    parser.add_argument('--cost', default=False, action="store_true", help="save full cost function")    
 
     parser.add_argument('--downsample-factor', default=50, type=int, help="Applies to --power-curve. "
         "'--downsample-factor N' imply that only 1 out of N available z-score values will be used in calculations.")
@@ -200,24 +202,26 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
     results['annot_enrich'] = params.find_annot_enrich(annomat).flatten()
     results['annot_h2'] = params.find_annot_h2(annomat).flatten()
 
-    lib.set_option('cost_calculator', _cost_calculator_convolve)
-    results['full_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
+    if args.cost:
+        lib.set_option('cost_calculator', _cost_calculator_convolve)
+        results['full_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
 
-    lib.set_option('cost_calculator', _cost_calculator_gaussian)
-    results['fast_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
+        lib.set_option('cost_calculator', _cost_calculator_gaussian)
+        results['fast_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
 
-    defvec = np.isfinite(lib.get_zvec(trait_index)) & (lib.weights > 0)
-    results['qqplot'] = calc_qq_plot(lib, params, trait_index, args.downsample_factor, defvec,
-        title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
+    if args.qq_plots:
+        defvec = np.isfinite(lib.get_zvec(trait_index)) & (lib.weights > 0)
+        results['qqplot'] = calc_qq_plot(lib, params, trait_index, args.downsample_factor, defvec,
+            title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
 
-    maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec_tag, [1/3, 2/3]), [np.inf]))
-    tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec_tag, [1/3, 2/3]), [np.inf]))
-    results['qqplot_bins'] = []
-    for i in range(0, 3):
-        for j in range(0, 3):
-            mask = (defvec & (mafvec_tag>=maf_bins[i]) & (mafvec_tag<maf_bins[i+1]) & (tldvec_tag >= tld_bins[j]) & (tldvec_tag < tld_bins[j+1]))
-            results['qqplot_bins'].append(calc_qq_plot(lib, params, trait_index, args.downsample_factor, mask,
-                title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
+        maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec_tag, [1/3, 2/3]), [np.inf]))
+        tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec_tag, [1/3, 2/3]), [np.inf]))
+        results['qqplot_bins'] = []
+        for i in range(0, 3):
+            for j in range(0, 3):
+                mask = (defvec & (mafvec_tag>=maf_bins[i]) & (mafvec_tag<maf_bins[i+1]) & (tldvec_tag >= tld_bins[j]) & (tldvec_tag < tld_bins[j+1]))
+                results['qqplot_bins'].append(calc_qq_plot(lib, params, trait_index, args.downsample_factor, mask,
+                    title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
 
     return results, params
 
@@ -276,7 +280,6 @@ def execute_fit_parser(args):
 
     # overview of the models
     # params1 - basic infinitesimal model
-    # params10 - basic infinitesimal model with s=-1 (LDSC assumptions)
     # params2 - infinitesimal model with flexible s and l parameters
     # params3 - basic causal mixture model
     # params4 - causal mixture model with flexible s and l parameters
@@ -285,7 +288,44 @@ def execute_fit_parser(args):
     # params7 - causal mixture model with annotations
     # params8 - causal mixture model with annotations and flexible s and l parameters
     # params9 - causal mixture model with annotations and flexible s and l parameters - s and l re-fitted in the context of a causal mixture
-    
+
+    # params50 - basic infinitesimal model with s=-1 (LDSC assumptions)
+    # params51 - a model with infinitesimal and causal mixture 
+    # params52 - a model with two causal components (M3)
+
+    # Fit params52 - a model with two causal components (M3)
+    result, params52 = perform_fit(AnnotUnivariateParams(pi=[5e-5, 5e-5], sig2_beta=[5e-8, 5e-8], sig2_zeroA=0.9),
+                                   AnnotUnivariateParams(pi=[5e-1, 5e-1], sig2_beta=[5e-2, 5e-2], sig2_zeroA=2.5),
+                                   AnnotUnivariateParams(pi=[None, None], sig2_beta=[None, None], sig2_annot=[1], s=0, l=0,
+                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                         mafvec=mafvec, tldvec=tldvec),
+                                   args, annomat, annonames, libbgmg, trait_index)
+    results['params52'] = result
+    with open(args.out + '.tmp.json', 'w') as outfile:
+        json.dump(results, outfile, cls=NumpyEncoder)
+
+    #  Fit params51 - a model with infinitesimal and causal mixture 
+    result, params51 = perform_fit(AnnotUnivariateParams(pi=[None, 5e-5], sig2_beta=[5e-8, 5e-8], sig2_zeroA=0.9),
+                                   AnnotUnivariateParams(pi=[None, 5e-1], sig2_beta=[5e-2, 5e-2], sig2_zeroA=2.5),
+                                   AnnotUnivariateParams(pi=[1, None], sig2_beta=[None, None], sig2_annot=[1], s=0, l=0,
+                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                         mafvec=mafvec, tldvec=tldvec),
+                                   args, annomat, annonames, libbgmg, trait_index)
+    results['params51'] = result
+    with open(args.out + '.tmp.json', 'w') as outfile:
+        json.dump(results, outfile, cls=NumpyEncoder)
+
+    # Fit params50 - basic infinitesimal model with LDSC assumtions
+    result, params50 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
+                                   AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
+                                   AnnotUnivariateParams(pi=1, sig2_annot=[1], s=-1, l=0,
+                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                         mafvec=mafvec, tldvec=tldvec),
+                                   args, annomat, annonames, libbgmg, trait_index)
+    results['params50'] = result
+    with open(args.out + '.tmp.json', 'w') as outfile:
+        json.dump(results, outfile, cls=NumpyEncoder)
+
     # Fit params1 - basic infinitesimal model
     result, params1 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
                                   AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
@@ -294,17 +334,6 @@ def execute_fit_parser(args):
                                                         mafvec=mafvec, tldvec=tldvec),
                                   args, annomat, annonames, libbgmg, trait_index)
     results['params1'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
-
-    # Fit params10 - basic infinitesimal model with LDSC assumtions
-    result, params10 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
-                                   AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
-                                   AnnotUnivariateParams(pi=1, sig2_annot=[1], s=-1, l=0,
-                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                         mafvec=mafvec, tldvec=tldvec),
-                                   args, annomat, annonames, libbgmg, trait_index)
-    results['params10'] = result
     with open(args.out + '.tmp.json', 'w') as outfile:
         json.dump(results, outfile, cls=NumpyEncoder)
 

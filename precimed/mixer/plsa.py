@@ -231,7 +231,10 @@ def execute_fit_parser(args):
     # Load annotations
     libbgmg.log_message('Loading annotations from {}...'.format(args.annot_file))
     df = pd.concat([pd.read_csv(args.annot_file.replace('@', str(chr_label)), sep='\t') for chr_label in args.chr2use])
-    del df['CHR']; del df['BP']; del df['SNP']; del df['CM']
+    for col in ['CHR', 'BP', 'SNP', 'CM']:
+        if col in df.columns:
+            del df[col]
+
     annomat = df.values.astype(np.float32)
     annonames = df.columns.values
     del df
@@ -269,9 +272,11 @@ def execute_fit_parser(args):
     results['options']['time_started'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     results['analysis'] = 'mixer-plsa'
     results['weights'] = libbgmg.weights[libbgmg.weights>0]
+    results['zvec1'] = libbgmg.zvec1[libbgmg.weights>0]
 
     # overview of the models
     # params1 - basic infinitesimal model
+    # params10 - basic infinitesimal model with s=-1 (LDSC assumptions)
     # params2 - infinitesimal model with flexible s and l parameters
     # params3 - basic causal mixture model
     # params4 - causal mixture model with flexible s and l parameters
@@ -280,7 +285,7 @@ def execute_fit_parser(args):
     # params7 - causal mixture model with annotations
     # params8 - causal mixture model with annotations and flexible s and l parameters
     # params9 - causal mixture model with annotations and flexible s and l parameters - s and l re-fitted in the context of a causal mixture
-
+    
     # Fit params1 - basic infinitesimal model
     result, params1 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
                                   AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
@@ -289,6 +294,17 @@ def execute_fit_parser(args):
                                                         mafvec=mafvec, tldvec=tldvec),
                                   args, annomat, annonames, libbgmg, trait_index)
     results['params1'] = result
+    with open(args.out + '.tmp.json', 'w') as outfile:
+        json.dump(results, outfile, cls=NumpyEncoder)
+
+    # Fit params10 - basic infinitesimal model with LDSC assumtions
+    result, params10 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
+                                   AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
+                                   AnnotUnivariateParams(pi=1, sig2_annot=[1], s=-1, l=0,
+                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                         mafvec=mafvec, tldvec=tldvec),
+                                   args, annomat, annonames, libbgmg, trait_index)
+    results['params10'] = result
     with open(args.out + '.tmp.json', 'w') as outfile:
         json.dump(results, outfile, cls=NumpyEncoder)
 

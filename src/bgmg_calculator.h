@@ -38,12 +38,15 @@ enum CostCalculator {
   CostCalculator_Sampling = 0,
   CostCalculator_Gaussian = 1,
   CostCalculator_Convolve = 2,
+  CostCalculator_MAX = 3,
 }; 
 
 enum AuxOption {
   AuxOption_None = 0,
   AuxOption_Ezvec2 = 1,
   AuxOption_TagPdf = 2,
+  AuxOption_TagPdfErr = 3,
+  AuxOption_MAX = 4,
 };
 
 // Singleton class to manage a collection of objects, identifiable with some integer ID.

@@ -230,7 +230,7 @@ class AnnotUnivariateParams(object):
         retval=np.zeros(shape=(lib.num_tag, num_annot), dtype=np.float32)
         lib.set_option('aux_option', 1)  # AuxOption_Ezvec2
         for annot_index in range(0, num_annot):
-            retval[:, annot_index] = lib.calc_unified_univariate_Ezvec2(1, pi_vec, np.multiply(self._annomat[:, annot_index], sig2_vec), sig2_zeroA, sig2_zeroC, sig2_zeroL)
+            retval[:, annot_index] = lib.calc_unified_univariate_aux(1, pi_vec, np.multiply(self._annomat[:, annot_index], sig2_vec), sig2_zeroA, sig2_zeroC, sig2_zeroL)
         lib.set_option('aux_option', 0)  # AuxOption_None
         return retval
 
@@ -249,8 +249,16 @@ class AnnotUnivariateParams(object):
         pi_mat = self.find_pi_mat(lib.num_snp)
         sig2_mat = self.find_sig2_mat()
         lib.set_option('aux_option', 2)  # AuxOption_TagPdf
-        retval = lib.calc_unified_univariate_Ezvec2(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
-        lib.set_option('aux_option', 0)  # AuxOption_TagPdf
+        retval = lib.calc_unified_univariate_aux(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
+        lib.set_option('aux_option', 0)  # AuxOption_None
+        return retval
+
+    def tag_pdf_err(self, lib, trait):
+        pi_mat = self.find_pi_mat(lib.num_snp)
+        sig2_mat = self.find_sig2_mat()
+        lib.set_option('aux_option', 3)  # AuxOption_TagPdfErr
+        retval = lib.calc_unified_univariate_aux(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
+        lib.set_option('aux_option', 0)  # AuxOption_None
         return retval
 
 class AnnotUnivariateParametrization(object):

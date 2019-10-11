@@ -176,11 +176,11 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
     cost_calculator_ = (value != 0) ? CostCalculator_Sampling : CostCalculator_Gaussian; return 0;
   } else if (!strcmp(option, "cost_calculator")) {
     int int_value = (int)value;
-    if (int_value < 0 || int_value > 2) BGMG_THROW_EXCEPTION(::std::runtime_error("cost_calculator value must be 0 (Sampling), 1 (Gaussian) or 2 (Convolve)"));
+    if (int_value < 0 || int_value >= CostCalculator_MAX) BGMG_THROW_EXCEPTION(::std::runtime_error("cost_calculator value must be 0 (Sampling), 1 (Gaussian) or 2 (Convolve)"));
     cost_calculator_ = (CostCalculator)int_value; return 0;
   } else if (!strcmp(option, "aux_option")) {
     int int_value = (int)value;
-    if (int_value < 0 || int_value > 2) BGMG_THROW_EXCEPTION(::std::runtime_error("aux_option value must be 0 (None), 1 (Ezvec2) or 2 (TagPdf)"));
+    if (int_value < 0 || int_value >= AuxOption_MAX) BGMG_THROW_EXCEPTION(::std::runtime_error("aux_option value must be 0 (None), 1 (Ezvec2), 2 (TagPdf), or 3 (TagPdfErr)"));
     aux_option_ = (AuxOption)int_value; return 0;
   } else if (!strcmp(option, "z1max")) {
     if (value <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("zmax must be positive"));
@@ -1538,7 +1538,8 @@ void BgmgCalculator::log_diagnostics() {
   LOG << " diag: options.aux_option_=" << ((int)aux_option_) <<
     ((aux_option_==AuxOption_None) ? " (None)" :
      (aux_option_==AuxOption_Ezvec2) ? " (Ezvec2)" :
-     (aux_option_==AuxOption_TagPdf) ? " (TagPdf)" : " (Unknown)");
+     (aux_option_==AuxOption_TagPdf) ? " (TagPdf)" : 
+     (aux_option_==AuxOption_TagPdfErr) ? " (TagPdfErr)" : " (Unknown)");
   LOG << " diag: options.cache_tag_r2sum_=" << (cache_tag_r2sum_ ? "yes" : "no");
   LOG << " diag: options.seed_=" << (seed_);
   LOG << " diag: options.cubature_abs_error_=" << (cubature_abs_error_);
@@ -1862,6 +1863,7 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
         tag_pdf = 1e-100;
 
       if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = tag_pdf;
+      if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdfErr)) aux[tag_index] = tag_pdf_err;
 
       double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
       if (!std::isfinite(increment)) num_infinite++;

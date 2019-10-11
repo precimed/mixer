@@ -112,7 +112,8 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--cubature-rel-error', type=float, default=1e-5, help="relative error for cubature stop criteria (applies to 'convolve' cost calculator). ")
     parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). ")
     parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
-    parser.add_argument('--cost', default=False, action="store_true", help="save full cost function")    
+    parser.add_argument('--cost', default=False, action="store_true", help="save full cost function")
+    parser.add_argument('--models', default=[1,2,3,4,5,6,7,8,9,50,51,52], type=int, nargs='+', choices=[1,2,3,4,5,6,7,8,9,50,51,52])
 
     parser.add_argument('--downsample-factor', default=50, type=int, help="Applies to --power-curve. "
         "'--downsample-factor N' imply that only 1 out of N available z-score values will be used in calculations.")
@@ -205,6 +206,7 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
     if args.cost:
         lib.set_option('cost_calculator', _cost_calculator_convolve)
         results['full_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
+        results['full_tag_pdf_err'] = params.tag_pdf_err(lib, trait_index)[lib.weights>0]
 
         lib.set_option('cost_calculator', _cost_calculator_gaussian)
         results['fast_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
@@ -227,7 +229,13 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
 
 def execute_fit_parser(args):
     libbgmg = LibBgmg(args.lib)
+
+    # resolve dependencies between models
+    if ((1 not in args.models) and bool(set(args.models) & set([5,7]))): args.models.append(1)
+    if ((2 not in args.models) and bool(set(args.models) & set([6,8,9]))): args.models.append(2)
+
     fix_and_validate_args(args)
+    
     libbgmg.set_option('use_complete_tag_indices', 1)
     libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
     libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, "", args.exclude, args.extract)
@@ -293,142 +301,156 @@ def execute_fit_parser(args):
     # params51 - a model with infinitesimal and causal mixture 
     # params52 - a model with two causal components (M3)
 
-    # Fit params52 - a model with two causal components (M3)
-    result, params52 = perform_fit(AnnotUnivariateParams(pi=[5e-5, 5e-5], sig2_beta=[5e-8, 5e-8], sig2_zeroA=0.9),
-                                   AnnotUnivariateParams(pi=[5e-1, 5e-1], sig2_beta=[5e-2, 5e-2], sig2_zeroA=2.5),
-                                   AnnotUnivariateParams(pi=[None, None], sig2_beta=[None, None], sig2_annot=[1], s=0, l=0,
-                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                         mafvec=mafvec, tldvec=tldvec),
-                                   args, annomat, annonames, libbgmg, trait_index)
-    results['params52'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 52 in args.models:
+        # Fit params52 - a model with two causal components (M3)
+        result, params52 = perform_fit(AnnotUnivariateParams(pi=[5e-5, 5e-5], sig2_beta=[5e-8, 5e-8], sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(pi=[5e-1, 5e-1], sig2_beta=[5e-2, 5e-2], sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(pi=[None, None], sig2_beta=[None, None], sig2_annot=[1], s=0, l=0,
+                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params52'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    #  Fit params51 - a model with infinitesimal and causal mixture 
-    result, params51 = perform_fit(AnnotUnivariateParams(pi=[None, 5e-5], sig2_beta=[5e-8, 5e-8], sig2_zeroA=0.9),
-                                   AnnotUnivariateParams(pi=[None, 5e-1], sig2_beta=[5e-2, 5e-2], sig2_zeroA=2.5),
-                                   AnnotUnivariateParams(pi=[1, None], sig2_beta=[None, None], sig2_annot=[1], s=0, l=0,
-                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                         mafvec=mafvec, tldvec=tldvec),
-                                   args, annomat, annonames, libbgmg, trait_index)
-    results['params51'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 51 in args.models:
+        #  Fit params51 - a model with infinitesimal and causal mixture 
+        result, params51 = perform_fit(AnnotUnivariateParams(pi=[None, 5e-5], sig2_beta=[5e-8, 5e-8], sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(pi=[None, 5e-1], sig2_beta=[5e-2, 5e-2], sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(pi=[1, None], sig2_beta=[None, None], sig2_annot=[1], s=0, l=0,
+                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params51'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params50 - basic infinitesimal model with LDSC assumtions
-    result, params50 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
-                                   AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
-                                   AnnotUnivariateParams(pi=1, sig2_annot=[1], s=-1, l=0,
-                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                         mafvec=mafvec, tldvec=tldvec),
-                                   args, annomat, annonames, libbgmg, trait_index)
-    results['params50'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 50 in args.models:
+        # Fit params50 - basic infinitesimal model with LDSC assumtions
+        result, params50 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(pi=1, sig2_annot=[1], s=-1, l=0,
+                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params50'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params1 - basic infinitesimal model
-    result, params1 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
-                                  AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
-                                  AnnotUnivariateParams(pi=1, sig2_annot=[1], s=0, l=0,
-                                                        annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                        mafvec=mafvec, tldvec=tldvec),
-                                  args, annomat, annonames, libbgmg, trait_index)
-    results['params1'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 1 in args.models:
+        # Fit params1 - basic infinitesimal model
+        result, params1 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(pi=1, sig2_annot=[1], s=0, l=0,
+                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params1'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params2 - infinitesimal model with flexible s and l parameters
-    result, params2 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, sig2_beta=5e-8, sig2_zeroA=0.9),
-                                  AnnotUnivariateParams(s=0.25, l=0.25, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                  AnnotUnivariateParams(pi=1, sig2_annot=[1], 
-                                                        annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                        mafvec=mafvec, tldvec=tldvec),
-                                  args, annomat, annonames, libbgmg, trait_index)
-    results['params2'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 2 in args.models:
+        # Fit params2 - infinitesimal model with flexible s and l parameters
+        result, params2 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, sig2_beta=5e-8, sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(s=0.25, l=0.25, sig2_beta=5e-2, sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(pi=1, sig2_annot=[1], 
+                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params2'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params3 - basic causal mixture model
-    result, params3 = perform_fit(AnnotUnivariateParams(pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
-                                   AnnotUnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                   AnnotUnivariateParams(sig2_annot=[1], s=0, l=0,
-                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                         mafvec=mafvec, tldvec=tldvec),
-                                  args, annomat, annonames, libbgmg, trait_index)
-    results['params3'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 3 in args.models:
+        # Fit params3 - basic causal mixture model
+        result, params3 = perform_fit(AnnotUnivariateParams(pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(sig2_annot=[1], s=0, l=0,
+                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params3'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params4 - causal mixture model with flexible s and l parameters
-    result, params4 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
-                                   AnnotUnivariateParams(s=0.25, l=0.25, pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                   AnnotUnivariateParams(sig2_annot=[1],
-                                                         annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                         mafvec=mafvec, tldvec=tldvec),
-                                  args, annomat, annonames, libbgmg, trait_index)
-    results['params4'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 4 in args.models:
+        # Fit params4 - causal mixture model with flexible s and l parameters
+        result, params4 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(s=0.25, l=0.25, pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(sig2_annot=[1],
+                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params4'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params5 - infinitesimal model with annotations 
-    params_tmp = AnnotUnivariateParams(pi=1.0, s=0, l=0, sig2_beta=params1._sig2_beta, sig2_zeroA=0,
-                                       annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
-    params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
-    result, params5 = perform_fit(None, None, params_tmp,
-                                  args, annomat, annonames, libbgmg, trait_index)
-    results['params5'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 5 in args.models:
+        # Fit params5 - infinitesimal model with annotations 
+        params_tmp = AnnotUnivariateParams(pi=1.0, s=0, l=0, sig2_beta=params1._sig2_beta, sig2_zeroA=0,
+                                        annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
+        params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
+        result, params5 = perform_fit(None, None, params_tmp,
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params5'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params6 - infinitesimal model with annotations and flexible s and l parameters
-    params_tmp = AnnotUnivariateParams(pi=1.0, s=params2._s, l=params2._l, sig2_beta=params2._sig2_beta, sig2_zeroA=0,
-                                       annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
-    params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
-    result, params6 = perform_fit(None, None, params_tmp,
-                                  args, annomat, annonames, libbgmg, trait_index)
-    results['params6'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 6 in args.models:
+        # Fit params6 - infinitesimal model with annotations and flexible s and l parameters
+        params_tmp = AnnotUnivariateParams(pi=1.0, s=params2._s, l=params2._l, sig2_beta=params2._sig2_beta, sig2_zeroA=0,
+                                        annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
+        params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
+        result, params6 = perform_fit(None, None, params_tmp,
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params6'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params7 - causal mixture model with annotations
-    params_tmp = AnnotUnivariateParams(pi=1.0, s=0, l=0, sig2_beta=params1._sig2_beta, sig2_zeroA=0,
-                                       annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
-    params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
-    result, params7 = perform_fit(AnnotUnivariateParams(pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
-                                  AnnotUnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                  AnnotUnivariateParams(s=0, l=0, sig2_annot=params_tmp._sig2_annot,
-                                                        annomat=params_tmp._annomat, annonames=params_tmp._annonames,
-                                                        mafvec=mafvec, tldvec=tldvec),
-                                  args, annomat, annonames, libbgmg, trait_index)
-    results['params7'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 7 in args.models:
+        # Fit params7 - causal mixture model with annotations
+        params_tmp = AnnotUnivariateParams(pi=1.0, s=0, l=0, sig2_beta=params1._sig2_beta, sig2_zeroA=0,
+                                        annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
+        params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
+        result, params7 = perform_fit(AnnotUnivariateParams(pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(s=0, l=0, sig2_annot=params_tmp._sig2_annot,
+                                                            annomat=params_tmp._annomat, annonames=params_tmp._annonames,
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params7'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params8 - causal mixture model with annotations and flexible s and l parameters
-    params_tmp = AnnotUnivariateParams(pi=1.0, s=params2._s, l=params2._l, sig2_beta=params2._sig2_beta, sig2_zeroA=0,
-                                       annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
-    params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
-    result, params8 = perform_fit(AnnotUnivariateParams(pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
-                                  AnnotUnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                  AnnotUnivariateParams(s=params_tmp._s, l=params_tmp._l, sig2_annot=params_tmp._sig2_annot,
-                                                        annomat=params_tmp._annomat, annonames=params_tmp._annonames,
-                                                        mafvec=mafvec, tldvec=tldvec),
-                                  args, annomat, annonames, libbgmg, trait_index)
-    results['params8'] = result
-    with open(args.out + '.tmp.json', 'w') as outfile:
-        json.dump(results, outfile, cls=NumpyEncoder)
+    if 8 in args.models:
+        # Fit params8 - causal mixture model with annotations and flexible s and l parameters
+        params_tmp = AnnotUnivariateParams(pi=1.0, s=params2._s, l=params2._l, sig2_beta=params2._sig2_beta, sig2_zeroA=0,
+                                        annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
+        params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
+        result, params8 = perform_fit(AnnotUnivariateParams(pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(s=params_tmp._s, l=params_tmp._l, sig2_annot=params_tmp._sig2_annot,
+                                                            annomat=params_tmp._annomat, annonames=params_tmp._annonames,
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params8'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
-    # Fit params9 - causal mixture model with annotations and flexible s and l parameters - s and l re-fitted in the context of a causal mixture
-    params_tmp = AnnotUnivariateParams(pi=1.0, s=params2._s, l=params2._l, sig2_beta=params2._sig2_beta, sig2_zeroA=0,
-                                       annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
-    params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
-    result, params9 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
-                                  AnnotUnivariateParams(s=0.25, l=0.25, pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                  AnnotUnivariateParams(sig2_annot=params_tmp._sig2_annot,
-                                                        annomat=params_tmp._annomat, annonames=params_tmp._annonames,
-                                                        mafvec=mafvec, tldvec=tldvec),
-                                  args, annomat, annonames, libbgmg, trait_index)
-    results['params9'] = result
+    if 9 in args.models:
+        # Fit params9 - causal mixture model with annotations and flexible s and l parameters - s and l re-fitted in the context of a causal mixture
+        params_tmp = AnnotUnivariateParams(pi=1.0, s=params2._s, l=params2._l, sig2_beta=params2._sig2_beta, sig2_zeroA=0,
+                                        annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
+        params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
+        result, params9 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
+                                    AnnotUnivariateParams(s=0.25, l=0.25, pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
+                                    AnnotUnivariateParams(sig2_annot=params_tmp._sig2_annot,
+                                                            annomat=params_tmp._annomat, annonames=params_tmp._annonames,
+                                                            mafvec=mafvec, tldvec=tldvec),
+                                    args, annomat, annonames, libbgmg, trait_index)
+        results['params9'] = result
+        with open(args.out + '.tmp.json', 'w') as outfile:
+            json.dump(results, outfile, cls=NumpyEncoder)
 
     results['options']['time_finished'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 

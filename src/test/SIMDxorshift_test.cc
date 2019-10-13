@@ -1,6 +1,10 @@
 #include "gtest/gtest.h"
 #include "bgmg_rand.h"
+#include "SIMDxorshift/xorshift128plus.h"
+
+#if defined(__AVX2__) 
 #include "SIMDxorshift/simdxorshift128plus.h"
+#endif
 
 #include <random>
 #include <iostream>
@@ -107,13 +111,13 @@ void TestSampler_impl_shuffle_simd(int repeats, int numel, double p) {
   TestSubsetSampler test_sampler(1,2);
   std::vector<uint32_t> data(numel, 0);
   std::vector<float> buffer(numel, 0.0f);
-  BEST_TIME(sampler.sample_avx_shuffle(p), 0, repeats, numel);
+  BEST_TIME(sampler.sample_shuffle(p), 0, repeats, numel);
   BEST_TIME(test_sampler.sample_geometric_step_simd(&data[0], &buffer[0],numel, p), 0, repeats, numel);
   BEST_TIME(test_sampler.sample_geometric_step(&data[0],&buffer[0], numel, p), 0, repeats, numel);
 
   std::vector<int> values;
   for (int repeat = 0; repeat < 10; repeat++) {
-    int count = sampler.sample_avx_shuffle(p);
+    int count = sampler.sample_shuffle(p);
     values.resize(count, 0);
     for (int i = (numel - count), j = 0; i < numel; i++, j++) {
       uint32_t val = sampler.data()[i];
@@ -149,11 +153,29 @@ TEST(Random, ShuffleSimd) {
   SubsetSampler sampler(1,2,n);
   for (int j = 0; j < 4; j++) {
     for (int i = 0; i < n; i++) std::cout << sampler.data()[i] << " "; std::cout << "; count= " << count << std::endl;
-    count = sampler.sample_avx_shuffle(0.05);
+    count = sampler.sample_shuffle(0.05);
   }
 }
-TEST(Random, avx_xorshift128plus) {
-  for (int size=40; size<48; size++) {
+
+TEST(Random, xorshift128plus_shuffle32) {
+  for (int size=1; size<48; size++) {
+    //std::cout << "size:" << size << std::endl;
+    xorshift128plus_key_t key;
+    xorshift128plus_init(1234, 5432, &key);
+    xorshift128plus_jump(&key); 
+    std::vector<uint32_t> data(size, 0);
+    for (int j=0; j < size; j++) {
+      for (uint32_t i = 0; i < size; i++) data[i]=i;
+      xorshift128plus_shuffle32_partial(&key, &data[0], size, j);
+      //for (int i = 0; i < size; i++) std::cout << data[i] << " "; std::cout << std::endl;
+    }
+  }
+}
+
+#if defined(__AVX2__) 
+
+TEST(Random, avx_xorshift128plus_shuffle32) {
+  for (int size=1; size<48; size++) {
     //std::cout << "size:" << size << std::endl;
     avx_xorshift128plus_key_t key;
     avx_xorshift128plus_init(1234, 5432, &key);
@@ -167,5 +189,6 @@ TEST(Random, avx_xorshift128plus) {
   }
 }
 
+#endif
     
 }  // namespace

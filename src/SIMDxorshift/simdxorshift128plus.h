@@ -26,6 +26,7 @@ extern "C" {
      #include <spe.h>
 #endif
 
+#if defined(__AVX2__) 
 
 /* Keys for scalar xorshift128. Must be non-zero
 These are modified by xorshift128plus.
@@ -80,6 +81,8 @@ void  avx_xorshift128plus_shuffle32(avx_xorshift128plus_key_t *key, uint32_t *st
  * randomness. Applies shuffle to elements in [lower_index_inclusive, size).
  */
 void  avx_xorshift128plus_shuffle32_partial(avx_xorshift128plus_key_t *key, uint32_t *storage, uint32_t size, uint32_t lower_index_inclusive);
+
+#endif
 
 #if defined(__AVX512F__) 
 

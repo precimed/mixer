@@ -25,8 +25,8 @@ endif (COMPILER_SUPPORTS_CXX11)
 
 if (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
     ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -mavx2 -march=native -mfpmath=sse -ggdb")
-   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -mavx2 -march=native -mfpmath=sse -ggdb")
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -mavx -march=native -mfpmath=sse -ggdb")
+   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -mavx -march=native -mfpmath=sse -ggdb")
    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
 endif (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
@@ -109,7 +109,8 @@ set(SRC_LIST
 	nlopt/timer.c
 	cubature/hcubature.c
 	FastDifferentialCoding/fastdelta.c
-	SIMDxorshift/simdxorshift128plus.c
+	SIMDxorshift/xorshift128plus.c
+	SIMDxorshift/simdxorshift128plus.c	
 )
 
 add_library(bgmg-static STATIC ${SRC_LIST})

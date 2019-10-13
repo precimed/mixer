@@ -2959,7 +2959,7 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
 
         for (int comp_index = 0; comp_index < num_components; comp_index++) {
           const int index = (comp_index*num_snp_ + causal_index);
-          const int num_samples=sampler.sample_avx_shuffle(static_cast<double>(pi_vec[index]));
+          const int num_samples=sampler.sample_shuffle(static_cast<double>(pi_vec[index]));
           for (int sample_index = k_max_ - num_samples; sample_index < k_max_; sample_index++) {
             tag_delta2[sampler.data()[sample_index]] += r2_hval_nval_sig2zeroC * sig2_vec[index];
           }

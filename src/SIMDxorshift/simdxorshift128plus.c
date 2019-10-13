@@ -2,6 +2,8 @@
 
 #include "simdxorshift128plus.h"
 
+#if defined(__AVX2__) 
+
 /* used by xorshift128plus_jump_onkeys */
 static void xorshift128plus_onkeys(uint64_t * ps0, uint64_t * ps1) {
 	uint64_t s1 = *ps0;
@@ -57,6 +59,8 @@ __m256i avx_xorshift128plus(avx_xorshift128plus_key_t *key) {
 	return _mm256_add_epi64(key->part2, s0);
 }
 
+#endif
+
 #if defined(__AVX512F__) 
 
 void avx512_xorshift128plus_init(uint64_t key1, uint64_t key2, 
@@ -95,6 +99,9 @@ __m512i avx512_xorshift128plus(avx512_xorshift128plus_key_t *key) {
 }
 
 #endif
+
+
+#if defined(__AVX2__) 
 
 /**
  * equivalent to skipping 2^64 avx_xorshift128plus() calls
@@ -178,3 +185,5 @@ void avx_xorshift128plus_shuffle32_partial(avx_xorshift128plus_key_t *key,
 		i--;
 	}
 }
+
+#endif

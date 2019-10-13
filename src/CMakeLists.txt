@@ -109,6 +109,7 @@ set(SRC_LIST
 	nlopt/timer.c
 	cubature/hcubature.c
 	FastDifferentialCoding/fastdelta.c
+	SIMDxorshift/simdxorshift128plus.c
 )
 
 add_library(bgmg-static STATIC ${SRC_LIST})
@@ -138,6 +139,7 @@ set(SRC_TEST_LIST
 	test/bgmg_ld_test.cc
 	test/semt_test.cc
 	test/streamvbyte_test.cc
+	test/SIMDxorshift_test.cc
 	test/nlopt_test.cc
 	test/cubature_test.cc
 	test/bgmg_test_main.cc

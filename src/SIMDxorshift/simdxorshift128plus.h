@@ -3,6 +3,9 @@
 
 #include <stdint.h>// life is short, please use a C99-compliant compiler
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 #if defined(_MSC_VER)
      /* Microsoft C/C++-compatible compiler */
      #include <intrin.h>
@@ -72,6 +75,12 @@ void avx_xorshift128plus_jump(avx_xorshift128plus_key_t * key);
  */
 void  avx_xorshift128plus_shuffle32(avx_xorshift128plus_key_t *key, uint32_t *storage, uint32_t size);
 
+/**
+ * Partial Fisher-Yates shuffle, shuffling  "size" 32-bit  values in "storage". You must provide the key for
+ * randomness. Applies shuffle to elements in [lower_index_inclusive, size).
+ */
+void  avx_xorshift128plus_shuffle32_partial(avx_xorshift128plus_key_t *key, uint32_t *storage, uint32_t size, uint32_t lower_index_inclusive);
+
 #if defined(__AVX512F__) 
 
 struct avx512_xorshift128plus_key_s {
@@ -107,5 +116,8 @@ Return a 256-bit random "number"
 */
 __m512i avx512_xorshift128plus( avx512_xorshift128plus_key_t *key);
 
+#endif
+#ifdef __cplusplus
+}
 #endif
 #endif

@@ -102,7 +102,11 @@ class TestSubsetSampler {
   }  
 
  private:
+#if defined(__AVX2__) 
   avx_xorshift128plus_engine generator_;
+#else
+  xorshift128plus_engine generator_;
+#endif
   std::default_random_engine generator2_;
 };
 

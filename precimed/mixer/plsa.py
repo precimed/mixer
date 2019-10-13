@@ -197,7 +197,7 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
         optimize_result_sequence.append(('neldermead-fast', optimize_result))
 
         # Step 3. neldermead (for non-infinitesimal model)
-        if params._pi[0] != 1:
+        if (len(params._pi) > 1) or (params._pi[0] != 1):
             lib.set_option('cost_calculator', _cost_calculator_convolve)
             optimize_result = scipy.optimize.minimize(lambda x: parametrization.calc_cost(x), parametrization.params_to_vec(params),
                 method='Nelder-Mead', options={'maxiter':480, 'fatol':1e-7, 'xatol':1e-4, 'adaptive':True})
@@ -220,7 +220,7 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
         results['convolve_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
         results['convolve_tag_pdf_err'] = params.tag_pdf_err(lib, trait_index)[lib.weights>0]
 
-        if params._pi[0] != 1.0:
+        if (len(params._pi) > 1) or (params._pi[0] != 1):
             lib.set_option('cost_calculator', _cost_calculator_sampling)
             lib.set_option('kmax', 20000)  # hard-code kmax for cost function calculation
             results['sampling_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]

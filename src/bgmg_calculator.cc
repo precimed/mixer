@@ -24,6 +24,7 @@
 #include <omp.h>
 #else
 #define omp_set_num_threads(i)
+#define omp_get_thread_num() 0
 #endif
 
 #include <chrono>
@@ -48,6 +49,7 @@
 #include "bgmg_log.h"
 #include "bgmg_parse.h"
 #include "bgmg_math.h"
+#include "bgmg_rand.h"
 #include "fmath.hpp"
 
 #include <immintrin.h>  // _mm_setcsr, _mm_getcsr
@@ -155,7 +157,7 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
   } else if (!strcmp(option, "kmax")) {
     clear_state(); k_max_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "r2min")) {
-    clear_state(); r2_min_ = value; return 0;
+    ld_matrix_csr_.clear(); r2_min_ = value; return 0;
   } else if (!strcmp(option, "max_causals")) {
     if (!snp_order_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't change max_causals after find_snp_order"));
     clear_state(); max_causals_ = static_cast<int>(value); return 0;
@@ -247,6 +249,10 @@ int64_t BgmgCalculator::set_ld_r2_csr(int chr_label) {
 /*
 // Nice trick, but not so important for performance.
 // We use std::mt19937_64.
+// but we may want to use https://github.com/lemire/SIMDxorshift
+// followed by sampling from geometric distribution (http://djalil.chafai.net/blog/2014/11/15/about-random-generators-of-geometric-distribution/)
+// return ceil(log(rand()) / log(1 – p));
+
 class xorshf96  //period 2^96-1
 {
 public:
@@ -1846,7 +1852,7 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
       int tag_index = deftag_indices[deftag_index];
       double tag_weight = static_cast<double>(weights_[tag_index]);
 
-      const int causal_index = tag_index; // yes, causal==tag in this case -- see a large comment in calc_univariate_characteristic_function_times_cosinus function.
+      const int causal_index = tag_index; // yes,snp==tag in this case -- see a large comment in calc_univariate_characteristic_function_times_cosinus function.
       ld_matrix_csr_.extract_row(causal_index, data.ld_matrix_row);
       data.tag_index = tag_index;
       data.func_evals = 0;
@@ -1941,7 +1947,7 @@ int calc_bivariate_characteristic_function_times_cosinus(unsigned ndim, const do
   
   auto iter_end = data->ld_matrix_row->end();
   for (auto iter = data->ld_matrix_row->begin(); iter < iter_end; iter++) {
-    int snp_index = iter.tag_index();  // yes, this is correct - snp_index on the LHS, tag_index on the RHS. 
+    int snp_index = iter.tag_index();  // yes, causal==tag this is correct - snp_index on the LHS, tag_index on the RHS. 
                                        // See comment in the univariate counterpart, calc_univariate_characteristic_function_times_cosinus
     const float r2 = iter.r2();
     const float hval = (*data->hvec)[snp_index];
@@ -2063,8 +2069,6 @@ double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_ve
 
 void BgmgCalculator::clear_state() {
   LOG << " clear_state";
-
-  ld_matrix_csr_.clear();
 
   // clear ordering of SNPs
   snp_order_.clear();
@@ -2731,6 +2735,7 @@ double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_com
   double cost;
   if (cost_calculator_ == CostCalculator_Gaussian) cost = calc_unified_univariate_cost_gaussian(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
   else if (cost_calculator_ == CostCalculator_Convolve) cost = calc_unified_univariate_cost_convolve(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
+  else if (cost_calculator_ == CostCalculator_Sampling) cost = calc_unified_univariate_cost_sampling(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
   else BGMG_THROW_EXCEPTION(::std::runtime_error("unsupported cost calculator in calc_unified_univariate_cost"));
   
   return cost;
@@ -2892,6 +2897,98 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
     LOG << " warning: zero tag_r2 encountered " << num_zero_tag_r2 << " times";
   if (num_infinite > 0)
     LOG << " warning: infinite increments encountered " << num_infinite << " times";
+
+  LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
+  return log_pdf_total;
+}
+
+double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
+  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
+
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  std::vector<float>& zvec(*get_zvec(trait_index));
+
+  std::stringstream ss;
+  ss << "calc_unified_univariate_cost_sampling(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ")";
+  LOG << ">" << ss.str();
+
+  SimpleTimer timer(-1);
+
+  std::vector<float> hvec;
+  find_hvec(*this, &hvec);
+
+  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
+  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
+
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+
+  std::vector<int> deftag_indices;
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (weights_[tag_index] == 0) continue;
+    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(zvec[tag_index])) continue;
+    deftag_indices.push_back(tag_index);
+  }
+  const int num_deftag = deftag_indices.size();
+
+  const double z_max = (trait_index==1) ? z1max_ : z2max_;
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
+  double log_pdf_total = 0.0;
+  int num_infinite = 0;
+
+#pragma omp parallel
+  {
+    LdMatrixRow ld_matrix_row;
+    SubsetSampler sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_);
+    std::vector<float> tag_delta2(k_max_, 0.0f);
+
+#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
+    for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+      const int tag_index = deftag_indices[deftag_index];
+      const float sig2_zero = sig2_zeroA + ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index] * nvec[tag_index] * sig2_zeroL;
+
+      tag_delta2.assign(k_max_, 0.0f);
+      const int snp_index = tag_index; // yes, snp==tag in this case -- same story here as in calc_univariate_characteristic_function_times_cosinus function.
+      ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+      auto iter_end = ld_matrix_row.end();
+      for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+        const int causal_index = iter.tag_index();
+        const float nval = nvec[tag_index];
+        const float r2 = iter.r2();
+        const float hval = hvec[causal_index];
+        const float r2_hval_nval_sig2zeroC = (r2 * hval * nval * sig2_zeroC);
+
+        for (int comp_index = 0; comp_index < num_components; comp_index++) {
+          const int index = (comp_index*num_snp_ + causal_index);
+          const int num_samples=sampler.sample_avx_shuffle(static_cast<double>(pi_vec[index]));
+          for (int sample_index = k_max_ - num_samples; sample_index < k_max_; sample_index++) {
+            tag_delta2[sampler.data()[sample_index]] += r2_hval_nval_sig2zeroC * sig2_vec[index];
+          }
+        }
+      }
+
+      double pdf_tag = 0.0;
+      double average_tag_delta2 = 0.0f;
+      for (int k = 0; k < k_max_; k++) {
+        float s = sqrt(tag_delta2[k] + sig2_zero);
+        const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec
+        const bool censoring = std::abs(tag_z) > z_max;
+        double pdf = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z_max, s) : gaussian_pdf<FLOAT_TYPE>(tag_z, s));
+        pdf_tag += pdf * pi_k;
+        average_tag_delta2 += tag_delta2[k] * pi_k;
+      }
+
+      // export the expected values of z^2 distribution
+      if ((aux != nullptr) && (aux_option_ == AuxOption_Ezvec2)) aux[tag_index] = average_tag_delta2 + sig2_zero;
+      if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = pdf_tag;
+
+      double increment = -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
+      if (!std::isfinite(increment)) num_infinite++;
+      else log_pdf_total += increment;
+    }
+
+    if (num_infinite > 0)
+      LOG << " warning: infinite increments encountered " << num_infinite << " times";
+  }
 
   LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;

@@ -315,11 +315,13 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
   std::vector<float> pi_vec(num_snp, pi_val);
   std::vector<float> sig2_vec(num_snp, sig2_beta);
   double cost_unified_gaussian = calc.calc_unified_univariate_cost_gaussian(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, nullptr);
+  double cost_unified_sampling = calc.calc_unified_univariate_cost_sampling(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, nullptr);
 
   ASSERT_TRUE(std::isfinite(cost_sampling));
   ASSERT_TRUE(std::isfinite(cost_gaussian));
   ASSERT_TRUE(std::isfinite(cost_convolve));
   ASSERT_TRUE(std::isfinite(cost_unified_gaussian));
+  ASSERT_TRUE(std::isfinite(cost_unified_sampling));  
 
   // compare that unified gaussian approximation gives the same answer as fast cost function
   // there is a subtle difference here in how do we model inflation arrising form truncated LD structure,
@@ -327,13 +329,17 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
   if ((r2min==0) || (pi_val==1.0f)) {
     ASSERT_FLOAT_EQ(cost_gaussian, cost_unified_gaussian); 
   }
+  if (pi_val==1.0f) {
+    ASSERT_FLOAT_EQ(cost_unified_sampling, cost_unified_gaussian); 
+  }
 
-  std::cout << std::setprecision(9) << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_unified_gaussian << std::endl;
+  std::cout << std::setprecision(9) << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_unified_gaussian << ", " << cost_unified_sampling << std::endl;
 
   ASSERT_FLOAT_EQ(costvec[0], cost_sampling);
   ASSERT_FLOAT_EQ(costvec[1], cost_gaussian);
   ASSERT_FLOAT_EQ(costvec[2], cost_convolve);
   ASSERT_FLOAT_EQ(costvec[3], cost_unified_gaussian);
+  ASSERT_FLOAT_EQ(costvec[4], cost_unified_sampling);
 }
 
 double calcLikelihoodUnifiedGaussian(float r2min, int trait_index, bool use_complete_tag_indices, float pi_val) {
@@ -377,7 +383,7 @@ double calcLikelihoodUnifiedGaussian(float r2min, int trait_index, bool use_comp
 TEST(UgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; 
   const int trait_index = 2; // use second trait for calculations; should work...
-  double costvec[4] = {16.0114786, 15.8589964, 15.9299297, 15.8589949};
+  double costvec[5] = {16.0114786, 15.8589964, 15.9299297, 15.8589949, 15.9333976};
   UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f, costvec);
 }
 
@@ -385,7 +391,7 @@ TEST(UgmgTest, CalcConvolveLikelihood) {
 TEST(UgmgTest, CalcConvolveLikelihoodInft) {
   const float r2min = 0.0; 
   const int trait_index = 2; // use second trait for calculations; should work...
-  double costvec[4] = {1e+100, 20.5189491, 20.5189537, 20.518953};
+  double costvec[5] = {1e+100, 20.5189491, 20.5189537, 20.518953, 20.5189529};
   UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f, costvec);
 }
 
@@ -393,7 +399,7 @@ TEST(UgmgTest, CalcConvolveLikelihoodInft) {
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2;
   const int trait_index = 1;
-  double costvec[4] = {16.00285, 15.8589964, 15.9186396, 15.8402427};  
+  double costvec[5] = {16.00285, 15.8589964, 15.9186396, 15.8402427, 15.925907};  
   UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f, costvec);
 }
 
@@ -401,7 +407,7 @@ TEST(UgmgTest, CalcConvolveLikelihood_with_r2min) {
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
   const float r2min = 0.2;
   const int trait_index = 1;
-  double costvec[4] = {1e+100, 20.5189491, 20.5189472, 20.5189468};  
+  double costvec[5] = {1e+100, 20.5189491, 20.5189472, 20.5189468, 20.5189467};  
   UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f, costvec);
 }
 

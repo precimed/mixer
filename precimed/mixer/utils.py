@@ -96,6 +96,9 @@ class UnivariateParams(object):
     def pdf(self, lib, trait, zgrid):
         return lib.calc_univariate_pdf(trait, self._pi, self._sig2_zero, self._sig2_beta, zgrid)
 
+    def power(self, lib, trait, ngrid, zthresh=5.45):
+        return lib.calc_univariate_power(trait, self._pi, self._sig2_zero, self._sig2_beta, zthresh, ngrid)
+
 # somewhat useless class.. should be removed?
 class UnifiedUnivariateParams(object):
     def __init__(self, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL):
@@ -260,6 +263,11 @@ class AnnotUnivariateParams(object):
         retval = lib.calc_unified_univariate_aux(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
         lib.set_option('aux_option', 0)  # AuxOption_None
         return retval
+
+    def power(self, lib, trait, ngrid, zthresh=5.45):
+        pi_mat = self.find_pi_mat(lib.num_snp)
+        sig2_mat = self.find_sig2_mat()
+        return lib.calc_unified_univariate_power(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0, zthresh=zthresh, ngrid=ngrid)
 
 class AnnotUnivariateParametrization(object):
     def __init__(self, lib, trait, constraint):
@@ -864,6 +872,23 @@ def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None, title=''):
 
     return {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
             'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])), 'title' : title}
+
+def calc_power_curve(libbgmg, params, trait_index, downsample):
+    power_nvec = np.power(10, np.arange(3, 8, 0.1))
+
+    original_weights = libbgmg.weights
+    model_weights = libbgmg.weights
+
+    mask = np.zeros((len(model_weights), ), dtype=bool)
+    mask[range(0, len(model_weights), downsample)] = 1
+    model_weights[~mask] = 0
+    model_weights = model_weights/np.sum(model_weights)
+
+    libbgmg.weights = model_weights     # temporary set downsampled weights
+    power_svec = params.power(libbgmg, trait_index, power_nvec)
+    libbgmg.weights = original_weights  # restore original weights
+
+    return power_nvec, power_svec
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):

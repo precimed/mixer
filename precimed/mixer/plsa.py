@@ -26,6 +26,7 @@ from .utils import _arctanh_tanh_converter
 from .utils import calc_qq_data
 from .utils import calc_qq_model
 from .utils import calc_qq_plot
+from .utils import calc_power_curve
 from .utils import NumpyEncoder
 
 __version__ = '1.0.0'
@@ -112,6 +113,7 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--cubature-rel-error', type=float, default=1e-5, help="relative error for cubature stop criteria (applies to 'convolve' cost calculator). ")
     parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). ")
     parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
+    parser.add_argument('--power-curve', default=False, action="store_true", help="generate power curves")    
     parser.add_argument('--cost', default=False, action="store_true", help="save full cost function")
     parser.add_argument('--models', default=[1,2,3,4,5,6,7,8,9,50,51,52], type=int, nargs='+', choices=[1,2,3,4,5,6,7,8,9,50,51,52])
 
@@ -241,6 +243,10 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
                 mask = (defvec & (mafvec_tag>=maf_bins[i]) & (mafvec_tag<maf_bins[i+1]) & (tldvec_tag >= tld_bins[j]) & (tldvec_tag < tld_bins[j+1]))
                 results['qqplot_bins'].append(calc_qq_plot(lib, params, trait_index, args.downsample_factor, mask,
                     title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
+
+    if args.power_curve:
+        power_nvec, power_svec = calc_power_curve(lib, params, trait_index=trait_index, downsample=args.downsample_factor)
+        results['power'] = {'nvec': power_nvec, 'svec': power_svec}
 
     return results, params
 

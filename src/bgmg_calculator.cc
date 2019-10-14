@@ -2895,33 +2895,14 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
 #pragma omp parallel
   {
     LdMatrixRow ld_matrix_row;
-    SubsetSampler sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_);
+    SubsetSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_);
     std::vector<float> tag_delta2(k_max_, 0.0f);
 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       const int tag_index = deftag_indices[deftag_index];
       const float sig2_zero = sig2_zeroA + ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index] * nvec[tag_index] * sig2_zeroL;
-
-      tag_delta2.assign(k_max_, 0.0f);
-      const int snp_index = tag_index; // yes, snp==tag in this case -- same story here as in calc_univariate_characteristic_function_times_cosinus function.
-      ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
-      auto iter_end = ld_matrix_row.end();
-      for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-        const int causal_index = iter.tag_index();
-        const float nval = nvec[tag_index];
-        const float r2 = iter.r2();
-        const float hval = hvec[causal_index];
-        const float r2_hval_nval_sig2zeroC = (r2 * hval * nval * sig2_zeroC);
-
-        for (int comp_index = 0; comp_index < num_components; comp_index++) {
-          const int index = (comp_index*num_snp_ + causal_index);
-          const int num_samples=sampler.sample_shuffle(static_cast<double>(pi_vec[index]));
-          for (int sample_index = k_max_ - num_samples; sample_index < k_max_; sample_index++) {
-            tag_delta2[sampler.data()[sample_index]] += r2_hval_nval_sig2zeroC * sig2_vec[index];
-          }
-        }
-      }
+      find_unified_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, tag_index, &nvec[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
 
       double pdf_tag = 0.0;
       double average_tag_delta2 = 0.0f;
@@ -2957,6 +2938,8 @@ void BgmgCalculator::find_unified_tag_delta_sampling(int num_components, float* 
   const int snp_index = tag_index; // yes, snp==tag in this case -- same story here as in calc_univariate_characteristic_function_times_cosinus function.
   ld_matrix_csr_.extract_row(snp_index, ld_matrix_row);
   auto iter_end = ld_matrix_row->end();
+
+  float delta2_inf = 0.0;
   for (auto iter = ld_matrix_row->begin(); iter < iter_end; iter++) {
     const int causal_index = iter.tag_index();
     const float nval = nvec[tag_index];
@@ -2966,12 +2949,28 @@ void BgmgCalculator::find_unified_tag_delta_sampling(int num_components, float* 
 
     for (int comp_index = 0; comp_index < num_components; comp_index++) {
       const int index = (comp_index*num_snp_ + causal_index);
-      const int num_samples=subset_sampler->sample_shuffle(static_cast<double>(pi_vec[index]));
+
+      float pi_val = pi_vec[index];
+      float delta2_val = r2_hval_nval_sig2zeroC * sig2_vec[index];
+      if (pi_val > 0.5f) { // for pi_val close to 1.0 it'll be faster to compute total, and deduct selected (1-pi_val) samples at random
+        pi_val = 1.0f - pi_val;
+        delta2_inf += delta2_val;
+        delta2_val *= -1;
+      }
+
+      const int num_samples=subset_sampler->sample_shuffle(static_cast<double>(pi_val));
       const uint32_t* indices = subset_sampler->data();
       for (int sample_index = k_max_ - num_samples; sample_index < k_max_; sample_index++) {
-        tag_delta2->at(indices[sample_index]) += r2_hval_nval_sig2zeroC * sig2_vec[index];
+        tag_delta2->at(indices[sample_index]) += delta2_val;
       }
     }
+  }
+
+  for (int k_index = 0; k_index < k_max_; k_index++) {
+    float val = tag_delta2->at(k_index);
+    val += delta2_inf;
+    if (val < 0.0f) val=0.0f;
+    tag_delta2->at(k_index) = val;
   }
 }
 

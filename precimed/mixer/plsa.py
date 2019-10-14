@@ -220,11 +220,10 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
         results['convolve_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
         results['convolve_tag_pdf_err'] = params.tag_pdf_err(lib, trait_index)[lib.weights>0]
 
-        if (len(params._pi) > 1) or (params._pi[0] != 1):
-            lib.set_option('cost_calculator', _cost_calculator_sampling)
-            lib.set_option('kmax', 20000)  # hard-code kmax for cost function calculation
-            results['sampling_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
-            lib.set_option('kmax', args.kmax)
+        lib.set_option('cost_calculator', _cost_calculator_sampling)
+        lib.set_option('kmax', 20000)  # hard-code kmax for cost function calculation
+        results['sampling_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
+        lib.set_option('kmax', args.kmax)
 
         lib.set_option('cost_calculator', _cost_calculator_gaussian)
         results['gaussian_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]

@@ -197,12 +197,11 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
   ASSERT_TRUE(std::isfinite(cost));
   ASSERT_FLOAT_EQ(cost, cost_nocache);
 
-  std::vector<float> zvec_grid, zvec_pdf, zvec_pdf_nocache, zvec_pdf_unified;
+  std::vector<float> zvec_grid, zvec_pdf, zvec_pdf_nocache;
   for (float z = 0; z < 15; z += 0.1) {
     zvec_grid.push_back(z);
     zvec_pdf.push_back(0.0f);
     zvec_pdf_nocache.push_back(0.0f);
-    zvec_pdf_unified.push_back(0.0f);
   }
 
   const float sig2_beta = 0.1f;
@@ -221,12 +220,6 @@ void UgmgTest_CalcLikelihood(float r2min, int trait_index) {
 
   for (int i = 0; i < zvec_pdf_nocache.size(); i++) {
     ASSERT_NEAR(zvec_pdf[i], zvec_pdf_nocache[i], 2e-7);  // 4.93722e-05 vs 4.9372218e-05 due to approximation of float as uint16_t
-  }
-
-  calc.calc_unified_univariate_pdf(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, zvec_grid.size(), &zvec_grid[0], &zvec_pdf_unified[0]);
-  for (int i = 0; i < zvec_pdf_unified.size(); i++) {
-    ASSERT_TRUE(std::isfinite(zvec_pdf_unified[i]));
-    //  std::cout << zvec_pdf_nocache[i] << ", " << zvec_pdf_unified[i] << "\n";
   }
 
   //int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec) {
@@ -340,6 +333,16 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
   ASSERT_FLOAT_EQ(costvec[2], cost_convolve);
   ASSERT_FLOAT_EQ(costvec[3], cost_unified_gaussian);
   ASSERT_FLOAT_EQ(costvec[4], cost_unified_sampling);
+
+  std::vector<float> zvec_grid, zvec_pdf_unified;
+  for (float z = 0; z < 15; z += 0.1) {
+    zvec_grid.push_back(z);
+    zvec_pdf_unified.push_back(0.0f);
+  }
+  calc.calc_unified_univariate_pdf(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, zvec_grid.size(), &zvec_grid[0], &zvec_pdf_unified[0]);
+  for (int i = 0; i < zvec_pdf_unified.size(); i++) {
+    ASSERT_TRUE(std::isfinite(zvec_pdf_unified[i]));
+  }
 }
 
 double calcLikelihoodUnifiedGaussian(float r2min, int trait_index, bool use_complete_tag_indices, float pi_val) {

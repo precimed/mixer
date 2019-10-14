@@ -16,6 +16,55 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
+/*
+  Implementation notes:
+
+  1. Loops across tag indices should be implemented as follows:
+  
+        std::vector<int> deftag_indices;
+        const int num_deftag = find_deftag_indices(trait_index, &deftag_indices);   # univariate
+        const int num_deftag = find_deftag_indices(             &deftag_indices);   # bivariate
+        for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+          int tag_index = deftag_indices[deftag_index];
+          ...
+        }
+  
+     Note that find_deftag_indices() checks and rises an exception is zvec/nvec are undefined.
+     Also note that only SNPs with positive weight[tag_index] are selected by find_deftag_indices().
+
+  2. Access to zvec is, typically, via the following construct:
+
+      std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
+  
+     or
+  
+       std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
+       std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
+
+  3. Access to LD matrix is as follows:
+
+      LdMatrixRow ld_matrix_row;
+      ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+      auto iter_end = ld_matrix_row.end();
+      for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+        int tag_index = iter.tag_index();
+        float r2 = iter.r2();
+        ...
+      }
+
+  4. Other frequent constructs:
+
+     const double zmax = (trait_index==1) ? z1max_ : z2max_;
+     const double pi_k = 1.0 / static_cast<double>(k_max_);
+     const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+     std::vector<float> hvec; find_hvec(*this, &hvec);
+     if (snp_order_.empty()) find_snp_order();
+     if (cache_tag_r2sum_) find_tag_r2sum(component_id, num_causals);
+
+*/
+
+
 #include "bgmg_calculator.h"
 
 #include <assert.h>
@@ -404,11 +453,10 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   }
 
   // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
-  const std::vector<float>& tag_sum_r2_below_r2min = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
   const float pival_delta = (num_causals_original - last_num_causals_original) / static_cast<float>(num_snp_);
 
-  std::vector<float> hvec;
-  find_hvec(*this, &hvec);
+  std::vector<float> hvec; find_hvec(*this, &hvec);
 
   // it is OK to parallelize the following loop on k_index, because:
   // - all structures here are readonly, except tag_r2sum_ that we are accumulating
@@ -440,7 +488,7 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   int num_tag_inf_adjusted = 0;  // number of snps adjusted according to infinitesimal model
 #pragma omp parallel for schedule(static) reduction(+: num_tag_inf_adjusted)
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    float inf_adj = pival_delta * tag_sum_r2_below_r2min[tag_index];
+    float inf_adj = pival_delta * ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index];
     if (inf_adj != 0) {
       num_tag_inf_adjusted++;
       for (int k_index = 0; k_index < k_max_; k_index++) {
@@ -609,9 +657,8 @@ int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float
   SimpleTimer timer(-1);
 
   if (snp_order_.empty()) find_snp_order();
-  if (cache_tag_r2sum_) {
-    find_tag_r2sum(component_id, num_causals);
-  }
+  if (cache_tag_r2sum_) find_tag_r2sum(component_id, num_causals);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_nw(trait_index, &deftag_indices);
 
   const double pi_k = 1.0 / static_cast<double>(k_max_);
 
@@ -642,9 +689,8 @@ int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float
         find_tag_r2sum_no_cache(0, num_causals, k_index, &tag_r2sum);
       }
 
-      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-        if (weights_[tag_index] == 0) continue;
-        if (!std::isfinite(nvec[tag_index])) continue;
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        int tag_index = deftag_indices[deftag_index];
 
         const double tag_weight = static_cast<double>(weights_[tag_index]);
 
@@ -687,10 +733,8 @@ int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, flo
   SimpleTimer timer(-1);
 
   if (snp_order_.empty()) find_snp_order();
-  if (cache_tag_r2sum_) {
-    find_tag_r2sum(component_id, num_causals);
-  }
-
+  if (cache_tag_r2sum_) find_tag_r2sum(component_id, num_causals);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_nw(trait_index, &deftag_indices);
   const double pi_k = 1.0 / static_cast<double>(k_max_);
 
   std::valarray<double> s_numerator_global(0.0, length);
@@ -714,8 +758,8 @@ int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, flo
         find_tag_r2sum_no_cache(0, num_causals, k_index, &tag_r2sum);
       }
 
-      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-        if (weights_[tag_index] == 0) continue;
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        int tag_index = deftag_indices[deftag_index];
         const double tag_weight = static_cast<double>(weights_[tag_index]);
 
         float tag_r2sum_value = tag_r2sum[tag_index];
@@ -755,18 +799,16 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
   if ((int)num_causals >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   const int component_id = 0;   // univariate is always component 0.
 
-  std::vector<float>& zvec(*get_zvec(trait_index));
-  std::vector<float>& nvec(*get_nvec(trait_index));
-  if (zvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec is not set"));
-  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
-
   LOG << ">calc_univariate_delta_posterior(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", length(nvec)=" << length << ")";
   SimpleTimer timer(-1);
 
+  // standard variables
+  std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
+  
   if (snp_order_.empty()) find_snp_order();
-  if (cache_tag_r2sum_) {
-    find_tag_r2sum(component_id, num_causals);
-  }
+  if (cache_tag_r2sum_) find_tag_r2sum(component_id, num_causals);
 
   std::valarray<double> c0_global(0.0f, num_tag_);
   std::valarray<double> c1_global(0.0f, num_tag_);
@@ -790,8 +832,8 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
         find_tag_r2sum_no_cache(0, num_causals, k_index, &tag_r2sum);
       }
 
-      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-        if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        int tag_index = deftag_indices[deftag_index];
 
         const float tag_r2sum_value = tag_r2sum[tag_index];
         const float delta2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta;  // S^2_kj
@@ -800,7 +842,7 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
         const float sig2eff_3_2 = sig2eff_1_2 * sig2eff;
         const float sig2eff_5_2 = sig2eff_3_2 * sig2eff;
 
-        const float z = zvec[tag_index];
+        const float z = z_minus_fixed_effect_delta[tag_index];
         const float exp_common = std::exp(-0.5f*z*z / sig2eff);
 
         c0_local[tag_index] += (exp_common / sig2eff_1_2);
@@ -820,8 +862,8 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
   // save results to output buffers
   const double pi_k = 1.0 / static_cast<double>(k_max_);
   static const double inv_sqrt_2pi = 0.3989422804014327;
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
     c0[tag_index] = pi_k * inv_sqrt_2pi * c0_global[tag_index];
     c1[tag_index] = pi_k * inv_sqrt_2pi * c1_global[tag_index];
     c2[tag_index] = pi_k * inv_sqrt_2pi * c2_global[tag_index];
@@ -831,12 +873,6 @@ int64_t BgmgCalculator::calc_univariate_delta_posterior(int trait_index, float p
 }
 
 double BgmgCalculator::calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
-  std::vector<float>& nvec(*get_nvec(trait_index));
-  std::vector<float>& zvec(*get_zvec(trait_index));
-  if (zvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec is not set"));
-  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
-  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
-
   double cost;
   if (cost_calculator_ == CostCalculator_Gaussian) cost = calc_univariate_cost_fast(trait_index, pi_vec, sig2_zero, sig2_beta);
   else if (cost_calculator_ == CostCalculator_Convolve) cost = calc_univariate_cost_convolve(trait_index, pi_vec, sig2_zero, sig2_beta);
@@ -848,9 +884,6 @@ double BgmgCalculator::calc_univariate_cost(int trait_index, float pi_vec, float
 }
 
 double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
-  std::vector<float>& nvec(*get_nvec(trait_index));
-  std::vector<float>& zvec(*get_zvec(trait_index));
-
   float num_causals = pi_vec * static_cast<float>(num_snp_);
   if ((int)num_causals >= max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
@@ -858,31 +891,32 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
   LOG << ">calc_univariate_cost(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
   SimpleTimer timer(-1);
 
-  find_tag_r2sum(component_id, num_causals);
-
-  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
-  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
-
+  // standard variables
+  std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
+  const double zmax = (trait_index==1) ? z1max_ : z2max_;
   const double pi_k = 1.0 / static_cast<double>(k_max_);
+
+  find_tag_r2sum(component_id, num_causals);  // tag_r2sum_ is adjusted for ld_tag_sum_r2_below_r2min_adjust_for_hvec
   
   double log_pdf_total = 0.0;
   int num_infinite = 0;
 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
 
     double pdf_tag = 0.0f;
     for (int k_index = 0; k_index < k_max_; k_index++) {
       float tag_r2sum = (*tag_r2sum_[component_id])(tag_index, k_index);
       float sig2eff = tag_r2sum * nvec[tag_index] * sig2_beta + sig2_zero;
 
-      const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec;
+      const float tag_z = z_minus_fixed_effect_delta[tag_index];
       float s = sqrt(sig2eff);
-      const bool censoring = std::abs(tag_z) > z1max_;
+      const bool censoring = std::abs(tag_z) > zmax;
 
-      double pdf = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s) : gaussian_pdf<FLOAT_TYPE>(tag_z, s));
+      double pdf = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(zmax, s) : gaussian_pdf<FLOAT_TYPE>(tag_z, s));
       pdf_tag += pi_k * pdf;
     }
     double increment = -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
@@ -899,9 +933,6 @@ double BgmgCalculator::calc_univariate_cost_cache(int trait_index, float pi_vec,
 
 template<typename T>
 double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, BgmgCalculator& rhs) {
-  std::vector<float>& nvec(*rhs.get_nvec(trait_index));
-  std::vector<float>& zvec(*rhs.get_zvec(trait_index));
-
   float num_causals = pi_vec * static_cast<float>(rhs.num_snp_);
   if ((int)num_causals >= rhs.max_causals_) return 1e100; // too large pi_vec
   const int component_id = 0;   // univariate is always component 0.
@@ -914,8 +945,11 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
 
   rhs.k_pdf_.assign(rhs.k_max_, 0.0f);
 
-  std::valarray<float> fixed_effect_delta(0.0, rhs.num_tag_);;
-  rhs.calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
+  // standard variables
+  std::vector<float> z_minus_fixed_effect_delta; rhs.find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
+  std::vector<float>& nvec(*rhs.get_nvec(trait_index));
+  std::vector<int> deftag_indices; const int num_deftag = rhs.find_deftag_indices_znw(trait_index, &deftag_indices);
+  const double zmax = (trait_index==1) ? rhs.z1max_ : rhs.z2max_;
 
   std::valarray<double> pdf_double(0.0, rhs.num_tag_);
 #pragma omp parallel
@@ -926,18 +960,17 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
 #pragma omp for schedule(static)
       for (int k_index = 0; k_index < rhs.k_max_; k_index++) {
 
-        rhs.find_tag_r2sum_no_cache(component_id, num_causals, k_index, &tag_r2sum);
-        for (int tag_index = 0; tag_index < rhs.num_tag_; tag_index++) {
-          if (rhs.weights_[tag_index] == 0) continue;
-          if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+        rhs.find_tag_r2sum_no_cache(component_id, num_causals, k_index, &tag_r2sum);  // tag_r2sum are adjusted for ld_tag_sum_r2_below_r2min_adjust_for_hvec
+        for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+          int tag_index = deftag_indices[deftag_index];
 
           float tag_r2sum_value = tag_r2sum[tag_index];
           float sig2eff = tag_r2sum_value * nvec[tag_index] * sig2_beta + sig2_zero;
 
-          const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec
+          const float tag_z = z_minus_fixed_effect_delta[tag_index];
           float s = sqrt(sig2eff);
-          const bool censoring = std::abs(tag_z) > rhs.z1max_;
-          double pdf = static_cast<double>(censoring ? censored_cdf<T>(rhs.z1max_, s) : gaussian_pdf<T>(tag_z, s));
+          const bool censoring = std::abs(tag_z) > zmax;
+          double pdf = static_cast<double>(censoring ? censored_cdf<T>(zmax, s) : gaussian_pdf<T>(tag_z, s));
           pdf_double_local[tag_index] += pdf * pi_k;
 
           if (rhs.calc_k_pdf_) rhs.k_pdf_[k_index] += (-std::log(pdf) * rhs.weights_[tag_index]);
@@ -949,9 +982,8 @@ double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, floa
 
   double log_pdf_total = 0.0;
   int num_infinite = 0;
-  for (int tag_index = 0; tag_index < rhs.num_tag_; tag_index++) {
-    if (rhs.weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index])) continue;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
     double increment = -std::log(pdf_double[tag_index]) * rhs.weights_[tag_index];
     if (!std::isfinite(increment)) num_infinite++;
     else log_pdf_total += increment;
@@ -986,11 +1018,6 @@ std::string calc_bivariate_params_to_str(int pi_vec_len, float* pi_vec, int sig2
 }
 
 double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
-  if (zvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
-  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
-  if (zvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec2 is not set"));
-  if (nvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec2 is not set"));
-  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
   if (num_components_ != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: require num_components == 3. Remember to call set_option('num_components', 3)."));
   if (sig2_beta_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_beta_len != 2"));
   if (sig2_zero_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
@@ -1022,29 +1049,26 @@ double BgmgCalculator::calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, 
     find_tag_r2sum(component_id, num_causals[component_id]);
   }
 
-  std::valarray<float> fixed_effect_delta1(0.0, num_tag_), fixed_effect_delta2(0.0, num_tag_);
-  calc_fixed_effect_delta_from_causalbetavec(1, &fixed_effect_delta1);
-  calc_fixed_effect_delta_from_causalbetavec(2, &fixed_effect_delta2);
+  // standard variables
+  std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
+  std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(&deftag_indices);
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
 
   // Sigma0  = [a0 b0; b0 c0];
   const float a0 = sig2_zero[0];
   const float c0 = sig2_zero[1];
   const float b0 = sqrt(a0 * c0) * rho_zero;
 
-  // pi_k is mixture weight
-  const double pi_k = 1.0 / static_cast<double>(k_max_);
-
   double log_pdf_total = 0.0;
   int num_infinite = 0;
 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
-    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
 
-    const float z1 = zvec1_[tag_index] - fixed_effect_delta1[tag_index];  // apply causalbetavec;
-    const float z2 = zvec2_[tag_index] - fixed_effect_delta2[tag_index];  // apply causalbetavec;
+    const float z1 = z1_minus_fixed_effect_delta[tag_index];
+    const float z2 = z2_minus_fixed_effect_delta[tag_index];
     const float n1 = nvec1_[tag_index];
     const float n2 = nvec2_[tag_index];
 
@@ -1096,17 +1120,16 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
 
   if (snp_order_.empty()) find_snp_order();
 
-  std::valarray<float> fixed_effect_delta1(0.0, num_tag_), fixed_effect_delta2(0.0, num_tag_);
-  calc_fixed_effect_delta_from_causalbetavec(1, &fixed_effect_delta1);
-  calc_fixed_effect_delta_from_causalbetavec(2, &fixed_effect_delta2);
+  // standard variables
+  std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
+  std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(&deftag_indices);
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
 
   // Sigma0  = [a0 b0; b0 c0];
   const float a0 = sig2_zero[0];
   const float c0 = sig2_zero[1];
   const float b0 = sqrt(a0 * c0) * rho_zero;
-
-  // pi_k is mixture weight
-  const double pi_k = 1.0 / static_cast<double>(k_max_);
 
   std::valarray<double> pdf_double(0.0, num_tag_);
 #pragma omp parallel
@@ -1123,13 +1146,11 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
       find_tag_r2sum_no_cache(1, num_causals[1], k_index, &tag_r2sum1);
       find_tag_r2sum_no_cache(2, num_causals[2], k_index, &tag_r2sum2);
 
-      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-        if (weights_[tag_index] == 0) continue;
-        if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
-        if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        int tag_index = deftag_indices[deftag_index];
 
-        const float z1 = zvec1_[tag_index] - fixed_effect_delta1[tag_index];  // apply causalbetavec;
-        const float z2 = zvec2_[tag_index] - fixed_effect_delta2[tag_index];  // apply causalbetavec;
+        const float z1 = z1_minus_fixed_effect_delta[tag_index];
+        const float z2 = z2_minus_fixed_effect_delta[tag_index];
         const float n1 = nvec1_[tag_index];
         const float n2 = nvec2_[tag_index];
 
@@ -1162,10 +1183,8 @@ double BgmgCalculator::calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec
 
   double log_pdf_total = 0.0;
   int num_infinite = 0;
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
-    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
     double increment = -std::log(pdf_double[tag_index]) * weights_[tag_index];
     if (!std::isfinite(increment)) num_infinite++;
     else log_pdf_total += increment;
@@ -1199,6 +1218,7 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
     if ((int)num_causals[component_id] >= max_causals_) BGMG_THROW_EXCEPTION(::std::runtime_error("too large values in pi_vec"));
   }
 
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_nw(&deftag_indices);
   if (snp_order_.empty()) find_snp_order();
   if (cache_tag_r2sum_) {
     for (int component_id = 0; component_id < 3; component_id++) {
@@ -1237,10 +1257,8 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
         find_tag_r2sum_no_cache(2, num_causals[2], k_index, &tag_r2sum2);
       }
 
-      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-        if (weights_[tag_index] == 0) continue;
-        if (!std::isfinite(nvec1_[tag_index])) continue;
-        if (!std::isfinite(nvec2_[tag_index])) continue;
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        int tag_index = deftag_indices[deftag_index];
 
         double tag_weight = static_cast<double>(weights_[tag_index]);
 
@@ -1350,10 +1368,6 @@ void calc_bivariate_delta_posterior_integrals(float a, float b, float c, float i
 int64_t BgmgCalculator::calc_bivariate_delta_posterior(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero,
                                                        int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
   // where c(i,j) = \int_{\delta1, \delta2} \delta1^i \delta2^j P(z1, z2 | delta1, delta2) P(delta1, delta2)
-  if (zvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
-  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
-  if (zvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec2 is not set"));
-  if (nvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec2 is not set"));
   if (num_components_ != 3) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: require num_components == 3. Remember to call set_option('num_components', 3)."));
   if (sig2_beta_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_beta_len != 2"));
   if (sig2_zero_len != 2) BGMG_THROW_EXCEPTION(::std::runtime_error("calc_bivariate_cost: sig2_zero_len != 2"));
@@ -1376,6 +1390,9 @@ int64_t BgmgCalculator::calc_bivariate_delta_posterior(int pi_vec_len, float* pi
       find_tag_r2sum(component_id, num_causals[component_id]);
     }
   }
+
+  std::vector<int> deftag_indices;
+  const int num_deftag = find_deftag_indices_znw(&deftag_indices);
 
   // Sigma0  = [a0 b0; b0 c0];
   const float a0 = sig2_zero[0];
@@ -1404,7 +1421,8 @@ int64_t BgmgCalculator::calc_bivariate_delta_posterior(int pi_vec_len, float* pi
 #pragma omp for schedule(static)
     for (int k_index = 0; k_index < k_max_; k_index++) {
       if (cache_tag_r2sum_) {
-        for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+        for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+          int tag_index = deftag_indices[deftag_index];
           tag_r2sum0[tag_index] = (*tag_r2sum_[0])(tag_index, k_index);
           tag_r2sum1[tag_index] = (*tag_r2sum_[1])(tag_index, k_index);
           tag_r2sum2[tag_index] = (*tag_r2sum_[2])(tag_index, k_index);
@@ -1415,9 +1433,8 @@ int64_t BgmgCalculator::calc_bivariate_delta_posterior(int pi_vec_len, float* pi
         find_tag_r2sum_no_cache(2, num_causals[2], k_index, &tag_r2sum2);
       }
 
-      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-        if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
-        if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        int tag_index = deftag_indices[deftag_index];
 
         const float n1 = nvec1_[tag_index];
         const float n2 = nvec2_[tag_index];
@@ -1463,15 +1480,14 @@ int64_t BgmgCalculator::calc_bivariate_delta_posterior(int pi_vec_len, float* pi
 
   // save results to output buffers
   const double pi_k = 1.0 / static_cast<double>(k_max_);
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
-    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
     c00[tag_index] = pi_k * c00_global[tag_index];
     c10[tag_index] = pi_k * c10_global[tag_index];
     c01[tag_index] = pi_k * c01_global[tag_index];    
     c20[tag_index] = pi_k * c20_global[tag_index];
     c11[tag_index] = pi_k * c11_global[tag_index];
-      c02[tag_index] = pi_k * c02_global[tag_index];    
+    c02[tag_index] = pi_k * c02_global[tag_index];    
   }
 
   LOG << "<calc_bivariate_delta_posterior(" << ss << "), elapsed time " << timer.elapsed_ms() << "ms";
@@ -1555,14 +1571,9 @@ void BgmgCalculator::log_diagnostics() {
   LOG << " diag: options.ld_format_version_=" << (ld_format_version_);
   LOG << " diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
 }
-
+// Use an approximation that preserves variance and kurtosis.
+// This gives a robust cost function that scales up to a very high pivec, including infinitesimal model pi==1.
 double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta) {
-  std::vector<float>& nvec(*get_nvec(trait_index));
-  std::vector<float>& zvec(*get_zvec(trait_index));
-
-  // Use an approximation that preserves variance and kurtosis.
-  // This gives a robust cost function that scales up to a very high pivec, including infinitesimal model pi==1.
-
   std::stringstream ss;
   ss << "calc_univariate_cost_fast(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ")";
   LOG << ">" << ss.str();
@@ -1570,16 +1581,18 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
   double log_pdf_total = 0.0;
   SimpleTimer timer(-1);
 
-  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
-  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
+  // standard variables
+  std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  const double zmax = (trait_index==1) ? z1max_ : z2max_;
 
   int num_zero_tag_r2 = 0;
   int num_infinite = 0;
 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
     double tag_weight = static_cast<double>(weights_[tag_index]);
     
     const float tag_r2 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2()[tag_index];
@@ -1596,16 +1609,16 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
     const double tag_pi0 = 1.0 - tag_pi1;
     const float tag_sig2beta = sig2_beta * tag_eta_factor;
 
-    const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec;
+    const float tag_z = z_minus_fixed_effect_delta[tag_index];
     const float tag_n = nvec[tag_index];
 
-    const bool censoring = std::abs(tag_z) > z1max_;
+    const bool censoring = std::abs(tag_z) > zmax;
     const float s1 = sqrt(sig2_zero);
     const float s2 = sqrt(sig2_zero + tag_n *tag_sig2beta);
 
     // printf("%.4f %.4f %.4f %.4f %.4f\n", tag_pi0, s1, tag_pi1, s2, tag_pi0*s1*s1+tag_pi1*s2*s2);
-    const double tag_pdf0 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s1) : gaussian_pdf<FLOAT_TYPE>(tag_z, s1));
-    const double tag_pdf1 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s2) : gaussian_pdf<FLOAT_TYPE>(tag_z, s2));
+    const double tag_pdf0 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(zmax, s1) : gaussian_pdf<FLOAT_TYPE>(tag_z, s1));
+    const double tag_pdf1 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(zmax, s2) : gaussian_pdf<FLOAT_TYPE>(tag_z, s2));
     const double tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
     const double increment = (-std::log(tag_pdf) * tag_weight);
     if (!std::isfinite(increment)) num_infinite++;
@@ -1628,9 +1641,10 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
   double log_pdf_total = 0.0;
   SimpleTimer timer(-1);
 
-  std::valarray<float> fixed_effect_delta1(0.0, num_tag_), fixed_effect_delta2(0.0, num_tag_);
-  calc_fixed_effect_delta_from_causalbetavec(1, &fixed_effect_delta1);
-  calc_fixed_effect_delta_from_causalbetavec(2, &fixed_effect_delta2);
+  // standard variables
+  std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
+  std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(&deftag_indices);
 
   int num_zero_tag_r2 = 0;
   int num_infinite = 0;
@@ -1640,14 +1654,12 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
   const float s0_a12 = sqrt(sig2_zero[0] * sig2_zero[1]) * rho_zero;
 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
-    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
 
-    const float z1 = zvec1_[tag_index] - fixed_effect_delta1[tag_index];
+    const float z1 = z1_minus_fixed_effect_delta[tag_index];
     const float n1 = nvec1_[tag_index];
-    const float z2 = zvec2_[tag_index] - fixed_effect_delta2[tag_index];
+    const float z2 = z2_minus_fixed_effect_delta[tag_index];
     const float n2 = nvec2_[tag_index];
 
     const float tag_r2 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2()[tag_index];
@@ -1729,9 +1741,8 @@ class UnivariateCharacteristicFunctionData {
                   // so "tag" and "snp" are in the same indexing
   LdMatrixRow* ld_matrix_row;
   const std::vector<float>* hvec;
-  const std::vector<float>* zvec;
   const std::vector<float>* nvec;
-  const std::valarray<float>* fixed_effect_delta;
+  const std::vector<float>* z_minus_fixed_effect_delta;
   const std::vector<float>* ld_tag_sum_r2_below_r2min_adjust_for_hvec;
   int func_evals;
 };
@@ -1743,7 +1754,7 @@ int calc_univariate_characteristic_function_times_cosinus(unsigned ndim, const d
   const double minus_tsqr_half = -t*t/2.0;
   UnivariateCharacteristicFunctionData* data = (UnivariateCharacteristicFunctionData *)raw_data;
   const double nval = (*data->nvec)[data->tag_index];
-  const double zval = (*data->zvec)[data->tag_index] - (*data->fixed_effect_delta)[data->tag_index];  // apply causalbetavec
+  const double zval = (*data->z_minus_fixed_effect_delta)[data->tag_index];
   const double sig2_zero = data->sig2_zeroA + (*data->ld_tag_sum_r2_below_r2min_adjust_for_hvec)[data->tag_index] * nval * data->sig2_zeroL;
   const double m_1_pi = M_1_PI;
 
@@ -1800,9 +1811,6 @@ double BgmgCalculator::calc_univariate_cost_convolve(int trait_index, float pi_v
 double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
 
-  std::vector<float>& nvec(*get_nvec(trait_index));
-  std::vector<float>& zvec(*get_zvec(trait_index));
-
   std::stringstream ss;
   ss << "trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL;
   LOG << ">calc_unified_univariate_cost_convolve(" << ss.str() << ")";
@@ -1813,21 +1821,12 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
   double func_evals = 0.0;
   SimpleTimer timer(-1);
 
-  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
-  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
-
-  std::vector<float> hvec;
-  find_hvec(*this, &hvec);
-
-  // in use_complete_tag_indices_ many tag indices are undefined
-  // we compute deftag to avoid unbalanced load across OpenMP threads (static scheduler is still the way to go here.)
-  std::vector<int> deftag_indices;
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
-    deftag_indices.push_back(tag_index);
-  }
-  const int num_deftag = deftag_indices.size();
+  // standard variables
+  std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  std::vector<float> hvec; find_hvec(*this, &hvec);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
 
 #pragma omp parallel
   {
@@ -1842,10 +1841,9 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
     data.sig2_zeroL = sig2_zeroL;
     data.ld_matrix_row = &ld_matrix_row;
     data.hvec = &hvec;
-    data.zvec = &zvec;
+    data.z_minus_fixed_effect_delta = &z_minus_fixed_effect_delta;
     data.nvec = &nvec;
-    data.fixed_effect_delta = &fixed_effect_delta;
-    data.ld_tag_sum_r2_below_r2min_adjust_for_hvec = &ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+    data.ld_tag_sum_r2_below_r2min_adjust_for_hvec = &ld_tag_sum_r2_below_r2min_adjust_for_hvec;
 
 #pragma omp for schedule(static) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
@@ -1904,9 +1902,9 @@ class BivariateCharacteristicFunctionData {
   LdMatrixRow* ld_matrix_row;
 
   const std::vector<float>* hvec;
-  const std::vector<float>* zvec1;
+  const std::vector<float>* z1_minus_fixed_effect_delta;
   const std::vector<float>* nvec1;
-  const std::vector<float>* zvec2;
+  const std::vector<float>* z2_minus_fixed_effect_delta;
   const std::vector<float>* nvec2;
   const std::vector<float>* ld_tag_sum_r2_below_r2min_adjust_for_hvec;
   int func_evals;
@@ -1930,8 +1928,8 @@ int calc_bivariate_characteristic_function_times_cosinus(unsigned ndim, const do
   const float eff_sig2_beta2 = (*data->nvec2)[data->tag_index] * data->sig2_beta[1];
   const float eff_sig2_beta_cov = data->rho_beta * sqrt(eff_sig2_beta1 * eff_sig2_beta2);
   const float sig2_zero_cov = data->rho_zero * sqrt(data->sig2_zero[0] * data->sig2_zero[1]);
-  const float zval1 = (*data->zvec1)[data->tag_index];
-  const float zval2 = (*data->zvec2)[data->tag_index];
+  const float zval1 = (*data->z1_minus_fixed_effect_delta)[data->tag_index];
+  const float zval2 = (*data->z2_minus_fixed_effect_delta)[data->tag_index];
   const float inf_adj_r2 = (*data->ld_tag_sum_r2_below_r2min_adjust_for_hvec)[data->tag_index];
   const float scaling_factor = 0.5 * M_1_PI * M_1_PI;
 
@@ -1985,7 +1983,6 @@ int calc_bivariate_characteristic_function_for_integration(unsigned ndim, const 
 
 double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
-  if (!causalbetavec1_.empty() || !causalbetavec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator does not support causalbetavec"));
 
   std::string ss = calc_bivariate_params_to_str(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, -1);
   LOG << ">calc_bivariate_cost_convolve(" << ss << ")";
@@ -1996,19 +1993,12 @@ double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_ve
   double func_evals = 0.0;
   SimpleTimer timer(-1);
 
-  std::vector<float> hvec;
-  find_hvec(*this, &hvec);
-
-  // in use_complete_tag_indices_ many tag indices are undefined
-  // we compute deftag to avoid unbalanced load across OpenMP threads (static scheduler is still the way to go here.)
-  std::vector<int> deftag_indices;
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
-    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
-    deftag_indices.push_back(tag_index);
-  }
-  const int num_deftag = deftag_indices.size();
+  // standard variables
+  std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
+  std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  std::vector<float> hvec; find_hvec(*this, &hvec);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(&deftag_indices);
 
 #pragma omp parallel
   {
@@ -2021,11 +2011,11 @@ double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_ve
     data.rho_beta = rho_beta;
     data.ld_matrix_row = &ld_matrix_row;
     data.hvec = &hvec;
-    data.zvec1 = &zvec1_;
+    data.z1_minus_fixed_effect_delta = &z1_minus_fixed_effect_delta;
     data.nvec1 = &nvec1_;
-    data.zvec2 = &zvec2_;
+    data.z2_minus_fixed_effect_delta = &z2_minus_fixed_effect_delta;
     data.nvec2 = &nvec2_;
-    data.ld_tag_sum_r2_below_r2min_adjust_for_hvec = &ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+    data.ld_tag_sum_r2_below_r2min_adjust_for_hvec = &ld_tag_sum_r2_below_r2min_adjust_for_hvec;
 
 #pragma omp for schedule(static) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
@@ -2314,11 +2304,11 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
     }
   }
 
-  // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
-  const std::vector<float>& tag_sum_r2_below_r2min = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+
   const float pival = num_causal / static_cast<float>(num_snp_);
   for (int i = 0; i < num_tag_; i++) {
-    buffer->at(i) += (pival * tag_sum_r2_below_r2min[i]);
+    buffer->at(i) += (pival * ld_tag_sum_r2_below_r2min_adjust_for_hvec[i]);
   }
 }
 
@@ -2726,39 +2716,29 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
 
 double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
   check_num_snp(num_snp);
-  std::vector<float>& nvec(*get_nvec(trait_index));
-  std::vector<float>& zvec(*get_zvec(trait_index));
-  if (zvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec is not set"));
-  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
-  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
-  double cost;
-  if (cost_calculator_ == CostCalculator_Gaussian) cost = calc_unified_univariate_cost_gaussian(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
-  else if (cost_calculator_ == CostCalculator_Convolve) cost = calc_unified_univariate_cost_convolve(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
-  else if (cost_calculator_ == CostCalculator_Sampling) cost = calc_unified_univariate_cost_sampling(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
+  if (cost_calculator_ == CostCalculator_Gaussian) return calc_unified_univariate_cost_gaussian(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
+  else if (cost_calculator_ == CostCalculator_Convolve) return calc_unified_univariate_cost_convolve(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
+  else if (cost_calculator_ == CostCalculator_Sampling) return calc_unified_univariate_cost_sampling(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
   else BGMG_THROW_EXCEPTION(::std::runtime_error("unsupported cost calculator in calc_unified_univariate_cost"));
-  
-  return cost;
 }
 
+// Use an approximation that preserves variance and kurtosis.
+// This gives a robust cost function that scales up to a very high pivec, including infinitesimal model pi==1.
 double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
-  std::vector<float>& nvec(*get_nvec(trait_index));
-  std::vector<float>& zvec(*get_zvec(trait_index));
-
-  // Use an approximation that preserves variance and kurtosis.
-  // This gives a robust cost function that scales up to a very high pivec, including infinitesimal model pi==1.
-
   std::stringstream ss;
   ss << "calc_unified_univariate_cost_gaussian(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ")";
   LOG << ">" << ss.str();
 
   SimpleTimer timer(-1);
 
-  std::vector<float> hvec;
-  find_hvec(*this, &hvec);
-
-  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
-  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
+  // standard variables
+  std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  std::vector<float> hvec; find_hvec(*this, &hvec);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
+  const double zmax = (trait_index==1) ? z1max_ : z2max_;
 
   // Step 1. Calculate Ebeta2 and Ebeta4
   std::valarray<float> Ebeta2(0.0, num_snp_);
@@ -2787,13 +2767,6 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
     // The alternative implementation (i.e. the "else" branch with !use_complete_tag_indices_)
     // has to compute Edelta2 and Edelta4 for all tag snps, because 
     // our LD matrix is stored as a mapping from causal to tag variants.
-    std::vector<int> deftag_indices;
-    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-      if (weights_[tag_index] == 0) continue;
-      if (!std::isfinite(zvec[tag_index]) || !std::isfinite(zvec[tag_index])) continue;
-      deftag_indices.push_back(tag_index);
-    }
-    const int num_deftag = deftag_indices.size();
 
 #pragma omp parallel
     {
@@ -2852,12 +2825,10 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
   double log_pdf_total = 0.0;
   int num_zero_tag_r2 = 0;
   int num_infinite = 0;
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
 
 #pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
     if (Edelta2[tag_index] == 0) { num_zero_tag_r2++; continue;}
     double tag_weight = static_cast<double>(weights_[tag_index]);
 
@@ -2876,16 +2847,16 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
     // export the expected values of z^2 distribution
     if ((aux != nullptr) && (aux_option_ == AuxOption_Ezvec2)) aux[tag_index] = A + sig2_zero;
 
-    const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec;
+    const float tag_z = z_minus_fixed_effect_delta[tag_index];
     const float tag_n = nvec[tag_index];
 
-    const bool censoring = (std::abs(tag_z) > z1max_);
+    const bool censoring = (std::abs(tag_z) > zmax);
     const float s1 = sqrt(sig2_zero);
     const float s2 = sqrt(sig2_zero + sig2_tag);  // sqrt(tag_n) * 
 
     // printf("%.4f %.4f %.4f %.4f %.4f\n", tag_pi0, s1, tag_pi1, s2, tag_pi0*s1*s1+tag_pi1*s2*s2);
-    const double tag_pdf0 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s1) : gaussian_pdf<FLOAT_TYPE>(tag_z, s1));
-    const double tag_pdf1 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z1max_, s2) : gaussian_pdf<FLOAT_TYPE>(tag_z, s2));
+    const double tag_pdf0 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(zmax, s1) : gaussian_pdf<FLOAT_TYPE>(tag_z, s1));
+    const double tag_pdf1 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(zmax, s2) : gaussian_pdf<FLOAT_TYPE>(tag_z, s2));
     const double tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
     if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = tag_pdf;
     const double increment = (-std::log(tag_pdf) * tag_weight);
@@ -2905,30 +2876,18 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
 double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
 
-  std::vector<float>& nvec(*get_nvec(trait_index));
-  std::vector<float>& zvec(*get_zvec(trait_index));
-
   std::stringstream ss;
   ss << "calc_unified_univariate_cost_sampling(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ")";
   LOG << ">" << ss.str();
 
   SimpleTimer timer(-1);
 
-  std::vector<float> hvec;
-  find_hvec(*this, &hvec);
-
-  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
-  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
-
+  // standard variables
+  std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
+  std::vector<float>& nvec(*get_nvec(trait_index));
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
-
-  std::vector<int> deftag_indices;
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (weights_[tag_index] == 0) continue;
-    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(zvec[tag_index])) continue;
-    deftag_indices.push_back(tag_index);
-  }
-  const int num_deftag = deftag_indices.size();
+  std::vector<float> hvec; find_hvec(*this, &hvec);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
 
   const double z_max = (trait_index==1) ? z1max_ : z2max_;
   const double pi_k = 1.0 / static_cast<double>(k_max_);
@@ -2970,7 +2929,7 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
       double average_tag_delta2 = 0.0f;
       for (int k = 0; k < k_max_; k++) {
         float s = sqrt(tag_delta2[k] + sig2_zero);
-        const float tag_z = zvec[tag_index] - fixed_effect_delta[tag_index];  // apply causalbetavec
+        const float tag_z = z_minus_fixed_effect_delta[tag_index];
         const bool censoring = std::abs(tag_z) > z_max;
         double pdf = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z_max, s) : gaussian_pdf<FLOAT_TYPE>(tag_z, s));
         pdf_tag += pdf * pi_k;
@@ -3042,13 +3001,11 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
   SimpleTimer timer(-1);
 
   const double pi_k = 1.0 / static_cast<double>(k_max_);
-  std::valarray<double> pdf_double(0.0, length);
-
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
+  std::vector<float> hvec; find_hvec(*this, &hvec);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
 
-  std::vector<float> hvec;
-  find_hvec(*this, &hvec);
-
+  std::valarray<double> pdf_double(0.0, length);
 #pragma omp parallel
   {
     std::valarray<double> pdf_double_local(0.0, length);
@@ -3058,9 +3015,8 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
     for (int k_index = 0; k_index < k_max_; k_index++) {
       find_unified_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, k_index, &nvec[0], &hvec[0], &tag_delta2);
 
-      for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-        if (weights_[tag_index] == 0) continue;
-        if (!std::isfinite(nvec[tag_index])) continue;
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        int tag_index = deftag_indices[deftag_index];
 
         const double tag_weight = static_cast<double>(weights_[tag_index]);
 
@@ -3088,4 +3044,76 @@ int64_t BgmgCalculator::calc_unified_univariate_power(int trait_index, int num_c
 }
 int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* c0, float* c1, float* c2) {
 
+}
+
+void BgmgCalculator::find_z_minus_fixed_effect_delta(int trait_index, std::vector<float>* z_minus_fixed_effect_delta) {
+  std::vector<float>& zvec(*get_zvec(trait_index));
+  if (zvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec is not set"));
+
+  std::valarray<float> fixed_effect_delta(0.0, num_tag_);
+  calc_fixed_effect_delta_from_causalbetavec(trait_index, &fixed_effect_delta);
+
+  z_minus_fixed_effect_delta->resize(num_tag_);
+  for (int i = 0; i < num_tag_; i++)
+    z_minus_fixed_effect_delta->at(i) = std::isfinite(zvec[i]) ? (zvec[i] - fixed_effect_delta[i]) : zvec[i];
+}
+
+// in use_complete_tag_indices_ many tag indices are undefined,
+// so we may want to compute deftag to avoid unbalanced load across OpenMP threads (static scheduler is still the way to go in most cases)
+int BgmgCalculator::find_deftag_indices_znw(int trait_index, std::vector<int>* deftag_indices) {
+  std::vector<float>& zvec(*get_zvec(trait_index));
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  if (zvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec is not set"));
+  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (weights_[tag_index] == 0) continue;
+    if (!std::isfinite(zvec[tag_index]) || !std::isfinite(nvec[tag_index])) continue;
+    deftag_indices->push_back(tag_index);
+  }
+  return deftag_indices->size();
+}
+
+int BgmgCalculator::find_deftag_indices_nw(int trait_index, std::vector<int>* deftag_indices) {
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  if (nvec.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec is not set"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (weights_[tag_index] == 0) continue;
+    if (!std::isfinite(nvec[tag_index])) continue;
+    deftag_indices->push_back(tag_index);
+  }
+  return deftag_indices->size();
+}
+
+int BgmgCalculator::find_deftag_indices_znw(std::vector<int>* deftag_indices) {
+  if (zvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec1 is not set"));
+  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  if (zvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("zvec2 is not set"));
+  if (nvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec2 is not set"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (weights_[tag_index] == 0) continue;
+    if (!std::isfinite(zvec1_[tag_index]) || !std::isfinite(nvec1_[tag_index])) continue;
+    if (!std::isfinite(zvec2_[tag_index]) || !std::isfinite(nvec2_[tag_index])) continue;
+    deftag_indices->push_back(tag_index);
+  }
+  return deftag_indices->size();
+}
+
+int BgmgCalculator::find_deftag_indices_nw(std::vector<int>* deftag_indices) {
+  if (nvec1_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec1 is not set"));
+  if (nvec2_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("nvec2 is not set"));
+  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (weights_[tag_index] == 0) continue;
+    if (!std::isfinite(nvec1_[tag_index])) continue;
+    if (!std::isfinite(nvec2_[tag_index])) continue;
+    deftag_indices->push_back(tag_index);
+  }
+  return deftag_indices->size();
 }

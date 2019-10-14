@@ -432,6 +432,7 @@ class BgmgCalculator : public TagToSnpMapping {
   int find_deftag_indices_znw(std::vector<int>* deftag_indices);
   int find_deftag_indices_nw(int trait_index, std::vector<int>* deftag_indices);
   int find_deftag_indices_nw(std::vector<int>* deftag_indices);
+  int find_deftag_indices_w(int trait_index, std::vector<int>* deftag_indices);
 
   BimFile bim_file_;
 

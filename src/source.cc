@@ -531,3 +531,19 @@ int64_t bgmg_calc_unified_univariate_pdf(int context_id, int trait_index, int nu
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_pdf(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, length, zvec, pdf);
   } CATCH_EXCEPTIONS;
 }
+
+int64_t bgmg_calc_unified_univariate_power(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float zthresh, int length, float* nvec, float* svec) {
+  try {
+    set_last_error(std::string());
+    check_trait_index(trait_index); check_and_fix_unified(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL); check_is_positive(length); check_is_not_null(nvec); check_is_not_null(svec);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_power(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, zthresh, length, nvec, svec);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_calc_unified_univariate_delta_posterior(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* c0, float* c1, float* c2) {
+  try {
+    set_last_error(std::string());
+    check_trait_index(trait_index); check_and_fix_unified(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL); check_is_positive(length); check_is_not_null(c0); check_is_not_null(c1); check_is_not_null(c2);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_delta_posterior(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, length, c0, c1, c2);
+  } CATCH_EXCEPTIONS;
+}

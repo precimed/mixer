@@ -343,6 +343,39 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
   for (int i = 0; i < zvec_pdf_unified.size(); i++) {
     ASSERT_TRUE(std::isfinite(zvec_pdf_unified[i]));
   }
+
+  std::vector<float> nvec;
+  for (int n = 10; n < 1000; n += 10) nvec.push_back(n);
+  std::vector<float> svec_unified(nvec.size(), 0.0f);
+  float zthresh = 5.45f;
+
+  if (pi_val==1.0f) calc.set_option("kmax", 1);
+
+  calc.calc_unified_univariate_power(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, zthresh, nvec.size(), &nvec[0], &svec_unified[0]);
+  for (int i = 1; i < svec_unified.size(); i++) ASSERT_TRUE(svec_unified[i] > svec_unified[i-1]);
+
+  if (pi_val != 1.0f) {
+    std::vector<float> svec(nvec.size(), 0.0f);
+    calc.calc_univariate_power(trait_index, pi_val, sig2_zeroA, sig2_beta, zthresh, nvec.size(), &nvec[0], &svec[0]);
+    for (int i = 1; i < svec.size(); i++) ASSERT_TRUE(svec[i] > svec[i-1]);
+    //for (int i = 0; i < svec.size(); i++) std::cout << svec[i] << "\t" << svec_unified[i] << std::endl;
+  }
+
+  std::vector<float> c0_unified(num_tag, 0.0), c1_unified(num_tag, 0.0), c2_unified(num_tag, 0.0);
+  calc.calc_unified_univariate_delta_posterior(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, num_tag, &c0_unified[0], &c1_unified[0], &c2_unified[0]);
+  for (int i = 0; i < num_tag; i++) {
+    ASSERT_TRUE(c0_unified[i] > 0); ASSERT_TRUE(c1_unified[i] != 0); ASSERT_TRUE(c2_unified[i] > 0);
+    //std::cout << c0_unified[i] << "\t" << c1_unified[i] << "\t" << c2_unified[i] << std::endl;
+  }
+  
+  if (pi_val != 1.0f) {
+    std::vector<float> c0(num_tag, 0.0), c1(num_tag, 0.0), c2(num_tag, 0.0);
+    calc.calc_univariate_delta_posterior(trait_index, pi_val, sig2_zeroA, sig2_beta, num_tag, &c0[0], &c1[0], &c2[0]);
+    for (int i = 0; i < num_tag; i++) {
+      ASSERT_TRUE(c0[i] > 0); ASSERT_TRUE(c1[i] != 0); ASSERT_TRUE(c2[i] > 0);
+      //std::cout << c0_unified[i] << "\t" << c1_unified[i] << "\t" << c2_unified[i] << "\t\t" << c0[i] << "\t" << c1[i] << "\t" << c2[i] << std::endl;
+    }
+  }
 }
 
 double calcLikelihoodUnifiedGaussian(float r2min, int trait_index, bool use_complete_tag_indices, float pi_val) {

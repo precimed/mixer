@@ -133,8 +133,8 @@ class UnifiedUnivariateParams(object):
 class AnnotUnivariateParams(object):
     def __init__(self, pi=[None], sig2_beta=[None], sig2_annot=None, s=None, l=None, sig2_zeroA=None, annomat=None, annonames=None, mafvec=None, tldvec=None):
         if annomat is not None: assert(annomat.ndim == 2) # 1D arrays don't work in np.dot as we want matrix multiplication
-        self._pi = [pi] if isinstance(pi, (int, float)) else pi
-        self._sig2_beta = [sig2_beta] if isinstance(sig2_beta, (int, float)) else sig2_beta
+        self._pi = [pi] if ((pi is None) or isinstance(pi, (int, float))) else pi
+        self._sig2_beta = [sig2_beta] if ((sig2_beta is None) or isinstance(sig2_beta, (int, float))) else sig2_beta
         self._sig2_annot = sig2_annot
         self._s = s
         self._l = l

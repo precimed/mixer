@@ -117,6 +117,21 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--cost', default=False, action="store_true", help="save full cost function")
     parser.add_argument('--models', default=[1,2,3,4,5,6,7,8,9,50,51,52], type=int, nargs='+', choices=[1,2,3,4,5,6,7,8,9,50,51,52])
 
+    parser.add_argument('--fit-fast', default=False,  action="store_true", help="stop after fitting an infinitesimal model")
+
+    #parser.add_argument('--fit-sequence', type=str, default=['diffevo-fast', 'neldermead-fast', 'neldermead'], nargs='+',
+    #    choices=['diffevo-fast', 'neldermead-fast', 'neldermead'],
+    #    help="Specify fit sequence: "
+    #         "'diffevo' performs a single iteration of the differential evolution to optimize convolve cost function and find an initial approximation; "
+    #         "'neldermead' applies Nelder-Mead downhill simplex search to optimize convolve cost function; "
+    #         "'diffevo-fast' and 'neldermead-fast' use gaussian cost function instead of convolve cost function. ")
+
+    #parser.add_argument('--mixture-model', type=str, default='10', choices=['10', '0P', '1P', 'PP'],
+    #    help="Choose among an infinitesimal model (10), causal mixture model (0P), causal mixture model with an infinitesimal component (1P), and a causal mixture of small and large effects (PP)")
+    #parser.add_argument('--annot-model', default=False, action="store_true", help="include annotations in the model")
+    #parser.add_argument('--s-model', type=float, default=None, help="constraint for MAF-dependent architectures")
+    #parser.add_argument('--l-model', type=float, default=None, help="constraint for LD-dependent architectures")
+
     parser.add_argument('--downsample-factor', default=50, type=int, help="Applies to --power-curve. "
         "'--downsample-factor N' imply that only 1 out of N available z-score values will be used in calculations.")
 
@@ -166,52 +181,88 @@ def enhance_optimize_result(r, cost_n, cost_df=None, cost_fast=None):
     r['AIC'] =                   2 * r['cost_df'] + 2 * r['cost']
     if cost_fast is not None: r['cost_fast'] = cost_fast
 
-def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames, lib, trait_index):
+def apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right):
+    parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+    bounds4opt = [(l, r) for l, r in zip(parametrization.params_to_vec(bounds_left), parametrization.params_to_vec(bounds_right))]
+    optimize_result = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
+        tol=0.01, mutation=(0.5, 1), recombination=0.7, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
+    params = parametrization.vec_to_params(optimize_result.x)
+    enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
+    optimize_result['params']=params.as_dict()
+    return params, optimize_result
+
+def apply_nedlermead(args, lib, trait_index, constraint, params_init):
+    parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+    optimize_result = scipy.optimize.minimize(lambda x: parametrization.calc_cost(x), parametrization.params_to_vec(params_init),
+        method='Nelder-Mead', options={'maxiter':480, 'fatol':1e-7, 'xatol':1e-4, 'adaptive':True})
+    params = parametrization.vec_to_params(optimize_result.x)
+    enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
+    optimize_result['params']=params.as_dict()
+    return params, optimize_result
+
+def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, args, lib, trait_index, annomat, annonames):
     mafvec = lib.mafvec
     tldvec = lib.ld_tag_r2_sum  # this is available for tag indices only, hense we enabled use_complete_tag_indices
+
+    s_low,  s_high,  s_value  = (-1.0, 0.25, None) if (s_model is None) else (None, None, s_model)
+    l_low,  l_high,  l_value  = (-1.0, 0.25, None) if (l_model is None) else (None, None, l_model)
+    s0_low, s0_high, s0_value = (0.90, 2.50, None)
     optimize_result_sequence = []
-    results = {}
 
-    # for QQ plots - but here it makes no difference as we use complete tag indices 
-    mafvec_tag = mafvec[lib.defvec]
-    tldvec_tag = tldvec
-
-    if (bounds_left is not None) and (bounds_right is not None):
-        parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
-        
-        lib.set_option('cost_calculator', _cost_calculator_gaussian)
-    
-        # Step1, diffevo-fast
-        bounds4opt = [(l, r) for l, r in zip(parametrization.params_to_vec(bounds_left), parametrization.params_to_vec(bounds_right))]
-        optimize_result = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
-            tol=0.01, mutation=(0.5, 1), recombination=0.7, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
-        params = parametrization.vec_to_params(optimize_result.x)
-        enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
-        optimize_result['params']=params.as_dict()   # params after optimization
+    lib.set_option('cost_calculator', _cost_calculator_gaussian)
+    if annot_model:
+        sb_low, sb_high, sb_value = (5e-8, 5e-2, None)
+        constraint = AnnotUnivariateParams(pi=1, s=s_value, l=l_value, sig2_beta=sb_value, sig2_zeroA=s0_value,
+                                           sig2_annot=[1], annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                           mafvec=mafvec, tldvec=tldvec)
+        bounds_left = AnnotUnivariateParams(pi=None, s=s_low, l=l_low, sig2_beta=sb_low, sig2_zeroA=s0_low)
+        bounds_right = AnnotUnivariateParams(pi=None, s=s_high, l=l_high, sig2_beta=sb_high, sig2_zeroA=s0_high)
+        params, optimize_result = apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right)
         optimize_result_sequence.append(('diffevo-fast', optimize_result))
 
-        # Step 2. neldermead-fast
-        optimize_result = scipy.optimize.minimize(lambda x: parametrization.calc_cost(x), parametrization.params_to_vec(params),
-            method='Nelder-Mead', options={'maxiter':480, 'fatol':1e-7, 'xatol':1e-4, 'adaptive':True})
-        params = parametrization.vec_to_params(optimize_result.x)
-        enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
-        optimize_result['params']=params.as_dict()   # params after optimization
-        optimize_result_sequence.append(('neldermead-fast', optimize_result))
+        params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+        optimize_result_sequence.append(('nedlermead-fast', optimize_result))
 
-        # Step 3. neldermead (for non-infinitesimal model)
-        if (len(params._pi) > 1) or (params._pi[0] != 1):
-            lib.set_option('cost_calculator', _cost_calculator_convolve)
-            optimize_result = scipy.optimize.minimize(lambda x: parametrization.calc_cost(x), parametrization.params_to_vec(params),
-                method='Nelder-Mead', options={'maxiter':480, 'fatol':1e-7, 'xatol':1e-4, 'adaptive':True})
-            params = parametrization.vec_to_params(optimize_result.x)
-            enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
-            optimize_result['params']=params.as_dict()   # params after optimization
-            optimize_result_sequence.append(('neldermead', optimize_result))
-        else:
-            lib.log_message('Gaussian cost function is correct for infinitesimal models, skip fit with full cost function')
+        params.fit_sig2_annot(lib, trait_index); params.drop_zero_annot()
+        optimize_result_sequence.append(('nnls-fast', {'params':params.as_dict()}))
     else:
-        params=constraint
+        params=AnnotUnivariateParams(sig2_annot=[1], annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]], mafvec=mafvec, tldvec=tldvec)
+    
+    if mixture_model=='10':
+        pi_low, pi_high, pi_value = (None,          None,         1)
+        sb_low, sb_high, sb_value = (5e-8,          5e-2,         None)
+    elif mixture_model=='0P':
+        pi_low, pi_high, pi_value = (5e-5,          5e-1,         None)
+        sb_low, sb_high, sb_value = (5e-8,          5e-2,         None)
+    elif mixture_model=='1P':
+        pi_low, pi_high, pi_value = ([None, 5e-5], [None, 5e-1], [1,    None])
+        sb_low, sb_high, sb_value = ([5e-8, 5e-8], [5e-2, 5e-2], [None, None])
+    elif mixture_model=='PP':
+        pi_low, pi_high, pi_value = ([5e-5, 5e-5], [5e-1, 5e-1], [None, None])
+        sb_low, sb_high, sb_value = ([5e-8, 5e-8], [5e-2, 5e-2], [None, None])
+    else:
+        raise ValueError('unsupported --mixture-model: {}'.format(mixture_model))
 
+    constraint = AnnotUnivariateParams(pi=pi_value, s=s_value, l=l_value, sig2_beta=sb_value, sig2_zeroA=s0_value,
+                                       sig2_annot=params._sig2_annot, annomat=params._annomat, annonames=params._annonames, mafvec=mafvec, tldvec=tldvec)
+    bounds_left = AnnotUnivariateParams(pi=pi_low, s=s_low, l=l_low, sig2_beta=sb_low, sig2_zeroA=s0_low)
+    bounds_right = AnnotUnivariateParams(pi=pi_high, s=s_high, l=l_high, sig2_beta=sb_high, sig2_zeroA=s0_high)
+    params, optimize_result = apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right)
+    optimize_result_sequence.append(('diffevo-fast', optimize_result))
+    params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+    optimize_result_sequence.append(('nedlermead-fast', optimize_result))
+
+    if (not args.fit_fast) and (mixture_model != '10'):
+        lib.set_option('cost_calculator', _cost_calculator_convolve)
+        params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+        optimize_result_sequence.append(('nedlermead', optimize_result))
+
+    return params, optimize_result_sequence
+
+def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_index, annomat, annonames):
+    params, optimize_result_sequence = apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, args, lib, trait_index, annomat, annonames)
+
+    results = {}
     results['params'] = params.as_dict()
     results['optimize'] = optimize_result_sequence
     results['annot_enrich'] = params.find_annot_enrich(annomat).flatten()
@@ -231,6 +282,10 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
         results['gaussian_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
 
     if args.qq_plots:
+        # for QQ plots - but here it makes no difference as we use complete tag indices 
+        mafvec_tag = lib.mafvec[lib.defvec]
+        tldvec_tag = lib.ld_tag_r2_sum
+
         defvec = np.isfinite(lib.get_zvec(trait_index)) & (lib.weights > 0)
         results['qqplot'] = calc_qq_plot(lib, params, trait_index, args.downsample_factor, defvec,
             title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
@@ -248,14 +303,10 @@ def perform_fit(bounds_left, bounds_right, constraint, args, annomat, annonames,
         power_nvec, power_svec = calc_power_curve(lib, params, trait_index=trait_index, downsample=args.downsample_factor)
         results['power'] = {'nvec': power_nvec, 'svec': power_svec}
 
-    return results, params
+    return results
 
 def execute_fit_parser(args):
     libbgmg = LibBgmg(args.lib)
-
-    # resolve dependencies between models
-    if ((1 not in args.models) and bool(set(args.models) & set([5,7]))): args.models.append(1)
-    if ((2 not in args.models) and bool(set(args.models) & set([6,8,9]))): args.models.append(2)
 
     fix_and_validate_args(args)
     
@@ -292,8 +343,6 @@ def execute_fit_parser(args):
     libbgmg.set_option('diag', 0)
 
     totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))
-    mafvec = libbgmg.mafvec[libbgmg.defvec]
-    tldvec = libbgmg.ld_tag_r2_sum
     trait_index = 1
 
     results = {}
@@ -316,8 +365,6 @@ def execute_fit_parser(args):
     # m09_0P000 m10_0P00A m11_0P0S0 m12_0P0SA m13_0PL00 m14_0PL0A m15_0PLS0 m16_0PLSA
     # m17_1P000 m18_1P00A m19_1P0S0 m20_1P0SA m21_1PL00 m22_1PL0A m23_1PLS0 m24_1PLSA
     # m25_PP000 m26_PP00A m27_PP0S0 m28_PP0SA m29_PPL00 m30_PPL0A m31_PPLS0 m32_PPLSA
-    #
-    # S, L - None or constraint value;  A - true or false;  PI - four mode ('10', '0P', '1P', 'PP').
 
     # overview of the models
     # params1 - basic infinitesimal model
@@ -333,149 +380,18 @@ def execute_fit_parser(args):
     # params51 - a model with infinitesimal and causal mixture 
     # params52 - a model with two causal components (M3)
 
-    if 52 in args.models:
-        # Fit params52 - a model with two causal components (M3)
-        result, params52 = perform_fit(AnnotUnivariateParams(pi=[5e-5, 5e-5], sig2_beta=[5e-8, 5e-8], sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(pi=[5e-1, 5e-1], sig2_beta=[5e-2, 5e-2], sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(pi=[None, None], sig2_beta=[None, None], sig2_annot=[1], s=0, l=0,
-                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params52'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
+    if 1 in args.models: results['params1'] = perform_fit('10', 0,    0,    False, args, libbgmg, trait_index, annomat, annonames)
+    if 2 in args.models: results['params2'] = perform_fit('10', None, None, False, args, libbgmg, trait_index, annomat, annonames)
+    if 3 in args.models: results['params3'] = perform_fit('0P', 0,    0,    False, args, libbgmg, trait_index, annomat, annonames)
+    if 4 in args.models: results['params4'] = perform_fit('0P', None, None, False, args, libbgmg, trait_index, annomat, annonames)
+    if 5 in args.models: results['params5'] = perform_fit('10', 0,    0,    True, args, libbgmg, trait_index, annomat, annonames)
+    if 6 in args.models: results['params6'] = perform_fit('10', None, None, True, args, libbgmg, trait_index, annomat, annonames)
+    if 7 in args.models: results['params7'] = perform_fit('0P', 0,    0,    True, args, libbgmg, trait_index, annomat, annonames)
+    if 8 in args.models: results['params8'] = perform_fit('0P', None, None, True, args, libbgmg, trait_index, annomat, annonames)
 
-    if 51 in args.models:
-        #  Fit params51 - a model with infinitesimal and causal mixture 
-        result, params51 = perform_fit(AnnotUnivariateParams(pi=[None, 5e-5], sig2_beta=[5e-8, 5e-8], sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(pi=[None, 5e-1], sig2_beta=[5e-2, 5e-2], sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(pi=[1, None], sig2_beta=[None, None], sig2_annot=[1], s=0, l=0,
-                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params51'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
-
-    if 50 in args.models:
-        # Fit params50 - basic infinitesimal model with LDSC assumtions
-        result, params50 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(pi=1, sig2_annot=[1], s=-1, l=0,
-                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params50'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
-
-    if 1 in args.models:
-        # Fit params1 - basic infinitesimal model
-        result, params1 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(pi=1, sig2_annot=[1], s=0, l=0,
-                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params1'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
-
-    if 2 in args.models:
-        # Fit params2 - infinitesimal model with flexible s and l parameters
-        result, params2 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, sig2_beta=5e-8, sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(s=0.25, l=0.25, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(pi=1, sig2_annot=[1], 
-                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params2'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
-
-    if 3 in args.models:
-        # Fit params3 - basic causal mixture model
-        result, params3 = perform_fit(AnnotUnivariateParams(pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(sig2_annot=[1], s=0, l=0,
-                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params3'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
-
-    if 4 in args.models:
-        # Fit params4 - causal mixture model with flexible s and l parameters
-        result, params4 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(s=0.25, l=0.25, pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(sig2_annot=[1],
-                                                            annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params4'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
-
-    if 5 in args.models:
-        # Fit params5 - infinitesimal model with annotations 
-        params_tmp = AnnotUnivariateParams(pi=1.0, s=0, l=0, sig2_beta=params1._sig2_beta, sig2_zeroA=0,
-                                        annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
-        params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
-        result, params5 = perform_fit(AnnotUnivariateParams(sig2_beta=5e-8, sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(sig2_beta=5e-2, sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(pi=1, s=0, l=0, sig2_annot=params_tmp._sig2_annot,
-                                                            annomat=params_tmp._annomat, annonames=params_tmp._annonames,
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params5'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
-
-    if 6 in args.models:
-        # Fit params6 - infinitesimal model with annotations and flexible s and l parameters
-        params_tmp = AnnotUnivariateParams(pi=1.0, s=params2._s, l=params2._l, sig2_beta=params2._sig2_beta, sig2_zeroA=0,
-                                        annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
-        params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
-        result, params6 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, sig2_beta=5e-8, sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(s=0.25, l=0.25, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(pi=1, sig2_annot=params_tmp._sig2_annot,
-                                                            annomat=params_tmp._annomat, annonames=params_tmp._annonames,
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params6'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
-
-    if 7 in args.models:
-        # Fit params7 - causal mixture model with annotations
-        params_tmp = AnnotUnivariateParams(pi=1.0, s=0, l=0, sig2_beta=params1._sig2_beta, sig2_zeroA=0,
-                                        annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
-        params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
-        result, params7 = perform_fit(AnnotUnivariateParams(pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(s=0, l=0, sig2_annot=params_tmp._sig2_annot,
-                                                            annomat=params_tmp._annomat, annonames=params_tmp._annonames,
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params7'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
-
-    if 8 in args.models:
-        # Fit params8 - causal mixture model with annotations and flexible s and l parameters
-        params_tmp = AnnotUnivariateParams(pi=1.0, s=params2._s, l=params2._l, sig2_beta=params2._sig2_beta, sig2_zeroA=0,
-                                        annomat=annomat, annonames=annonames, mafvec=mafvec, tldvec=tldvec)
-        params_tmp.fit_sig2_annot(libbgmg, trait_index); params_tmp.drop_zero_annot()
-        result, params8 = perform_fit(AnnotUnivariateParams(s=-1.0, l=-1.0, pi=5e-5, sig2_beta=5e-6, sig2_zeroA=0.9),
-                                    AnnotUnivariateParams(s=0.25, l=0.25, pi=5e-1, sig2_beta=5e-2, sig2_zeroA=2.5),
-                                    AnnotUnivariateParams(sig2_annot=params_tmp._sig2_annot,
-                                                            annomat=params_tmp._annomat, annonames=params_tmp._annonames,
-                                                            mafvec=mafvec, tldvec=tldvec),
-                                    args, annomat, annonames, libbgmg, trait_index)
-        results['params8'] = result
-        with open(args.out + '.tmp.json', 'w') as outfile:
-            json.dump(results, outfile, cls=NumpyEncoder)
+    if 52 in args.models: results['params52'] = perform_fit('PP', 0,  0, False, args, libbgmg, trait_index, annomat, annonames)
+    if 51 in args.models: results['params51'] = perform_fit('1P', 0,  0, False, args, libbgmg, trait_index, annomat, annonames)
+    if 50 in args.models: results['params50'] = perform_fit('10', -1, 0, False, args, libbgmg, trait_index, annomat, annonames)
 
     results['options']['time_finished'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 

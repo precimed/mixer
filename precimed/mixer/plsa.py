@@ -115,7 +115,7 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
     parser.add_argument('--power-curve', default=False, action="store_true", help="generate power curves")    
     parser.add_argument('--cost', default=False, action="store_true", help="save full cost function")
-    parser.add_argument('--models', default=[1,2,3,4,5,6,7,8,9,50,51,52], type=int, nargs='+', choices=[1,2,3,4,5,6,7,8,9,50,51,52])
+    parser.add_argument('--models', default=[1, 2, 7, 8, 9, 10, 15, 16, 17, 25], type=int, nargs='+', choices=list(range(1, 33)))
 
     parser.add_argument('--fit-fast', default=False,  action="store_true", help="stop after fitting an infinitesimal model")
 
@@ -305,6 +305,13 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
 
     return results
 
+def parse_spec(spec):
+    # m01_10000 m02_1000A m03_100S0 m04_100SA m05_10L00 m06_10L0A m07_10LS0 m08_10LSA
+    # m09_0P000 m10_0P00A m11_0P0S0 m12_0P0SA m13_0PL00 m14_0PL0A m15_0PLS0 m16_0PLSA
+    # m17_1P000 m18_1P00A m19_1P0S0 m20_1P0SA m21_1PL00 m22_1PL0A m23_1PLS0 m24_1PLSA
+    # m25_PP000 m26_PP00A m27_PP0S0 m28_PP0SA m29_PPL00 m30_PPL0A m31_PPLS0 m32_PPLSA
+    return {'mixture_model': spec[:2], 's_model': ('S' in spec), 'l_model': ('L' in model), 'annot_model': ('A' in model)}
+
 def execute_fit_parser(args):
     libbgmg = LibBgmg(args.lib)
 
@@ -358,40 +365,37 @@ def execute_fit_parser(args):
     results['weights'] = libbgmg.weights[libbgmg.weights>0]
     results['zvec1'] = libbgmg.zvec1[libbgmg.weights>0]
 
-    # The plan is to upgrade to the following set of 32 models 
-    # PPLSA, 2^5 = 32 models, PP can be 10, 0P, 1P, PP
-    # For S and L one can set custom value for the constraint.
-    # m01_10000 m02_1000A m03_100S0 m04_100SA m05_10L00 m06_10L0A m07_10LS0 m08_10LSA
-    # m09_0P000 m10_0P00A m11_0P0S0 m12_0P0SA m13_0PL00 m14_0PL0A m15_0PLS0 m16_0PLSA
-    # m17_1P000 m18_1P00A m19_1P0S0 m20_1P0SA m21_1PL00 m22_1PL0A m23_1PLS0 m24_1PLSA
-    # m25_PP000 m26_PP00A m27_PP0S0 m28_PP0SA m29_PPL00 m30_PPL0A m31_PPLS0 m32_PPLSA
-
     # overview of the models
-    # params1 - basic infinitesimal model
-    # params2 - infinitesimal model with flexible s and l parameters
-    # params3 - basic causal mixture model
-    # params4 - causal mixture model with flexible s and l parameters
-    # params5 - infinitesimal model with annotations 
-    # params6 - infinitesimal model with annotations and flexible s and l parameters
-    # params7 - causal mixture model with annotations
-    # params8 - causal mixture model with annotations and flexible s and l parameters - s and l re-fitted in the context of a causal mixture
+    # params1 - m01_10000 - basic infinitesimal model
+    # params2 - m07_10LS0 - infinitesimal model with flexible s and l parameters
+    # params3 - m09_0P000 - basic causal mixture model
+    # params4 - m15_0PLS0 - causal mixture model with flexible s and l parameters
+    # params5 - m02_1000A - infinitesimal model with annotations 
+    # params6 - m08_10LSA - infinitesimal model with annotations and flexible s and l parameters
+    # params7 - m10_0P00A - causal mixture model with annotations
+    # params8 - m16_0PLSA - causal mixture model with annotations and flexible s and l parameters - s and l re-fitted in the context of a causal mixture
 
     # params50 - basic infinitesimal model with s=-1 (LDSC assumptions)
-    # params51 - a model with infinitesimal and causal mixture 
-    # params52 - a model with two causal components (M3)
+    # params51 - m17_1P000 - a model with infinitesimal and causal mixture 
+    # params52 - m25_PP000 - a model with two causal components (M3)
 
-    if 1 in args.models: results['params1'] = perform_fit('10', 0,    0,    False, args, libbgmg, trait_index, annomat, annonames)
-    if 2 in args.models: results['params2'] = perform_fit('10', None, None, False, args, libbgmg, trait_index, annomat, annonames)
-    if 3 in args.models: results['params3'] = perform_fit('0P', 0,    0,    False, args, libbgmg, trait_index, annomat, annonames)
-    if 4 in args.models: results['params4'] = perform_fit('0P', None, None, False, args, libbgmg, trait_index, annomat, annonames)
-    if 5 in args.models: results['params5'] = perform_fit('10', 0,    0,    True, args, libbgmg, trait_index, annomat, annonames)
-    if 6 in args.models: results['params6'] = perform_fit('10', None, None, True, args, libbgmg, trait_index, annomat, annonames)
-    if 7 in args.models: results['params7'] = perform_fit('0P', 0,    0,    True, args, libbgmg, trait_index, annomat, annonames)
-    if 8 in args.models: results['params8'] = perform_fit('0P', None, None, True, args, libbgmg, trait_index, annomat, annonames)
+    # PPLSA, 2^5 = 32 models, PP can be 10, 0P, 1P, PP, for S and L one can set custom value for the constraint.
+    specs = """m01_10000 m02_1000A m03_100S0 m04_100SA m05_10L00 m06_10L0A m07_10LS0 m08_10LSA 
+               m09_0P000 m10_0P00A m11_0P0S0 m12_0P0SA m13_0PL00 m14_0PL0A m15_0PLS0 m16_0PLSA
+               m17_1P000 m18_1P00A m19_1P0S0 m20_1P0SA m21_1PL00 m22_1PL0A m23_1PLS0 m24_1PLSA
+               m25_PP000 m26_PP00A m27_PP0S0 m28_PP0SA m29_PPL00 m30_PPL0A m31_PPLS0 m32_PPLSA""".split()
 
-    if 52 in args.models: results['params52'] = perform_fit('PP', 0,  0, False, args, libbgmg, trait_index, annomat, annonames)
-    if 51 in args.models: results['params51'] = perform_fit('1P', 0,  0, False, args, libbgmg, trait_index, annomat, annonames)
-    if 50 in args.models: results['params50'] = perform_fit('10', -1, 0, False, args, libbgmg, trait_index, annomat, annonames)
+    common_args = {'args':args, 'lib':libbgmg, 'trait_index':trait_index, 'annomat':annomat, 'annonames':annonames}
+    for model_spec in specs:
+        model_name=model_spec.split('_')[0]
+        spec=model_spec.split('_')[1]
+        spec_args = {'mixture_model': spec[:2],
+                     'annot_model': ('A' in spec), 
+                     's_model': None if ('S' in spec) else 0,
+                     'l_model': None if ('L' in spec) else 0}
+        if int(model_name[1:]) not in args.models: continue 
+        results[model_name] = perform_fit(**spec_args, **common_args)
+        results[model_name]['spec'] = model_spec
 
     results['options']['time_finished'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 

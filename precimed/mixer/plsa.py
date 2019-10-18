@@ -194,7 +194,7 @@ def apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right)
 def apply_nedlermead(args, lib, trait_index, constraint, params_init):
     parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
     optimize_result = scipy.optimize.minimize(lambda x: parametrization.calc_cost(x), parametrization.params_to_vec(params_init),
-        method='Nelder-Mead', options={'maxiter':480, 'fatol':1e-7, 'xatol':1e-4, 'adaptive':True})
+        method='Nelder-Mead', options={'maxiter':720, 'fatol':1e-7, 'xatol':1e-4, 'adaptive':True})
     params = parametrization.vec_to_params(optimize_result.x)
     enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
     optimize_result['params']=params.as_dict()
@@ -225,6 +225,7 @@ def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, 
 
         params.fit_sig2_annot(lib, trait_index); params.drop_zero_annot()
         optimize_result_sequence.append(('nnls-fast', {'params':params.as_dict()}))
+        lib.log_message('annotation enrichments {}: {}'.format(params._sig2_annot, params._annonames))
     else:
         params=AnnotUnivariateParams(sig2_annot=[1], annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]], mafvec=mafvec, tldvec=tldvec)
     
@@ -304,13 +305,6 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
         results['power'] = {'nvec': power_nvec, 'svec': power_svec}
 
     return results
-
-def parse_spec(spec):
-    # m01_10000 m02_1000A m03_100S0 m04_100SA m05_10L00 m06_10L0A m07_10LS0 m08_10LSA
-    # m09_0P000 m10_0P00A m11_0P0S0 m12_0P0SA m13_0PL00 m14_0PL0A m15_0PLS0 m16_0PLSA
-    # m17_1P000 m18_1P00A m19_1P0S0 m20_1P0SA m21_1PL00 m22_1PL0A m23_1PLS0 m24_1PLSA
-    # m25_PP000 m26_PP00A m27_PP0S0 m28_PP0SA m29_PPL00 m30_PPL0A m31_PPLS0 m32_PPLSA
-    return {'mixture_model': spec[:2], 's_model': ('S' in spec), 'l_model': ('L' in model), 'annot_model': ('A' in model)}
 
 def execute_fit_parser(args):
     libbgmg = LibBgmg(args.lib)
@@ -394,6 +388,7 @@ def execute_fit_parser(args):
                      's_model': None if ('S' in spec) else 0,
                      'l_model': None if ('L' in spec) else 0}
         if int(model_name[1:]) not in args.models: continue 
+        libbgmg.log_message('fitting {}: {}'.format(model_spec, spec_args))
         results[model_name] = perform_fit(**spec_args, **common_args)
         results[model_name]['spec'] = model_spec
 

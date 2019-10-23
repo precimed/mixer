@@ -194,7 +194,7 @@ def apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right)
 def apply_nedlermead(args, lib, trait_index, constraint, params_init):
     parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
     optimize_result = scipy.optimize.minimize(lambda x: parametrization.calc_cost(x), parametrization.params_to_vec(params_init),
-        method='Nelder-Mead', options={'maxiter':720, 'fatol':1e-7, 'xatol':1e-4, 'adaptive':True})
+        method='Nelder-Mead', options={'maxiter':720, 'maxfev':1200, 'fatol':1e-7, 'xatol':1e-4, 'adaptive':True})
     params = parametrization.vec_to_params(optimize_result.x)
     enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
     optimize_result['params']=params.as_dict()

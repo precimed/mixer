@@ -223,6 +223,8 @@ def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, 
         params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
         optimize_result_sequence.append(('nedlermead-fast', optimize_result))
 
+        params._annomat = annomat
+        params._annonames = annonames
         params.fit_sig2_annot(lib, trait_index); params.drop_zero_annot()
         optimize_result_sequence.append(('nnls-fast', {'params':params.as_dict()}))
         lib.log_message('annotation enrichments {}: {}'.format(params._sig2_annot, params._annonames))

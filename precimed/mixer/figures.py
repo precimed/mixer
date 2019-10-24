@@ -250,6 +250,8 @@ def parser_two_add_arguments(args, func, parser):
     parser.add_argument('--json', type=str, default="", help="json file from cross-trait analysis")    
     parser.add_argument('--trait1', type=str, default="trait1", help="name of the first trait")    
     parser.add_argument('--trait2', type=str, default="trait2", help="name of the second trait")    
+    parser.add_argument('--trait1-file', type=str, default=None, help="summary statistics file for the first trait")    
+    parser.add_argument('--trait2-file', type=str, default=None, help="summary statistics file for the second trait")    
     parser.set_defaults(func=func)
 
 def parse_args(args):
@@ -259,6 +261,7 @@ def parse_args(args):
     parent_parser.add_argument('--argsfile', type=open, action=LoadFromFile, default=None, help="file with additional command-line arguments")
     parent_parser.add_argument("--out", type=str, default="mixer", help="prefix for the output files")
     parent_parser.add_argument('--ext', type=str, default=['png'], nargs='+', choices=['png', 'svg'], help="output extentions")
+    parent_parser.add_argument('--zmax', type=float, default=10, help="limit for z-vs-z density plots")
 
     subparsers = parser.add_subparsers()
     parser_one_add_arguments(args=args, func=execute_one_parser, parser=subparsers.add_parser("one", parents=[parent_parser], help='produce figures for univariate analysis'))
@@ -297,16 +300,28 @@ def execute_two_parser(args):
         return
 
     data = json.loads(open(args.json).read())
-    plt.figure(figsize=[12, 3])
-    plt.subplot(1,3,1)
-    make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
-    if 'qqplot' in data:
-        plt.subplot(1,3,2)
-        make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
-        plt.subplot(1,3,3)
-        make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
-    else:
+    if 'qqplot' not in data:
         print('Skip generating stratified QQ plots, data not available. Did you include --qq-plots in your "python mixer.py fit" command?')
+
+    if args.trait1_file and args.trait2_file:
+        df1 = pd.read_table(args.trait1_file, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
+        df2 = pd.read_table(args.trait2_file, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
+        df = merge_z_vs_z(df1, df2)
+
+        plt.figure(figsize=[12, 6])
+        plt.subplot(2,3,1); make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
+        if 'qqplot' in data:
+            plt.subplot(2,3,2); make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(2,3,3); make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
+        plt.subplot(2,3,4); plot_causal_density(data, traits=[args.trait1, args.trait2])
+        plt.subplot(2,3,5); plot_z_vs_z_data(df, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
+        plt.subplot(2,3,6); plot_predicted_zscore(data, len(df), plot_limits=args.zmax, flip=False, traits=[args.trait1, args.trait2])
+    else:
+        plt.figure(figsize=[12, 3])
+        plt.subplot(1,3,1); make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
+        if 'qqplot' in data:
+            plt.subplot(1,3,2); make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(1,3,3); make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
 
     for ext in args.ext:
         plt.savefig(args.out + '.' + ext, bbox_inches='tight')

@@ -60,7 +60,7 @@ class LibBgmg(object):
         self.cdll.bgmg_set_option.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_double]
         self.cdll.bgmg_set_ld_r2_coo_from_file.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
         self.cdll.bgmg_set_ld_r2_csr.argtypes = [ctypes.c_int, ctypes.c_int]
-        self.cdll.bgmg_set_weights_randprune.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float]
+        self.cdll.bgmg_set_weights_randprune.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_char_p, ctypes.c_char_p]
         self.cdll.bgmg_retrieve_ld_tag_r2_sum.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_retrieve_ld_tag_r4_sum.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_num_ld_r2_snp.argtypes = [ctypes.c_int, ctypes.c_int]
@@ -123,8 +123,8 @@ class LibBgmg(object):
     def set_ld_r2_csr(self, chr_label=-1):  # -1 means to finalize all chromosomes
         return self._check_error(self.cdll.bgmg_set_ld_r2_csr(self._context_id, chr_label))
 
-    def set_weights_randprune(self, n, r2):
-        return self._check_error(self.cdll.bgmg_set_weights_randprune(self._context_id, n, r2))
+    def set_weights_randprune(self, n, r2, exclude="", extract=""):
+        return self._check_error(self.cdll.bgmg_set_weights_randprune(self._context_id, n, r2, _p2n(exclude), _p2n(extract)))
 
     @property
     def num_tag(self):

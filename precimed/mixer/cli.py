@@ -502,8 +502,7 @@ def execute_fit_parser(args):
                 libbgmg.set_option('use_complete_tag_indices', 1)
                 break
 
-    libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, args.trait2_file,
-        args.exclude, args.extract)
+    libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, args.trait2_file, "", "")
 
     for opt, val in convert_args_to_libbgmg_options(args, libbgmg.num_snp):
         libbgmg.set_option(opt, val)
@@ -517,7 +516,7 @@ def execute_fit_parser(args):
         libbgmg.set_ld_r2_coo_from_file(chr_label, args.plink_ld_bin.replace('@', str(chr_label)))
         libbgmg.set_ld_r2_csr(chr_label)
 
-    libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2)
+    libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude=args.exclude, extract=args.extract)
     libbgmg.set_option('diag', 0)
 
     totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))

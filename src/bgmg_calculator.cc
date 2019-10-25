@@ -732,7 +732,7 @@ int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, flo
 
   if (snp_order_.empty()) find_snp_order();
   if (cache_tag_r2sum_) find_tag_r2sum(component_id, num_causals);
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_w(trait_index, &deftag_indices);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_w(&deftag_indices);
   const double pi_k = 1.0 / static_cast<double>(k_max_);
 
   std::valarray<double> s_numerator_global(0.0, length);
@@ -1506,7 +1506,7 @@ std::string std_vector_to_str(const std::vector<T>& vec) {
   ss << "]";
 
   size_t nnz = 0;
-  for (size_t i = 0; i < vec.size(); i++) if (vec[i] != 0) nnz++;
+  for (size_t i = 0; i < vec.size(); i++) if (std::isfinite(vec[i]) && (vec[i] != 0)) nnz++;
   ss << ", nnz=" << nnz;
   return ss.str();
 }
@@ -2088,14 +2088,46 @@ void BgmgCalculator::clear_tag_r2sum(int component_id) {
   }
 }
 
+void apply_extract(std::string extract, const BimFile& bim_file, std::vector<int> *defvec) {
+  SnpList extract_object;
+  extract_object.read(extract);
+  for (int i = 0; i < bim_file.size(); i++) {
+    if (!extract_object.contains(bim_file.snp()[i]))
+      defvec->at(i) = 0;
+  }
+
+  LOG << " constrain analysis to " << std::accumulate(defvec->begin(), defvec->end(), 0) << " tag variants (due to extract='" << extract << "')";
+}
+
+void apply_exclude(std::string exclude, const BimFile& bim_file, std::vector<int>* defvec) {
+  SnpList exclude_object;
+  exclude_object.read(exclude);
+  for (int i = 0; i < bim_file.size(); i++) {
+    if (exclude_object.contains(bim_file.snp()[i]))
+      defvec->at(i) = 0;
+  }
+
+  LOG << " constrain analysis to " << std::accumulate(defvec->begin(), defvec->end(), 0) << " tag variants (due to exclude='" << exclude << "')";
+}
+
 int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
+  return set_weights_randprune(n, r2_threshold, std::string(), std::string());
+}
+
+int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold, std::string exclude, std::string extract) {
   if (!ld_matrix_csr_.is_ready()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_weights_randprune before set_ld_r2_csr"));
-  LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << ")";
+  LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << ", exclude=" << exclude << ", extract=" << extract << ")";
+    
+
   if (r2_threshold < r2_min_) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: r2 < r2_min_"));
   if (n <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: n <= 0"));
   SimpleTimer timer(-1);
 
   std::valarray<int> passed_random_pruning(0, num_tag_);  // count how many times an index  has passed random pruning
+
+  std::vector<int> defvec(bim_file_.size(), 1);
+  if (!extract.empty()) apply_extract(extract, bim_file_, &defvec);
+  if (!exclude.empty()) apply_exclude(exclude, bim_file_, &defvec);
 
 #pragma omp parallel
   {
@@ -2120,6 +2152,7 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
         if ((!nvec1_.empty()) && !std::isfinite(nvec1_[tag_index])) exclude = true;
         if ((!zvec2_.empty()) && !std::isfinite(zvec2_[tag_index])) exclude = true;
         if ((!nvec2_.empty()) && !std::isfinite(nvec2_[tag_index])) exclude = true;
+        if (!defvec[tag_to_snp()[tag_index]]) exclude = true;
         if (exclude) {
           processed_tag_indices[tag_index] = 1;         // mark as processed, and
           non_processed_tag_indices.erase(tag_index);   // remove from the set
@@ -2185,7 +2218,7 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
   for (int i = 0; i < num_tag_; i++)
     weights_[i] = static_cast<float>(passed_random_pruning[i]) / static_cast<float>(n);
 
-  LOG << "<set_weights_randprune(n=" << n << ", r2=" << r2_threshold << "), elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<set_weights_randprune(n=" << n << ", r2=" << r2_threshold << ", exclude=" << exclude << ", extract=" << extract << "), elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
@@ -2558,27 +2591,8 @@ int64_t BgmgCalculator::init(std::string bim_file, std::string frq_file, std::st
     LOG << " constrain analysis to " << std::accumulate(defvec.begin(), defvec.end(), 0) << " tag variants (due to trait2_file='" << trait2_file << "')";
   }
 
-  if (!extract.empty()) {
-    SnpList extract_object;
-    extract_object.read(extract);
-    for (int i = 0; i < bim_file_.size(); i++) {
-      if (!extract_object.contains(bim_file_.snp()[i]))
-        defvec[i] = 0;
-    }
-
-    LOG << " constrain analysis to " << std::accumulate(defvec.begin(), defvec.end(), 0) << " tag variants (due to extract='" << extract << "')";
-  }
-  
-  if (!exclude.empty()) {
-    SnpList exclude_object;
-    exclude_object.read(exclude);
-    for (int i = 0; i < bim_file_.size(); i++) {
-      if (exclude_object.contains(bim_file_.snp()[i]))
-        defvec[i] = 0;
-    }
-
-    LOG << " constrain analysis to " << std::accumulate(defvec.begin(), defvec.end(), 0) << " tag variants (due to exclude='" << exclude << "')";
-  }
+  if (!extract.empty()) apply_extract(extract, bim_file_, &defvec);
+  if (!exclude.empty()) apply_exclude(exclude, bim_file_, &defvec);
 
   // Find tag indices
   std::vector<int> tag_indices;
@@ -3028,7 +3042,7 @@ int64_t BgmgCalculator::calc_unified_univariate_power(int trait_index, int num_c
   LOG << ">" << ss.str();
 
   SimpleTimer timer(-1);
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_w(trait_index, &deftag_indices);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_w(&deftag_indices);
   const double pi_k = 1.0 / static_cast<double>(k_max_);
   std::vector<float> hvec; find_hvec(*this, &hvec);
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2(LD_TAG_COMPONENT_BELOW_R2MIN);
@@ -3196,7 +3210,7 @@ int BgmgCalculator::find_deftag_indices_nw(int trait_index, std::vector<int>* de
   return deftag_indices->size();
 }
 
-int BgmgCalculator::find_deftag_indices_w(int trait_index, std::vector<int>* deftag_indices) {
+int BgmgCalculator::find_deftag_indices_w(std::vector<int>* deftag_indices) {
   if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
 
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {

@@ -100,7 +100,7 @@ extern "C" {
   
   // Set weights, either explicitly or based on random pruning
   DLL_PUBLIC int64_t bgmg_set_weights(int context_id, int length, float* values);
-  DLL_PUBLIC int64_t bgmg_set_weights_randprune(int context_id, int n, float r2);
+  DLL_PUBLIC int64_t bgmg_set_weights_randprune(int context_id, int n, float r2, const char* exclude, const char* extract);
   DLL_PUBLIC int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer);
 
   // Retrieve certain aspects of the LD structure. Mainly for debugging purpose.

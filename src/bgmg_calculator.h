@@ -287,6 +287,7 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t set_causalbetavec(int trait, int length, float* values);
   int64_t set_weights(int length, float* values);
   int64_t set_weights_randprune(int n, float r2);   // alternative to set_weights; calculates weights based on random pruning from LD matrix
+  int64_t set_weights_randprune(int n, float r2, std::string exclude, std::string extract);   // alternative to set_weights; calculates weights based on random pruning from LD matrix
 
   int64_t retrieve_zvec(int trait, int length, float* buffer);
   int64_t retrieve_nvec(int trait, int length, float* buffer);
@@ -432,7 +433,7 @@ class BgmgCalculator : public TagToSnpMapping {
   int find_deftag_indices_znw(std::vector<int>* deftag_indices);
   int find_deftag_indices_nw(int trait_index, std::vector<int>* deftag_indices);
   int find_deftag_indices_nw(std::vector<int>* deftag_indices);
-  int find_deftag_indices_w(int trait_index, std::vector<int>* deftag_indices);
+  int find_deftag_indices_w(std::vector<int>* deftag_indices);
 
   BimFile bim_file_;
 

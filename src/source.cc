@@ -397,11 +397,13 @@ int64_t bgmg_calc_bivariate_delta_posterior(int context_id, int pi_vec_len, floa
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_weights_randprune(int context_id, int n, float r2) {
+int64_t bgmg_set_weights_randprune(int context_id, int n, float r2, const char* exclude, const char* extract) {
   try {
     set_last_error(std::string());
     check_is_positive(n); check_r2(r2);
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_weights_randprune(n, r2);
+    check_is_not_null(exclude);
+    check_is_not_null(extract);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_weights_randprune(n, r2, exclude, extract);
   } CATCH_EXCEPTIONS;
 }
 

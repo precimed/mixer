@@ -315,7 +315,7 @@ def execute_fit_parser(args):
     
     libbgmg.set_option('use_complete_tag_indices', 1)
     libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-    libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, "", args.exclude, args.extract)
+    libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, "", "", "")
 
     # Load annotations
     libbgmg.log_message('Loading annotations from {}...'.format(args.annot_file))
@@ -342,7 +342,7 @@ def execute_fit_parser(args):
         libbgmg.set_ld_r2_coo_from_file(chr_label, args.plink_ld_bin.replace('@', str(chr_label)))
         libbgmg.set_ld_r2_csr(chr_label)
 
-    libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2)
+    libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude=args.exclude, extract=args.extract)
     libbgmg.set_option('diag', 0)
 
     totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))

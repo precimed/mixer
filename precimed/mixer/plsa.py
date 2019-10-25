@@ -262,7 +262,10 @@ def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, 
 
     return params, optimize_result_sequence
 
-def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_index, annomat, annonames):
+def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_index, annomat, annonames, fit_weights=None, test_weights=None):
+    if fit_weights is not None:
+        lib.weights = fit_weights
+
     params, optimize_result_sequence = apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, args, lib, trait_index, annomat, annonames)
 
     results = {}
@@ -284,27 +287,43 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
         lib.set_option('cost_calculator', _cost_calculator_gaussian)
         results['gaussian_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
 
-    if args.qq_plots:
-        # for QQ plots - but here it makes no difference as we use complete tag indices 
-        mafvec_tag = lib.mafvec[lib.defvec]
-        tldvec_tag = lib.ld_tag_r2_sum
+    # produce QQ plots and power plots with (=>'fit') and without (=>'test') --extract/--exclude flags.
+    for suffix in ['fit', 'test']:
+        if (suffix=='test') and (test_weights is None): continue
 
-        defvec = np.isfinite(lib.get_zvec(trait_index)) & (lib.weights > 0)
-        results['qqplot'] = calc_qq_plot(lib, params, trait_index, args.downsample_factor, defvec,
-            title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
+        if (suffix=='test') and (test_weights is not None) and (args.qq_plots or args.power_curve):
+            lib.weights = test_weights
 
-        maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec_tag, [1/3, 2/3]), [np.inf]))
-        tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec_tag, [1/3, 2/3]), [np.inf]))
-        results['qqplot_bins'] = []
-        for i in range(0, 3):
-            for j in range(0, 3):
-                mask = (defvec & (mafvec_tag>=maf_bins[i]) & (mafvec_tag<maf_bins[i+1]) & (tldvec_tag >= tld_bins[j]) & (tldvec_tag < tld_bins[j+1]))
-                results['qqplot_bins'].append(calc_qq_plot(lib, params, trait_index, args.downsample_factor, mask,
-                    title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
+            mafvec = lib.mafvec
+            tldvec = lib.ld_tag_r2_sum  # this is available for tag indices only, hense we enabled use_complete_tag_indices
+            
+            lib.set_option('cost_calculator', _cost_calculator_convolve if ((not args.fit_fast) and (mixture_model != '10')) else _cost_calculator_gaussian)
+            constraint = AnnotUnivariateParams(pi=params._pi, s=params._s, l=params._l, sig2_beta=params._sig2_beta, sig2_zeroA=None,
+                                            sig2_annot=params._sig2_annot, annomat=params._annomat, annonames=params._annonames, mafvec=mafvec, tldvec=tldvec)
+            params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+            results['optimize_test'] = optimize_result
 
-    if args.power_curve:
-        power_nvec, power_svec = calc_power_curve(lib, params, trait_index=trait_index, downsample=args.downsample_factor)
-        results['power'] = {'nvec': power_nvec, 'svec': power_svec}
+        if args.qq_plots:
+            # for QQ plots - but here it makes no difference as we use complete tag indices 
+            mafvec_tag = lib.mafvec[lib.defvec]
+            tldvec_tag = lib.ld_tag_r2_sum
+
+            defvec = np.isfinite(lib.get_zvec(trait_index)) & (lib.weights > 0)
+            results['qqplot_{}'.format(suffix)] = calc_qq_plot(lib, params, trait_index, args.downsample_factor, defvec,
+                title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
+
+            maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec_tag, [1/3, 2/3]), [np.inf]))
+            tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec_tag, [1/3, 2/3]), [np.inf]))
+            results['qqplot_bins_{}'.format(suffix)] = []
+            for i in range(0, 3):
+                for j in range(0, 3):
+                    mask = (defvec & (mafvec_tag>=maf_bins[i]) & (mafvec_tag<maf_bins[i+1]) & (tldvec_tag >= tld_bins[j]) & (tldvec_tag < tld_bins[j+1]))
+                    results['qqplot_bins_{}'.format(suffix)].append(calc_qq_plot(lib, params, trait_index, args.downsample_factor, mask,
+                        title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
+
+        if args.power_curve:
+            power_nvec, power_svec = calc_power_curve(lib, params, trait_index=trait_index, downsample=args.downsample_factor)
+            results['power_{}'.format(suffix)] = {'nvec': power_nvec, 'svec': power_svec}
 
     return results
 
@@ -343,6 +362,14 @@ def execute_fit_parser(args):
         libbgmg.set_ld_r2_csr(chr_label)
 
     libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude=args.exclude, extract=args.extract)
+    fit_weights = libbgmg.weights; test_weights = None
+
+    if ((args.exclude != "") or (args.extract != "")) and (args.power_curve or args.qq_plots):
+        libbgmg.log_message('Calculate weights ignoring --extract and --exclude flags')
+        libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude="", extract="")
+        test_weights = libbgmg.weights
+        libbgmg.weights = fit_weights
+
     libbgmg.set_option('diag', 0)
 
     totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))
@@ -382,6 +409,7 @@ def execute_fit_parser(args):
                m25_PP000 m26_PP00A m27_PP0S0 m28_PP0SA m29_PPL00 m30_PPL0A m31_PPLS0 m32_PPLSA""".split()
 
     common_args = {'args':args, 'lib':libbgmg, 'trait_index':trait_index, 'annomat':annomat, 'annonames':annonames}
+    misc_args = {'fit_weights': fit_weights, 'test_weights':test_weights}
     for model_spec in specs:
         model_name=model_spec.split('_')[0]
         spec=model_spec.split('_')[1]
@@ -391,7 +419,7 @@ def execute_fit_parser(args):
                      'l_model': None if ('L' in spec) else 0}
         if int(model_name[1:]) not in args.models: continue 
         libbgmg.log_message('fitting {}: {}'.format(model_spec, spec_args))
-        results[model_name] = perform_fit(**spec_args, **common_args)
+        results[model_name] = perform_fit(**spec_args, **common_args, **misc_args)  # may modify libbgmg.weights
         results[model_name]['spec'] = model_spec
 
     results['options']['time_finished'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')

@@ -242,12 +242,12 @@ class LoadFromFile (argparse.Action):
                 setattr(namespace, k, v)
 
 def parser_one_add_arguments(args, func, parser):
-    parser.add_argument('--json', type=str, default="", help="json file from univariate analysis")    
-    parser.add_argument('--trait1', type=str, default="trait1", help="name of the first trait")
+    parser.add_argument('--json', type=str, default=[""], nargs='+', help="json file from univariate analysis")    
+    parser.add_argument('--trait1', type=str, default=[], nargs='+', help="name of the first trait")
     parser.set_defaults(func=func)
 
 def parser_two_add_arguments(args, func, parser):
-    parser.add_argument('--json', type=str, default="", help="json file from cross-trait analysis")    
+    parser.add_argument('--json', type=str, default=[""], nargs='+', help="json file from cross-trait analysis")    
     parser.add_argument('--trait1', type=str, default="trait1", help="name of the first trait")    
     parser.add_argument('--trait2', type=str, default="trait2", help="name of the second trait")    
     parser.add_argument('--trait1-file', type=str, default=None, help="summary statistics file for the first trait")    
@@ -271,7 +271,8 @@ def parse_args(args):
 
 def execute_two_parser(args):
     df_data = {}
-    files = glob.glob(args.json)
+    files = glob.glob(args.json[0]) if (len(args.json) == 1) else args.json
+    if len(files) == 0: raise(ValueError('no files detected, check --json {}'.format(args.json)))
     print('generate {}.csv from {} json files...'.format(args.out, len(files)))
 
     for fname in files:
@@ -296,10 +297,10 @@ def execute_two_parser(args):
     print('Done.')
 
     if len(files) > 1:
-        print('--json argument is a wild-card (contains *), skip figures generation')
+        print('--json argument lists multiple files is a wild-card (contains *), skip figures generation')
         return
 
-    data = json.loads(open(args.json).read())
+    data = json.loads(open(args.json[0]).read())
     if 'qqplot' not in data:
         print('Skip generating stratified QQ plots, data not available. Did you include --qq-plots in your "python mixer.py fit" command?')
 
@@ -335,7 +336,8 @@ def insert_key_to_dictionary_as_list(df_data, key, value):
 def execute_one_parser(args):
 
     df_data = {}
-    files = glob.glob(args.json)
+    files = glob.glob(args.json[0]) if (len(args.json) == 1) else args.json
+    if len(files) == 0: raise(ValueError('no files detected, check --json {}'.format(args.json)))
     print('generate {}.csv from {} json files...'.format(args.out, len(files)))
     for fname in files:
         keys = 'pi sig2_beta sig2_zero h2 nc@p9'.split()
@@ -355,11 +357,33 @@ def execute_one_parser(args):
     pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
     print('Done.')
 
+    data_list = []
+    traits_list = []
+    for fname, traitname in zip(files, files if (len(args.trait1) == 0) else args.trait1):
+        try:
+            data = json.loads(open(fname).read())
+            if 'power' not in data: continue
+            data_list.append(data)
+            traits_list.append(traitname)
+        except:
+            print('error reading from {}, skip'.format(fname))
+            continue
+
+    if len(data_list) > 0:
+        plt.figure()
+        make_power_plot(data_list, traits=traits_list)
+        for ext in args.ext:
+            plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')
+            print('Generated ' + args.out + '.power.' + ext)
+    else:
+        print('Skip generating power plots, data not available. Did you include --power-curve in your "python mixer.py fit" command?')
+
+
     if len(files) > 1:
         print('--json argument is a wild-card (contains *), skip figures generation')        
         return
 
-    data = json.loads(open(args.json).read())
+    data = json.loads(open(args.json[0]).read())
     if 'qqplot' in data:
         plt.figure()
         make_qq_plot(data['qqplot'], ci=True)
@@ -368,15 +392,6 @@ def execute_one_parser(args):
             print('Generated ' + args.out + '.qq.' + ext)
     else:
         print('Skip generating QQ plots, data not available. Did you include --qq-plots in your "python mixer.py fit" command?')
-
-    if 'power' in data:
-        plt.figure()
-        make_power_plot([data], traits=[args.trait1])
-        for ext in args.ext:
-            plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')
-            print('Generated ' + args.out + '.power.' + ext)
-    else:
-        print('Skip generating power plots, data not available. Did you include --power-curve in your "python mixer.py fit" command?')
 
     if 'qqplot_bins' in data:
         plt.figure(figsize=[12, 12])

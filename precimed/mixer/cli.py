@@ -249,7 +249,7 @@ def apply_univariate_fit_sequence(args, libbgmg, fit_sequence, init_params=None,
             bounds_right = parametrization.params_to_vec(UnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zero=2.5))
             bounds4opt = [(l, r) for l, r in zip(bounds_left, bounds_right)]
             optimize_result = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
-                tol=0.01, mutation=(0.5, 1), recombination=0.7, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
+                tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=args.seed, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
             params = parametrization.vec_to_params(optimize_result.x)
 
         elif (fit_type == 'neldermead') or (fit_type == 'neldermead-fast'):
@@ -344,7 +344,7 @@ def apply_bivariate_fit_sequence(args, libbgmg):
             bounds_right = parametrization.params_to_vec(BivariateParams(params1=params1, params2=params2, pi12=0.95 * max_pi12, rho_beta=0.95, rho_zero=0.95))
             bounds4opt = [(l, r) for l, r in zip(bounds_left, bounds_right)]
             optimize_result = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
-                tol=0.01, mutation=(0.5, 1), recombination=0.7, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
+                tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=args.seed, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
             params = parametrization.vec_to_params(optimize_result.x)
 
         elif (fit_type == 'neldermead') or (fit_type == 'neldermead-fast'):

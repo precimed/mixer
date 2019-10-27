@@ -146,6 +146,7 @@ def parser_fit_add_arguments(args, func, parser):
              "Note that univariate optimization uses 'convolve' cost calculator, bivariate optimization uses 'sampling' cost calculator. "
              "Typical univariate sequence: 'diffevo-fast neldermead'"
              "Typical bivariate sequence: 'diffevo neldermead brute1 brent1'")
+    parser.add_argument('--diffevo-fast-repeats', type=int, default=20, help="repeat --diffevo-fast step this many times and choose the best run")
     parser.add_argument('--preliminary', default=False, action="store_true",
         help="perform an additional run using fast model with 'diffevo-fast nelderead-fast' to generate preliminary data. "
         "After preliminary run fit sequence is applied from scratch using full model.")
@@ -253,9 +254,14 @@ def apply_univariate_fit_sequence(args, libbgmg, fit_sequence, init_params=None,
             bounds_left = parametrization.params_to_vec(UnivariateParams(pi=5e-5, sig2_beta=5e-6, sig2_zero=0.9))
             bounds_right = parametrization.params_to_vec(UnivariateParams(pi=5e-1, sig2_beta=5e-2, sig2_zero=2.5))
             bounds4opt = [(l, r) for l, r in zip(bounds_left, bounds_right)]
-            optimize_result = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
-                tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=args.seed, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
-            params = parametrization.vec_to_params(optimize_result.x)
+            repeats = (1 if (fit_type == 'diffevo') else args.diffevo_fast_repeats)
+            for repeat in range(repeats):
+                optimize_result_tmp = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
+                    tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=(args.seed + repeat), atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
+                params_tmp = parametrization.vec_to_params(optimize_result_tmp.x)
+                libbgmg.log_message("--diffevo-fast-repeat={}: {}".format(repeat, params_tmp))
+                if (repeat == 0) or (optimize_result_tmp.fun < optimize_result.fun):
+                    optimize_result, params = optimize_result_tmp, params_tmp
 
         elif (fit_type == 'neldermead') or (fit_type == 'neldermead-fast'):
             if params == None: raise(RuntimeError('params == None, unable to proceed apply "neldermead" fit'))
@@ -348,9 +354,14 @@ def apply_bivariate_fit_sequence(args, libbgmg):
             bounds_left = parametrization.params_to_vec(BivariateParams(params1=params1, params2=params2, pi12=0.05 * max_pi12, rho_beta=-0.95, rho_zero=-0.95))
             bounds_right = parametrization.params_to_vec(BivariateParams(params1=params1, params2=params2, pi12=0.95 * max_pi12, rho_beta=0.95, rho_zero=0.95))
             bounds4opt = [(l, r) for l, r in zip(bounds_left, bounds_right)]
-            optimize_result = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
-                tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=args.seed, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
-            params = parametrization.vec_to_params(optimize_result.x)
+            repeats = (1 if (fit_type == 'diffevo') else args.diffevo_fast_repeats)
+            for repeat in range(repeats):
+                optimize_result_tmp = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
+                    tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=(args.seed + repeat), atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
+                params_tmp = parametrization.vec_to_params(optimize_result_tmp.x)
+                libbgmg.log_message("--diffevo-fast-repeat={}: {}".format(repeat, params_tmp))
+                if (repeat == 0) or (optimize_result_tmp.fun < optimize_result.fun):
+                    optimize_result, params = optimize_result_tmp, params_tmp
 
         elif (fit_type == 'neldermead') or (fit_type == 'neldermead-fast'):
             if params == None: raise(RuntimeError('params == None, unable to proceed with "{}" fit'.format(fit_type)))

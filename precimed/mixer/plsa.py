@@ -185,7 +185,7 @@ def apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right)
     parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
     bounds4opt = [(l, r) for l, r in zip(parametrization.params_to_vec(bounds_left), parametrization.params_to_vec(bounds_right))]
     optimize_result = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
-        tol=0.01, mutation=(0.5, 1), recombination=0.7, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
+        tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=args.seed, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
     params = parametrization.vec_to_params(optimize_result.x)
     enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
     optimize_result['params']=params.as_dict()

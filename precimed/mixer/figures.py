@@ -57,7 +57,7 @@ def make_qq_plot(qq, ci=True, ylim=7.3, xlim=7.3):
     hNull = plt.plot(hv_logp, hv_logp, 'k--')
     plt.ylim(0, ylim); plt.xlim(0, xlim)
 
-def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], colors=[0, 1], max_size=None):
+def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], colors=[0, 1], max_size=None, formatter=None):
     cm = plt.cm.get_cmap('tab10')
 
     if factor=='K': scale_factor=1000
@@ -77,10 +77,12 @@ def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], co
     v.get_patch_by_id('100').set_color(cm.colors[f(colors[0])])
     v.get_patch_by_id('010').set_color(cm.colors[f(colors[1])])
     v.get_patch_by_id('110').set_color(cm.colors[7])   
-    formatter = '{:.2f}\n({:.2f})' if ((n1+n12+n2) < 1) else '{:.1f}\n({:.1f})' 
-    v.get_label_by_id('100').set_text(formatter.format(n1, n1_se))
-    v.get_label_by_id('010').set_text(formatter.format(n2, n2_se))
-    v.get_label_by_id('110').set_text(formatter.format(n12, n12_se))
+    if formatter==None:
+        formatter1 = '{:.2f}\n({:.2f})' if ((n1+n12+n2) < 1) else '{:.1f}\n({:.1f})' 
+        formatter = [formatter1, formatter1, formatter1]
+    v.get_label_by_id('100').set_text(formatter[0].format(n1, n1_se))
+    v.get_label_by_id('010').set_text(formatter[1].format(n2, n2_se))
+    v.get_label_by_id('110').set_text(formatter[2].format(n12, n12_se))
 
     plt.xlim([-0.75, 0.75]), plt.ylim([-0.7, 0.6])
     newline=''

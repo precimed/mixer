@@ -116,6 +116,7 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--power-curve', default=False, action="store_true", help="generate power curves")    
     parser.add_argument('--cost', default=False, action="store_true", help="save full cost function")
     parser.add_argument('--models', default=[1, 2, 7, 8, 9, 10, 15, 16, 17, 25], type=int, nargs='+', choices=list(range(1, 33)))
+    parser.add_argument('--diffevo-fast-repeats', type=int, default=10, help="repeat --diffevo-fast step this many times and choose the best run")
 
     parser.add_argument('--fit-fast', default=False,  action="store_true", help="stop after fitting an infinitesimal model")
 
@@ -181,11 +182,11 @@ def enhance_optimize_result(r, cost_n, cost_df=None, cost_fast=None):
     r['AIC'] =                   2 * r['cost_df'] + 2 * r['cost']
     if cost_fast is not None: r['cost_fast'] = cost_fast
 
-def apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right):
+def apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right, seed):
     parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
     bounds4opt = [(l, r) for l, r in zip(parametrization.params_to_vec(bounds_left), parametrization.params_to_vec(bounds_right))]
     optimize_result = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
-        tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=args.seed, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
+        tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=seed, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
     params = parametrization.vec_to_params(optimize_result.x)
     enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
     optimize_result['params']=params.as_dict()
@@ -217,7 +218,11 @@ def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, 
                                            mafvec=mafvec, tldvec=tldvec)
         bounds_left = AnnotUnivariateParams(pi=None, s=s_low, l=l_low, sig2_beta=sb_low, sig2_zeroA=s0_low)
         bounds_right = AnnotUnivariateParams(pi=None, s=s_high, l=l_high, sig2_beta=sb_high, sig2_zeroA=s0_high)
-        params, optimize_result = apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right)
+        for repeat in range(args.diffevo_fast_repeats):
+            params_tmp, optimize_result_tmp = apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right, seed=(args.seed+repeat))
+            lib.log_message("--diffevo-fast-repeat={}: {}, cost={}".format(repeat, params_tmp, optimize_result_tmp.fun))
+            if (repeat == 0) or (optimize_result_tmp.fun < optimize_result.fun):
+                optimize_result, params = optimize_result_tmp, params_tmp
         optimize_result_sequence.append(('diffevo-fast', optimize_result))
 
         params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
@@ -250,7 +255,11 @@ def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, 
                                        sig2_annot=params._sig2_annot, annomat=params._annomat, annonames=params._annonames, mafvec=mafvec, tldvec=tldvec)
     bounds_left = AnnotUnivariateParams(pi=pi_low, s=s_low, l=l_low, sig2_beta=sb_low, sig2_zeroA=s0_low)
     bounds_right = AnnotUnivariateParams(pi=pi_high, s=s_high, l=l_high, sig2_beta=sb_high, sig2_zeroA=s0_high)
-    params, optimize_result = apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right)
+    for repeat in range(args.diffevo_fast_repeats):
+        params_tmp, optimize_result_tmp = apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right, seed=(args.seed + repeat))
+        lib.log_message("--diffevo-fast-repeat={}: {}, cost={}".format(repeat, params_tmp, optimize_result_tmp.fun))
+        if (repeat == 0) or (optimize_result_tmp.fun < optimize_result.fun):
+            optimize_result, params = optimize_result_tmp, params_tmp
     optimize_result_sequence.append(('diffevo-fast', optimize_result))
     params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
     optimize_result_sequence.append(('nedlermead-fast', optimize_result))

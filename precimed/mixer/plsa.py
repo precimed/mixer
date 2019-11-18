@@ -264,6 +264,11 @@ def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, 
     params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
     optimize_result_sequence.append(('nedlermead-fast', optimize_result))
 
+    if s_model == -0.5:  ## fine-tune S parameter
+        constraint._s = None
+        params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+        optimize_result_sequence.append(('nedlermead-fast', optimize_result))
+
     if (not args.fit_fast) and (mixture_model != '10'):
         lib.set_option('cost_calculator', _cost_calculator_convolve)
         params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
@@ -278,6 +283,14 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
     params, optimize_result_sequence = apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, args, lib, trait_index, annomat, annonames)
 
     results = {}
+
+    if s_model is None:
+        ## fine-tune S parameter
+        params_fitS, optimize_result_sequence_fitS = apply_univariate_fit_sequence(mixture_model, -0.5, l_model, annot_model, args, lib, trait_index, annomat, annonames)
+        results['optimize_s'] = optimize_result_sequence_fitS
+        if optimize_result_sequence_fitS[-1][1].fun < optimize_result_sequence[-1][1].fun:
+            params = params_fitS
+
     results['params'] = params.as_dict()
     results['optimize'] = optimize_result_sequence
     results['annot_enrich'] = params.find_annot_enrich(annomat).flatten()

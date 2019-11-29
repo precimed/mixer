@@ -185,3 +185,12 @@ cd /cluster/projects/p33/users/ofrei/no-backup/software/cmake-3.15.5
 cd /cluster/projects/p33/users/ofrei/no-backup/software/boost_1_69_0
 ./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --clean && ./b2 --j12 -a
 ```
+
+**Build on Saga**
+
+```
+module load Anaconda3/2019.03 CMake/3.12.1
+cd /cluster/projects/nn9114k/oleksanf/github/mixer_plsa/src/build
+cmake .. -DBOOST_ROOT=/cluster/projects/nn9114k/oleksanf/software/boost_1_69_0
+make -j16 bgmg
+```

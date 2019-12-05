@@ -159,6 +159,7 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
     parser.add_argument('--ci-alpha', type=float, default=None, help="significance level for the confidence interval estimation")
     parser.add_argument('--ci-samples', type=int, default=10000, help="number of samples in uncertainty estimation")
+    parser.add_argument('--ci-power-samples', type=int, default=20, help="number of samples in power curves uncertainty estimation")
     parser.add_argument('--threads', type=int, default=None, help="specify how many threads to use (concurrency). None will default to the total number of CPU cores. ")
     parser.add_argument('--tol-x', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
     parser.add_argument('--tol-func', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
@@ -435,8 +436,8 @@ def calc_power_curve_clump(libbgmg, params, trait_index, clump_r2):
 
     return {'nvec': power_nvec, 'svec': power_svec, 'snp_svec_total': snp_svec_total, 'snp_svec_clump':snp_svec_clump }
 
-def calc_power_curve(libbgmg, params, trait_index, downsample):
-    power_nvec = np.power(10, np.arange(3, 8, 0.1))
+def calc_power_curve(libbgmg, params, trait_index, downsample, nvec=None):
+    power_nvec = np.power(10, np.arange(3, 8, 0.1)) if (nvec is None) else nvec
 
     original_weights = libbgmg.weights
     if not np.all(np.isfinite(original_weights)): raise(RuntimeError('undefined weights not supported'))
@@ -661,10 +662,11 @@ def execute_fit_parser(args):
             results['inft_params'] = params_inft.as_dict()
             results['inft_optimize'] = optimize_result_inft
 
+            ci_sample = None
             if args.ci_alpha and np.isfinite(args.ci_alpha):
                 libbgmg.log_message("Uncertainty estimation...")
                 libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-                results['ci'], _ = _calculate_univariate_uncertainty(UnivariateParametrization(params, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+                results['ci'], ci_sample = _calculate_univariate_uncertainty(UnivariateParametrization(params, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
                 for k, v in results['ci'].items():
                     libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
                 libbgmg.log_message("Uncertainty estimation done.")
@@ -678,6 +680,12 @@ def execute_fit_parser(args):
                 trait_index = 1
                 if args.power_curve_clump_r2 is None:
                     results['power'] = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
+                    if ci_sample is not None:
+                        power_ci = []
+                        for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
+                            libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
+                            power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor, nvec=np.power(10, np.arange(4, 8, 0.25))))
+                        results['power_ci'] = power_ci
                 else:
                     results['power'] = calc_power_curve_clump(libbgmg, params, trait_index, args.power_curve_clump_r2)
 

@@ -159,7 +159,7 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
     parser.add_argument('--ci-alpha', type=float, default=None, help="significance level for the confidence interval estimation")
     parser.add_argument('--ci-samples', type=int, default=10000, help="number of samples in uncertainty estimation")
-    parser.add_argument('--ci-power-samples', type=int, default=20, help="number of samples in power curves uncertainty estimation")
+    parser.add_argument('--ci-power-samples', type=int, default=100, help="number of samples in power curves uncertainty estimation")
     parser.add_argument('--threads', type=int, default=None, help="specify how many threads to use (concurrency). None will default to the total number of CPU cores. ")
     parser.add_argument('--tol-x', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
     parser.add_argument('--tol-func', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
@@ -684,7 +684,7 @@ def execute_fit_parser(args):
                         power_ci = []
                         for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
                             libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
-                            power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor, nvec=np.power(10, np.arange(4, 8, 0.25))))
+                            power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor))
                         results['power_ci'] = power_ci
                 else:
                     results['power'] = calc_power_curve_clump(libbgmg, params, trait_index, args.power_curve_clump_r2)

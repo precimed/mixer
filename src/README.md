@@ -172,3 +172,25 @@ export MODULEPATH=$MODULEPATH:/share/apps/compute/modulefiles
 module purge && module load gnutools/2.69 cmake/3.9.1 gnu/7.2.0  # gnutools/2.69 must go before gnu/7.2.0
 cmake -DBOOST_ROOT=/home/oleksanf/boost_1_69_0 -DCMAKE_C_COMPILER="$(which gcc)" -DCMAKE_CXX_COMPILER="$(which g++)" ..
 ```
+
+**Build on TSD**
+
+```
+# download CMake and Boost, build it from source
+module load python3.gnu/3.7.3
+
+cd /cluster/projects/p33/users/ofrei/no-backup/software/cmake-3.15.5
+./bootstrap --prefix=/cluster/projects/p33/users/ofrei && make && make install
+
+cd /cluster/projects/p33/users/ofrei/no-backup/software/boost_1_69_0
+./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --clean && ./b2 --j12 -a
+```
+
+**Build on Saga**
+
+```
+module load Anaconda3/2019.03 CMake/3.12.1
+cd /cluster/projects/nn9114k/oleksanf/github/mixer_plsa/src/build
+cmake .. -DBOOST_ROOT=/cluster/projects/nn9114k/oleksanf/software/boost_1_69_0
+make -j16 bgmg
+```

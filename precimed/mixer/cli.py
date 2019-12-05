@@ -422,19 +422,18 @@ def apply_bivariate_fit_sequence(args, libbgmg):
 def calc_power_curve_clump(libbgmg, params, trait_index, clump_r2):
     # step 1 - calculate power at current sample size, and pick "best performing" SNPs via clumping
     power_nvec = [np.nanmedian(libbgmg.get_nvec(trait_index))]
-    power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
-    power_svec = libbgmg.perform_ld_clump(clump_r2, power_svec)
-    power_svec[np.isfinite(power_svec)] = 1
-    power_svec[~np.isfinite(power_svec)] = 0
+    snp_svec_total  = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
+    snp_svec_clump = libbgmg.perform_ld_clump(clump_r2, snp_svec_total)
+    weights = np.isfinite(snp_svec_clump).astype(np.float32)
 
     # step 2 - calculate power curve across the wide range of sample sizes
     power_nvec = np.power(10, np.arange(3, 8, 0.1))
     original_weights = libbgmg.weights
-    libbgmg.weights = power_svec     # temporary set downsampled weights
+    libbgmg.weights = weights     # temporary set downsampled weights
     power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
     libbgmg.weights = original_weights  # restore original weights
 
-    return power_nvec, power_svec
+    return {'nvec': power_nvec, 'svec': power_svec, 'snp_svec_total': snp_svec_total, 'snp_svec_clump':snp_svec_clump }
 
 def calc_power_curve(libbgmg, params, trait_index, downsample):
     power_nvec = np.power(10, np.arange(3, 8, 0.1))
@@ -453,7 +452,7 @@ def calc_power_curve(libbgmg, params, trait_index, downsample):
     power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
     libbgmg.weights = original_weights  # restore original weights
 
-    return power_nvec, power_svec
+    return {'nvec': power_nvec, 'svec': power_svec}
 
 def calc_qq_data(zvec, weights, hv_logp):
     # Step 0. calculate weights for all data poitns
@@ -678,10 +677,9 @@ def execute_fit_parser(args):
             if args.power_curve:
                 trait_index = 1
                 if args.power_curve_clump_r2 is None:
-                    power_nvec, power_svec = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
+                    results['power'] = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
                 else:
-                    power_nvec, power_svec = calc_power_curve_clump(libbgmg, params, trait_index, args.power_curve_clump_r2)
-                results['power'] = {'nvec': power_nvec, 'svec': power_svec}
+                    results['power'] = calc_power_curve_clump(libbgmg, params, trait_index, args.power_curve_clump_r2)
 
             if args.qq_plots:
                 trait_index = 1

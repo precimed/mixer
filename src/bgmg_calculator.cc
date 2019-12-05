@@ -2180,45 +2180,40 @@ int64_t BgmgCalculator::perform_ld_clump(float r2_threshold, int length, float* 
 
   LdMatrixRow ld_matrix_row;
 
+  std::vector<std::tuple<float, int>> sorted_buffer;
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (std::isfinite(buffer[tag_index])) {
+      sorted_buffer.push_back(std::tuple<float, int>(buffer[tag_index], tag_index));
+    }
+  }
+  std::sort(sorted_buffer.rbegin(), sorted_buffer.rend());  // use reverse iterators to sort in descending order
+
   std::vector<char> processed_tag_indices(num_tag_, 0);
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (!std::isfinite(buffer[tag_index]))
-      processed_tag_indices[tag_index] = true;
+      processed_tag_indices[tag_index] = 1;
   }
 
   int count = 0;
-  while(true) {
-    // Step 1. locate largest unprocessed value in the buffer
-    float max_value = std::numeric_limits<float>::min();
-    int max_index = -1;
-    for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-      if (processed_tag_indices[tag_index]) continue;
-      const float tag_value = buffer[tag_index];
-      assert(std::isfinite(tag_value));
-      if (tag_value > max_value) {
-        max_index = tag_index;
-        max_value = tag_value;
-      }
-    }
-
-    // Step 2. check stop criteria
-    if (max_index == -1) break;
+  for (int sorted_index = 0; sorted_index < sorted_buffer.size(); sorted_index++) {
+    const int tag_index = std::get<1>(sorted_buffer[sorted_index]);
+    if (processed_tag_indices[tag_index]) continue;
     
     count++;
-    processed_tag_indices[max_index] = true;
+    processed_tag_indices[tag_index] = 1;
 
     // Step 3. eliminate all unprocessed tag SNPs in LD with max_index
-    int causal_index = tag_to_snp_[max_index];
+    int causal_index = tag_to_snp_[tag_index];
     ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
     auto iter_end = ld_matrix_row.end();
     for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-      const int tag_index = iter.tag_index();
+      const int tag_index_in_ld = iter.tag_index();
       const float r2_value = iter.r2();  // here we are interested in r2 (hvec is irrelevant)        
       if (r2_value < r2_threshold) continue;
-      if (processed_tag_indices[tag_index]) continue;
-      processed_tag_indices[tag_index] = 1;
-      buffer[tag_index] = NAN;
-    }
+      if (processed_tag_indices[tag_index_in_ld]) continue;
+      processed_tag_indices[tag_index_in_ld] = 1;
+      buffer[tag_index_in_ld] = NAN;
+    }   
   }
 
   LOG << "<perform_ld_clump(length=" << length << ", r2=" << r2_threshold << "), elapsed time " << timer.elapsed_ms() << "ms, keep " << count << " tag SNPs";

@@ -1,6 +1,8 @@
 *.asv
 *.pyc
 *.log
+*.json
+*.png
 /.metadata/
 src/build/*
 *__pycache__*

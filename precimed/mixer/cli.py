@@ -177,6 +177,7 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--downsample-factor', default=50, type=int, help="Applies to --power-curve. "
         "'--downsample-factor N' imply that only 1 out of N available z-score values will be used in calculations.")
     parser.add_argument('--power-curve', default=False, action="store_true", help="generate power curves")
+    parser.add_argument('--power-curve-clump-r2', default=None, type=float, help="Threshold for clumping SNPs in power curve calculations")
     parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
 
     parser.set_defaults(func=func)
@@ -417,6 +418,23 @@ def apply_bivariate_fit_sequence(args, libbgmg):
 
     if params == None: raise(RuntimeError('Empty --fit-sequence'))
     return (params, params1, params2, optimize_result_sequence)
+
+def calc_power_curve_clump(libbgmg, params, trait_index, clump_r2):
+    # step 1 - calculate power at current sample size, and pick "best performing" SNPs via clumping
+    power_nvec = [np.nanmedian(libbgmg.get_nvec(trait_index))]
+    power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
+    power_svec = libbgmg.perform_ld_clump(clump_r2, power_svec)
+    power_svec[np.isfinite(power_svec)] = 1
+    power_svec[~np.isfinite(power_svec)] = 0
+
+    # step 2 - calculate power curve across the wide range of sample sizes
+    power_nvec = np.power(10, np.arange(3, 8, 0.1))
+    original_weights = libbgmg.weights
+    libbgmg.weights = power_svec     # temporary set downsampled weights
+    power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
+    libbgmg.weights = original_weights  # restore original weights
+
+    return power_nvec, power_svec
 
 def calc_power_curve(libbgmg, params, trait_index, downsample):
     power_nvec = np.power(10, np.arange(3, 8, 0.1))
@@ -659,7 +677,10 @@ def execute_fit_parser(args):
 
             if args.power_curve:
                 trait_index = 1
-                power_nvec, power_svec = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
+                if args.power_curve_clump_r2 is None:
+                    power_nvec, power_svec = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
+                else:
+                    power_nvec, power_svec = calc_power_curve_clump(libbgmg, params, trait_index, args.power_curve_clump_r2)
                 results['power'] = {'nvec': power_nvec, 'svec': power_svec}
 
             if args.qq_plots:

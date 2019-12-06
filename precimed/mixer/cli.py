@@ -450,8 +450,12 @@ def calc_power_curve(libbgmg, params, trait_index, downsample, nvec=None):
     model_weights = model_weights/np.sum(model_weights)
 
     libbgmg.weights = model_weights     # temporary set downsampled weights
-    power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
-    libbgmg.weights = original_weights  # restore original weights
+    try:
+        power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
+        libbgmg.weights = original_weights  # restore original weights
+    except:
+        libbgmg.weights = original_weights  # restore original weights
+        return {}
 
     return {'nvec': power_nvec, 'svec': power_svec}
 

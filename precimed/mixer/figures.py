@@ -203,12 +203,13 @@ def plot_causal_density(data, flip=False, traits=['Trait1', 'Trait2'], vmax=1e3,
     plt.ylabel('$\\beta_{'+traits[1]+'}$')
     plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
 
-def make_power_plot(data_vec, colors=None, traits=None):
+def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
     if colors is None: colors = list(range(0, len(data_vec)))
     if traits is None: traits = ['trait{}'.format(i) for i in range(1, len(data_vec) + 1)]
     leg_labels = []
     current_n = []
     current_s = []
+    future_n = []
     
     cm = plt.cm.get_cmap('tab10')
     for data, color, trait in zip(data_vec, colors, traits):
@@ -216,13 +217,41 @@ def make_power_plot(data_vec, colors=None, traits=None):
         current_n.append(data['options']['trait1_nval'])
         cs = interp1d(np.log10(data['power']['nvec']),data['power']['svec'])(np.log10(data['options']['trait1_nval']))
         current_s.append(cs)
-        leg_labels.append('{0} ({1:.1f}%)'.format(trait, 100 * cs))
 
-    for cn, cs, trait in zip(current_n, current_s, traits):
+        if power_thresh is not None:
+            future_n_val = np.power(10, float(interp1d(data['power']['svec'], np.log10(data['power']['nvec']))(power_thresh)))
+            future_n.append(future_n_val)
+        else:
+            future_n.append(None)
+
+        display_n = lambda x: '{}'.format(int(float('{:0.1e}'.format(x))))
+
+        if 'power_ci' in data:
+            if power_thresh is not None:
+                future_n_ci = [np.power(10, float(interp1d(data_power['svec'], np.log10(data_power['nvec']))(power_thresh))) for data_power in data['power_ci']]
+                leg_labels.append('{} {}K ({}K)'.format(trait, display_n(future_n_val/1000), display_n(np.std(future_n_ci)/1000)))
+            else:
+                current_s_ci = [float(interp1d(np.log10(data_power['nvec']),data_power['svec'])(np.log10(data['options']['trait1_nval']))) for data_power in data['power_ci']]
+                leg_labels.append('{} {:.1f}% ({:.1f}%)'.format(trait, 100 * cs, 100*np.std(current_s_ci)))
+        else:
+            if power_thresh is not None:
+                leg_labels.append('{} ({}K)'.format(trait, display_n(future_n_val/1000)))
+            else:
+                leg_labels.append('{} ({:.1f}%)'.format(trait, 100 * cs))
+
+    if power_thresh:
+        plt.hlines([float(power_thresh)], 4, 8, linestyles='--')
+
+    for cn, cs, fn, trait in zip(current_n, current_s, future_n, traits):
         plt.plot([np.log10(cn)], [cs], '*k', markersize=8)
+        if power_thresh is not None:
+            plt.plot([np.log10(fn)], [float(power_thresh)], '.k--', markersize=8)
+
     leg_labels.append('Current N')
+    if power_thresh is not None:
+        leg_labels.append('N at {}%'.format(int(100*float(power_thresh))))
     
-    plt.legend(leg_labels, loc='upper left',frameon=False, numpoints=1)
+    plt.legend(leg_labels, loc='lower right',frameon=False, numpoints=1)
     plt.xlabel('Sample size')
     plt.ylabel('Estimated percent variance explained\nby genome-wide significant SNPs')
     plt.xlim([4, 8])
@@ -244,6 +273,7 @@ class LoadFromFile (argparse.Action):
 def parser_one_add_arguments(args, func, parser):
     parser.add_argument('--json', type=str, default=[""], nargs='+', help="json file from univariate analysis")    
     parser.add_argument('--trait1', type=str, default=[], nargs='+', help="name of the first trait")
+    parser.add_argument('--power-thresh', type=str, default=None, help="threshold for power analysis, e.g. 0.9 or 0.5, to estimate corresponding N")
     parser.set_defaults(func=func)
 
 def parser_two_add_arguments(args, func, parser):
@@ -371,7 +401,7 @@ def execute_one_parser(args):
 
     if len(data_list) > 0:
         plt.figure()
-        make_power_plot(data_list, traits=traits_list)
+        make_power_plot(data_list, traits=traits_list, power_thresh=args.power_thresh)
         for ext in args.ext:
             plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')
             print('Generated ' + args.out + '.power.' + ext)

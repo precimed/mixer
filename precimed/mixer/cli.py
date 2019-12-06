@@ -684,6 +684,8 @@ def execute_fit_parser(args):
                         power_ci = []
                         for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
                             libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
+                            max_causals_pi = (float(args.max_causals - 1) / float(libbgmg.num_snp)) if (args.max_causals > 1) else args.max_causals
+                            if ci_params._pi > max_causals_pi: ci_params._pi = max_causals_pi
                             power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor))
                         results['power_ci'] = power_ci
                 else:

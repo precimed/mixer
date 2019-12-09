@@ -225,17 +225,18 @@ def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
             future_n.append(None)
 
         display_n = lambda x: '{}'.format(int(float('{:0.1e}'.format(x))))
+        display_auto = lambda x: '{}K'.format(display_n(x/1000)) if (x < 1e6) else '{:0.1f}M'.format(x/1e6)
 
         if 'power_ci' in data:
             if power_thresh is not None:
                 future_n_ci = [np.power(10, float(interp1d(data_power['svec'], np.log10(data_power['nvec']))(power_thresh))) for data_power in data['power_ci']]
-                leg_labels.append('{} {}K ({}K)'.format(trait, display_n(future_n_val/1000), display_n(np.std(future_n_ci)/1000)))
+                leg_labels.append('{} {} ({})'.format(trait, display_auto(future_n_val), display_auto(np.std(future_n_ci))))
             else:
                 current_s_ci = [float(interp1d(np.log10(data_power['nvec']),data_power['svec'])(np.log10(data['options']['trait1_nval']))) for data_power in data['power_ci']]
                 leg_labels.append('{} {:.1f}% ({:.1f}%)'.format(trait, 100 * cs, 100*np.std(current_s_ci)))
         else:
             if power_thresh is not None:
-                leg_labels.append('{} ({}K)'.format(trait, display_n(future_n_val/1000)))
+                leg_labels.append('{} ({})'.format(trait, display_auto(future_n_val)))
             else:
                 leg_labels.append('{} ({:.1f}%)'.format(trait, 100 * cs))
 
@@ -274,6 +275,7 @@ def parser_one_add_arguments(args, func, parser):
     parser.add_argument('--json', type=str, default=[""], nargs='+', help="json file from univariate analysis")    
     parser.add_argument('--trait1', type=str, default=[], nargs='+', help="name of the first trait")
     parser.add_argument('--power-thresh', type=str, default=None, help="threshold for power analysis, e.g. 0.9 or 0.5, to estimate corresponding N")
+    parser.add_argument('--power-figsize', type=float, nargs='+', default=None, help="figure size for power plots")
     parser.set_defaults(func=func)
 
 def parser_two_add_arguments(args, func, parser):
@@ -400,7 +402,7 @@ def execute_one_parser(args):
             continue
 
     if len(data_list) > 0:
-        plt.figure()
+        plt.figure(figsize=(tuple(args.power_figsize) if (len(args.power_figsize) > 0) else None))
         make_power_plot(data_list, traits=traits_list, power_thresh=args.power_thresh)
         for ext in args.ext:
             plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')

@@ -108,8 +108,10 @@ def parser_fit_add_arguments(args, func, parser):
 
     parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
     parser.add_argument('--threads', type=int, default=None, help="specify how many threads to use (concurrency). None will default to the total number of CPU cores. ")
-    parser.add_argument('--tol-x', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
-    parser.add_argument('--tol-func', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
+    parser.add_argument('--nedlermead-fatol', type=float, default=1e-4, help="fatol parameter of the nedlermead optimization. ")
+    parser.add_argument('--nedlermead-xatol', type=float, default=1e-4, help="xatol parameter of the nedlermead optimization. ")
+    parser.add_argument('--nedlermead-maxiter', type=float, default=720, help="maxiter parameter of the nedlermead optimization. ")
+    parser.add_argument('--nedlermead-maxfev', type=float, default=1200, help="maxfev parameter of the nedlermead optimization. ")
     parser.add_argument('--cubature-rel-error', type=float, default=1e-5, help="relative error for cubature stop criteria (applies to 'convolve' cost calculator). ")
     parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). ")
     parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
@@ -195,7 +197,7 @@ def apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right,
 def apply_nedlermead(args, lib, trait_index, constraint, params_init):
     parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
     optimize_result = scipy.optimize.minimize(lambda x: parametrization.calc_cost(x), parametrization.params_to_vec(params_init),
-        method='Nelder-Mead', options={'maxiter':720, 'maxfev':1200, 'fatol':1e-4, 'xatol':1e-4, 'adaptive':True})
+        method='Nelder-Mead', options={'maxiter':args.nedlermead_maxiter, 'maxfev':args.nedlermead_maxfev, 'fatol':args.nedlermead_fatol, 'xatol':args.nedlermead_xatol, 'adaptive':True})
     params = parametrization.vec_to_params(optimize_result.x)
     enhance_optimize_result(optimize_result, cost_n=np.sum(lib.weights), cost_fast=params.cost(lib, trait_index))
     optimize_result['params']=params.as_dict()

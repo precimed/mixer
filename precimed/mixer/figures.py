@@ -275,7 +275,7 @@ def parser_one_add_arguments(args, func, parser):
     parser.add_argument('--json', type=str, default=[""], nargs='+', help="json file from univariate analysis")    
     parser.add_argument('--trait1', type=str, default=[], nargs='+', help="name of the first trait")
     parser.add_argument('--power-thresh', type=str, default=None, help="threshold for power analysis, e.g. 0.9 or 0.5, to estimate corresponding N")
-    parser.add_argument('--power-figsize', type=float, nargs='+', default=None, help="figure size for power plots")
+    parser.add_argument('--power-figsize', type=float, nargs='+', default=[], help="figure size for power plots")
     parser.set_defaults(func=func)
 
 def parser_two_add_arguments(args, func, parser):

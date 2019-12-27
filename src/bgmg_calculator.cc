@@ -2125,9 +2125,12 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold, std::st
 
   std::valarray<int> passed_random_pruning(0, num_tag_);  // count how many times an index  has passed random pruning
 
-  std::vector<int> defvec(bim_file_.size(), 1);
-  if (!extract.empty()) apply_extract(extract, bim_file_, &defvec);
-  if (!exclude.empty()) apply_exclude(exclude, bim_file_, &defvec);
+  std::vector<int> defvec(num_snp_, 1);
+  if (bim_file_.size() > 0) {
+    if (bim_file_.size() != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("bim_file_ is incompatible with num_snp_"));
+    if (!extract.empty()) apply_extract(extract, bim_file_, &defvec);
+    if (!exclude.empty()) apply_exclude(exclude, bim_file_, &defvec);
+  }
 
 #pragma omp parallel
   {

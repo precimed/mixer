@@ -113,6 +113,7 @@ struct BgmgOptions {
   std::string exclude;
   std::string extract;
   float r2min;
+  float ldscore_r2min;
 };
 
 void describe_bgmg_options(BgmgOptions& s) {
@@ -175,6 +176,7 @@ int main(int argc, char *argv[]) {
       ("exclude", po::value(&bgmg_options.exclude)->default_value(""), "File with a set of SNP rs# to exclude from the analysis")
       ("extract", po::value(&bgmg_options.extract)->default_value(""), "File with a set of SNP rs# to use in the analysis; this is optional, by default use all available markers")
       ("r2min", po::value(&bgmg_options.r2min)->default_value(0.05), "Threshold for LD r2 estimation.")
+      ("ldscore-r2min", po::value(&bgmg_options.ldscore_r2min)->default_value(0.05), "Threshold for LD scores in LD r2 estimation.")
     ;
 
     po::variables_map vm;
@@ -200,7 +202,7 @@ int main(int argc, char *argv[]) {
 
       if (!bgmg_options.bfile.empty()) {
         bgmg_calc_ld_matrix(bgmg_options.bfile.c_str(),
-                            bgmg_options.out.c_str(), bgmg_options.r2min);
+                            bgmg_options.out.c_str(), bgmg_options.r2min, bgmg_options.ldscore_r2min);
       } else {
         const int context_id = 0;
         BgmgCpp bgmg_cpp_interface(context_id);

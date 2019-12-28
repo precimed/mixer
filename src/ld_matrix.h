@@ -23,21 +23,19 @@
 
 #include "ld_matrix_csr.h"
 
-void generate_ld_matrix_from_bed_file(std::string bfile, float r2min, std::string out_file);
+void generate_ld_matrix_from_bed_file(std::string bfile, float r2min, float ldscore_r2min, std::string out_file);
 
 void save_ld_matrix(const LdMatrixCsrChunk& chunk,
+                    const std::vector<float>& freqvec,
                     const std::vector<float>& ld_tag_r2_sum,
                     const std::vector<float>& ld_tag_r2_sum_adjust_for_hvec,
-                    const std::vector<float>& ld_tag_r4_sum,
-                    const std::vector<float>& ld_tag_r4_sum_adjust_for_hvec,
                     std::string filename);
 
 void load_ld_matrix(std::string filename,
                     LdMatrixCsrChunk* chunk,
+                    std::vector<float>* freqvec,
                     std::vector<float>* ld_tag_r2_sum,
-                    std::vector<float>* ld_tag_r2_sum_adjust_for_hvec,
-                    std::vector<float>* ld_tag_r4_sum,
-                    std::vector<float>* ld_tag_r4_sum_adjust_for_hvec);
+                    std::vector<float>* ld_tag_r2_sum_adjust_for_hvec);
 
 void load_ld_matrix_version0(std::string filename,
                              std::vector<int>* snp_index,

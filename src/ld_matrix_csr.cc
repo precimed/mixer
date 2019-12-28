@@ -66,9 +66,8 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version0(int chr_label_data, const std::strin
 
 int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label, const std::string& filename, float r2_min) {
   LdMatrixCsrChunk chunk;
-  std::vector<float> ld_tag_r2_sum, ld_tag_r2_sum_adjust_for_hvec;  // these are ignored for now
-  std::vector<float> ld_tag_r4_sum, ld_tag_r4_sum_adjust_for_hvec;  // TBD: append to this->ld_tag_sum_ and this->ld_tag_sum_adjust_for_hvec_)
-  load_ld_matrix(filename, &chunk, &ld_tag_r2_sum, &ld_tag_r2_sum_adjust_for_hvec, &ld_tag_r4_sum, &ld_tag_r4_sum_adjust_for_hvec);
+  std::vector<float> freqvec, ld_tag_r2_sum, ld_tag_r2_sum_adjust_for_hvec;  // these are ignored for now
+  load_ld_matrix(filename, &chunk, &freqvec, &ld_tag_r2_sum, &ld_tag_r2_sum_adjust_for_hvec);
 
   LOG << " set_ld_r2_coo(filename=" << filename << ")...";
   int64_t numel = chunk.csr_ld_r_.size();

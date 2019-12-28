@@ -162,11 +162,10 @@ TEST(TestLd, DifferentChunks) {
 // --gtest_filter=TestLd.GatherLdMatrix
 TEST(TestLd, GatherLdMatrix) {
   std::string fname = DataFolder + "/test.ld.bin2";
-  generate_ld_matrix_from_bed_file(DataFolder + "/test", 0.05, fname);
+  generate_ld_matrix_from_bed_file(DataFolder + "/test", 0.05, 0.0, fname);
   LdMatrixCsrChunk chunk;
-  std::vector<float> ld_tag_r2_sum, ld_tag_r2_sum_adjust_for_hvec;
-  std::vector<float> ld_tag_r4_sum, ld_tag_r4_sum_adjust_for_hvec;
-  load_ld_matrix(fname, &chunk, &ld_tag_r2_sum, &ld_tag_r2_sum_adjust_for_hvec, &ld_tag_r4_sum, &ld_tag_r4_sum_adjust_for_hvec);
+  std::vector<float> freqvec, ld_tag_r2_sum, ld_tag_r2_sum_adjust_for_hvec;
+  load_ld_matrix(fname, &chunk, &freqvec, &ld_tag_r2_sum, &ld_tag_r2_sum_adjust_for_hvec);
   ASSERT_EQ(chunk.snp_index_to_exclusive_, 2011);
   ASSERT_EQ(chunk.csr_ld_snp_index_.size(), 2012);
   ASSERT_EQ(chunk.csr_ld_tag_index_offset_.size(), 2012);
@@ -175,9 +174,10 @@ TEST(TestLd, GatherLdMatrix) {
   ASSERT_EQ(chunk.csr_ld_r_[0].raw_value(), 63653);
   ASSERT_EQ(chunk.csr_ld_r_[129833].raw_value(), 20092);
   
-  ASSERT_EQ(ld_tag_r2_sum.size(), 2011);
+  ASSERT_EQ(freqvec.size(), 2011);
   ASSERT_EQ(ld_tag_r2_sum_adjust_for_hvec.size(), 2011);
 
+  ASSERT_FLOAT_EQ(freqvec[0], 0.91399997);
   ASSERT_FLOAT_EQ(ld_tag_r2_sum[0], 4.89746904);
   ASSERT_FLOAT_EQ(ld_tag_r2_sum_adjust_for_hvec[0], 1.1495708);
 

@@ -162,7 +162,7 @@ TEST(TestLd, DifferentChunks) {
 // --gtest_filter=TestLd.GatherLdMatrix
 TEST(TestLd, GatherLdMatrix) {
   std::string fname = DataFolder + "/test.ld.bin2";
-  generate_ld_matrix_from_bed_file(DataFolder + "/test", DataFolder + "/test.frq", 0.05, fname);
+  generate_ld_matrix_from_bed_file(DataFolder + "/test", 0.05, fname);
   LdMatrixCsrChunk chunk;
   std::vector<float> ld_tag_r2_sum, ld_tag_r2_sum_adjust_for_hvec;
   std::vector<float> ld_tag_r4_sum, ld_tag_r4_sum_adjust_for_hvec;

@@ -502,12 +502,12 @@ int64_t bgmg_convert_plink_ld(int context_id, const char* plink_ld_gz, const cha
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_calc_ld_matrix(const char* bfile, const char* frqfile, const char* outfile, double r2min) {
+int64_t bgmg_calc_ld_matrix(const char* bfile, const char* outfile, double r2min) {
   try {
     if (!LoggerImpl::singleton().is_initialized()) LoggerImpl::singleton().init("bgmg.log");
     set_last_error(std::string());
-    check_is_not_null(bfile); check_is_not_null(frqfile); check_is_not_null(outfile);
-    generate_ld_matrix_from_bed_file(bfile, frqfile, r2min, outfile);
+    check_is_not_null(bfile); check_is_not_null(outfile);
+    generate_ld_matrix_from_bed_file(bfile, r2min, outfile);
     return 0;
   } CATCH_EXCEPTIONS;
 }

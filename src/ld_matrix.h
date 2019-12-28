@@ -23,7 +23,7 @@
 
 #include "ld_matrix_csr.h"
 
-void generate_ld_matrix_from_bed_file(std::string bfile, std::string frqfile, float r2min, std::string out_file);
+void generate_ld_matrix_from_bed_file(std::string bfile, float r2min, std::string out_file);
 
 void save_ld_matrix(const LdMatrixCsrChunk& chunk,
                     const std::vector<float>& ld_tag_r2_sum,

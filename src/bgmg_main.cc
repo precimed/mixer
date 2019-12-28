@@ -199,7 +199,7 @@ int main(int argc, char *argv[]) {
       describe_bgmg_options(bgmg_options);
 
       if (!bgmg_options.bfile.empty()) {
-        bgmg_calc_ld_matrix(bgmg_options.bfile.c_str(), bgmg_options.frq.c_str(),
+        bgmg_calc_ld_matrix(bgmg_options.bfile.c_str(),
                             bgmg_options.out.c_str(), bgmg_options.r2min);
       } else {
         const int context_id = 0;

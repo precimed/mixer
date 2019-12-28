@@ -23,7 +23,7 @@ private:
   FILE* file;
 };
 
-void generate_ld_matrix_from_bed_file(std::string bfile, std::string frqfile, float r2_min, std::string outfile) {
+void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, std::string outfile) {
   LOG << ">generate_ld_matrix_from_bed_file(bfile=" << bfile << ");";
   SimpleTimer timer(-1);
 
@@ -32,13 +32,6 @@ void generate_ld_matrix_from_bed_file(std::string bfile, std::string frqfile, fl
   bim_file.find_snp_to_index_map();
   const int num_snps = bim_file.size();
   const int num_subj = fam_file.size();
-
-  FrqFile frq_file(bim_file, frqfile);
-  frq_file.align_to_reference(bim_file);
-  const std::vector<float>& frq = frq_file.frq();
-
-  std::vector<float> hvec(num_snps, 0.0f);
-  for (int i = 0; i < num_snps; i++) hvec[i] = 2 * frq[i] * (1.0f - frq[i]);
 
   const int block_size = std::min(8*1024, num_snps);  // handle blocks of up to 8K SNPs
   const int block_elems = block_size * block_size;
@@ -99,15 +92,18 @@ void generate_ld_matrix_from_bed_file(std::string bfile, std::string frqfile, fl
           float ld_r2 = ld_corr * ld_corr;
           float ld_r4 = ld_r2 * ld_r2;
 
+          const float hval_at_index = chunk_fixed.hetval(block_snp_index);
+          const float hval_at_jndex = chunk_var_ptr->hetval(block_snp_jndex);
+
           if (ld_r2 < r2_min) {
             local_ld_tag_r2_sum[global_snp_index] += ld_r2;
             local_ld_tag_r2_sum[global_snp_jndex] += ld_r2;
-            local_ld_tag_r2_sum_adjust_for_hvec[global_snp_index] += ld_r2 * hvec[global_snp_jndex];  // note that i-th SNP is adjusted for het of j-th SNP
-            local_ld_tag_r2_sum_adjust_for_hvec[global_snp_jndex] += ld_r2 * hvec[global_snp_index];  // and vice versa.
+            local_ld_tag_r2_sum_adjust_for_hvec[global_snp_index] += ld_r2 * hval_at_jndex;  // note that i-th SNP is adjusted for het of j-th SNP
+            local_ld_tag_r2_sum_adjust_for_hvec[global_snp_jndex] += ld_r2 * hval_at_index;  // and vice versa.
             local_ld_tag_r4_sum[global_snp_index] += ld_r4;
             local_ld_tag_r4_sum[global_snp_jndex] += ld_r4;
-            local_ld_tag_r4_sum_adjust_for_hvec[global_snp_index] += ld_r4 * pow(hvec[global_snp_jndex], 2);  // note that i-th SNP is adjusted for het of j-th SNP
-            local_ld_tag_r4_sum_adjust_for_hvec[global_snp_jndex] += ld_r4 * pow(hvec[global_snp_index], 2);  // and vice versa.
+            local_ld_tag_r4_sum_adjust_for_hvec[global_snp_index] += ld_r4 * pow(hval_at_jndex, 2);  // note that i-th SNP is adjusted for het of j-th SNP
+            local_ld_tag_r4_sum_adjust_for_hvec[global_snp_jndex] += ld_r4 * pow(hval_at_index, 2);  // and vice versa.
           }
           else {
             local_coo_ld.push_back(std::make_tuple(global_snp_index, global_snp_jndex, ld_corr));

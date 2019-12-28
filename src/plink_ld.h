@@ -64,6 +64,7 @@ class PlinkLdBedFileChunk {
   uintptr_t* geno_masks() {return &geno_masks_vec[0];}
   uint32_t* ld_missing_cts() {return &ld_missing_cts_vec[0];}
   float* freq() {return &freq_[0];}
+  float hetval(int snp_index) { return 2.0f * freq_[snp_index] * (1.0f - freq_[snp_index]);} // heterozygosity
   int num_subj() { return num_subj_; }
 
   static double calculate_ld_corr(PlinkLdBedFileChunk& fixed_chunk, PlinkLdBedFileChunk& var_chunk, int snp_fixed_index, int snp_var_index);

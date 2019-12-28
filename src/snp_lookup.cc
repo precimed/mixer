@@ -1,10 +1,26 @@
+#include "snp_lookup.h"
+
+#include "strings.h"
+
 /**
- * Copyright (c) 2012-2013, Mattias Frånberg
- * All rights reserved.
- *
- * This file is distributed under the Modified BSD License. See the COPYING file
- * for details.
+ * This files contains a lookup table that maps
+ * SNPs packed in a single byte into an array of
+ * four bytes.
  */
+union snp_lookup_t
+{
+    /**
+     * Accessible as an array.
+     */
+    unsigned char snp_array[4];
+
+    /**
+     * Accessible as a block of bytes.
+     */
+    int32_t snp_block;
+};
+
+unsigned char snp_to_bits[] = { 0, 2, 3, 1 };
 
 union snp_lookup_t snp_lookup[256] =
 {
@@ -265,3 +281,46 @@ union snp_lookup_t snp_lookup[256] =
 	{{1, 2, 2, 2}},
 	{{2, 2, 2, 2}},
 };
+
+void
+unpack_snps(const snp_t *packed_snps, unsigned char *unpacked_snps, size_t num_cols)
+{
+    int index;
+    int packed_left;
+
+    /* Unpack SNPs in pairs of 4. */
+    int32_t *unpacked_snps_p = (int32_t *) unpacked_snps;
+    int i;
+    int packed_length = num_cols / 4;
+    for(i = 0; i < packed_length; i++)
+    { 
+        *unpacked_snps_p = snp_lookup[ packed_snps[ i ] ].snp_block;
+        unpacked_snps_p += 1;
+    }
+
+    /* Unpack the trailing SNPs */
+    index = packed_length * 4;
+    packed_left = num_cols % 4;
+    for(i = 0; i < packed_left; i++)
+    {
+        unpacked_snps[ index + i ] = snp_lookup[ packed_snps[ packed_length ] ].snp_array[ i ];
+    }
+}
+
+void
+pack_snps(const snp_t *unpacked_snps, unsigned char *packed_snps, size_t num_cols)
+{
+    int i;
+    int packed_index;
+    int position_in_byte;
+
+    bzero( packed_snps, (num_cols + 3) / 4 );
+    for(i = 0; i < num_cols; i++)
+    {
+        /* Genotypes are stored backwards. */
+        packed_index = i / 4;
+        position_in_byte = (i % 4) * 2;
+        packed_snps[ packed_index ] |= ( snp_to_bits[ unpacked_snps[ i ] ] << position_in_byte );
+    }
+}
+

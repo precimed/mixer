@@ -15,6 +15,16 @@
 
 const std::string DataFolder = "/home/oleksanf/github/mixer/src/testdata";
 
+void counts(const std::string& unpacked, int* c0, int* c1, int* c2, int* c3) {
+  *c0 = 0; *c1 = 0; *c2 = 0; *c3 = 0;
+  for (int i = 0; i < unpacked.size(); i++) {
+    if (unpacked[i] == 0) (*c0)++;
+    if (unpacked[i] == 1) (*c1)++;
+    if (unpacked[i] == 2) (*c2)++;
+    if (unpacked[i] == 3) (*c3)++;
+  }
+}
+
 // interesting detail: in LD r2 calculation plink calculates the mean across
 // genotypes defined in both SNPs --- therefore we pass the "second" argument below. 
 double mean(const std::string& unpacked, const std::string& second) {
@@ -93,7 +103,21 @@ void test_ld(int num_subj, int num_snps, double missing_rate) {
       }
     }
   }
+
+  for (int i = 0; i < num_snps; i++) {
+    int c0, c1, c2, c3; counts(unpacked_snps[i], &c0, &c1, &c2, &c3);
+    int nonmissing = c0+c1+c2;
+    float freq = (nonmissing > 0) ? (float)(c1 + 2*c2) / (float)(2*nonmissing) : 0.5f;
+    ASSERT_FLOAT_EQ(freq, plink_ld.freq()[i]);
+  }
+
   fclose(bedfile);
+}
+
+// --gtest_filter=TestLd.SingleMarker
+TEST(TestLd, SingleMarker) {
+  int nsubj = 64, nsnps = 1; float missing_rate = 0.05;
+  test_ld(nsubj, nsnps, missing_rate);  
 }
 
 // --gtest_filter=TestLd.*

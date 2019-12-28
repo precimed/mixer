@@ -17,6 +17,7 @@
 // The original source code from PLINK was modified by Oleksandr Frei, April 2019
 
 #include "plink_ld.h"
+#include "snp_lookup.h"
 
 
 #define MULTIPLEX_LD 1920
@@ -598,6 +599,73 @@ SampleCountInfo::SampleCountInfo(int num_subjects) {
   unfiltered_sample_ct4 = (unfiltered_sample_ct + 3) / 4;
 }
 
+void single_marker_3freqs(size_t sample_ctl2, uintptr_t* lptr, uintptr_t* include2, uint32_t* hom2p, uint32_t* hetp, uint32_t* missingp) {
+  // adapted from the original plink_assoc.c::single_marker_cc_3freqs
+  // Counts the number of heterozygotes, A2 homozygotes, and missing calls.  Assumes marker is diploid.  The caller is
+  // expected to calculate the A1 allele count.
+  // See single_marker_freqs_and_hwe() for discussion.
+  //   A := genotype & 0x5555...
+  //   B := (genotype >> 1) & 0x5555...
+  //   C := A & B
+  //   popcount(C) = homozyg major ct
+  //   popcount(B) = het ct + homozyg major ct
+  //   popcount(A) = missing_ct + homozyg major ct
+  // hom2: popcount(C)
+  // het: popcount(B) - popcount(C)
+  // missing: popcount(A) - popcount(C)
+
+  uint32_t tot_a = 0;
+  uint32_t tot_b = 0;
+  uint32_t tot_c = 0;
+  uintptr_t* lptr_end = &(lptr[sample_ctl2]);
+  uintptr_t loader;
+  uintptr_t loader2;
+  uintptr_t loader3;
+#ifdef __LP64__
+  uintptr_t cur_decr = 120;
+  uintptr_t* lptr_12x_end;
+  sample_ctl2 -= sample_ctl2 % 12;
+  while (sample_ctl2 >= 120) {
+  single_marker_3freqs_loop:
+    lptr_12x_end = &(lptr[cur_decr]);
+    count_3freq_1920b((__m128i*)lptr, (__m128i*)lptr_12x_end, (__m128i*)include2, &tot_a, &tot_b, &tot_c);
+    lptr = lptr_12x_end;
+    include2 = &(include2[cur_decr]);
+    sample_ctl2 -= cur_decr;
+  }
+  if (sample_ctl2) {
+    cur_decr = sample_ctl2;
+    goto single_marker_3freqs_loop;
+  }
+#else
+  uintptr_t* lptr_twelve_end = &(lptr[sample_ctl2 - (sample_ctl2 % 12)]);
+  while (lptr < lptr_twelve_end) {
+    count_3freq_48b(lptr, include2, &tot_a, &tot_b, &tot_c);
+    lptr = &(lptr[12]);
+    include2 = &(include2[12]);
+  }
+#endif
+  while (lptr < lptr_end) {
+    //   A := genotype & 0x5555...
+    //   B := (genotype >> 1) & 0x5555...
+    //   C := A & B
+    //   popcount(C) = homozyg major ct
+    //   popcount(B) = het ct + homozyg major ct
+    //   popcount(A) = missing_ct + homozyg major ct
+    loader = *lptr++;
+    loader2 = *include2++;
+    loader3 = (loader >> 1) & loader2;
+    loader2 &= loader;
+    tot_a += popcount2_long(loader2);
+    tot_b += popcount2_long(loader3);
+    tot_c += popcount2_long(loader2 & loader3);
+  }
+  *hom2p = tot_c;
+  *hetp = tot_b - tot_c;
+  *missingp = tot_a - tot_c;
+}
+
+
 uint32_t PlinkLdBedFileChunk::init(int num_subjects, int snp_start_index, int num_snps_in_chunk, FILE* bedfile) {
   num_subj_ = num_subjects;
   num_snps_in_chunk_ = num_snps_in_chunk;
@@ -607,6 +675,9 @@ uint32_t PlinkLdBedFileChunk::init(int num_subjects, int snp_start_index, int nu
   std::vector<uintptr_t> founder_info_vec(sc.unfiltered_sample_ctl, 0);
   fill_all_bits(sc.unfiltered_sample_ct, &founder_info_vec[0]);
 
+  std::vector<uintptr_t> quatervec(sc.unfiltered_sample_ctv2, 0);
+  init_quaterarr_from_bitarr(&(founder_info_vec[0]), sc.unfiltered_sample_ct, &quatervec[0]);
+
   const bool is_x = false;  // no special processing for X chromosome
   uintptr_t* founder_male_include2 = nullptr;  // not used when is_x == false
   const bool is_marker_reverse = false;
@@ -615,17 +686,25 @@ uint32_t PlinkLdBedFileChunk::init(int num_subjects, int snp_start_index, int nu
   geno_vec.resize(num_snps_in_chunk * sc.founder_ct_192_long, 0);
   geno_masks_vec.resize(num_snps_in_chunk * sc.founder_ct_192_long, 0);
   ld_missing_cts_vec.resize(num_snps_in_chunk, 0);
+  freq_.resize(num_snps_in_chunk_, 0);
 
   if (fseeko(bedfile, bed_offset + (snp_start_index * ((uint64_t)sc.unfiltered_sample_ct4)), SEEK_SET)) {
     return RET_READ_FAIL;
   }
 
   for (int snp_index = 0; snp_index < num_snps_in_chunk; snp_index++) {
+    uintptr_t* mainbuf = &(geno()[snp_index * sc.founder_ct_192_long]);
     uint32_t error_code = load_and_collapse_incl(
       sc.unfiltered_sample_ct, sc.founder_ct, &founder_info_vec[0], sc.final_mask, is_marker_reverse,
-      bedfile, &loadbuf_vec[0], &(geno()[snp_index * sc.founder_ct_192_long]));
+      bedfile, &loadbuf_vec[0], mainbuf);
     if (error_code != 0)
       return error_code;
+
+    // single_marker_3freqs must happen before ld_process_load2, because the later will re-code data in the mainbuf.
+    uint32_t hom2 = 0, het = 0, missing = 0;
+    single_marker_3freqs(sc.unfiltered_sample_ctv2, mainbuf, &quatervec[0], &hom2, &het, &missing);
+    uint32_t nonmissing = num_subjects-missing;
+    freq_[snp_index] = (nonmissing > 0) ? (float)(het + 2*hom2) / (float)(2*num_subjects-2*missing) : 0.5f;
 
     ld_process_load2(&(geno_vec[snp_index * sc.founder_ct_192_long]), 
                      &(geno_masks_vec[snp_index * sc.founder_ct_192_long]),

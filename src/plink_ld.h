@@ -63,6 +63,7 @@ class PlinkLdBedFileChunk {
   uintptr_t* geno() {return &geno_vec[0];}
   uintptr_t* geno_masks() {return &geno_masks_vec[0];}
   uint32_t* ld_missing_cts() {return &ld_missing_cts_vec[0];}
+  float* freq() {return &freq_[0];}
   int num_subj() { return num_subj_; }
 
   static double calculate_ld_corr(PlinkLdBedFileChunk& fixed_chunk, PlinkLdBedFileChunk& var_chunk, int snp_fixed_index, int snp_var_index);
@@ -70,7 +71,8 @@ class PlinkLdBedFileChunk {
  private:
   int num_subj_;
   int num_snps_in_chunk_;
-  std::vector<uintptr_t> geno_vec;
+  std::vector<uintptr_t> geno_vec;        // geno_vec and geno_masks_vec has special encoding for LD structure, see ld_process_load2()
   std::vector<uintptr_t> geno_masks_vec;
   std::vector<uint32_t> ld_missing_cts_vec;
+  std::vector<float> freq_;
 };

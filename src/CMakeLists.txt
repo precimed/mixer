@@ -98,6 +98,7 @@ set(SRC_LIST
 	plink_ld.cc
 	plink_common.cc
 	semt/semt/VectorExpr.cpp
+	snp_lookup.cc
 	TurboPFor/vsimple.c
 	TurboPFor/vint.c
 	TurboPFor/bitutil.c

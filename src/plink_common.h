@@ -448,6 +448,18 @@ HEADER_INLINE void fill_ulong_one(size_t size, uintptr_t* ularr) {
   }
 }
 
+#ifdef __LP64__
+void count_2freq_dbl_960b(const VECITYPE* geno_vvec, const VECITYPE* geno_vvec_end, const VECITYPE* __restrict mask1vp, const VECITYPE* __restrict mask2vp, uint32_t* __restrict ct1abp, uint32_t* __restrict ct1cp, uint32_t* __restrict ct2abp, uint32_t* __restrict ct2cp);
+
+void count_3freq_1920b(const VECITYPE* geno_vvec, const VECITYPE* geno_vvec_end, const VECITYPE* __restrict maskvp, uint32_t* __restrict ctap, uint32_t* __restrict ctbp, uint32_t* __restrict ctcp);
+#else
+void count_2freq_dbl_24b(const uintptr_t* __restrict geno_vec, const uintptr_t* __restrict mask1p, const uintptr_t* __restrict mask2p, uint32_t* __restrict ct1abp, uint32_t* __restrict ct1cp, uint32_t* __restrict ct2abp, uint32_t* __restrict ct2cp);
+
+void count_3freq_48b(const uintptr_t* __restrict geno_vec, const uintptr_t* __restrict maskp, uint32_t* __restrict ctap, uint32_t* __restrict ctbp, uint32_t* __restrict ctcp);
+#endif
+
+void genovec_3freq(const uintptr_t* __restrict geno_vec, const uintptr_t* __restrict include_quatervec, uintptr_t sample_ctl2, uint32_t* __restrict missing_ctp, uint32_t* __restrict het_ctp, uint32_t* __restrict homset_ctp);
+
 void fill_all_bits(uintptr_t ct, uintptr_t* bitarr);
 
 HEADER_INLINE uintptr_t get_final_mask(uint32_t sample_ct) {
@@ -458,6 +470,13 @@ HEADER_INLINE uintptr_t get_final_mask(uint32_t sample_ct) {
     return ~ZEROLU;
   }
 }
+
+// "quaterarr" refers to a packed group of base-4 (2-bit) elements, analogous
+// to "bitarr".  (Based on "quaternary", not "quarter".)  "quatervec"
+// indicates that vector-alignment is also required.
+void fill_quatervec_55(uint32_t ct, uintptr_t* quatervec);
+void init_quaterarr_from_bitarr(const uintptr_t* __restrict bitarr, uintptr_t unfiltered_sample_ct, uintptr_t* __restrict new_quaterarr);
+void init_quaterarr_from_inverted_bitarr(const uintptr_t* __restrict inverted_bitarr, uintptr_t unfiltered_sample_ct, uintptr_t* __restrict new_quaterarr);
 
 HEADER_INLINE uint32_t load_raw(uintptr_t unfiltered_sample_ct4, FILE* bedfile, uintptr_t* rawbuf) {
   // only use this if all accesses to the data involve

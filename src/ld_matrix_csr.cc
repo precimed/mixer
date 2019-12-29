@@ -97,13 +97,13 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version1plus(int chr_label, const std::string
 
 void LdMatrixCsr::init_chunks() {
   if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call init_chunks() before set_chrnumvec"));
+  if (!chunks_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call init_chunks() twice"));
+  LOG << ">LdMatrixCsr::init_chunks(); ";
 
-  if (!chunks_.empty()) return;
-
-  if (ld_tag_sum_adjust_for_hvec_ == nullptr) {
-    ld_tag_sum_adjust_for_hvec_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
-    ld_tag_sum_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
-  }
+  if (ld_tag_sum_adjust_for_hvec_ == nullptr) ld_tag_sum_adjust_for_hvec_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
+  if (ld_tag_sum_ == nullptr) ld_tag_sum_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
+  ld_tag_sum_adjust_for_hvec_->clear();
+  ld_tag_sum_->clear();  
 
   int max_chr_label = 0;
   for (int i = 0; i < mapping_.chrnumvec().size(); i++) {
@@ -119,12 +119,14 @@ void LdMatrixCsr::init_chunks() {
     int chr_label = mapping_.chrnumvec()[i];
     chunk_snp_count[chr_label]++;
   }
+
   for (int chr_label = 0, snp_count_on_previous_chromosomes = 0; chr_label <= max_chr_label; chr_label++) {
     chunks_[chr_label].snp_index_from_inclusive_ = snp_count_on_previous_chromosomes;
     chunks_[chr_label].snp_index_to_exclusive_ = snp_count_on_previous_chromosomes + chunk_snp_count[chr_label];
     chunks_[chr_label].chr_label_ = chr_label;
     snp_count_on_previous_chromosomes += chunk_snp_count[chr_label];
   }
+  LOG << "<LdMatrixCsr::init_chunks(); ";
 }
 
 void LdMatrixCsr::init_diagonal() {

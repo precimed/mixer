@@ -286,6 +286,11 @@ int64_t BgmgCalculator::set_ld_r2_coo(int chr_label, const std::string& filename
   if (ld_format_version_ == 0)
     return ld_matrix_csr_.set_ld_r2_coo_version0(chr_label, filename, r2_min_);
 
+  if (mafvec_.empty()) {
+    LOG << " initialize mafvec";
+    mafvec_.assign(num_snp_, NAN);
+  }
+
   return ld_matrix_csr_.set_ld_r2_coo_version1plus(chr_label, filename, r2_min_);
 }
 

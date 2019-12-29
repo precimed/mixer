@@ -354,6 +354,7 @@ class BgmgCalculator : public TagToSnpMapping {
   virtual const std::vector<char>& is_tag() { return is_tag_; }
   virtual const std::vector<int>& chrnumvec() { return chrnumvec_; }
   virtual const std::vector<float>& mafvec() { return mafvec_; }
+  virtual std::vector<float>* mutable_mafvec() { return &mafvec_; }
 
   int64_t clear_loglike_cache() { loglike_cache_.clear(); return 0; }
   int64_t get_loglike_cache_size() { return loglike_cache_.num_entries(); }

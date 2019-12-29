@@ -79,11 +79,13 @@ public:
   virtual const std::vector<char>& is_tag() = 0;
   virtual const std::vector<int>& chrnumvec() = 0;
   virtual const std::vector<float>& mafvec() = 0;
+  virtual std::vector<float>* mutable_mafvec() = 0;
 };
 
 #define CHECK_SNP_INDEX(mapping, i) if (i < 0 || i >= mapping.num_snp()) BGMG_THROW_EXCEPTION(::std::runtime_error("CHECK_SNP_INDEX failed"));
 #define CHECK_TAG_INDEX(mapping, i) if (i < 0 || i >= mapping.num_tag)()) BGMG_THROW_EXCEPTION(::std::runtime_error("CHECK_TAG_INDEX failed"));
 
+void find_hvec_per_chunk(TagToSnpMapping& mapping, std::vector<float>* hvec, int index_from, int index_to);
 void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec);
 
 // pre-calculated sum of LD r2 and r4 for each tag snp

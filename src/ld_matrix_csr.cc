@@ -33,13 +33,17 @@
 #define VSDEC_BOUND(n, size) ((n + 32) * (size))
 #define VSDEC_NUMEL(n      ) (n + 32)
 
-void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec) {
+void find_hvec_per_chunk(TagToSnpMapping& mapping, std::vector<float>* hvec, int index_from, int index_to) {
   if (mapping.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("set_mafvec() must be called first"));  
   const std::vector<float>& mafvec = mapping.mafvec();
-  hvec->resize(mafvec.size(), 0.0f);
-  for (int snp_index = 0; snp_index < mafvec.size(); snp_index++) {
-    hvec->at(snp_index) = 2.0f * mafvec[snp_index] * (1.0f - mafvec[snp_index]);
+  hvec->resize(index_to - index_from, 0.0f);
+  for (int snp_index = index_from; snp_index < index_to; snp_index++) {
+    hvec->at(snp_index - index_from) = 2.0f * mafvec[snp_index] * (1.0f - mafvec[snp_index]);
   }
+}
+
+void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec) {
+  find_hvec_per_chunk(mapping, hvec, 0, mapping.num_snp());
 }
 
 int64_t LdMatrixCsr::set_ld_r2_coo_version0(int chr_label_data, const std::string& filename, float r2_min) {
@@ -72,6 +76,8 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version1plus(int chr_label, const std::string
   LOG << " set_ld_r2_coo(filename=" << filename << ")...";
   int64_t numel = chunk.csr_ld_r_.size();
 
+  const int index0 = chunks_[chr_label].snp_index_from_inclusive_;
+
   std::vector<int> snp_index(numel, 0), tag_index(numel, 0);
   std::vector<float> r(numel, 0.0f);
 
@@ -86,9 +92,13 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version1plus(int chr_label, const std::string
       r[elem_index] = iter.r();
       elem_index++;
     }
+
+    // apply freqvec
+    mapping_.mutable_mafvec()->at(index0 + chunk_snp_index) = freqvec[chunk_snp_index];
   }
 
   if (elem_index != numel) BGMG_THROW_EXCEPTION(::std::runtime_error("internal error, elem_index != numel"));
+
   chunk.clear();  // all information is extracted to snp_index, tag_index and r. 
   return set_ld_r2_coo(chr_label, numel, &snp_index[0], &tag_index[0], &r[0], r2_min);
 }
@@ -133,8 +143,8 @@ void LdMatrixCsr::init_diagonal(int chr_label) {
   const int index_from = chunks_[chr_label].snp_index_from_inclusive_;
   const int index_to =  chunks_[chr_label].snp_index_to_exclusive_;
 
-  std::vector<float> hvec;
-  find_hvec(mapping_, &hvec);
+  std::vector<float> hvec_per_chunk;
+  find_hvec_per_chunk(mapping_, &hvec_per_chunk, index_from, index_to);
 
   int added = 0;
   for (int snp_index = index_from; snp_index < index_to; snp_index++) {
@@ -142,7 +152,7 @@ void LdMatrixCsr::init_diagonal(int chr_label) {
     added++;
     int tag_index = mapping_.snp_to_tag()[snp_index];
     chunks_[chr_label].coo_ld_.push_back(std::make_tuple(snp_index, tag_index, 1.0f));
-    ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, tag_index, 1.0f * hvec[snp_index]);
+    ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, tag_index, 1.0f * hvec_per_chunk[snp_index - index_from]);
     ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, tag_index, 1.0f);
   }
   LOG << " added " << added << " tag (out of " << (index_to - index_from)  << " snps) elements with r2=1.0 to the diagonal of LD r2 matrix";  
@@ -164,20 +174,21 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_
 
   SimpleTimer timer(-1);
 
-  std::vector<float> hvec;
-  find_hvec(mapping_, &hvec);
-
   init_diagonal(chr_label_data);
 
   int64_t new_elements = 0;
   int64_t elements_on_different_chromosomes = 0;
 
   if (chr_label_data < 0 || chr_label_data >= chunks_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("invalid value for chr_label argument"));
-  const int index0 = chunks_[chr_label_data].snp_index_from_inclusive_;
+  const int index_from = chunks_[chr_label_data].snp_index_from_inclusive_;
+  const int index_to = chunks_[chr_label_data].snp_index_to_exclusive_;
+
+  std::vector<float> hvec_per_chunk;
+  find_hvec_per_chunk(mapping_, &hvec_per_chunk, index_from, index_to);
 
   for (int64_t i = 0; i < length; i++) {
-    const int snp_index = snp_index_data[i] + index0;
-    const int tag_index = tag_index_data[i] + index0;
+    const int snp_index = snp_index_data[i] + index_from;
+    const int tag_index = tag_index_data[i] + index_from;
     CHECK_SNP_INDEX(mapping_, snp_index); CHECK_SNP_INDEX(mapping_, tag_index);
 
     int chr_label = mapping_.chrnumvec()[tag_index];
@@ -185,8 +196,8 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_
 
     const float r2 = r[i] * r[i];
     int ld_component = (r2 < r2_min) ? LD_TAG_COMPONENT_BELOW_R2MIN : LD_TAG_COMPONENT_ABOVE_R2MIN;
-    if (mapping_.is_tag()[tag_index]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[tag_index], r2 * hvec[snp_index]);
-    if (mapping_.is_tag()[snp_index]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[snp_index], r2 * hvec[tag_index]);
+    if (mapping_.is_tag()[tag_index]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[tag_index], r2 * hvec_per_chunk[snp_index - index_from]);
+    if (mapping_.is_tag()[snp_index]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[snp_index], r2 * hvec_per_chunk[tag_index - index_from]);
 
     if (mapping_.is_tag()[tag_index]) ld_tag_sum_->store(ld_component, mapping_.snp_to_tag()[tag_index], r2);
     if (mapping_.is_tag()[snp_index]) ld_tag_sum_->store(ld_component, mapping_.snp_to_tag()[snp_index], r2);

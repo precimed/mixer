@@ -82,6 +82,12 @@ class LoadFromFile (argparse.Action):
             if v and k != option_string.lstrip('-'):
                 setattr(namespace, k, v)
 
+def parser_ld_add_arguments(args, func, parser):
+    parser.add_argument("--bfile", type=str, default=None, help="Path to plink bfile. ")
+    parser.add_argument('--r2min', type=float, default=0.05, help="r2 values above this threshold will be stored in sparse LD format")
+    parser.add_argument('--ldscore-r2min', type=float, default=0.001, help="r2 values above this threshold (and below --r2min) will be stored as LD scores that contribute to the cost function via an infinitesimal model")
+    parser.set_defaults(func=func)
+
 def parser_fit_add_arguments(args, func, parser):
     parser.add_argument("--bim-file", type=str, default=None, help="Plink bim file. "
         "Defines the reference set of SNPs used for the analysis. "
@@ -152,6 +158,7 @@ def parse_args(args):
     subparsers = parser.add_subparsers()
 
     parser_fit_add_arguments(args=args, func=execute_fit_parser, parser=subparsers.add_parser("fit", parents=[parent_parser], help='fit MiXeR model'))
+    parser_ld_add_arguments(args=args, func=execute_ld_parser, parser=subparsers.add_parser("ld", parents=[parent_parser], help='prepare files with linkage disequilibrium information'))
 
     return parser.parse_args(args)
 
@@ -350,6 +357,11 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
             results['power_{}'.format(suffix)] = {'nvec': power_nvec, 'svec': power_svec}
 
     return results
+
+def execute_ld_parser(args):
+    libbgmg = LibBgmg(args.lib)
+    libbgmg.calc_ld_matrix(args.bfile, args.out, args.r2min, args.ldscore_r2min)
+    libbgmg.log_message('Done')
 
 def execute_fit_parser(args):
     libbgmg = LibBgmg(args.lib)

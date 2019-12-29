@@ -36,13 +36,6 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
   const int block_size = std::min(8*1024, num_snps);  // handle blocks of up to 8K SNPs
   const int block_elems = block_size * block_size;
   const int num_blocks = (num_snps + (block_size-1)) / block_size;
-  std::vector<int> idx1(block_elems, 0), idx2(block_elems, 0);
-  for (int i = 0; i < block_size; i++) {
-    for (int j = 0; j < block_size; j++) {
-      idx1[i*block_size + j] = i;
-      idx2[i*block_size + j] = j;
-    }
-  }
 
   PosixFile bedfile(bfile + ".bed", "rb");
 
@@ -68,7 +61,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
       freqvec[block_istart + block_snp_index] = chunk_fixed.freq()[block_snp_index];
 
     for (int block_jdx = block_idx; block_jdx < num_blocks; block_jdx++) {
-    LOG << " processing block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << "... ";
+      LOG << " processing block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << "... ";
 
       const int block_jstart = block_jdx * block_size;
       const int block_jend = std::min(block_jstart + block_size, num_snps);
@@ -80,6 +73,8 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
           BGMG_THROW_EXCEPTION(::std::runtime_error("error while reading .bed file"));
         chunk_var_ptr = &chunk_var;
       }
+
+      const size_t size_before = ld_matrix_csr_chunk.coo_ld_.size();
 
       // There are many alternatives of collecting tail LD scores:
       // - collecting raw r2, versus r2 adjusted for heterozygosity
@@ -104,7 +99,6 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
           if (global_snp_jndex <= global_snp_index || global_snp_jndex >= num_snps) continue;
           float ld_corr = (float)PlinkLdBedFileChunk::calculate_ld_corr(chunk_fixed, *chunk_var_ptr, block_snp_index, block_snp_jndex);
           float ld_r2 = ld_corr * ld_corr;
-          float ld_r4 = ld_r2 * ld_r2;
 
           if ((ldscore_r2min <= ld_r2) && (ld_r2 < r2_min)) {
             const float hval_at_index = chunk_fixed.hetval(block_snp_index);
@@ -125,6 +119,9 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
           ld_matrix_csr_chunk.coo_ld_.insert( ld_matrix_csr_chunk.coo_ld_.end(), local_coo_ld.begin(), local_coo_ld.end() );
         }
       }
+
+      const size_t size_after = ld_matrix_csr_chunk.coo_ld_.size();
+      LOG << " processed  block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << ", " << (size_after - size_before) << " new r2 elements found";
     }
   }
 

@@ -83,9 +83,13 @@ class LibBgmg(object):
         self.cdll.bgmg_calc_bivariate_cost.restype = ctypes.c_double
         self.cdll.bgmg_calc_bivariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_calc_bivariate_delta_posterior.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type]
+        self.cdll.bgmg_calc_ld_matrix.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_double, ctypes.c_double]
 
         if init_log: self.init_log(init_log)
         if dispose: self.dispose()
+
+    def calc_ld_matrix(self, bfile, outfile, r2min, ldscore_r2min):
+        self.cdll.bgmg_calc_ld_matrix(_p2n(bfile), _p2n(outfile), r2min, ldscore_r2min)
 
     def get_last_error(self):
         return _n2p(self.cdll.bgmg_get_last_error())

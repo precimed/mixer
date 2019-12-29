@@ -133,10 +133,23 @@ TEST(LdTest, ValidateMultipleChromosomes) {
   calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
   calc.set_chrnumvec(num_snp, &chrnumvec[0]);
 
-  std::vector<int> snp_index, tag_index;
-  std::vector<float> r2;
-  tm.make_r2(200, &snp_index, &tag_index, &r2);
-  calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  std::vector<int> snp_index_all, tag_index_all;
+  std::vector<float> r2_all;
+  tm.make_r2(200, &snp_index_all, &tag_index_all, &r2_all);
+
+  for (int chr_label = 1; chr_label <= 2; chr_label++) {
+    std::vector<int> snp_index, tag_index;
+    std::vector<float> r2;
+    int offset = (chr_label == 2) ? 40 : 0;
+    for (int i = 0; i < r2_all.size(); i++) {
+      if ((chr_label == 1) != (snp_index_all[i] < 40)) continue;
+      snp_index.push_back(snp_index_all[i] - offset);
+      tag_index.push_back(tag_index_all[i] - offset);
+      r2.push_back(r2_all[i]);
+    }
+
+    calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  }
 
   calc.set_ld_r2_csr();  // finalize csr structure
 

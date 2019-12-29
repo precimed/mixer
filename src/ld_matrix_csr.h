@@ -247,7 +247,7 @@ class LdMatrixCsr {
    size_t log_diagnostics();
    void clear();
    void init_chunks();
-   void init_diagonal();
+   void init_diagonal(int chr_label);
 private:
 
   TagToSnpMapping& mapping_;

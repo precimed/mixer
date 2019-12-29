@@ -286,7 +286,7 @@ int64_t BgmgCalculator::set_ld_r2_coo(int chr_label, const std::string& filename
   if (ld_format_version_ == 0)
     return ld_matrix_csr_.set_ld_r2_coo_version0(chr_label, filename, r2_min_);
 
-  return ld_matrix_csr_.set_ld_r2_coo(chr_label, filename, r2_min_);
+  return ld_matrix_csr_.set_ld_r2_coo_version1plus(chr_label, filename, r2_min_);
 }
 
 int64_t BgmgCalculator::set_ld_r2_csr(int chr_label) {
@@ -2437,6 +2437,8 @@ int64_t BgmgCalculator::set_chrnumvec(int num_snp, const int* chrlabel) {
   check_num_snp(num_snp);
   chrnumvec_.assign(chrlabel, chrlabel + num_snp);
   LOG << "<set_chrnumvec(" << num_snp << "); ";
+
+  ld_matrix_csr_.init_chunks();
   return 0;
 }
 

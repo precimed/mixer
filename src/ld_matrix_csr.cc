@@ -34,6 +34,7 @@
 #define VSDEC_NUMEL(n      ) (n + 32)
 
 void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec) {
+  if (mapping.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("set_mafvec() must be called first"));  
   const std::vector<float>& mafvec = mapping.mafvec();
   hvec->resize(mafvec.size(), 0.0f);
   for (int snp_index = 0; snp_index < mafvec.size(); snp_index++) {
@@ -50,7 +51,8 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version0(int chr_label_data, const std::strin
   load_ld_matrix_version0(filename, &snp_index, &tag_index, &r);
   for (int i = 0; i < r.size(); i++) r[i] = sqrt(r[i]);
 
-  init_chunks();
+  init_diagonal();
+
   if (chr_label_data < 0 || chr_label_data >= chunks_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("invalid value for chr_label argument"));
   const int index0 = chunks_[chr_label_data].snp_index_from_inclusive_;
 
@@ -64,7 +66,7 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version0(int chr_label_data, const std::strin
   return set_ld_r2_coo(chr_label_data, r.size(), &snp_index[0], &tag_index[0], &r[0], r2_min);
 }
 
-int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label, const std::string& filename, float r2_min) {
+int64_t LdMatrixCsr::set_ld_r2_coo_version1plus(int chr_label, const std::string& filename, float r2_min) {
   LdMatrixCsrChunk chunk;
   std::vector<float> freqvec, ld_tag_r2_sum, ld_tag_r2_sum_adjust_for_hvec;  // these are ignored for now
   load_ld_matrix(filename, &chunk, &freqvec, &ld_tag_r2_sum, &ld_tag_r2_sum_adjust_for_hvec);
@@ -94,7 +96,6 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label, const std::string& filename, f
 }
 
 void LdMatrixCsr::init_chunks() {
-  if (mapping_.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call init_chunks() before set_mafvec"));
   if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call init_chunks() before set_chrnumvec"));
 
   if (!chunks_.empty()) return;
@@ -103,9 +104,6 @@ void LdMatrixCsr::init_chunks() {
     ld_tag_sum_adjust_for_hvec_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
     ld_tag_sum_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
   }
-
-  std::vector<float> hvec;
-  find_hvec(mapping_, &hvec);
 
   int max_chr_label = 0;
   for (int i = 0; i < mapping_.chrnumvec().size(); i++) {
@@ -127,6 +125,11 @@ void LdMatrixCsr::init_chunks() {
     chunks_[chr_label].chr_label_ = chr_label;
     snp_count_on_previous_chromosomes += chunk_snp_count[chr_label];
   }
+}
+
+void LdMatrixCsr::init_diagonal() {
+  std::vector<float> hvec;
+  find_hvec(mapping_, &hvec);
 
   LOG << " set_ld_r2_coo adds " << mapping_.tag_to_snp().size() << " elements with r2=1.0 to the diagonal of LD r2 matrix";
   for (int i = 0; i < mapping_.tag_to_snp().size(); i++) {
@@ -155,7 +158,7 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_
   std::vector<float> hvec;
   find_hvec(mapping_, &hvec);
 
-  init_chunks();
+  init_diagonal();
 
   int64_t new_elements = 0;
   int64_t elements_on_different_chromosomes = 0;

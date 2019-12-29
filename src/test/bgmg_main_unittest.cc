@@ -330,11 +330,14 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
   ASSERT_TRUE(std::isfinite(cost_unified_sampling));  
 
   // compare that unified gaussian approximation gives the same answer as fast cost function
-  // there is a subtle difference here in how do we model inflation arrising form truncated LD structure,
-  // therefore with r2min the answer is not precisely the same when r2min!=0.
-  if ((r2min==0) || (pi_val==1.0f)) {
+  if (pi_val==1.0f) {
     ASSERT_FLOAT_EQ(cost_gaussian, cost_unified_gaussian); 
   }
+
+  if (pi_val != 1.0f) {
+    ASSERT_NEAR(cost_gaussian, cost_unified_gaussian, 1e-5); 
+  }
+
   if (pi_val==1.0f) {
     ASSERT_FLOAT_EQ(cost_unified_sampling, cost_unified_gaussian); 
   }
@@ -448,7 +451,7 @@ TEST(UgmgTest, CalcConvolveLikelihoodInft) {
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2;
   const int trait_index = 1;
-  double costvec[5] = {16.00285, 15.8589964, 15.9186396, 15.8402427, 15.925907};  
+  double costvec[5] = {16.00285, 15.840247, 15.9186396, 15.8402427, 15.925907};  
   UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f, costvec);
 }
 

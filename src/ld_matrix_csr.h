@@ -31,10 +31,6 @@
 #include "parallel_stable_sort.h"
 #endif
 
-#define LD_TAG_COMPONENT_COUNT 2
-#define LD_TAG_COMPONENT_BELOW_R2MIN 0
-#define LD_TAG_COMPONENT_ABOVE_R2MIN 1
-
 class packed_r_value {
  public:
    packed_r_value() : value_(0) {}
@@ -90,41 +86,41 @@ void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec);
 
 // pre-calculated sum of LD r2 and r4 for each tag snp
 // This takes hvec into account, e.i. we store sum of r2*hvec and r4*hvec^2.
-// The information is in several "components" (for example low and high r2).
 class LdTagSum {
 public:
-  LdTagSum(int num_ld_components, int num_tag_snp) : total_ld_component(num_ld_components) {
-    ld_tag_sum_r2_.resize(num_ld_components + 1);
-    ld_tag_sum_r4_.resize(num_ld_components + 1);
-    for (int ic = 0; ic < (num_ld_components + 1); ic++) {
-      ld_tag_sum_r2_[ic].resize(num_tag_snp, 0.0f);
-      ld_tag_sum_r4_[ic].resize(num_tag_snp, 0.0f);
-    }
+  LdTagSum(int num_tag) {
+    ld_tag_sum_r2_below_r2min_.resize(num_tag, 0.0f);
+    ld_tag_sum_r2_above_r2min_.resize(num_tag, 0.0f);
+    ld_tag_sum_r4_above_r2min_.resize(num_tag, 0.0f);
   }
 
-  void store(int ld_component, int tag_index, float r2_times_hval) {
-    if (ld_component >= 0) {
-      ld_tag_sum_r2_[ld_component][tag_index] += r2_times_hval;
-      ld_tag_sum_r4_[ld_component][tag_index] += (r2_times_hval * r2_times_hval);
-    }
-
-    ld_tag_sum_r2_[total_ld_component][tag_index] += r2_times_hval;
-    ld_tag_sum_r4_[total_ld_component][tag_index] += (r2_times_hval * r2_times_hval);
+  void store_below_r2min(int tag_index, float r2_times_hval) {
+    ld_tag_sum_r2_below_r2min_[tag_index] += r2_times_hval;
   }
 
-  const std::vector<float>& ld_tag_sum_r2() const { return ld_tag_sum_r2_[total_ld_component]; }
-  const std::vector<float>& ld_tag_sum_r4() const { return ld_tag_sum_r4_[total_ld_component]; }
-  const std::vector<float>& ld_tag_sum_r2(int ld_component) const { return ld_tag_sum_r2_[ld_component]; }
-  const std::vector<float>& ld_tag_sum_r4(int ld_component) const { return ld_tag_sum_r4_[ld_component]; }
+  void store_above_r2min(int tag_index, float r2_times_hval) {
+    ld_tag_sum_r2_above_r2min_[tag_index] += r2_times_hval;
+    ld_tag_sum_r4_above_r2min_[tag_index] += (r2_times_hval * r2_times_hval);
+  }
+
+  void store(bool below_r2min, int tag_index, float r2_times_hval) {
+    if (below_r2min) store_below_r2min(tag_index, r2_times_hval);
+    else store_above_r2min(tag_index, r2_times_hval);
+  }
+
+  const std::vector<float>& ld_tag_sum_r2_below_r2min() const { return ld_tag_sum_r2_below_r2min_; }
+  const std::vector<float>& ld_tag_sum_r2_above_r2min() const { return ld_tag_sum_r2_above_r2min_; }
+  const std::vector<float>& ld_tag_sum_r4_above_r2min() const { return ld_tag_sum_r4_above_r2min_; }
 
   void clear() {
-    for (int i = 0; i < ld_tag_sum_r2_.size(); i++) std::fill(ld_tag_sum_r2_[i].begin(), ld_tag_sum_r2_[i].end(), 0.0f);
-    for (int i = 0; i < ld_tag_sum_r4_.size(); i++) std::fill(ld_tag_sum_r4_[i].begin(), ld_tag_sum_r4_[i].end(), 0.0f);
+    std::fill(ld_tag_sum_r2_below_r2min_.begin(), ld_tag_sum_r2_below_r2min_.end(), 0.0f);
+    std::fill(ld_tag_sum_r2_above_r2min_.begin(), ld_tag_sum_r2_above_r2min_.end(), 0.0f);
+    std::fill(ld_tag_sum_r4_above_r2min_.begin(), ld_tag_sum_r4_above_r2min_.end(), 0.0f);
   }
 private:
-  std::vector<std::vector<float>> ld_tag_sum_r2_;
-  std::vector<std::vector<float>> ld_tag_sum_r4_;
-  const int total_ld_component;
+  std::vector<float> ld_tag_sum_r2_below_r2min_;
+  std::vector<float> ld_tag_sum_r2_above_r2min_;
+  std::vector<float> ld_tag_sum_r4_above_r2min_;
 };
 
 class LdMatrixRow; 

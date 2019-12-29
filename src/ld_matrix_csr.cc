@@ -108,8 +108,8 @@ void LdMatrixCsr::init_chunks() {
   if (!chunks_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call init_chunks() twice"));
   LOG << ">LdMatrixCsr::init_chunks(); ";
 
-  if (ld_tag_sum_adjust_for_hvec_ == nullptr) ld_tag_sum_adjust_for_hvec_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
-  if (ld_tag_sum_ == nullptr) ld_tag_sum_ = std::make_shared<LdTagSum>(LD_TAG_COMPONENT_COUNT, mapping_.num_tag());
+  if (ld_tag_sum_adjust_for_hvec_ == nullptr) ld_tag_sum_adjust_for_hvec_ = std::make_shared<LdTagSum>(mapping_.num_tag());
+  if (ld_tag_sum_ == nullptr) ld_tag_sum_ = std::make_shared<LdTagSum>(mapping_.num_tag());
   ld_tag_sum_adjust_for_hvec_->clear();
   ld_tag_sum_->clear();  
 
@@ -152,8 +152,8 @@ void LdMatrixCsr::init_diagonal(int chr_label) {
     added++;
     int tag_index = mapping_.snp_to_tag()[snp_index];
     chunks_[chr_label].coo_ld_.push_back(std::make_tuple(snp_index, tag_index, 1.0f));
-    ld_tag_sum_adjust_for_hvec_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, tag_index, 1.0f * hvec_per_chunk[snp_index - index_from]);
-    ld_tag_sum_->store(LD_TAG_COMPONENT_ABOVE_R2MIN, tag_index, 1.0f);
+    ld_tag_sum_adjust_for_hvec_->store_above_r2min(tag_index, 1.0f * hvec_per_chunk[snp_index - index_from]);
+    ld_tag_sum_->store_above_r2min(tag_index, 1.0f);
   }
   LOG << " added " << added << " tag (out of " << (index_to - index_from)  << " snps) elements with r2=1.0 to the diagonal of LD r2 matrix";  
   LOG << "<LdMatrixCsr::init_diagonal(chr_label=" << chr_label << "); ";
@@ -195,14 +195,14 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_
     if (chr_label != mapping_.chrnumvec()[snp_index]) { elements_on_different_chromosomes++;  continue; }
 
     const float r2 = r[i] * r[i];
-    int ld_component = (r2 < r2_min) ? LD_TAG_COMPONENT_BELOW_R2MIN : LD_TAG_COMPONENT_ABOVE_R2MIN;
-    if (mapping_.is_tag()[tag_index]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[tag_index], r2 * hvec_per_chunk[snp_index - index_from]);
-    if (mapping_.is_tag()[snp_index]) ld_tag_sum_adjust_for_hvec_->store(ld_component, mapping_.snp_to_tag()[snp_index], r2 * hvec_per_chunk[tag_index - index_from]);
+    if (mapping_.is_tag()[tag_index]) ld_tag_sum_adjust_for_hvec_->store(r2 < r2_min, mapping_.snp_to_tag()[tag_index], r2 * hvec_per_chunk[snp_index - index_from]);
+    if (mapping_.is_tag()[snp_index]) ld_tag_sum_adjust_for_hvec_->store(r2 < r2_min, mapping_.snp_to_tag()[snp_index], r2 * hvec_per_chunk[tag_index - index_from]);
 
-    if (mapping_.is_tag()[tag_index]) ld_tag_sum_->store(ld_component, mapping_.snp_to_tag()[tag_index], r2);
-    if (mapping_.is_tag()[snp_index]) ld_tag_sum_->store(ld_component, mapping_.snp_to_tag()[snp_index], r2);
+    if (mapping_.is_tag()[tag_index]) ld_tag_sum_->store(r2 < r2_min, mapping_.snp_to_tag()[tag_index], r2);
+    if (mapping_.is_tag()[snp_index]) ld_tag_sum_->store(r2 < r2_min, mapping_.snp_to_tag()[snp_index], r2);
 
     if (r2 < r2_min) continue;
+
     if (mapping_.is_tag()[tag_index]) { chunks_[chr_label].coo_ld_.push_back(std::make_tuple(snp_index, mapping_.snp_to_tag()[tag_index], r[i])); new_elements++; }
     if (mapping_.is_tag()[snp_index]) { chunks_[chr_label].coo_ld_.push_back(std::make_tuple(tag_index, mapping_.snp_to_tag()[snp_index], r[i])); new_elements++; }
   }

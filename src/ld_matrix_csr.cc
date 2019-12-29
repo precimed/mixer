@@ -93,8 +93,13 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version1plus(int chr_label, const std::string
       elem_index++;
     }
 
-    // apply freqvec
+    // apply freqvec and ld_tag_r2_sum/ld_tag_r2_sum_adjust_for_hvec
     mapping_.mutable_mafvec()->at(index0 + chunk_snp_index) = freqvec[chunk_snp_index];
+    if (mapping_.is_tag()[index0 + chunk_snp_index]) {
+      int tag_index = mapping_.snp_to_tag()[index0 + chunk_snp_index];
+      ld_tag_sum_->store_below_r2min(tag_index, ld_tag_r2_sum[chunk_snp_index]);
+      ld_tag_sum_adjust_for_hvec_->store_below_r2min(tag_index, ld_tag_r2_sum_adjust_for_hvec[chunk_snp_index]);
+    }
   }
 
   if (elem_index != numel) BGMG_THROW_EXCEPTION(::std::runtime_error("internal error, elem_index != numel"));

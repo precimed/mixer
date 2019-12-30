@@ -77,8 +77,6 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
       freqvec[block_istart + block_snp_index] = chunk_fixed.freq()[block_snp_index];
 
     for (int block_jdx = block_idx; block_jdx < num_blocks; block_jdx++) {
-      LOG << " processing block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << "... ";
-
       const int block_jstart = block_jdx * block_size;
       const int block_jend = std::min(block_jstart + block_size, num_snps);
       const int block_jsize = block_jend - block_jstart;
@@ -93,10 +91,11 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
       }
 
       const int64_t bp_block_dist = bp_dist[block_jstart] - bp_dist[block_iend - 1];
-      const int64_t snp_block_dist = snp_dist[block_jstart] - snp_dist[block_jend - 1];
+      const int64_t snp_block_dist = snp_dist[block_jstart] - snp_dist[block_iend - 1];
 
       if ((ld_window_bp > 0) && (bp_block_dist > ld_window_bp)) {
-        LOG << " skip, blocks are too far in terms of CHR:BP distance ("
+        LOG << " skipping block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks
+            << " as the two regions are too far in terms of CHR:BP distance ("
             << bim_file.chr_label()[block_iend - 1] << ":" << bim_file.bp()[block_iend - 1] << " vs "
             << bim_file.chr_label()[block_jstart] << ":" << bim_file.bp()[block_jstart]
             << " exceeds " << ld_window_bp << " base pairs or belongs to different chromosomes";
@@ -104,12 +103,15 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
       }
 
       if ((ld_window > 0) && (snp_block_dist > ld_window)) {
-        LOG << " skip, blocks are too far in terms of CHR:SNP_index distance ("
+        LOG << " skipping block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks
+            << " as the two regions are too far in terms of CHR:SNP_index distance ("
             << bim_file.chr_label()[block_iend - 1] << ":" << (block_iend - 1) << " vs "
             << bim_file.chr_label()[block_jstart] << ":" << block_jstart
             << " either exceeds " << ld_window << " SNPs, or belongs to different chromosomes";
         continue;
       }
+
+      LOG << " processing block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << "... ";
 
       const size_t size_before = ld_matrix_csr_chunk.coo_ld_.size();
       size_t count_below_r2min = 0;

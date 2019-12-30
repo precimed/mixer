@@ -58,7 +58,7 @@ def convert_args_to_libbgmg_options(args, num_snp):
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
 
-def fix_and_validate_args(args):
+def fix_and_validate_args(libbgmg, args):
     arg_dict = vars(args)
     chr2use_arg = arg_dict["chr2use"]
     chr2use = []
@@ -70,6 +70,12 @@ def fix_and_validate_args(args):
             chr2use.append(a.strip())
     if np.any([not x.isdigit() for x in chr2use]): raise ValueError('Chromosome labels must be integer')
     arg_dict["chr2use"] = [int(x) for x in chr2use]
+
+    if (args.ld_file == None) == (args.plink_ld_bin0 == None):
+        raise ValueError('Exactly one of --ld-file and --plink-ld-bin0 arguments must be specified')
+    if (args.ld_file != None) and (args.frq_file != None):
+        libbgmg.log_message("--frq-file will be ignored, allele frequences are taken from the --ld-file")
+        args.frq_file = ""
 
 # https://stackoverflow.com/questions/27433316/how-to-get-argparse-to-read-arguments-from-a-file-with-an-option-rather-than-pre
 class LoadFromFile (argparse.Action):
@@ -95,10 +101,9 @@ def parser_fit_add_arguments(args, func, parser):
         "May contain simbol '@', which will be replaced with the actual chromosome label. ")
     parser.add_argument("--frq-file", type=str, default=None, help="Plink frq file (alleles frequencies). "
         "May contain simbol '@', similarly to --bim-file argument. ")
-    parser.add_argument("--plink-ld-bin", type=str, default=None, help="File with linkage disequilibrium information, "
-        "converted from plink format as described in the README.md file. "
-        "May contain simbol '@', similarly to --bim-file argument. ")
     parser.add_argument("--plink-ld-bin0", type=str, default=None, help="File with linkage disequilibrium information in an old format (deprecated)")
+    parser.add_argument("--ld-file", type=str, default=None, help="File produced by 'mixer-plsa ld' command, containing linkage disequilibrium and allele frequencies information"
+        "May contain simbol '@', similarly to --bim-file argument. When --ld-file is specified, there is no need to specify --frq-file.")
     parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
          "(e.g. 1,2,3 or 1-4,12,16-20). Chromosome must be labeled by integer, i.e. X and Y are not acceptable. ")
     parser.add_argument("--trait1-file", type=str, default=None, help="GWAS summary statistics for the first trait. ")
@@ -366,7 +371,7 @@ def execute_ld_parser(args):
 def execute_fit_parser(args):
     libbgmg = LibBgmg(args.lib)
 
-    fix_and_validate_args(args)
+    fix_and_validate_args(libbgmg, args)
     
     libbgmg.set_option('use_complete_tag_indices', 1)
     libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
@@ -390,11 +395,11 @@ def execute_fit_parser(args):
 
     if args.plink_ld_bin0 is not None:
         libbgmg.set_option('ld_format_version', 0)
-        args.plink_ld_bin = args.plink_ld_bin0
+        args.ld_file = args.plink_ld_bin0
         args.plink_ld_bin0 = None
 
     for chr_label in args.chr2use: 
-        libbgmg.set_ld_r2_coo_from_file(chr_label, args.plink_ld_bin.replace('@', str(chr_label)))
+        libbgmg.set_ld_r2_coo_from_file(chr_label, args.ld_file.replace('@', str(chr_label)))
         libbgmg.set_ld_r2_csr(chr_label)
 
     libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude=args.exclude, extract=args.extract)

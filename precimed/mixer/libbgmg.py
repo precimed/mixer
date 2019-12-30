@@ -10,6 +10,8 @@ import logging
 import numpy as np
 
 def _p2n(arg_value):  # python2native
+    if arg_value==None:
+        return ctypes.create_string_buffer("".encode('utf-8'))
     if isinstance(arg_value, str):
         return ctypes.create_string_buffer(arg_value.encode('utf-8'))
     return arg_value

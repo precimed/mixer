@@ -378,17 +378,20 @@ def execute_fit_parser(args):
     libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, "", "", "")
 
     # Load annotations
-    libbgmg.log_message('Loading annotations from {}...'.format(args.annot_file))
-    df = pd.concat([pd.read_csv(args.annot_file.replace('@', str(chr_label)), sep='\t') for chr_label in args.chr2use])
-    for col in ['CHR', 'BP', 'SNP', 'CM']:
-        if col in df.columns:
-            del df[col]
+    if args.annot_file != None:
+        libbgmg.log_message('Loading annotations from {}...'.format(args.annot_file))
+        df = pd.concat([pd.read_csv(args.annot_file.replace('@', str(chr_label)), sep='\t') for chr_label in args.chr2use])
+        for col in ['CHR', 'BP', 'SNP', 'CM']:
+            if col in df.columns:
+                del df[col]
 
-    annomat = df.values.astype(np.float32)
-    annonames = df.columns.values
-    del df
-    libbgmg.log_message('Done, {} annotations available'.format(len(annonames)))
-    
+        annomat = df.values.astype(np.float32)
+        annonames = df.columns.values
+        del df
+        libbgmg.log_message('Dolibbgmg.num_snplibbgmg.num_snpne, {} annotations available'.format(len(annonames)))
+    else:
+        annomat = np.ones(shape=(libbgmg.num_snp, 1), dtype=np.float32)
+        annonames = ['base']
 
     for opt, val in convert_args_to_libbgmg_options(args, libbgmg.num_snp):
         libbgmg.set_option(opt, val)

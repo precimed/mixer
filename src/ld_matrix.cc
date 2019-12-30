@@ -112,6 +112,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
       }
 
       const size_t size_before = ld_matrix_csr_chunk.coo_ld_.size();
+      size_t count_below_r2min = 0;
 
       // There are many alternatives of collecting tail LD scores:
       // - collecting raw r2, versus r2 adjusted for heterozygosity
@@ -126,6 +127,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
         std::vector<std::tuple<int, int, packed_r_value>> local_coo_ld; // snp, tag, r2
         std::valarray<float> local_ld_tag_r2_sum(0.0, num_snps);
         std::valarray<float> local_ld_tag_r2_sum_adjust_for_hvec(0.0, num_snps);
+        size_t local_count_below_r2min = 0;
 
 #pragma omp for schedule(static)
         for (int k = 0; k < block_elems; k++) {
@@ -150,6 +152,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
             local_ld_tag_r2_sum[global_snp_jndex] += ld_r2;  // and vice versa.
             local_ld_tag_r2_sum_adjust_for_hvec[global_snp_index] += ld_r2 * hval_at_jndex;
             local_ld_tag_r2_sum_adjust_for_hvec[global_snp_jndex] += ld_r2 * hval_at_index;
+            local_count_below_r2min++;
           }
           if (ld_r2 >= r2_min) {
             local_coo_ld.push_back(std::make_tuple(global_snp_index, global_snp_jndex, ld_corr));
@@ -160,11 +163,12 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
           ld_tag_r2_sum += local_ld_tag_r2_sum;
           ld_tag_r2_sum_adjust_for_hvec += local_ld_tag_r2_sum_adjust_for_hvec;
           ld_matrix_csr_chunk.coo_ld_.insert( ld_matrix_csr_chunk.coo_ld_.end(), local_coo_ld.begin(), local_coo_ld.end() );
+          count_below_r2min += local_count_below_r2min;
         }
       }
 
       const size_t size_after = ld_matrix_csr_chunk.coo_ld_.size();
-      LOG << " processed  block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << ", " << (size_after - size_before) << " new r2 elements found";
+      LOG << " processed  block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << ", " << (size_after - size_before) << " new r2 elements found, and further " << count_below_r2min << " r2 elements contribute to ld scores";
     }
   }
 

@@ -1,0 +1,30 @@
+PLINK v1.90p 64-bit (2 Jun 2015)
+Options in effect:
+  --bfile chr21
+  --maf 0.01
+  --make-bed
+  --out chr21qc
+
+Hostname: comet-ln2.sdsc.edu
+Working directory: /oasis/projects/nsf/csd604/oleksanf/bfile_merged/tiny
+Start time: Mon Dec 30 05:23:48 2019
+
+Random number seed: 1577712228
+64158 MB RAM detected; reserving 32079 MB for main workspace.
+Allocated 7611 MB successfully, after larger attempt(s) failed.
+1000 variants loaded from .bim file.
+100 people (0 males, 0 females, 100 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to chr21qc.nosex .
+100 phenotype values loaded from .fam.
+Warning: Ignoring phenotypes of missing-sex samples.  If you don't want those
+phenotypes to be ignored, use the --allow-no-sex flag.
+Using 1 thread (no multithreaded calculations invoked).
+Before main variant filters, 100 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+139 variants removed due to minor allele threshold(s)
+(--maf/--max-maf/--mac/--max-mac).
+861 variants and 100 people pass filters and QC.
+Among remaining phenotypes, 0 are cases and 100 are controls.
+--make-bed to chr21qc.bed + chr21qc.bim + chr21qc.fam ... done.
+
+End time: Mon Dec 30 05:23:48 2019

@@ -1,0 +1,28 @@
+PLINK v1.90p 64-bit (2 Jun 2015)
+Options in effect:
+  --bfile chr21qc
+  --out chr21qc
+  --r square gz
+  --threads 6
+
+Hostname: comet-ln2.sdsc.edu
+Working directory: /oasis/projects/nsf/csd604/oleksanf/bfile_merged/tiny
+Start time: Mon Dec 30 05:24:07 2019
+
+Random number seed: 1577712247
+64158 MB RAM detected; reserving 32079 MB for main workspace.
+Allocated 7611 MB successfully, after larger attempt(s) failed.
+861 variants loaded from .bim file.
+100 people (0 males, 0 females, 100 ambiguous) loaded from .fam.
+Ambiguous sex IDs written to chr21qc.nosex .
+100 phenotype values loaded from .fam.
+Warning: Ignoring phenotypes of missing-sex samples.  If you don't want those
+phenotypes to be ignored, use the --allow-no-sex flag.
+Using up to 6 threads (change this with --threads).
+Before main variant filters, 100 founders and 0 nonfounders present.
+Calculating allele frequencies... done.
+861 variants and 100 people pass filters and QC.
+Note: No phenotypes present.
+--r square gz to chr21qc.ld.gz ... done.
+
+End time: Mon Dec 30 05:24:07 2019

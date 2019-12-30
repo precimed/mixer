@@ -1,0 +1,31 @@
+PLINK v2.00a2LM AVX2 Intel (28 Nov 2019)
+Options in effect:
+  --bfile ../chr21
+  --keep keep.fam
+  --make-bed
+  --out chr21
+  --snps rs56218780-rs3115473
+
+Hostname: comet-ln2.sdsc.edu
+Working directory: /oasis/projects/nsf/csd604/oleksanf/bfile_merged/tiny
+Start time: Mon Dec 30 05:08:06 2019
+
+Random number seed: 1577711286
+64158 MiB RAM detected; reserving 32079 MiB for main workspace.
+Allocated 7611 MiB successfully, after larger attempt(s) failed.
+Using up to 24 threads (change this with --threads).
+100000 samples (0 females, 0 males, 100000 ambiguous; 100000 founders) loaded
+from ../chr21.fam.
+149454 variants loaded from ../chr21.bim.
+1 binary phenotype loaded (0 cases, 100000 controls).
+--snps: 1000 variants remaining.
+--keep: 100 samples remaining.
+100 samples (0 females, 0 males, 100 ambiguous; 100 founders) remaining after
+main filters.
+0 cases and 100 controls remaining after main filters.
+1000 variants remaining after main filters.
+Writing chr21.fam ... done.
+Writing chr21.bim ... done.
+Writing chr21.bed ... done.
+
+End time: Mon Dec 30 05:08:06 2019

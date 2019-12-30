@@ -121,7 +121,7 @@ std::vector<float>* BgmgCalculator::get_causalbetavec(int trait_index) {
 }
 
 BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), aux_option_(AuxOption_Ezvec2),
-    use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), ld_format_version_(-1), num_components_(1), 
+    use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), ld_format_version_(-1), retrieve_ld_tag_type_(0), num_components_(1), 
     max_causals_(100000), cost_calculator_(CostCalculator_Sampling), cache_tag_r2sum_(false), ld_matrix_csr_(*this),
     cubature_abs_error_(0), cubature_rel_error_(1e-4), cubature_max_evals_(0), calc_k_pdf_(false) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
@@ -241,6 +241,8 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
     z2max_ = value; return 0;
   } else if (!strcmp(option, "ld_format_version")) {
     ld_format_version_ = int(value); return 0;
+  } else if (!strcmp(option, "retrieve_ld_tag_type")) {
+    retrieve_ld_tag_type_ = int(value); return 0;
   } else if (!strcmp(option, "use_complete_tag_indices")) {
     use_complete_tag_indices_ = (value != 0); return 0;
   } else if (!strcmp(option, "threads")) {
@@ -529,7 +531,11 @@ int64_t BgmgCalculator::retrieve_ld_tag_r2_sum(int length, float* buffer) {
   check_num_tag(length);
   LOG << " retrieve_ld_tag_r2_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    buffer[tag_index] = ld_matrix_csr_.ld_tag_sum()->ld_tag_sum_r2_above_r2min()[tag_index];
+    if (retrieve_ld_tag_type_ == 0) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum()->ld_tag_sum_r2_above_r2min()[tag_index];
+    else if (retrieve_ld_tag_type_ == 1) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum()->ld_tag_sum_r2_below_r2min()[tag_index];
+    else if (retrieve_ld_tag_type_ == 2) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_above_r2min()[tag_index];
+    else if (retrieve_ld_tag_type_ == 3) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min()[tag_index];
+    else BGMG_THROW_EXCEPTION(::std::runtime_error("invalid retrieve_ld_tag_type_"));
   }
   return 0;
 }
@@ -538,7 +544,9 @@ int64_t BgmgCalculator::retrieve_ld_tag_r4_sum(int length, float* buffer) {
   check_num_tag(length);
   LOG << " retrieve_ld_tag_r4_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    buffer[tag_index] = ld_matrix_csr_.ld_tag_sum()->ld_tag_sum_r4_above_r2min()[tag_index];
+    if (retrieve_ld_tag_type_ == 0 || retrieve_ld_tag_type_ == 1) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum()->ld_tag_sum_r4_above_r2min()[tag_index];
+    else if (retrieve_ld_tag_type_ == 2 || retrieve_ld_tag_type_ == 3) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r4_above_r2min()[tag_index];
+    else BGMG_THROW_EXCEPTION(::std::runtime_error("invalid retrieve_ld_tag_type_"));
   }
   return 0;
 }
@@ -1572,6 +1580,7 @@ void BgmgCalculator::log_diagnostics() {
   LOG << " diag: options.cubature_max_evals_=" << (cubature_max_evals_);
   LOG << " diag: options.calc_k_pdf_=" << (calc_k_pdf_);
   LOG << " diag: options.ld_format_version_=" << (ld_format_version_);
+  LOG << " diag: options.retrieve_ld_tag_type_=" << (retrieve_ld_tag_type_);
   LOG << " diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
 }
 // Use an approximation that preserves variance and kurtosis.

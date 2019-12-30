@@ -375,7 +375,7 @@ def execute_fit_parser(args):
     
     libbgmg.set_option('use_complete_tag_indices', 1)
     libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-    libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, "", "", "")
+    libbgmg.init(args.bim_file, args.frq_file, ' '.join([str(x) for x in args.chr2use]), args.trait1_file, "", "", "")
 
     # Load annotations
     if args.annot_file != None:

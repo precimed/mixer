@@ -206,7 +206,7 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
   } else if (!strcmp(option, "kmax")) {
     clear_state(); k_max_ = static_cast<int>(value); return 0;
   } else if (!strcmp(option, "r2min")) {
-    ld_matrix_csr_.clear(); r2_min_ = value; return 0;
+    r2_min_ = value; return 0;
   } else if (!strcmp(option, "max_causals")) {
     if (!snp_order_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't change max_causals after find_snp_order"));
     clear_state(); max_causals_ = static_cast<int>(value); return 0;

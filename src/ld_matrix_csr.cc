@@ -376,6 +376,7 @@ float LdMatrixCsrChunk::find_and_retrieve_ld_r2(int snp_index, int tag_index, co
 
 size_t LdMatrixCsr::log_diagnostics() {
   size_t mem_bytes = 0, mem_bytes_total = 0;
+  LOG << " diag: LdMatrixCsr " << chunks_.size() <<  " chunks in total. Logging futher info for non-empty chunks only.";
   for (int i = 0; i < chunks_.size(); i++) {
     if (chunks_[i].is_empty()) continue;
     LOG << " diag: LdMatrixCsr chunk " << i << ", snp_index in ["<< chunks_[i].snp_index_from_inclusive_ << ", " << chunks_[i].snp_index_to_exclusive_ << ")";

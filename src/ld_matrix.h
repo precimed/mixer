@@ -23,7 +23,7 @@
 
 #include "ld_matrix_csr.h"
 
-void generate_ld_matrix_from_bed_file(std::string bfile, float r2min, float ldscore_r2min, std::string out_file);
+void generate_ld_matrix_from_bed_file(std::string bfile, float r2min, float ldscore_r2min, int ld_window, float ld_window_kb, std::string out_file);
 
 void save_ld_matrix(const LdMatrixCsrChunk& chunk,
                     const std::vector<float>& freqvec,

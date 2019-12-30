@@ -23,8 +23,10 @@ private:
   FILE* file;
 };
 
-void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float ldscore_r2min, std::string outfile) {
-  LOG << ">generate_ld_matrix_from_bed_file(bfile=" << bfile << ", r2_min=" << r2_min << ", ldscore_r2min=" << ldscore_r2min << ");";
+void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float ldscore_r2min, int ld_window, float ld_window_kb, std::string outfile) {
+  std::stringstream ss;
+  ss << "generate_ld_matrix_from_bed_file(bfile=" << bfile << ", r2_min=" << r2_min << ", ldscore_r2min=" << ldscore_r2min << ", ld_window=" << ld_window << ", ld_window_kb=" << ld_window_kb << ")";
+  LOG << ">" << ss.str() << ";";
   SimpleTimer timer(-1);
 
   FamFile fam_file(bfile + ".fam");
@@ -32,6 +34,18 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
   bim_file.find_snp_to_index_map();
   const int num_snps = bim_file.size();
   const int num_subj = fam_file.size();
+
+  const int64_t ld_window_bp = (int64_t)ceil(1000.0f * ld_window_kb);
+  std::vector<int64_t> bp_dist(num_snps, 0);
+  std::vector<int64_t> snp_dist(num_snps, 0);
+  for (int i = 0; i < num_snps; i++) {
+    int64_t chr_label = bim_file.chr_label()[i];
+    int64_t bp = bim_file.bp()[i];
+    bp_dist[i] = chr_label * (2*ld_window_bp) + bp; // we don't want inter-chr correlations => to be safe we add 
+    snp_dist[i] = chr_label * (2*ld_window) + i;    // twice the ld_window_kb (or twice the ld_window) in between chromosomes
+    if ((ld_window_kb > 0) && (i > 0) && (bp_dist[i] < bp_dist[i-1])) BGMG_THROW_EXCEPTION(::std::runtime_error("bfile must be sorted on CHR:BP"));
+    if ((ld_window > 0) && (i > 0) && (snp_dist[i] < snp_dist[i-1])) BGMG_THROW_EXCEPTION(::std::runtime_error("bfile must be sorted on CHR:BP"));
+  }
 
   const int block_size = std::min(8*1024, num_snps);  // handle blocks of up to 8K SNPs
   const int block_elems = block_size * block_size;
@@ -53,6 +67,8 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
     const int block_istart = block_idx * block_size;
     const int block_iend = std::min(block_istart + block_size, num_snps);
     const int block_isize = block_iend - block_istart;
+    if (block_isize == 0) continue;  // shouldn't happen but just in case
+
     if (0 != chunk_fixed.init(num_subj, block_istart, block_isize, bedfile.handle()))
       BGMG_THROW_EXCEPTION(::std::runtime_error("error while reading .bed file"));
 
@@ -66,12 +82,33 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
       const int block_jstart = block_jdx * block_size;
       const int block_jend = std::min(block_jstart + block_size, num_snps);
       const int block_jsize = block_jend - block_jstart;
+      if (block_jsize == 0) continue;
+
       if (block_jdx == block_idx) {
         chunk_var_ptr = &chunk_fixed;  // reuse the block
       } else {
         if (0 != chunk_var.init(num_subj, block_jstart, block_jsize, bedfile.handle()))
           BGMG_THROW_EXCEPTION(::std::runtime_error("error while reading .bed file"));
         chunk_var_ptr = &chunk_var;
+      }
+
+      const int64_t bp_block_dist = bp_dist[block_jstart] - bp_dist[block_iend - 1];
+      const int64_t snp_block_dist = snp_dist[block_jstart] - snp_dist[block_jend - 1];
+
+      if ((ld_window_bp > 0) && (bp_block_dist > ld_window_bp)) {
+        LOG << " skip, blocks are too far in terms of CHR:BP distance ("
+            << bim_file.chr_label()[block_iend - 1] << ":" << bim_file.bp()[block_iend - 1] << " vs "
+            << bim_file.chr_label()[block_jstart] << ":" << bim_file.bp()[block_jstart]
+            << " exceeds " << ld_window_bp << " base pairs or belongs to different chromosomes";
+        continue;
+      }
+
+      if ((ld_window > 0) && (snp_block_dist > ld_window)) {
+        LOG << " skip, blocks are too far in terms of CHR:SNP_index distance ("
+            << bim_file.chr_label()[block_iend - 1] << ":" << (block_iend - 1) << " vs "
+            << bim_file.chr_label()[block_jstart] << ":" << block_jstart
+            << " either exceeds " << ld_window << " SNPs, or belongs to different chromosomes";
+        continue;
       }
 
       const size_t size_before = ld_matrix_csr_chunk.coo_ld_.size();
@@ -97,6 +134,12 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
           int global_snp_index = block_snp_index + block_istart;
           int global_snp_jndex = block_snp_jndex + block_jstart;
           if (global_snp_jndex <= global_snp_index || global_snp_jndex >= num_snps) continue;
+
+          const int64_t bp_elem_dist = bp_dist[global_snp_jndex] - bp_dist[global_snp_index];
+          if ((ld_window_bp > 0) && (bp_elem_dist > ld_window_bp)) continue;
+          const int64_t snp_elem_dist = snp_dist[global_snp_jndex] - snp_dist[global_snp_index];
+          if ((ld_window > 0) && (snp_elem_dist > ld_window)) continue;
+
           float ld_corr = (float)PlinkLdBedFileChunk::calculate_ld_corr(chunk_fixed, *chunk_var_ptr, block_snp_index, block_snp_jndex);
           float ld_r2 = ld_corr * ld_corr;
 
@@ -132,7 +175,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
 
   save_ld_matrix(ld_matrix_csr_chunk, freqvec, ld_tag_r2_sum_vec, ld_tag_r2_sum_adjust_for_hvec_vec, outfile);
 
-  LOG << ">generate_ld_matrix_from_bed_file(bfile=" << bfile << ", r2_min=" << r2_min << ", ldscore_r2min=" << ldscore_r2min << "), nnz=" << ld_matrix_csr_chunk.csr_ld_r_.size() <<", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << ">" << ss.str() << ", nnz=" << ld_matrix_csr_chunk.csr_ld_r_.size() <<", elapsed time " << timer.elapsed_ms() << "ms";
 }
 
 // reader must know the type

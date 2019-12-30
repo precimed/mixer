@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
 
       if (!bgmg_options.bfile.empty()) {
         bgmg_calc_ld_matrix(bgmg_options.bfile.c_str(),
-                            bgmg_options.out.c_str(), bgmg_options.r2min, bgmg_options.ldscore_r2min);
+                            bgmg_options.out.c_str(), bgmg_options.r2min, bgmg_options.ldscore_r2min, 0, 0);
       } else {
         const int context_id = 0;
         BgmgCpp bgmg_cpp_interface(context_id);

@@ -20,6 +20,7 @@ from datetime import datetime
 from .libbgmg import LibBgmg
 from .utils import AnnotUnivariateParams
 from .utils import AnnotUnivariateParametrization
+from .utils import AnnotUnivariateParametrizationInf
 from .utils import _log_exp_converter
 from .utils import _logit_logistic_converter
 from .utils import _arctanh_tanh_converter
@@ -132,6 +133,7 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--cost', default=False, action="store_true", help="save full cost function")
     parser.add_argument('--models', default=[1, 2, 7, 8, 9, 10, 15, 16, 17, 25], type=int, nargs='+', choices=list(range(1, 33)))
     parser.add_argument('--diffevo-fast-repeats', type=int, default=10, help="repeat --diffevo-fast step this many times and choose the best run")
+    parser.add_argument('--fit-sig2-zeroL', default=False, action="store_true",  help="Fit sig2_zeroL parameter to approximate truncated part of the LD structure")
 
     parser.add_argument('--fit-fast', default=False,  action="store_true", help="stop after fitting an infinitesimal model")
 
@@ -198,8 +200,7 @@ def enhance_optimize_result(r, cost_n, cost_df=None, cost_fast=None):
     r['AIC'] =                   2 * r['cost_df'] + 2 * r['cost']
     if cost_fast is not None: r['cost_fast'] = cost_fast
 
-def apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right, seed):
-    parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+def apply_diffevo(args, lib, trait_index, parametrization, bounds_left, bounds_right, seed):
     bounds4opt = [(l, r) for l, r in zip(parametrization.params_to_vec(bounds_left), parametrization.params_to_vec(bounds_right))]
     optimize_result = scipy.optimize.differential_evolution(lambda x: parametrization.calc_cost(x), bounds4opt,
         tol=0.01, mutation=(0.5, 1), recombination=0.7, seed=seed, atol=0, updating='immediate', polish=False, workers=1)  #, **global_opt_options)
@@ -208,8 +209,7 @@ def apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right,
     optimize_result['params']=params.as_dict()
     return params, optimize_result
 
-def apply_nedlermead(args, lib, trait_index, constraint, params_init):
-    parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+def apply_nedlermead(args, lib, trait_index, parametrization, params_init):
     optimize_result = scipy.optimize.minimize(lambda x: parametrization.calc_cost(x), parametrization.params_to_vec(params_init),
         method='Nelder-Mead', options={'maxiter':args.nedlermead_maxiter, 'maxfev':args.nedlermead_maxfev, 'fatol':args.nedlermead_fatol, 'xatol':args.nedlermead_xatol, 'adaptive':True})
     params = parametrization.vec_to_params(optimize_result.x)
@@ -227,21 +227,44 @@ def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, 
     optimize_result_sequence = []
 
     lib.set_option('cost_calculator', _cost_calculator_gaussian)
+
+    if args.fit_sig2_zeroL:
+        lib.log_message("Fitting sig2_zeroL based on an infinitesimal model")
+        sb_low, sb_high, sb_value = (5e-8, 5e-2, None)
+        constraint = AnnotUnivariateParams(sig2_annot=[1], annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
+                                           mafvec=mafvec, tldvec=tldvec)
+        bounds_left = AnnotUnivariateParams(sig2_beta=sb_low, sig2_zeroA=s0_low)
+        bounds_right = AnnotUnivariateParams(sig2_beta=sb_high, sig2_zeroA=s0_high)
+        for repeat in range(args.diffevo_fast_repeats):
+            parametrization = AnnotUnivariateParametrizationInf(lib=lib, trait=trait_index, constraint=constraint)
+            params_tmp, optimize_result_tmp = apply_diffevo(args, lib, trait_index, parametrization, bounds_left, bounds_right, seed=(args.seed+repeat))
+            lib.log_message("--diffevo-fast-repeat={}: {}, cost={}".format(repeat, params_tmp, optimize_result_tmp.fun))
+            if (repeat == 0) or (optimize_result_tmp.fun < optimize_result.fun):
+                optimize_result, params = optimize_result_tmp, params_tmp
+        optimize_result_sequence.append(('diffevo-fast', optimize_result))
+        params, optimize_result = apply_nedlermead(args, lib, trait_index, parametrization, params)
+        optimize_result_sequence.append(('nedlermead-fast', optimize_result))
+        sig2_zeroL = params._sig2_zeroL
+    else:
+        sig2_zeroL = 0
+
     if annot_model:
         sb_low, sb_high, sb_value = (5e-8, 5e-2, None)
-        constraint = AnnotUnivariateParams(pi=1, s=s_value, l=l_value, sig2_beta=sb_value, sig2_zeroA=s0_value,
+        constraint = AnnotUnivariateParams(pi=1, s=s_value, l=l_value, sig2_beta=sb_value, sig2_zeroA=s0_value, sig2_zeroL=sig2_zeroL,
                                            sig2_annot=[1], annomat=annomat[:, 0].reshape(-1, 1), annonames=[annonames[0]],
                                            mafvec=mafvec, tldvec=tldvec)
         bounds_left = AnnotUnivariateParams(pi=None, s=s_low, l=l_low, sig2_beta=sb_low, sig2_zeroA=s0_low)
         bounds_right = AnnotUnivariateParams(pi=None, s=s_high, l=l_high, sig2_beta=sb_high, sig2_zeroA=s0_high)
         for repeat in range(args.diffevo_fast_repeats):
-            params_tmp, optimize_result_tmp = apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right, seed=(args.seed+repeat))
+            parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+            params_tmp, optimize_result_tmp = apply_diffevo(args, lib, trait_index, parametrization, bounds_left, bounds_right, seed=(args.seed+repeat))
             lib.log_message("--diffevo-fast-repeat={}: {}, cost={}".format(repeat, params_tmp, optimize_result_tmp.fun))
             if (repeat == 0) or (optimize_result_tmp.fun < optimize_result.fun):
                 optimize_result, params = optimize_result_tmp, params_tmp
         optimize_result_sequence.append(('diffevo-fast', optimize_result))
 
-        params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+        parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+        params, optimize_result = apply_nedlermead(args, lib, trait_index, parametrization, params)
         optimize_result_sequence.append(('nedlermead-fast', optimize_result))
 
         params._annomat = annomat
@@ -267,27 +290,32 @@ def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, 
     else:
         raise ValueError('unsupported --mixture-model: {}'.format(mixture_model))
 
-    constraint = AnnotUnivariateParams(pi=pi_value, s=s_value, l=l_value, sig2_beta=sb_value, sig2_zeroA=s0_value,
+    constraint = AnnotUnivariateParams(pi=pi_value, s=s_value, l=l_value, sig2_beta=sb_value, sig2_zeroA=s0_value, sig2_zeroL=sig2_zeroL,
                                        sig2_annot=params._sig2_annot, annomat=params._annomat, annonames=params._annonames, mafvec=mafvec, tldvec=tldvec)
     bounds_left = AnnotUnivariateParams(pi=pi_low, s=s_low, l=l_low, sig2_beta=sb_low, sig2_zeroA=s0_low)
     bounds_right = AnnotUnivariateParams(pi=pi_high, s=s_high, l=l_high, sig2_beta=sb_high, sig2_zeroA=s0_high)
     for repeat in range(args.diffevo_fast_repeats):
-        params_tmp, optimize_result_tmp = apply_diffevo(args, lib, trait_index, constraint, bounds_left, bounds_right, seed=(args.seed + repeat))
+        parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+        params_tmp, optimize_result_tmp = apply_diffevo(args, lib, trait_index, parametrization, bounds_left, bounds_right, seed=(args.seed + repeat))
         lib.log_message("--diffevo-fast-repeat={}: {}, cost={}".format(repeat, params_tmp, optimize_result_tmp.fun))
         if (repeat == 0) or (optimize_result_tmp.fun < optimize_result.fun):
             optimize_result, params = optimize_result_tmp, params_tmp
     optimize_result_sequence.append(('diffevo-fast', optimize_result))
-    params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+
+    parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+    params, optimize_result = apply_nedlermead(args, lib, trait_index, parametrization, params)
     optimize_result_sequence.append(('nedlermead-fast', optimize_result))
 
     if s_model == -0.5:  ## fine-tune S parameter
         constraint._s = None
-        params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+        parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+        params, optimize_result = apply_nedlermead(args, lib, trait_index, parametrization, params)
         optimize_result_sequence.append(('nedlermead-fast', optimize_result))
 
     if (not args.fit_fast) and (mixture_model != '10'):
         lib.set_option('cost_calculator', _cost_calculator_convolve)
-        params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+        parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+        params, optimize_result = apply_nedlermead(args, lib, trait_index, parametrization, params)
         optimize_result_sequence.append(('nedlermead', optimize_result))
 
     return params, optimize_result_sequence
@@ -336,9 +364,10 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
             tldvec = lib.ld_tag_r2_sum  # this is available for tag indices only, hense we enabled use_complete_tag_indices
             
             lib.set_option('cost_calculator', _cost_calculator_convolve if ((not args.fit_fast) and (mixture_model != '10')) else _cost_calculator_gaussian)
-            constraint = AnnotUnivariateParams(pi=params._pi, s=params._s, l=params._l, sig2_beta=params._sig2_beta, sig2_zeroA=None,
+            constraint = AnnotUnivariateParams(pi=params._pi, s=params._s, l=params._l, sig2_beta=params._sig2_beta, sig2_zeroA=None, sig2_zeroL=params._sig2_zeroL,
                                             sig2_annot=params._sig2_annot, annomat=params._annomat, annonames=params._annonames, mafvec=mafvec, tldvec=tldvec)
-            params, optimize_result = apply_nedlermead(args, lib, trait_index, constraint, params)
+            parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
+            params, optimize_result = apply_nedlermead(args, lib, trait_index, parametrization, params)
             results['optimize_test'] = optimize_result
 
         if args.qq_plots:

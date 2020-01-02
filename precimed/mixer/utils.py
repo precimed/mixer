@@ -131,7 +131,7 @@ class UnifiedUnivariateParams(object):
 # NB! Trick #1 np.cumsum(sig2_beta) is what gives variance per SNP
 # NB! Trick #2 pi[0]==1 indicates that this component is responsible for "everything else"
 class AnnotUnivariateParams(object):
-    def __init__(self, pi=[None], sig2_beta=[None], sig2_annot=None, s=None, l=None, sig2_zeroA=None, annomat=None, annonames=None, mafvec=None, tldvec=None):
+    def __init__(self, pi=[None], sig2_beta=[None], sig2_annot=None, s=None, l=None, sig2_zeroA=None, sig2_zeroL=None, annomat=None, annonames=None, mafvec=None, tldvec=None):
         if annomat is not None: assert(annomat.ndim == 2) # 1D arrays don't work in np.dot as we want matrix multiplication
         self._pi = [pi] if ((pi is None) or isinstance(pi, (int, float))) else pi
         self._sig2_beta = [sig2_beta] if ((sig2_beta is None) or isinstance(sig2_beta, (int, float))) else sig2_beta
@@ -139,13 +139,14 @@ class AnnotUnivariateParams(object):
         self._s = s
         self._l = l
         self._sig2_zeroA = sig2_zeroA
+        self._sig2_zeroL = sig2_zeroL
 
         self._annomat = annomat
         self._annonames = annonames
         self._mafvec = mafvec
         self._tldvec = tldvec
 
-    def as_string(self, attrs_list=['_pi', '_sig2_beta', '_sig2_annot', '_s', '_l', '_sig2_zeroA']):
+    def as_string(self, attrs_list=['_pi', '_sig2_beta', '_sig2_annot', '_s', '_l', '_sig2_zeroA', '_sig2_zeroL']):
         description = []
         for attr_name in attrs_list:
             try:
@@ -161,7 +162,8 @@ class AnnotUnivariateParams(object):
     __repr__ = __str__
 
     def as_dict(self):
-        return {'pi': self._pi, 'sig2_beta': self._sig2_beta, 'sig2_zeroA': self._sig2_zeroA,
+        return {'pi': self._pi, 'sig2_beta': self._sig2_beta,
+                'sig2_zeroA': self._sig2_zeroA, 'sig2_zeroL': self._sig2_zeroL,
                 's': self._s, 'l': self._l,
                 'sig2_annot': self._sig2_annot, 'annonames': self._annonames}
 
@@ -184,7 +186,6 @@ class AnnotUnivariateParams(object):
         # https://en.wikipedia.org/wiki/Non-negative_least_squares
         #sig2_annot, cost=scipy.optimize.nnls(nnls_mat1, z2)
         sig2_annot, _=scipy.optimize.nnls(nnls_mat1w, z2w)
-
         self._sig2_zeroA=sig2_annot[0]  # save intercept
         self._sig2_annot=sig2_annot[1:]
 
@@ -227,8 +228,9 @@ class AnnotUnivariateParams(object):
         pi_vec = np.ones(shape=(lib.num_snp, 1), dtype=np.float32)
         sig2_vec = np.multiply(np.power(np.float32(2.0) * self._mafvec * (1-self._mafvec), np.float32(self._s)),
                                np.power(self._tldvec, np.float32(self._l))) * self._sig2_beta[0]
-        sig2_zeroL = 0
-        sig2_zeroA = 0 # force sig2_zeroA to zero - otherwise this would be a common mistake
+        sig2_zeroL = 0 # force sig2_zeroL to zero (this may seem a bit tricky or contriversial, but later we add self._sig2_zeroL via infinitesimal model => it shouldn't contribute to annotation-specific sigma2_beta)
+        sig2_zeroA = 0 # force sig2_zeroA to zero (this need not to contirbute to each TLD score across all annotation categories;
+                       # the intercept term is added (and computed) later by fit_sig2_annot()
         sig2_zeroC = 1
         retval=np.zeros(shape=(lib.num_tag, num_annot), dtype=np.float32)
         lib.set_option('aux_option', 1)  # AuxOption_Ezvec2
@@ -240,19 +242,19 @@ class AnnotUnivariateParams(object):
     def cost(self, lib, trait):
         pi_mat = self.find_pi_mat(lib.num_snp)
         sig2_mat = self.find_sig2_mat()
-        value = lib.calc_unified_univariate_cost(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
+        value = lib.calc_unified_univariate_cost(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=self._sig2_zeroL)
         return value if np.isfinite(value) else 1e100
 
     def pdf(self, lib, trait, zgrid):
         pi_mat = self.find_pi_mat(lib.num_snp)
         sig2_mat = self.find_sig2_mat()
-        return lib.calc_unified_univariate_pdf(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0, zgrid=zgrid)
+        return lib.calc_unified_univariate_pdf(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=self._sig2_zeroL, zgrid=zgrid)
 
     def tag_pdf(self, lib, trait):
         pi_mat = self.find_pi_mat(lib.num_snp)
         sig2_mat = self.find_sig2_mat()
         lib.set_option('aux_option', 2)  # AuxOption_TagPdf
-        retval = lib.calc_unified_univariate_aux(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
+        retval = lib.calc_unified_univariate_aux(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=self._sig2_zeroL)
         lib.set_option('aux_option', 0)  # AuxOption_None
         return retval
 
@@ -260,14 +262,14 @@ class AnnotUnivariateParams(object):
         pi_mat = self.find_pi_mat(lib.num_snp)
         sig2_mat = self.find_sig2_mat()
         lib.set_option('aux_option', 3)  # AuxOption_TagPdfErr
-        retval = lib.calc_unified_univariate_aux(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0)
+        retval = lib.calc_unified_univariate_aux(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=self._sig2_zeroL)
         lib.set_option('aux_option', 0)  # AuxOption_None
         return retval
 
     def power(self, lib, trait, ngrid, zthresh=5.45):
         pi_mat = self.find_pi_mat(lib.num_snp)
         sig2_mat = self.find_sig2_mat()
-        return lib.calc_unified_univariate_power(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=0, zthresh=zthresh, ngrid=ngrid)
+        return lib.calc_unified_univariate_power(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=self._sig2_zeroL, zthresh=zthresh, ngrid=ngrid)
 
 class AnnotUnivariateParametrization(object):
     def __init__(self, lib, trait, constraint):
@@ -284,6 +286,7 @@ class AnnotUnivariateParametrization(object):
         if self._constraint._s is None: vec.append(params._s)
         if self._constraint._l is None: vec.append(params._l)
         if self._constraint._sig2_zeroA is None: vec.append(_log_exp_converter(params._sig2_zeroA, invflag=False))
+        if self._constraint._sig2_zeroL is None: vec.append(_log_exp_converter(params._sig2_zeroL, invflag=False))
         return vec
 
     def vec_to_params(self, vec):
@@ -295,6 +298,7 @@ class AnnotUnivariateParametrization(object):
             s=self._constraint._s if (self._constraint._s is not None) else vec.pop(0),
             l=self._constraint._l if (self._constraint._l is not None) else vec.pop(0),
             sig2_zeroA=self._constraint._sig2_zeroA if (self._constraint._sig2_zeroA is not None) else _log_exp_converter(vec.pop(0), invflag=True),
+            sig2_zeroL=self._constraint._sig2_zeroL if (self._constraint._sig2_zeroL is not None) else _log_exp_converter(vec.pop(0), invflag=True),
             annomat=self._constraint._annomat,
             annonames=self._constraint._annonames,
             mafvec=self._constraint._mafvec,
@@ -302,9 +306,35 @@ class AnnotUnivariateParametrization(object):
 
     def calc_cost(self, vec):
         params = self.vec_to_params(vec)
-        self._lib.log_message(params.as_string(attrs_list=['_pi', '_sig2_beta', '_s', '_l', '_sig2_zeroA']))
+        self._lib.log_message(params.as_string(attrs_list=['_pi', '_sig2_beta', '_s', '_l', '_sig2_zeroA', '_sig2_zeroL']))
         return params.cost(self._lib, self._trait)
 
+# a specific approximation that constrains pi=1 and sig2_zeroL = sig2_beta.
+class AnnotUnivariateParametrizationInf(object):
+    def __init__(self, lib, trait, constraint):
+        self._lib = lib
+        self._trait = trait
+        self._constraint = constraint # of type AnnotUnivariateParams
+
+    def params_to_vec(self, params):
+        return [_log_exp_converter(params._sig2_beta[0], invflag=False),
+                _log_exp_converter(params._sig2_zeroA, invflag=False)]
+
+    def vec_to_params(self, vec):
+        vec = list(vec)
+        sig2_beta = _log_exp_converter(vec.pop(0), invflag=True)
+        sig2_zeroA = _log_exp_converter(vec.pop(0), invflag=True)
+        return AnnotUnivariateParams(
+            pi=1, sig2_beta=[sig2_beta], sig2_annot=[1], s=0, l=0, sig2_zeroA=sig2_zeroA, sig2_zeroL=sig2_beta,
+            annomat=self._constraint._annomat,
+            annonames=self._constraint._annonames,
+            mafvec=self._constraint._mafvec,
+            tldvec=self._constraint._tldvec)
+
+    def calc_cost(self, vec):
+        params = self.vec_to_params(vec)
+        self._lib.log_message(params.as_string(attrs_list=['_pi', '_sig2_beta', '_s', '_l', '_sig2_zeroA', '_sig2_zeroL']))
+        return params.cost(self._lib, self._trait)
 
 class BivariateParams(object):
     def __init__(self, pi=None, sig2_beta=None, rho_beta=None, sig2_zero=None, rho_zero=None, params1=None, params2=None, pi12=None):

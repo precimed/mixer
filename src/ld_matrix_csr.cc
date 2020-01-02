@@ -73,8 +73,8 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version1plus(int chr_label, const std::string
   std::vector<float> freqvec, ld_tag_r2_sum, ld_tag_r2_sum_adjust_for_hvec;  // these are ignored for now
   load_ld_matrix(filename, &chunk, &freqvec, &ld_tag_r2_sum, &ld_tag_r2_sum_adjust_for_hvec);
 
-  LOG << " set_ld_r2_coo(filename=" << filename << ")...";
   int64_t numel = chunk.csr_ld_r_.size();
+  LOG << " set_ld_r2_coo(filename=" << filename << ", numel=" << numel << ")...";
 
   const int index0 = chunks_[chr_label].snp_index_from_inclusive_;
 

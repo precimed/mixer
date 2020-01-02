@@ -34,6 +34,9 @@ public:
 
   void find_snp_to_index_map();
   int snp_index(const std::string& snp) const;
+  int chrposa1a2_index(const std::string& snp) const;
+  int chrposa1a2_index(int chri, int bp, const std::string& a1, const std::string& a2) const;
+
   void read(std::string filename);
   void read(std::vector<std::string> filenames);
 
@@ -53,6 +56,7 @@ private:
   std::vector<std::string> a1_;
   std::vector<std::string> a2_;
   std::map<std::string, int> snp_to_index_;
+  std::map<std::string, int> chrposa1a2_to_index_;  // contains all four combinations (chr:bp:a1:a2, chr:bp:a2:a1, and their complements)
 };
 
 class FamFile {

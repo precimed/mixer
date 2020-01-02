@@ -8,6 +8,26 @@
 #include "bgmg_log.h"
 #include "zstr.hpp"
 
+// Validate that all charactars are A, T, C, G - nothing else. Expect lower case allele codes.
+static bool check_atcg(std::string val) {
+  for (int i = 0; i < val.size(); i++) { if (val[i] != 'a' && val[i] != 't' && val[i] != 'c' && val[i] != 'g') return false; }
+  return true;
+};
+
+// find complement (A<->T, C<->G). Returns the original string for non-atcg strings. Expects lower case allele codes.
+static std::string atcg_complement(std::string val) {
+  if (!check_atcg(val)) return val;
+
+  std::string retval;
+  for (int i = 0; i < val.size(); i++) {
+    if (val[i] == 'a') retval += 't';
+    if (val[i] == 't') retval += 't';
+    if (val[i] == 'c') retval += 'g';
+    if (val[i] == 'g') retval += 'c';
+  }
+  return retval;
+};
+
 
 void BimFile::find_snp_to_index_map() {
   snp_to_index_.clear();
@@ -20,11 +40,65 @@ void BimFile::find_snp_to_index_map() {
 
     snp_to_index_.insert(std::pair<std::string, int>(snp_[i], i));
   }
+
+  chrposa1a2_to_index_.clear();
+  int num_ambiguous_chrbpa1a2_codes = 0;
+  for (int i = 0; i < size(); i++) {
+    std::string a1 = boost::to_lower_copy(a1_[i]);
+    std::string a2 = boost::to_lower_copy(a2_[i]);
+    std::stringstream ss1, ss2, ss3, ss4;
+    ss1 << chr_label_[i] << ":" << bp_[i] << ":" << a1 << ":" << a2;
+    ss2 << chr_label_[i] << ":" << bp_[i] << ":" << a2 << ":" << a1;
+    ss3 << chr_label_[i] << ":" << bp_[i] << ":" << atcg_complement(a1) << ":" << atcg_complement(a2);
+    ss4 << chr_label_[i] << ":" << bp_[i] << ":" << atcg_complement(a2) << ":" << atcg_complement(a1);
+
+    auto iter1 = chrposa1a2_to_index_.find(ss1.str());
+    auto iter2 = chrposa1a2_to_index_.find(ss2.str());
+    auto iter3 = chrposa1a2_to_index_.find(ss3.str());
+    auto iter4 = chrposa1a2_to_index_.find(ss4.str());
+    auto end = chrposa1a2_to_index_.end();
+    
+    bool is_ambiguous = false;
+    if (iter1 != end) { iter1->second = -1; is_ambiguous = true; }  // clear the map for ambiguous codes
+    if (iter2 != end) { iter2->second = -1; is_ambiguous = true; }
+    if (iter3 != end) { iter3->second = -1; is_ambiguous = true; }
+    if (iter4 != end) { iter4->second = -1; is_ambiguous = true; }
+
+    if (is_ambiguous) {
+      num_ambiguous_chrbpa1a2_codes++;
+      continue;
+    }
+
+    // the following is OK even if there are duplicates among ss1, ss2, ss3, ss4
+    // (this could happen when alleles are not actg, or because it's ambugous snp with AT or CG allele codes)
+    chrposa1a2_to_index_.insert(std::pair<std::string, int>(ss1.str(), i));
+    chrposa1a2_to_index_.insert(std::pair<std::string, int>(ss2.str(), i));
+    chrposa1a2_to_index_.insert(std::pair<std::string, int>(ss3.str(), i));
+    chrposa1a2_to_index_.insert(std::pair<std::string, int>(ss4.str(), i));            
+  }
+
+  if (num_ambiguous_chrbpa1a2_codes > 0) {
+    LOG << " [WARNING] ambiguous CHR:BP:A1:A2 codes detected in the reference for " << num_ambiguous_chrbpa1a2_codes << " SNPs";
+  }
 }
 
 int BimFile::snp_index(const std::string& snp) const {
   auto iter = snp_to_index_.find(snp);
   if (iter == snp_to_index_.end()) return -1;
+  return iter->second;
+}
+
+int BimFile::chrposa1a2_index(const std::string& snp) const {
+  auto iter = chrposa1a2_to_index_.find(snp);
+  if (iter == chrposa1a2_to_index_.end()) return -1;
+  return iter->second;
+}
+
+int BimFile::chrposa1a2_index(int chri, int bp, const std::string& a1, const std::string& a2) const {
+  std::stringstream ss;
+  ss << chri << ":" << bp << ":" << boost::to_lower_copy(a1) << ":" << boost::to_lower_copy(a2);
+  auto iter = chrposa1a2_to_index_.find(ss.str());
+  if (iter == chrposa1a2_to_index_.end()) return -1;
   return iter->second;
 }
 
@@ -281,23 +355,6 @@ SumstatFile::FLIP_STATUS SumstatFile::flip_strand(
   std::string a1ref = boost::to_lower_copy(a1reference);
   std::string a2ref = boost::to_lower_copy(a2reference);
 
-  // validate that all charactars are A, T, C, G - nothing else
-  auto check_atcg = [](std::string val) {
-    for (int i = 0; i < val.size(); i++) { if (val[i] != 'a' && val[i] != 't' && val[i] != 'c' && val[i] != 'g') return false; }
-    return true;
-  };
-
-  auto atcg_complement = [](std::string val) {
-    std::string retval;
-    for (int i = 0; i < val.size(); i++) {
-      if (val[i] == 'a') retval += 't';
-      if (val[i] == 't') retval += 't';
-      if (val[i] == 'c') retval += 'g';
-      if (val[i] == 'g') retval += 'c';
-    }
-    return retval;
-  };
-
   if (!check_atcg(a1 + a2 + a1ref + a2ref)) return FLIP_STATUS_MISMATCH;
   if (atcg_complement(a1) == a2) return FLIP_STATUS_AMBIGUOUS;
 
@@ -325,6 +382,7 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
   int line_no = 0;
   int lines_incomplete = 0;
   int snps_dont_match_reference = 0;
+  int snps_match_chrbpa1a2 = 0;
   int snp_ambiguous = 0;
   int mismatch_alleles = 0;
   int flipped_alleles = 0;
@@ -332,6 +390,8 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
   int undefined_z_or_n = 0;
 
   int snp_col = -1, a1_col = -1, a2_col = -1, z_col = -1, n_col = -1;
+  int chr_col = -1, bp_col = -1;
+
   int num_cols_required;
   for (std::string str; std::getline(in, str); )
   {
@@ -347,6 +407,8 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
         if (tokens[coli] == std::string("a2")) a2_col = coli;
         if (tokens[coli] == std::string("n")) n_col = coli;
         if (tokens[coli] == std::string("z")) z_col = coli;
+        if (tokens[coli] == std::string("chr")) chr_col = coli;
+        if (tokens[coli] == std::string("bp")) bp_col = coli;
       }
 
       if (snp_col == -1 || a1_col == -1 || a2_col == -1 || z_col == -1 || n_col == -1) {
@@ -355,7 +417,7 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
         throw std::invalid_argument(error_str.str());
       }
 
-      num_cols_required = 1 + std::max({ snp_col, a1_col, a2_col, n_col, z_col });
+      num_cols_required = 1 + std::max({ snp_col, a1_col, a2_col, n_col, z_col, bp_col, chr_col });
 
       continue;  // finish processing header
     }
@@ -372,6 +434,7 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
 
     std::string snp, a1, a2;
     float sample_size, zscore;
+    int chri, bp;
 
     try {
       snp = tokens[snp_col];
@@ -379,6 +442,8 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
       a2 = tokens[a2_col];
       zscore = stof(tokens[z_col]);
       sample_size = stof(tokens[n_col]);
+      if (chr_col >= 0) chri = stoi(tokens[chr_col]);
+      if (bp_col >= 0) bp = stoi(tokens[bp_col]);
     }
     catch (...) {
       std::stringstream error_str;
@@ -387,7 +452,14 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
     }
 
     int snp_index = bim.snp_index(snp);
-    if (snp_index < 0) {
+    int snp_index2 = (snp_index == -1 && chr_col >= 0 && bp_col >= 0) ? bim.chrposa1a2_index(chri, bp, a1, a2) : -1;
+
+    if (snp_index == -1 && snp_index2 != -1) {
+      snps_match_chrbpa1a2++;
+      snp_index = snp_index2;
+    }
+
+    if (snp_index < 0 && snp_index2 < 0) {
       snps_dont_match_reference++;
       continue;
     }
@@ -437,8 +509,9 @@ void SumstatFile::read(const BimFile& bim, std::string filename) {
     LOG << " \t" << line_no << " lines found (including header)";
     if (lines_incomplete > 0) LOG << " \t" << lines_incomplete << " lines were ignored as there are incomplete (too few values).";
     if (undefined_z_or_n > 0) LOG << " \t" << undefined_z_or_n << " lines were ignored as Z or N value was not define ('na' or similar).";
-    if (duplicates_ignored > 0) LOG << " \t" << duplicates_ignored << " lines were ignored as they contain duplicated RS#.";
-    if (snps_dont_match_reference > 0) LOG << " \t" << snps_dont_match_reference << " lines were ignored as RS# does not match reference file.";
+    if (snps_match_chrbpa1a2 > 0) LOG << "\t" << snps_match_chrbpa1a2 << " lines matched via CHR:BP:A1:A2 code (not SNP rs#)";
+    if (duplicates_ignored > 0) LOG << " \t" << duplicates_ignored << " lines were ignored as they contain duplicated RS# (or chr:bp:a1:a2 code).";
+    if (snps_dont_match_reference > 0) LOG << " \t" << snps_dont_match_reference << " lines were ignored as RS# (or chr:bp:a1:a2 code) did not match reference file.";
     if (mismatch_alleles > 0) LOG << " \t" << mismatch_alleles << " variants were ignored as they had A1/A2 alleles that do not match reference.";
     if (snp_ambiguous > 0) LOG << " \t" << snp_ambiguous << " variants were ignored as they are strand-ambiguous.";
     if (flipped_alleles > 0) LOG << " \t" << flipped_alleles << " variants had flipped A1/A2 alleles; sign of z-score was flipped.";

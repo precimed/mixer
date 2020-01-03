@@ -85,6 +85,7 @@ message("-- Boost_LIBRARIES_STATIC_LIBS: ${Boost_LIBRARIES_STATIC_LIBS}")
 
 set(SRC_LIST
 	bgmg_calculator.cc
+	bgmg_calculator_unified.cc
 	ld_matrix_csr.cc
 	ld_matrix.cc
 	bgmg.h

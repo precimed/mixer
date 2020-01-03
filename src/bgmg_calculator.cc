@@ -105,6 +105,8 @@
 
 #define FLOAT_TYPE float
 
+static const double kMinTagPdf = 1e-100;
+
 std::vector<float>* BgmgCalculator::get_zvec(int trait_index) {
   if ((trait_index != 1) && (trait_index != 2)) BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2"));
   return (trait_index == 1) ? &zvec1_ : &zvec2_;
@@ -1878,15 +1880,16 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
       func_evals += (weights_[tag_index] * (double)data.func_evals);
       if (cubature_result != 0) { num_snp_failed++; continue; }
 
-      if (tag_pdf <= 0)
-        tag_pdf = 1e-100;
-
       if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = tag_pdf;
       if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdfErr)) aux[tag_index] = tag_pdf_err;
 
       double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
-      if (!std::isfinite(increment)) num_infinite++;
-      else log_pdf_total += increment;
+      if (!std::isfinite(increment)) {
+        increment = static_cast<double>(-std::log(kMinTagPdf) * weights_[tag_index]);
+        num_infinite++;
+      }
+
+      log_pdf_total += increment;
     }
   }    
 
@@ -2893,9 +2896,13 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
     const double tag_pdf1 = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(zmax, s2) : gaussian_pdf<FLOAT_TYPE>(tag_z, s2));
     const double tag_pdf = tag_pi0 * tag_pdf0 + tag_pi1 * tag_pdf1;
     if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = tag_pdf;
-    const double increment = (-std::log(tag_pdf) * tag_weight);
-    if (!std::isfinite(increment)) num_infinite++;
-    else log_pdf_total += increment;
+    double increment = (-std::log(tag_pdf) * tag_weight);
+    if (!std::isfinite(increment)) {
+      increment = static_cast<double>(-std::log(kMinTagPdf) * tag_weight);
+      num_infinite++;
+    }
+
+    log_pdf_total += increment;
   }
 
   if (num_zero_tag_r2 > 0)
@@ -2956,13 +2963,17 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
       if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = pdf_tag;
 
       double increment = -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
-      if (!std::isfinite(increment)) num_infinite++;
-      else log_pdf_total += increment;
-    }
+      if (!std::isfinite(increment)) {
+        increment = static_cast<double>(-std::log(kMinTagPdf) * static_cast<double>(weights_[tag_index]));
+        num_infinite++;
+      }
 
-    if (num_infinite > 0)
-      LOG << " warning: infinite increments encountered " << num_infinite << " times";
+      log_pdf_total += increment;
+    }
   }
+
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;

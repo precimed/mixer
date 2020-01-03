@@ -336,7 +336,7 @@ class BgmgCalculator : public TagToSnpMapping {
   double calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
   double calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
   double calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
-  double calc_unified_univariate_cost_sampling(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
+  double calc_unified_univariate_cost_sampling(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux, const float* weights);
   int64_t calc_unified_univariate_pdf(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf);
   int64_t calc_unified_univariate_power(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float zthresh, int length, float* nvec, float* svec);
   int64_t calc_unified_univariate_delta_posterior(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* c0, float* c1, float* c2);
@@ -438,6 +438,7 @@ class BgmgCalculator : public TagToSnpMapping {
   int find_deftag_indices_nw(int trait_index, std::vector<int>* deftag_indices);
   int find_deftag_indices_nw(std::vector<int>* deftag_indices);
   int find_deftag_indices_w(std::vector<int>* deftag_indices);
+  int find_deftag_indices(const float* weights, std::vector<int>* deftag_indices);
 
   BimFile bim_file_;
 

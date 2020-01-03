@@ -99,8 +99,8 @@ def convert_args_to_libbgmg_options(args, num_snp):
         'max_causals': args.max_causals if (args.max_causals > 1) else (args.max_causals * num_snp),
         'num_components': 1 if (not args.trait2_file) else 3,
         'cache_tag_r2sum': args.cache_tag_r2sum, 'threads': args.threads, 'seed': args.seed,
-        'cubature_rel_error': args.cubature_rel_error, 'cubature_max_evals':args.cubature_max_evals
-        # 'z1max': args.z1max, 'z2max': args.z2max, 
+        'cubature_rel_error': args.cubature_rel_error, 'cubature_max_evals':args.cubature_max_evals,
+        'z1max': args.z1max, 'z2max': args.z2max, 
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
 
@@ -171,9 +171,8 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). "
         "Bivariate cubature require in the order of 10^4 evaluations and thus is much slower than sampling, therefore it is not exposed via mixer.py command-line interface. ")
 
-    # NB! zmax won't apply in univariate fit because it uses convolution cost function. This must be fixed.
-    # parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
-    # parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
+    parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
+    parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
 
     parser.add_argument('--load-params-file', type=str, default=None, help="initial params for the optimization. ")
     parser.add_argument('--trait1-params-file', type=str, default=None, help="univariate params for the first trait (for the cross-trait analysis only). ")

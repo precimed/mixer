@@ -1597,7 +1597,7 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
 
   // standard variables
   std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
   std::vector<float>& nvec(*get_nvec(trait_index));
   const double zmax = (trait_index==1) ? z1max_ : z2max_;
 
@@ -1843,7 +1843,26 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
   std::vector<float>& nvec(*get_nvec(trait_index));
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
+  const double zmax = (trait_index==1) ? z1max_ : z2max_;
+
+  std::vector<float> weights_convolve(weights_.begin(), weights_.end());
+  std::vector<float> weights_sampling(weights_.begin(), weights_.end()); int num_deftag_sampling = 0;
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    const float tag_z = z_minus_fixed_effect_delta[tag_index];
+    const bool censoring = std::abs(tag_z) > zmax;
+    if (censoring) {
+      weights_convolve[tag_index] = 0;
+      num_deftag_sampling++;
+    } else {
+      weights_sampling[tag_index] = 0;
+    }
+  }
+
+  if (num_deftag_sampling > 0) {  // fall back to sampling approach for censored z-scores
+    log_pdf_total += calc_unified_univariate_cost_sampling(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux, &weights_sampling[0]);
+  }
+
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(&weights_convolve[0], &deftag_indices);
 
 #pragma omp parallel
   {
@@ -1865,7 +1884,7 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
 #pragma omp for schedule(static) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
-      double tag_weight = static_cast<double>(weights_[tag_index]);
+      double tag_weight = static_cast<double>(weights_convolve[tag_index]);
 
       const int causal_index = tag_index; // yes,snp==tag in this case -- see a large comment in calc_univariate_characteristic_function_times_cosinus function.
       ld_matrix_csr_.extract_row(causal_index, data.ld_matrix_row);
@@ -1877,15 +1896,15 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
       const int integrand_fdim = 1, ndim = 1;
       int cubature_result = hcubature(integrand_fdim, calc_univariate_characteristic_function_for_integration,
         &data, ndim, &xmin, &xmax, cubature_max_evals_, cubature_abs_error_, cubature_rel_error_, ERROR_INDIVIDUAL, &tag_pdf, &tag_pdf_err);
-      func_evals += (weights_[tag_index] * (double)data.func_evals);
+      func_evals += (weights_convolve[tag_index] * (double)data.func_evals);
       if (cubature_result != 0) { num_snp_failed++; continue; }
 
       if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = tag_pdf;
       if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdfErr)) aux[tag_index] = tag_pdf_err;
 
-      double increment = static_cast<double>(-std::log(tag_pdf) * weights_[tag_index]);
+      double increment = static_cast<double>(-std::log(tag_pdf) * weights_convolve[tag_index]);
       if (!std::isfinite(increment)) {
-        increment = static_cast<double>(-std::log(kMinTagPdf) * weights_[tag_index]);
+        increment = static_cast<double>(-std::log(kMinTagPdf) * weights_convolve[tag_index]);
         num_infinite++;
       }
 
@@ -1899,10 +1918,11 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
     LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
   double total_weight = 0.0;
-  for (int tag_index = 0; tag_index < num_tag_; tag_index++) total_weight += weights_[tag_index];
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) total_weight += weights_convolve[tag_index];
   func_evals /= total_weight;
 
-  LOG << "<calc_unified_univariate_cost_convolve(" << ss.str() << "), cost=" << log_pdf_total << ", evals=" << func_evals << ", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<calc_unified_univariate_cost_convolve(" << ss.str() << "), cost=" << log_pdf_total << ", evals=" << func_evals << ", num_deftag=" << num_deftag << "+" << num_deftag_sampling << ", elapsed time " << timer.elapsed_ms() << "ms";
+
   return log_pdf_total;
 }
 
@@ -2016,7 +2036,7 @@ double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_ve
   std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(&deftag_indices);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
 
 #pragma omp parallel
   {
@@ -2756,7 +2776,7 @@ double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_com
 
   if (cost_calculator_ == CostCalculator_Gaussian) return calc_unified_univariate_cost_gaussian(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
   else if (cost_calculator_ == CostCalculator_Convolve) return calc_unified_univariate_cost_convolve(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
-  else if (cost_calculator_ == CostCalculator_Sampling) return calc_unified_univariate_cost_sampling(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
+  else if (cost_calculator_ == CostCalculator_Sampling) return calc_unified_univariate_cost_sampling(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux, nullptr);
   else BGMG_THROW_EXCEPTION(::std::runtime_error("unsupported cost calculator in calc_unified_univariate_cost"));
 }
 
@@ -2774,7 +2794,7 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
   std::vector<float>& nvec(*get_nvec(trait_index));
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
   const double zmax = (trait_index==1) ? z1max_ : z2max_;
 
   // Step 1. Calculate Ebeta2 and Ebeta4
@@ -2910,12 +2930,16 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
   if (num_infinite > 0)
     LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
-  LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", num_deftag=" << num_deftag << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 
-double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
+double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux, const float* weights) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
+  if (weights == nullptr) {
+    if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+    weights = &weights_[0];
+  }
 
   std::stringstream ss;
   ss << "calc_unified_univariate_cost_sampling(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ")";
@@ -2928,7 +2952,7 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
   std::vector<float>& nvec(*get_nvec(trait_index));
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(weights, &deftag_indices);
 
   const double z_max = (trait_index==1) ? z1max_ : z2max_;
   const double pi_k = 1.0 / static_cast<double>(k_max_);
@@ -2962,9 +2986,9 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
       if ((aux != nullptr) && (aux_option_ == AuxOption_Ezvec2)) aux[tag_index] = average_tag_delta2 + sig2_zero;
       if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = pdf_tag;
 
-      double increment = -std::log(pdf_tag) * static_cast<double>(weights_[tag_index]);
+      double increment = -std::log(pdf_tag) * static_cast<double>(weights[tag_index]);
       if (!std::isfinite(increment)) {
-        increment = static_cast<double>(-std::log(kMinTagPdf) * static_cast<double>(weights_[tag_index]));
+        increment = static_cast<double>(-std::log(kMinTagPdf) * static_cast<double>(weights[tag_index]));
         num_infinite++;
       }
 
@@ -2975,7 +2999,7 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
   if (num_infinite > 0)
     LOG << " warning: infinite increments encountered " << num_infinite << " times";
 
-  LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", num_deftag=" << num_deftag << ", elapsed time " << timer.elapsed_ms() << "ms";
   return log_pdf_total;
 }
 
@@ -3034,7 +3058,7 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
   std::vector<float>& nvec(*get_nvec(trait_index));
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_nw(trait_index, &deftag_indices);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
 
   std::valarray<double> pdf_double(0.0, length);
 #pragma omp parallel
@@ -3065,7 +3089,7 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
   }
 
   for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);
-  LOG << "<" << ss.str() << ", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<" << ss.str() << ", num_deftag=" << num_deftag << ", elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
@@ -3075,7 +3099,7 @@ int64_t BgmgCalculator::calc_unified_univariate_power(int trait_index, int num_c
   LOG << ">" << ss.str();
 
   SimpleTimer timer(-1);
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_w(&deftag_indices);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
   const double pi_k = 1.0 / static_cast<double>(k_max_);
   std::vector<float> hvec; find_hvec(*this, &hvec);
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
@@ -3140,7 +3164,7 @@ int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index,
   // standard variables
   std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
   std::vector<float>& nvec(*get_nvec(trait_index));
-  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_znw(trait_index, &deftag_indices);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
   std::vector<float> hvec; find_hvec(*this, &hvec);
   const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
 
@@ -3197,7 +3221,7 @@ int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index,
     c2[tag_index] = pi_k * inv_sqrt_2pi * c2_global[tag_index];
   }
 
-  LOG << "<" << ss.str() << ", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << "<" << ss.str() << ", num_deftag=" << num_deftag << ", elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
@@ -3248,6 +3272,19 @@ int BgmgCalculator::find_deftag_indices_w(std::vector<int>* deftag_indices) {
 
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
     if (weights_[tag_index] == 0) continue;
+    deftag_indices->push_back(tag_index);
+  }
+  return deftag_indices->size();
+}
+
+int BgmgCalculator::find_deftag_indices(const float* weights, std::vector<int>* deftag_indices) {
+  if (weights == nullptr) {
+    if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+    weights = &weights_[0];
+  }
+
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (weights[tag_index] == 0) continue;
     deftag_indices->push_back(tag_index);
   }
   return deftag_indices->size();

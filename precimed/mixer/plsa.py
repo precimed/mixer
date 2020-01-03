@@ -55,7 +55,8 @@ def convert_args_to_libbgmg_options(args, num_snp):
         'r2min': args.r2min, 'kmax': args.kmax, 
         'threads': args.threads, 'seed': args.seed,
         'cubature_rel_error': args.cubature_rel_error,
-        'cubature_max_evals':args.cubature_max_evals
+        'cubature_max_evals':args.cubature_max_evals,
+        'z1max': args.z1max
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
 
@@ -121,6 +122,7 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--seed', type=int, default=123, help="Random seed")
 
     parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
+    parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
     parser.add_argument('--threads', type=int, default=None, help="specify how many threads to use (concurrency). None will default to the total number of CPU cores. ")
     parser.add_argument('--nedlermead-fatol', type=float, default=1e-4, help="fatol parameter of the nedlermead optimization. ")
     parser.add_argument('--nedlermead-xatol', type=float, default=1e-4, help="xatol parameter of the nedlermead optimization. ")

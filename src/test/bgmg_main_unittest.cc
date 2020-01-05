@@ -543,12 +543,21 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec) {
   float sig2_zeroL[] = { 0.0, 0.0 };
   float rho_zeroL = 0;
   double cost_gaussian_unified = calc.calc_unified_bivariate_cost_gaussian(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr);
+  double cost_sampling_unified = calc.calc_unified_bivariate_cost_sampling(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr, nullptr);
 
   ASSERT_TRUE(std::isfinite(cost_sampling));
   ASSERT_TRUE(std::isfinite(cost_gaussian));
   ASSERT_TRUE(std::isfinite(cost_convolve));
   ASSERT_TRUE(std::isfinite(cost_gaussian_unified));  
-  std::cout << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_gaussian_unified << std::endl;
+  ASSERT_TRUE(std::isfinite(cost_sampling_unified));  
+
+  // There are subtle details in the ways "pi" coefficients are treated in old sampling, new sampling and convolve
+  // In the old sampling we sample exactly (N*pi) causal SNPs -- no variation here, while if we strictly follow the model this needs to follow binomial distributino
+  // In the new sampling this is fixed, however we sample the three causal components independently - i.e., with replacement. 
+  // Finally, the convolve function implements the correct solution.
+  // As a result, cost_convolve is nearly identical to cost_sampling_unified when only 1 pi is non-zero; otherwise there is a difference (at least for large pi around 0.1; much smaller difference for pi around 0.01 or 0.001)
+  // There is always a difference between cost_sampling and cost_sampling_unified due to the reasons highlighted above.
+  std::cout << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_gaussian_unified << ", " << cost_sampling_unified << std::endl;
 
   if (pi_vec[2] == 1) {
     ASSERT_NEAR(cost_gaussian, cost_gaussian_unified, 1e-4);

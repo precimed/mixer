@@ -342,7 +342,7 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
     ASSERT_FLOAT_EQ(cost_unified_sampling, cost_unified_gaussian); 
   }
 
-  std::cout << std::setprecision(9) << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_unified_gaussian << ", " << cost_unified_sampling << std::endl;
+  std::cout << std::setprecision(9) << cost_sampling << "(s), " << cost_gaussian << "(g), " << cost_convolve << "(c), " << cost_unified_gaussian << "(ug), " << cost_unified_sampling << "(us)" << std::endl;
 
   ASSERT_FLOAT_EQ(costvec[0], cost_sampling);
   ASSERT_FLOAT_EQ(costvec[1], cost_gaussian);
@@ -553,11 +553,9 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec) {
 
   // There are subtle details in the ways "pi" coefficients are treated in old sampling, new sampling and convolve
   // In the old sampling we sample exactly (N*pi) causal SNPs -- no variation here, while if we strictly follow the model this needs to follow binomial distributino
-  // In the new sampling this is fixed, however we sample the three causal components independently - i.e., with replacement. 
-  // Finally, the convolve function implements the correct solution.
-  // As a result, cost_convolve is nearly identical to cost_sampling_unified when only 1 pi is non-zero; otherwise there is a difference (at least for large pi around 0.1; much smaller difference for pi around 0.01 or 0.001)
+  // New sampling is asymptotically correct, and gives the same answer as convolve.
   // There is always a difference between cost_sampling and cost_sampling_unified due to the reasons highlighted above.
-  std::cout << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_gaussian_unified << ", " << cost_sampling_unified << std::endl;
+  std::cout << cost_sampling << "(s), " << cost_gaussian << "(g), " << cost_convolve << "(c), " << cost_gaussian_unified << "(ug), " << cost_sampling_unified << "(us)" << std::endl;
 
   if (pi_vec[2] == 1) {
     ASSERT_NEAR(cost_gaussian, cost_gaussian_unified, 1e-4);

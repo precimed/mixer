@@ -274,7 +274,7 @@ TEST(UgmgTest, CalcLikelihood_with_r2min) {
   UgmgTest_CalcLikelihood(r2min, trait_index);
 }
 
-void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float pi_val, double costvec[4]) {
+void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float pi_val, double costvec[5]) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 10;
@@ -482,7 +482,7 @@ TEST(UgmgTest, CalcUnifiedGaussianLikelihood) {
   ASSERT_FLOAT_EQ(v1, v2);
 }
 
-void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec) {
+void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec, double costvec[5]) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 10;
@@ -555,7 +555,13 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec) {
   // In the old sampling we sample exactly (N*pi) causal SNPs -- no variation here, while if we strictly follow the model this needs to follow binomial distributino
   // New sampling is asymptotically correct, and gives the same answer as convolve.
   // There is always a difference between cost_sampling and cost_sampling_unified due to the reasons highlighted above.
-  std::cout << cost_sampling << "(s), " << cost_gaussian << "(g), " << cost_convolve << "(c), " << cost_gaussian_unified << "(ug), " << cost_sampling_unified << "(us)" << std::endl;
+  std::cout << std::setprecision(9) << cost_sampling << "(s), " << cost_gaussian << "(g), " << cost_convolve << "(c), " << cost_gaussian_unified << "(ug), " << cost_sampling_unified << "(us)" << std::endl;
+
+  ASSERT_FLOAT_EQ(costvec[0], cost_sampling);
+  ASSERT_FLOAT_EQ(costvec[1], cost_gaussian);
+  ASSERT_FLOAT_EQ(costvec[2], cost_convolve);
+  ASSERT_FLOAT_EQ(costvec[3], cost_gaussian_unified);
+  ASSERT_FLOAT_EQ(costvec[4], cost_sampling_unified);
 
   if (pi_vec[2] == 1) {
     ASSERT_NEAR(cost_gaussian, cost_gaussian_unified, 1e-4);
@@ -664,28 +670,32 @@ void BgmgTest_CalcLikelihood(float r2min) {
 TEST(BgmgTest, CalcConvolveLikelihood_inft) {
   const float r2min = 0.0; 
   float pi_vec[] = { 0.0, 0.0, 1.0 };
-  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec);
+  double costvec[5] = {1e+100, 23.7376571, 23.7376779, 23.7376838, 23.7376843};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood
 TEST(BgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; 
   float pi_vec[] = { 0.1, 0.2, 0.15 };
-  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec);
+  double costvec[5] = {18.9650083, 18.0064621, 18.7262241, 20.3703903, 18.7258614};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_with_r2min_inft
 TEST(BgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
   const float r2min = 0.2;
   float pi_vec[] = { 0.0, 0.0, 1.0 };
-  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec);
+  double costvec[5] = {1e+100, 23.5455545, 23.7376707, 23.5455746, 23.5455748};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_with_r2min
 TEST(BgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
-  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec);
+  double costvec[5] = {18.9611203, 17.834824, 18.8095303, 20.2005144, 18.4124244};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
 }
 
 // bgmg-test.exe --gtest_filter=BgmgTest.CalcLikelihood

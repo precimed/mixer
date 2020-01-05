@@ -240,19 +240,19 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
   std::valarray<float> Edelta2(0.0, num_tag_);
   std::valarray<float> Edelta4(0.0, num_tag_);  // Edelta4 is a simplified name - see comment for Ebeta4
 
-  if (use_complete_tag_indices_) {
-    // Optimize implemnetation when LD matrix is rectangular
-    // In this case we may have SNPs with undefined zvec and nvec,
-    // and for those we don't need to compute Edelta2 and Edelta4.
-    // The alternative implementation (i.e. the "else" branch with !use_complete_tag_indices_)
-    // has to compute Edelta2 and Edelta4 for all tag snps, because 
-    // our LD matrix is stored as a mapping from causal to tag variants.
-
 #pragma omp parallel
-    {
-      LdMatrixRow ld_matrix_row;
-      std::valarray<float> Edelta2_local(0.0, num_tag_);
-      std::valarray<float> Edelta4_local(0.0, num_tag_);
+  {
+    LdMatrixRow ld_matrix_row;
+    std::valarray<float> Edelta2_local(0.0, num_tag_);
+    std::valarray<float> Edelta4_local(0.0, num_tag_);
+
+    if (use_complete_tag_indices_) {
+      // Optimize implemnetation when LD matrix is rectangular
+      // In this case we may have SNPs with undefined zvec and nvec,
+      // and for those we don't need to compute Edelta2 and Edelta4.
+      // The alternative implementation (i.e. the "else" branch with !use_complete_tag_indices_)
+      // has to compute Edelta2 and Edelta4 for all tag snps, because 
+      // our LD matrix is stored as a mapping from causal to tag variants.
 
 #pragma omp for schedule(static)    
       for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
@@ -269,19 +269,7 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
           Edelta4_local[tag_index] += a2ij * a2ij * Ebeta4[causal_index];
         }
       }
-#pragma omp critical
-      {
-        Edelta2 += Edelta2_local;
-        Edelta4 += Edelta4_local;
-      }
-    }
-  } else {  // use_complete_tag_indices_
-#pragma omp parallel
-    {
-      LdMatrixRow ld_matrix_row;
-      std::valarray<float> Edelta2_local(0.0, num_tag_);
-      std::valarray<float> Edelta4_local(0.0, num_tag_);
-
+    } else {  // use_complete_tag_indices_
 #pragma omp for schedule(static)
       for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
         ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
@@ -294,13 +282,14 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
           Edelta4_local[tag_index] += a2ij * a2ij * Ebeta4[causal_index];
         }
       }
+    }  // use_complete_tag_indices_
+
 #pragma omp critical
-      {
-        Edelta2 += Edelta2_local;
-        Edelta4 += Edelta4_local;
-      }
+    {
+      Edelta2 += Edelta2_local;
+      Edelta4 += Edelta4_local;
     }
-  }  // use_complete_tag_indices_
+  }  // parallel
 
   double log_pdf_total = 0.0;
   int num_zero_tag_r2 = 0;
@@ -645,5 +634,192 @@ int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index,
   }
 
   LOG << "<" << ss.str() << ", num_deftag=" << num_deftag << ", elapsed time " << timer.elapsed_ms() << "ms";
+  return 0;
+}
+
+// pi_vec     : num_components X num_snp,  - weights of the three mixture components (num_components = 3)
+// sig2_vec   : num_traits X num_snp,      - variance of cauasal effects for the two traits (num_traits = 2)
+// rho_vec    : 1 x num_snps,              - correlation of genetic effects
+// sig2_zeroX : 1 x num_traits,            - inflation parameters (additive, multiplicative, truncation of the LD structure)
+// rho_zeroA, sig2_zeroL                   - correlation of sig2_zeroA and sig2_zeroL across the two traits
+double BgmgCalculator::calc_unified_bivariate_cost(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux) { 
+  check_num_snp(num_snp);
+  if (cost_calculator_ == CostCalculator_Gaussian) return calc_unified_bivariate_cost_gaussian(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL, aux);
+  else if (cost_calculator_ == CostCalculator_Sampling) return calc_unified_bivariate_cost_sampling(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL, aux);
+  else BGMG_THROW_EXCEPTION(::std::runtime_error("unsupported cost calculator in calc_unified_bivariate_cost"));
+  return 0;
+}
+
+std::string find_bivariate_params_description(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL) {
+  std::stringstream ss;
+  ss << "num_snp=" << num_snp
+     << ", sig2_zeroA=[" << sig2_zeroA[0] << "," << sig2_zeroA[1]  << "]"
+     << ", sig2_zeroC=[" << sig2_zeroC[0] << "," << sig2_zeroC[1]  << "]"
+     << ", sig2_zeroL=[" << sig2_zeroL[0] << "," << sig2_zeroL[1]  << "]"
+     << ", rho_zeroA=" << rho_zeroA << ", rho_zeroL=" << rho_zeroL;
+  return ss.str();
+}
+
+double BgmgCalculator::calc_unified_bivariate_cost_gaussian(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux) {
+  std::stringstream ss;
+  ss << "calc_unified_bivariate_cost_gaussian(" << find_bivariate_params_description(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL) << ")";
+  LOG << ">" << ss.str();
+
+  SimpleTimer timer(-1);
+
+  // standard variables
+  std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
+  std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  std::vector<float> hvec; find_hvec(*this, &hvec);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
+
+  // Step 1. Calculate Ebeta20, Ebeta02, Ebeta11
+  std::valarray<float> Ebeta20(0.0, num_snp_);
+  std::valarray<float> Ebeta02(0.0, num_snp_);
+  std::valarray<float> Ebeta11(0.0, num_snp_);
+  for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
+    const float p1 = pi_vec[0*num_snp_ + snp_index];
+    const float p2 = pi_vec[1*num_snp_ + snp_index];
+    const float p12 = pi_vec[2*num_snp_ + snp_index];
+
+    const float s1 = sig2_vec[0*num_snp_ + snp_index];
+    const float s2 = sig2_vec[1*num_snp_ + snp_index];
+
+    const float rho = rho_vec[snp_index];
+    
+    Ebeta20[snp_index] = (p1 + p12) * s1;
+    Ebeta02[snp_index] = (p2 + p12) * s2;
+    Ebeta11[snp_index] = p12 * rho * sqrt(s1*s2);
+  }
+
+  // Step 2. Calculate Edelta20, Edelta02, Edelta11
+  std::valarray<float> Edelta20(0.0, num_snp_);
+  std::valarray<float> Edelta02(0.0, num_snp_);
+  std::valarray<float> Edelta11(0.0, num_snp_);
+  
+#pragma omp parallel
+  {
+    LdMatrixRow ld_matrix_row;
+    std::valarray<float> Edelta20_local(0.0, num_snp_);
+    std::valarray<float> Edelta02_local(0.0, num_snp_);
+    std::valarray<float> Edelta11_local(0.0, num_snp_);
+
+    if (use_complete_tag_indices_) {  // see discussion in calc_unified_univariate_cost_gaussian
+#pragma omp for schedule(static)    
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        int tag_index = deftag_indices[deftag_index];
+
+        const int snp_index = tag_index; // yes, snp==tag in this case -- same story here as in calc_univariate_characteristic_function_times_cosinus function.
+        ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+        auto iter_end = ld_matrix_row.end();
+        for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+          const int causal_index = iter.tag_index();   // tag_index on RHS can be misleading here
+          const float r2_value = iter.r2();
+          const float a2ij1 = sig2_zeroC[0] * nvec1_[tag_index] * hvec[causal_index] * r2_value;
+          const float a2ij2 = sig2_zeroC[1] * nvec2_[tag_index] * hvec[causal_index] * r2_value;
+          Edelta20_local[tag_index] += a2ij1 * Ebeta20[causal_index];
+          Edelta02_local[tag_index] += a2ij2 * Ebeta02[causal_index];
+          Edelta11_local[tag_index] += sqrt(a2ij1 * a2ij2) * Ebeta11[causal_index];
+        }
+      }
+    } else {  // use_complete_tag_indices_
+#pragma omp for schedule(static)        
+      for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
+        ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
+        auto iter_end = ld_matrix_row.end();
+        for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+          const int tag_index = iter.tag_index();
+          const float r2_value = iter.r2();
+          const float a2ij1 = sig2_zeroC[0] * nvec1_[tag_index] * hvec[causal_index] * r2_value;
+          const float a2ij2 = sig2_zeroC[1] * nvec2_[tag_index] * hvec[causal_index] * r2_value;
+          Edelta20_local[tag_index] += a2ij1 * Ebeta20[causal_index];
+          Edelta02_local[tag_index] += a2ij2 * Ebeta02[causal_index];
+          Edelta11_local[tag_index] += sqrt(a2ij1 * a2ij2) * Ebeta11[causal_index];
+        }
+      }
+    }  // use_complete_tag_indices_
+#pragma omp critical
+    {
+      Edelta20 += Edelta20_local;
+      Edelta02 += Edelta02_local;
+      Edelta11 += Edelta11_local;
+    }
+  }
+
+  double log_pdf_total;
+  int num_zero_tag_r2 = 0;
+  int num_infinite = 0;
+
+#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
+    if (Edelta20[tag_index] == 0 && Edelta02[tag_index] == 0) { num_zero_tag_r2++; continue;}
+    double tag_weight = static_cast<double>(weights_[tag_index]);
+
+    // the indices (20, 02, 11) denote powers "p, q" in raw moment E[x^p y^q]
+    const float A20 = Edelta20[tag_index];
+    const float A02 = Edelta02[tag_index];
+    const float A11 = Edelta11[tag_index];
+
+    // additive inflation, plus contribution from small LD r2 (those below r2min)
+    // the indices (11, 12, 22) denote indices in a matrix [a11 a12; a21 a22]. Usually a21=a12 so we don't compute it.
+    const float adj_hval = ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index];
+    const float sig2_zero_11 = sig2_zeroA[0] + adj_hval * nvec1_[tag_index] * sig2_zeroL[0];
+    const float sig2_zero_22 = sig2_zeroA[1] + adj_hval * nvec2_[tag_index] * sig2_zeroL[1];
+    const float sig2_zero_12 =            rho_zeroA * sqrt(sig2_zeroA[0] * sig2_zeroA[1]) + 
+                               adj_hval * rho_zeroL * sqrt(nvec1_[tag_index] * nvec2_[tag_index] * sig2_zeroL[0] * sig2_zeroL[1]);
+
+    const float tag_z1 = z1_minus_fixed_effect_delta[tag_index];
+    const float tag_z2 = z2_minus_fixed_effect_delta[tag_index];
+    const float tag_n1 = nvec1_[tag_index];
+    const float tag_n2 = nvec2_[tag_index];
+
+    const bool censoring = (std::abs(tag_z1) > z1max_) || (std::abs(tag_z2) > z2max_);
+
+    const float a11 = Edelta20[tag_index] + sig2_zero_11;
+    const float a12 = Edelta11[tag_index] + sig2_zero_12;
+    const float a22 = Edelta02[tag_index] + sig2_zero_22;
+
+    // export the expected values of z^2 distribution
+    if ((aux != nullptr) && (aux_option_ == AuxOption_Ezvec2)) {
+      aux[0 * num_tag_ + tag_index] = a11;
+      aux[1 * num_tag_ + tag_index] = a12;
+      aux[2 * num_tag_ + tag_index] = a22;
+    }
+
+    const double tag_pdf = static_cast<double>(censoring ? censored2_cdf<FLOAT_TYPE>(z1max_, z2max_, a11, a12, a22) : gaussian2_pdf<FLOAT_TYPE>(tag_z1, tag_z2, a11, a12, a22));
+
+    if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = tag_pdf;
+
+    double increment = (-std::log(tag_pdf) * tag_weight);
+    if (!std::isfinite(increment)) {
+      increment = static_cast<double>(-std::log(kMinTagPdf) * tag_weight);
+      num_infinite++;
+    }
+
+    log_pdf_total += increment;
+  }
+
+  if (num_zero_tag_r2 > 0)
+    LOG << " warning: zero tag_r2 encountered " << num_zero_tag_r2 << " times";
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
+
+
+  LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", num_deftag=" << num_deftag << ", elapsed time " << timer.elapsed_ms() << "ms";
+  return log_pdf_total;
+}
+
+double BgmgCalculator::calc_unified_bivariate_cost_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux) {
+  return 0;
+}
+
+int64_t BgmgCalculator::calc_unified_bivariate_pdf(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int length, float* zvec1, float* zvec2, float* pdf) {
+  return 0;
+}
+
+int64_t BgmgCalculator::calc_unified_bivariate_delta_posterior(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL,
+                                                               int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
   return 0;
 }

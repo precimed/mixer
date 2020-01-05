@@ -482,7 +482,7 @@ TEST(UgmgTest, CalcUnifiedGaussianLikelihood) {
   ASSERT_FLOAT_EQ(v1, v2);
 }
 
-void BgmgTest_CalcLikelihood_testConvolution(float r2min) {
+void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 10;
@@ -521,7 +521,6 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min) {
   calc.set_ld_r2_csr();  // finalize csr structure
   calc.set_weights_randprune(20, 0.25);
 
-  float pi_vec[] = { 0.1, 0.2, 0.15 };
   float sig2_beta[] = { 0.5, 0.3 };
   float rho_beta = 0.8;
   float sig2_zero[] = { 1.1, 1.2 };
@@ -534,10 +533,26 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min) {
   calc.set_option("cost_calculator", 2);
   double cost_convolve = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
 
+  // num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL, aux
+  std::vector<float> pi_unified(3*num_snp, 0);
+  for (int i = 0; i < num_snp; i++) {pi_unified[i] = pi_vec[0]; pi_unified[num_snp+i] = pi_vec[1];pi_unified[2*num_snp+i] = pi_vec[2]; }
+  std::vector<float> sig2_unified(2*num_snp, 0);
+  for (int i = 0; i < num_snp; i++) {sig2_unified[i] = sig2_beta[0]; sig2_unified[num_snp+i] = sig2_beta[1]; }  
+  std::vector<float> rho_unified(num_snp, rho_beta);
+  float sig2_zeroC[] = { 1.0, 1.0 };
+  float sig2_zeroL[] = { 0.0, 0.0 };
+  float rho_zeroL = 0;
+  double cost_gaussian_unified = calc.calc_unified_bivariate_cost_gaussian(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr);
+
   ASSERT_TRUE(std::isfinite(cost_sampling));
   ASSERT_TRUE(std::isfinite(cost_gaussian));
   ASSERT_TRUE(std::isfinite(cost_convolve));
-  std::cout << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << std::endl;
+  ASSERT_TRUE(std::isfinite(cost_gaussian_unified));  
+  std::cout << cost_sampling << ", " << cost_gaussian << ", " << cost_convolve << ", " << cost_gaussian_unified << std::endl;
+
+  if (pi_vec[2] == 1) {
+    ASSERT_NEAR(cost_gaussian, cost_gaussian_unified, 1e-4);
+  }
 }
 
 void BgmgTest_CalcLikelihood(float r2min) {
@@ -638,16 +653,32 @@ void BgmgTest_CalcLikelihood(float r2min) {
     ASSERT_FLOAT_EQ(zvec_pdf[i], zvec_pdf_nocache[i]);
 }
 
+// --gtest_filter=BgmgTest.CalcConvolveLikelihood_inft
+TEST(BgmgTest, CalcConvolveLikelihood_inft) {
+  const float r2min = 0.0; 
+  float pi_vec[] = { 0.0, 0.0, 1.0 };
+  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec);
+}
+
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood
 TEST(BgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; 
-  BgmgTest_CalcLikelihood_testConvolution(r2min);
+  float pi_vec[] = { 0.1, 0.2, 0.15 };
+  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec);
+}
+
+// --gtest_filter=BgmgTest.CalcConvolveLikelihood_with_r2min_inft
+TEST(BgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
+  const float r2min = 0.2;
+  float pi_vec[] = { 0.0, 0.0, 1.0 };
+  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_with_r2min
 TEST(BgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2;
-  BgmgTest_CalcLikelihood_testConvolution(r2min);
+  float pi_vec[] = { 0.1, 0.2, 0.15 };
+  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec);
 }
 
 // bgmg-test.exe --gtest_filter=BgmgTest.CalcLikelihood

@@ -346,12 +346,13 @@ class BgmgCalculator : public TagToSnpMapping {
   // rho_vec    : 1 x num_snps,              - correlation of genetic effects
   // sig2_zeroX : 1 x num_traits,            - inflation parameters (additive, multiplicative, truncation of the LD structure)
   // rho_zeroA, sig2_zeroL                   - correlation of sig2_zeroA and sig2_zeroL across the two traits
-  double calc_unified_bivariate_cost(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL) { return 0; }
-  double calc_unified_bivariate_cost_gaussian(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL) { return 0; }
-  double calc_unified_bivariate_cost_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL) { return 0; }
-  int64_t calc_unified_bivariate_pdf(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int length, float* zvec1, float* zvec2, float* pdf) { return 0; }
+  // aux        : 3 x num_tag                - expore auxilary information, as defined by aux_option (for AuxOption_Ezvec2 aux will store three vectors: E[z20], E[z11], E[z02], in this order)
+  double calc_unified_bivariate_cost(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux);
+  double calc_unified_bivariate_cost_gaussian(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux);
+  double calc_unified_bivariate_cost_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux);
+  int64_t calc_unified_bivariate_pdf(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int length, float* zvec1, float* zvec2, float* pdf);
   int64_t calc_unified_bivariate_delta_posterior(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL,
-                                                 int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) { return 0; }
+                                                 int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02);
 
   int64_t seed() { return seed_; }
   void set_seed(int64_t seed) { seed_ = seed; }

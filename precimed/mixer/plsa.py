@@ -118,6 +118,7 @@ def parser_fit_add_arguments(args, func, parser):
 
     parser.add_argument('--randprune-n', type=int, default=64, help="Number of random pruning iterations")
     parser.add_argument('--randprune-r2', type=float, default=0.1, help="Threshold for random pruning")
+    parser.add_argument('--kmax-fit', type=int, default=20000, help="Number of sampling iterations")    
     parser.add_argument('--kmax', type=int, default=100, help="Number of sampling iterations")
     parser.add_argument('--seed', type=int, default=123, help="Random seed")
 
@@ -315,10 +316,12 @@ def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, 
         optimize_result_sequence.append(('nedlermead-fast', optimize_result))
 
     if (not args.fit_fast) and (mixture_model != '10'):
+        lib.set_option('kmax', args.kmax_fit)
         lib.set_option('cost_calculator', _cost_calculator_convolve)
         parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
         params, optimize_result = apply_nedlermead(args, lib, trait_index, parametrization, params)
         optimize_result_sequence.append(('nedlermead', optimize_result))
+        lib.set_option('kmax', args.kmax)
 
     return params, optimize_result_sequence
 
@@ -343,17 +346,17 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
     results['annot_h2'] = params.find_annot_h2(annomat).flatten()
 
     if args.cost:
+        lib.set_option('kmax', args.kmax_fit)
         lib.set_option('cost_calculator', _cost_calculator_convolve)
         results['convolve_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
         results['convolve_tag_pdf_err'] = params.tag_pdf_err(lib, trait_index)[lib.weights>0]
 
         lib.set_option('cost_calculator', _cost_calculator_sampling)
-        lib.set_option('kmax', 20000)  # hard-code kmax for cost function calculation
         results['sampling_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
-        lib.set_option('kmax', args.kmax)
 
         lib.set_option('cost_calculator', _cost_calculator_gaussian)
         results['gaussian_tag_pdf'] = params.tag_pdf(lib, trait_index)[lib.weights>0]
+        lib.set_option('kmax', args.kmax)
 
     # produce QQ plots and power plots with (=>'fit') and without (=>'test') --extract/--exclude flags.
     for suffix in ['fit', 'test']:
@@ -365,12 +368,14 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
             mafvec = lib.mafvec
             tldvec = lib.ld_tag_r2_sum  # this is available for tag indices only, hense we enabled use_complete_tag_indices
             
+            lib.set_option('kmax', args.kmax_fit)
             lib.set_option('cost_calculator', _cost_calculator_convolve if ((not args.fit_fast) and (mixture_model != '10')) else _cost_calculator_gaussian)
             constraint = AnnotUnivariateParams(pi=params._pi, s=params._s, l=params._l, sig2_beta=params._sig2_beta, sig2_zeroA=None, sig2_zeroL=params._sig2_zeroL,
                                             sig2_annot=params._sig2_annot, annomat=params._annomat, annonames=params._annonames, mafvec=mafvec, tldvec=tldvec)
             parametrization = AnnotUnivariateParametrization(lib=lib, trait=trait_index, constraint=constraint)
             params, optimize_result = apply_nedlermead(args, lib, trait_index, parametrization, params)
             results['optimize_test'] = optimize_result
+            lib.set_option('kmax', args.kmax)
 
         if args.qq_plots:
             # for QQ plots - but here it makes no difference as we use complete tag indices 

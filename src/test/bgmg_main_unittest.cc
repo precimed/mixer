@@ -540,8 +540,8 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec, double 
   for (int i = 0; i < num_snp; i++) {sig2_unified[i] = sig2_beta[0]; sig2_unified[num_snp+i] = sig2_beta[1]; }  
   std::vector<float> rho_unified(num_snp, rho_beta);
   float sig2_zeroC[] = { 1.0, 1.0 };
-  float sig2_zeroL[] = { 0.0, 0.0 };
-  float rho_zeroL = 0;
+  float sig2_zeroL[] = { (pi_vec[0] + pi_vec[2]) * sig2_beta[0], (pi_vec[1] + pi_vec[2]) * sig2_beta[1] };
+  float rho_zeroL = rho_beta * pi_vec[2] / sqrt((pi_vec[0]+pi_vec[2]) * (pi_vec[1]+pi_vec[2]));
   double cost_gaussian_unified = calc.calc_unified_bivariate_cost_gaussian(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr);
   double cost_sampling_unified = calc.calc_unified_bivariate_cost_sampling(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr, nullptr);
 
@@ -563,7 +563,8 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec, double 
   ASSERT_FLOAT_EQ(costvec[3], cost_gaussian_unified);
   ASSERT_FLOAT_EQ(costvec[4], cost_sampling_unified);
 
-  if (pi_vec[2] == 1) {
+  if (pi_vec[2] == 1 && r2min == 0) {
+    // can't validate this for r2min != 0, see "TBD: apply ld_tag_sum_r2_below_r2min as an infinitesimal model"  in BgmgCalculator::calc_bivariate_cost_fast.
     ASSERT_NEAR(cost_gaussian, cost_gaussian_unified, 1e-4);
   }
 }
@@ -686,7 +687,7 @@ TEST(BgmgTest, CalcConvolveLikelihood) {
 TEST(BgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
   const float r2min = 0.2;
   float pi_vec[] = { 0.0, 0.0, 1.0 };
-  double costvec[5] = {1e+100, 23.5455545, 23.7376707, 23.5455746, 23.5455748};
+  double costvec[5] = {1e+100, 23.5455545, 23.7376709, 23.7376766, 23.7376769};
   BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
 }
 
@@ -694,7 +695,7 @@ TEST(BgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
 TEST(BgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
-  double costvec[5] = {18.9611203, 17.834824, 18.8095303, 20.2005144, 18.4124244};
+  double costvec[5] = {18.9611203, 17.834824, 18.8095303, 20.3703838, 18.8040619};
   BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
 }
 

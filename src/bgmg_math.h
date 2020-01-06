@@ -195,7 +195,7 @@ inline T censored2_cdf_BVN(T z1max, T z2max, T a11, T a12, T a22) {
   T x2 = BVNcdf(-z1norm, -z2norm, rho);
   T x3 = BVNcdf(-z1norm, z2norm, rho);
   T x4 = BVNcdf(0, -z2norm, -rho);
-  if (x1>0.3 || x2>0.3 || x3 > 0.3 || x4>0.3) printf("%.2f: %.3e %.3e %.3e %.3e\n", x1, x2, x3, x3);  // this is not supposed to happen often -
+  //if (x1>0.3 || x2>0.3 || x3 > 0.3 || x4>0.3) printf("%.2f: %.3e %.3e %.3e %.3e\n", x1, x2, x3, x3);  // this is not supposed to happen often -
   return std::max<T>(std::numeric_limits<T>::min(), 2 * (x1 - x2 + x3 + x4));
 
   // Here we utilize some of the "symmetric reflection" properties, e.i. (7), (8) or (9):

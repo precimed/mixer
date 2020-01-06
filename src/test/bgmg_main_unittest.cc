@@ -274,7 +274,7 @@ TEST(UgmgTest, CalcLikelihood_with_r2min) {
   UgmgTest_CalcLikelihood(r2min, trait_index);
 }
 
-void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float pi_val, double costvec[5]) {
+void UgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, int trait_index, float pi_val, double costvec[5]) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 10;
@@ -292,6 +292,8 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, int trait_index, float
   calc.set_option("r2min", r2min);
   calc.set_option("use_complete_tag_indices", 1);
   calc.set_option("threads", 1);
+  calc.set_option("z1max", z1max);
+  calc.set_option("z2max", z1max); // set this for both traits
 
   calc.set_zvec(trait_index, num_tag, &tm.zvec()->at(0));
   calc.set_nvec(trait_index, num_tag, &tm.nvec()->at(0));
@@ -433,34 +435,50 @@ double calcLikelihoodUnifiedGaussian(float r2min, int trait_index, bool use_comp
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood
 TEST(UgmgTest, CalcConvolveLikelihood) {
-  const float r2min = 0.0; 
+  const float r2min = 0.0; const float z1max = 100000;
   const int trait_index = 2; // use second trait for calculations; should work...
   double costvec[5] = {16.0114786, 15.8589964, 15.9299297, 15.8589949, 15.9333976};
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f, costvec);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec);
+}
+
+// --gtest_filter=UgmgTest.CalcConvolveLikelihood_z1max
+TEST(UgmgTest, CalcConvolveLikelihood_z1max) {
+  const float r2min = 0.0; const float z1max = 1.2;
+  const int trait_index = 2; // use second trait for calculations; should work...
+  double costvec[5] = {13.0109558, 12.789616, 12.9043533, 12.789611, 12.9075708};
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihoodInft
 TEST(UgmgTest, CalcConvolveLikelihoodInft) {
-  const float r2min = 0.0; 
+  const float r2min = 0.0; const float z1max = 100000;
   const int trait_index = 2; // use second trait for calculations; should work...
   double costvec[5] = {1e+100, 20.5189491, 20.5189537, 20.518953, 20.5189529};
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f, costvec);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec);
+}
+
+// --gtest_filter=UgmgTest.CalcConvolveLikelihoodInft_z1max
+TEST(UgmgTest, CalcConvolveLikelihoodInft_z1max) {
+  const float r2min = 0.0; const float z1max = 1.2;
+  const int trait_index = 2; // use second trait for calculations; should work...
+  double costvec[5] = {1e+100, 16.9341954, 16.9341894, 16.9341892, 16.934189};
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood_with_r2min
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min) {
-  const float r2min = 0.2;
+  const float r2min = 0.2; const float z1max = 100000;
   const int trait_index = 1;
   double costvec[5] = {16.00285, 15.840247, 15.9186396, 15.8402427, 15.925907};  
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 0.2f, costvec);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood_with_r2min_inft
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
-  const float r2min = 0.2;
+  const float r2min = 0.2; const float z1max = 100000;
   const int trait_index = 1;
   double costvec[5] = {1e+100, 20.5189491, 20.5189472, 20.5189468, 20.5189467};  
-  UgmgTest_CalcLikelihood_testConvolution(r2min, trait_index, 1.0f, costvec);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec);
 }
 
 // --gtest_filter=UgmgTest.CalcUnifiedGaussianLikelihood
@@ -482,7 +500,7 @@ TEST(UgmgTest, CalcUnifiedGaussianLikelihood) {
   ASSERT_FLOAT_EQ(v1, v2);
 }
 
-void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec, double costvec[5]) {
+void BgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, float z2max, float* pi_vec, double costvec[5]) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
   int num_tag = 10;
@@ -499,6 +517,8 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float* pi_vec, double 
   calc.set_option("r2min", r2min);
   calc.set_option("use_complete_tag_indices", 1);
   calc.set_option("threads", 1);
+  calc.set_option("z1max", z1max);
+  calc.set_option("z2max", z1max);
 
   int trait = 1;
   int chr_label = 1;
@@ -669,34 +689,50 @@ void BgmgTest_CalcLikelihood(float r2min) {
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_inft
 TEST(BgmgTest, CalcConvolveLikelihood_inft) {
-  const float r2min = 0.0; 
-  float pi_vec[] = { 0.0, 0.0, 1.0 };
+  const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
+  float pi_vec[] = { 0.0, 0.0, 1.0 }; 
   double costvec[5] = {1e+100, 23.7376571, 23.7376779, 23.7376838, 23.7376843};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
+}
+
+// --gtest_filter=BgmgTest.CalcConvolveLikelihood_inft_z1max
+TEST(BgmgTest, CalcConvolveLikelihood_inft_z1max) {
+  const float r2min = 0.0; const float z1max = 1.2; const float z2max = 0.5;
+  float pi_vec[] = { 0.0, 0.0, 1.0 }; 
+  double costvec[5] = {1e+100, 15.4232014, 15.4232295, 15.4232234, 15.4232239};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood
 TEST(BgmgTest, CalcConvolveLikelihood) {
-  const float r2min = 0.0; 
+  const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
   double costvec[5] = {18.9650083, 18.0064621, 18.7262241, 20.3703903, 18.7258614};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
+}
+
+// --gtest_filter=BgmgTest.CalcConvolveLikelihood_z1max
+TEST(BgmgTest, CalcConvolveLikelihood_z1max) {
+  const float r2min = 0.0; const float z1max = 1.2; const float z2max = 0.5;
+  float pi_vec[] = { 0.1, 0.2, 0.15 };
+  double costvec[5] = {11.7194747, 10.7965121, 11.4819549, 13.1884063, 11.489059};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_with_r2min_inft
 TEST(BgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
-  const float r2min = 0.2;
+  const float r2min = 0.2; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.0, 0.0, 1.0 };
   double costvec[5] = {1e+100, 23.5455545, 23.7376709, 23.7376766, 23.7376769};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_with_r2min
 TEST(BgmgTest, CalcConvolveLikelihood_with_r2min) {
-  const float r2min = 0.2;
+  const float r2min = 0.2; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
   double costvec[5] = {18.9611203, 17.834824, 18.8095303, 20.3703838, 18.8040619};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, pi_vec, costvec);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
 }
 
 // bgmg-test.exe --gtest_filter=BgmgTest.CalcLikelihood

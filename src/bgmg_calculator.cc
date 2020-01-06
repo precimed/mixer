@@ -1633,6 +1633,28 @@ void BgmgCalculator::clear_tag_r2sum(int component_id) {
   }
 }
 
+double BgmgCalculator::calc_bivariate_cost_convolve(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
+  const int num_components = 3;
+  const int num_traits = 2;
+  std::vector<float> pi_vec_constant_vector(num_components * num_snp_);
+  for (int comp_index = 0; comp_index < num_components; comp_index++)
+    for (int snp_index = 0; snp_index < num_snp_; snp_index++)
+      pi_vec_constant_vector[comp_index * num_snp_ + snp_index] = pi_vec[comp_index];
+
+  std::vector<float> sig2_vec_constant_vector(num_traits * num_snp_);
+  for (int trait_index = 0; trait_index < num_traits; trait_index++)
+    for (int snp_index = 0; snp_index < num_snp_; snp_index++)
+      sig2_vec_constant_vector[trait_index * num_snp_ + snp_index] = sig2_beta[trait_index];
+    
+  std::vector<float> rho_vec_constant_vector(num_snp_, rho_beta);
+  float sig2_zeroC[2] = {1.0, 1.0};
+  float sig2_zeroL[2] = {(pi_vec[0]+pi_vec[2]) * sig2_beta[0], (pi_vec[1] + pi_vec[2]) * sig2_beta[1]};
+  float rho_zeroL = rho_beta * pi_vec[2] / sqrt((pi_vec[0]+pi_vec[2]) * (pi_vec[1]+pi_vec[2]));
+
+  return calc_unified_bivariate_cost_convolve(num_snp_, &pi_vec_constant_vector[0], &sig2_vec_constant_vector[0], &rho_vec_constant_vector[0],
+                                              sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr);
+}
+
 void apply_extract(std::string extract, const BimFile& bim_file, std::vector<int> *defvec) {
   SnpList extract_object;
   extract_object.read(extract);

@@ -446,7 +446,8 @@ class BgmgCalculator : public TagToSnpMapping {
   void find_unified_bivariate_tag_delta_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int tag_index, const float* nvec1, const float* nvec2, const float* hvec, std::vector<float>* tag_delta20, std::vector<float>* tag_delta02, std::vector<float>* tag_delta11, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row);
 
   void find_z_minus_fixed_effect_delta(int trait_index, std::vector<float>* z_minus_fixed_effect_delta);
-  
+  static void calc_bivariate_delta_posterior_integrals(float a, float b, float c, float i, float j, float k, float z1, float z2,
+                                                       float* c00, float* c10, float* c01, float* c20, float* c11, float* c02);
 
   int find_deftag_indices_znw(int trait_index, std::vector<int>* deftag_indices);
   int find_deftag_indices_znw(std::vector<int>* deftag_indices);

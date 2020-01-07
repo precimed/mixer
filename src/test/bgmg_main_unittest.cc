@@ -587,6 +587,18 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, float z2m
     // can't validate this for r2min != 0, see "TBD: apply ld_tag_sum_r2_below_r2min as an infinitesimal model"  in BgmgCalculator::calc_bivariate_cost_fast.
     ASSERT_NEAR(cost_gaussian, cost_gaussian_unified, 1e-4);
   }
+
+  std::vector<float> c00(num_tag, 0.0), c10(num_tag, 0.0), c01(num_tag, 0.0), c20(num_tag, 0.0), c11(num_tag, 0.0), c02(num_tag, 0.0);
+  calc.calc_unified_bivariate_delta_posterior(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, num_tag, &c00[0], &c10[0], &c01[0], &c20[0], &c11[0], &c02[0]);
+  for (int i = 0; i < num_tag; i++) {
+    ASSERT_TRUE(c00[i] > 0);
+    ASSERT_TRUE(c10[i] != 0);
+    ASSERT_TRUE(c01[i] != 0);
+    ASSERT_TRUE(c20[i] > 0);
+    ASSERT_TRUE(c11[i] != 0);
+    ASSERT_TRUE(c02[i] > 0);
+    break;
+  }
 }
 
 void BgmgTest_CalcLikelihood(float r2min) {

@@ -1156,74 +1156,6 @@ int64_t BgmgCalculator::calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int si
   return 0;
 }
 
-void calc_bivariate_delta_posterior_integrals(float a, float b, float c, float i, float j, float k, float z1, float z2,
-                                              float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
-  // [a b; b c] is variance-covariance matrix of eps in "z=delta+eps"
-  // [i j; j k] is variance-covariance matrix of delta for a specific choice of causal variants in sampling
-  // here we are calculating moments cPQ = E[delta1^P delta2^Q | z1, z2].
-  // the formulas are pretty tricky to derive - loads of integrals involved.
-
-  static const float inv_sqrt2_pi = 0.2250790790392765f;
-  const float z12 = z1*z1;
-  const float z22 = z2*z2;
-  const float z1z2 = z1*z2;
-
-  const float ci = c*i;
-  const float bj = b*j;
-  const float j2 = j*j;
-  const float ik = i*k;
-  const float bi = b*i;
-  const float aj = a*j;
-  const float cj = c*j;
-  const float bk = b*k;
-  const float ak = a*k;
-  const float ij = i*j;
-  const float i2 = i*i;
-  const float k2 = k*k;
-  const float jk = j*k;
-
-  const float ci2 = ci*i;
-  const float bij = bi*j;
-  const float aj2 = aj*j;
-  const float ij2 = ij*j;
-  const float i2k = i2*k;
-  const float cj2 = cj*j;
-  const float bjk = bj*k;
-  const float j2k = j2*k;
-  const float ak2 = ak*k;
-  const float ik2 = ik*k;
-  const float cij = ci*j;
-  const float bj2 = bj*j;
-  const float bik = bi*k;
-  const float ajk = aj*k;
-  const float ijk = ij*k;
-
-  const float j3 = j2*j;
-
-  const float eN = (c + k) * z12 - 2 * (b + j) * z1z2 + (a + i) * z22;
-  const float eD = -2.0f * (b + j)*(b + j) + 2.0f * (a + i) * (c + k);
-
-  const float eD2 = eD*eD;
-  const float inv_eD = 1.0f / eD;
-  const float inv_eD2 = inv_eD*inv_eD;
-  const float x2eD = 2.0f*eD;
-  const float x2eD_x4eN = x2eD - 4.0f*eN;
-
-  const float c00_tmp = inv_sqrt2_pi * exp(-eN * inv_eD) * sqrt(inv_eD);
-
-  const float c10_pol = ci * z1 - bj * z1 - j2 * z1 + ik * z1 - bi * z2 + aj * z2;
-  const float c01_pol = cj * z1 - bk * z1 - bj * z2 - j2 * z2 + ak * z2 + ik * z2;
-  const float c20_pol = eD2*i + x2eD_x4eN*(bij + bij - ci2 - aj2 + ij2 - i2k) - x2eD*(j2*z12 - 2.0f*ij*z1z2           + i2*z22);
-  const float c02_pol = eD2*k + x2eD_x4eN*(bjk + bjk - cj2 - ak2 + j2k - ik2) - x2eD*(k2*z12 - 2.0f*jk*z1z2           + j2*z22);
-  const float c11_pol = eD2*j + x2eD_x4eN*(bj2 + j3  - cij - ajk + bik - ijk) - x2eD*(jk*z12 -      j2*z1z2 - ik*z1z2 + ij*z22);
-
-  (*c00) = c00_tmp;
-  (*c10) = c00_tmp * 2.0f * inv_eD  * c10_pol;
-  (*c01) = c00_tmp * 2.0f * inv_eD  * c01_pol;
-  (*c20) = c00_tmp *        inv_eD2 * c20_pol;
-  (*c11) = c00_tmp *        inv_eD2 * c11_pol;
-  (*c02) = c00_tmp *        inv_eD2 * c02_pol;  
-}
 
 int64_t BgmgCalculator::calc_bivariate_delta_posterior(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero,
                                                        int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
@@ -1318,7 +1250,7 @@ int64_t BgmgCalculator::calc_bivariate_delta_posterior(int pi_vec_len, float* pi
         const float B = B3;
 
         float c00buf, c10buf, c01buf, c20buf, c11buf, c02buf;
-        calc_bivariate_delta_posterior_integrals(a0, b0, c0, A, B, C, z1, z2, &c00buf, &c10buf, &c01buf, &c20buf, &c11buf, &c02buf);
+        BgmgCalculator::calc_bivariate_delta_posterior_integrals(a0, b0, c0, A, B, C, z1, z2, &c00buf, &c10buf, &c01buf, &c20buf, &c11buf, &c02buf);
         c00_local[tag_index] += static_cast<double>(c00buf);
         c10_local[tag_index] += static_cast<double>(c10buf);
         c01_local[tag_index] += static_cast<double>(c01buf);

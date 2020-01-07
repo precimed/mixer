@@ -352,7 +352,7 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
   }
 
   std::stringstream ss;
-  ss << "calc_unified_univariate_cost_sampling(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ")";
+  ss << "calc_unified_univariate_cost_sampling(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ", k_max_=" << k_max_ << ")";
   LOG << ">" << ss.str();
 
   SimpleTimer timer(-1);
@@ -534,7 +534,7 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
   check_num_snp(num_snp);
 
   std::stringstream ss;
-  ss << "calc_unified_univariate_pdf(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ", length=" << length << ")";
+  ss << "calc_unified_univariate_pdf(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ", length=" << length << ", k_max_=" << k_max_ << ")";
   LOG << ">" << ss.str();
 
   SimpleTimer timer(-1);
@@ -580,7 +580,7 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
 
 int64_t BgmgCalculator::calc_unified_univariate_power(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float zthresh, int length, float* nvec, float* svec) {
   std::stringstream ss;
-  ss << "calc_unified_univariate_power(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ", zthresh=" << zthresh << ", length=" << length << ")";
+  ss << "calc_unified_univariate_power(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ", zthresh=" << zthresh << ", length=" << length << ", k_max_=" << k_max_ << ")";
   LOG << ">" << ss.str();
 
   SimpleTimer timer(-1);
@@ -639,7 +639,7 @@ int64_t BgmgCalculator::calc_unified_univariate_power(int trait_index, int num_c
 //  E(\delta  |z_j) = c1[j]/c0[j];
 int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* c0, float* c1, float* c2) {
   std::stringstream ss;
-  ss << "calc_unified_univariate_delta_posterior(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ", length=" << length << ")";
+  ss << "calc_unified_univariate_delta_posterior(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ", length=" << length << ", k_max_=" << k_max_ << ")";
   LOG << ">" << ss.str();
 
   if ((length == 0) || (length != num_tag_)) BGMG_THROW_EXCEPTION(::std::runtime_error("length != num_tag_"));
@@ -1090,7 +1090,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_sampling(int num_snp, float* 
   }
 
   std::stringstream ss;
-  ss << "calc_unified_bivariate_cost_sampling(" << find_bivariate_params_description(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL) << ")";
+  ss << "calc_unified_bivariate_cost_sampling(" << find_bivariate_params_description(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL) << ", k_max_=" << k_max_ << ")";
   LOG << ">" << ss.str();
 
   SimpleTimer timer(-1);

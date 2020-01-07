@@ -1241,6 +1241,72 @@ void BgmgCalculator::calc_bivariate_delta_posterior_integrals(float a, float b, 
 }
 
 int64_t BgmgCalculator::calc_unified_bivariate_pdf(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int length, float* zvec1, float* zvec2, float* pdf) {
+  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
+
+  std::stringstream ss;
+  ss << "calc_unified_bivariate_pdf(" << find_bivariate_params_description(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL) << ", k_max_=" << k_max_ << ", length=" << length << ")";
+  LOG << ">" << ss.str();
+
+  SimpleTimer timer(-1);
+
+  // standard variables
+  std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
+  std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  std::vector<float> hvec; find_hvec(*this, &hvec);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
+  const int num_components = 3;
+
+  std::valarray<double> pdf_double(0.0, length);
+
+#pragma omp parallel
+  {
+    LdMatrixRow ld_matrix_row;
+    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
+    std::valarray<double> pdf_double_local(0.0, length);
+    std::vector<float> tag_delta20(k_max_, 0.0f);
+    std::vector<float> tag_delta02(k_max_, 0.0f);
+    std::vector<float> tag_delta11(k_max_, 0.0f);
+
+#pragma omp parallel for schedule(static)
+    for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+      const int tag_index = deftag_indices[deftag_index];
+      double tag_weight = static_cast<double>(weights_[tag_index]);
+
+      const float adj_hval = ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index];
+      const float sig2_zero_11 = sig2_zeroA[0] + adj_hval * nvec1_[tag_index] * sig2_zeroL[0];
+      const float sig2_zero_22 = sig2_zeroA[1] + adj_hval * nvec2_[tag_index] * sig2_zeroL[1];
+      const float sig2_zero_12 =            rho_zeroA * sqrt(sig2_zeroA[0] * sig2_zeroA[1]) + 
+                                 adj_hval * rho_zeroL * sqrt(nvec1_[tag_index] * nvec2_[tag_index] * sig2_zeroL[0] * sig2_zeroL[1]);
+
+      const float tag_z1 = z1_minus_fixed_effect_delta[tag_index];
+      const float tag_z2 = z2_minus_fixed_effect_delta[tag_index];
+      const float tag_n1 = nvec1_[tag_index];
+      const float tag_n2 = nvec2_[tag_index];
+
+      const bool censoring = (std::abs(tag_z1) > z1max_) || (std::abs(tag_z2) > z2max_);
+
+      find_unified_bivariate_tag_delta_sampling(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL, tag_index, &nvec1_[0], &nvec2_[0], &hvec[0], &tag_delta20, &tag_delta02, &tag_delta11, &subset_sampler, &ld_matrix_row);
+
+      for (int k = 0; k < k_max_; k++) {
+        const float a11 = tag_delta20[k] + sig2_zero_11;
+        const float a12 = tag_delta11[k] + sig2_zero_12;
+        const float a22 = tag_delta02[k] + sig2_zero_22;
+
+        for (int z_index = 0; z_index < length; z_index++) {
+          double pdf_tmp = static_cast<double>(gaussian2_pdf<FLOAT_TYPE>(zvec1[z_index], zvec2[z_index], a11, a12, a22));
+          pdf_double_local[z_index] += pi_k * pdf_tmp * tag_weight;
+        }
+      }
+    }
+#pragma omp critical
+    pdf_double += pdf_double_local;
+  }
+
+  for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);
+
+  LOG << "<" << ss.str() << ", num_deftag=" << num_deftag << ", elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
 
@@ -1262,8 +1328,6 @@ int64_t BgmgCalculator::calc_unified_bivariate_delta_posterior(int num_snp, floa
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
 
   const double pi_k = 1.0 / static_cast<double>(k_max_);
-  double log_pdf_total = 0.0;
-  int num_infinite = 0;
   const int num_components = 3;
 
   // Sigma0  = [a0 b0; b0 c0];

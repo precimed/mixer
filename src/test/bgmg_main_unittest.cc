@@ -597,8 +597,28 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, float z2m
     ASSERT_TRUE(c20[i] > 0);
     ASSERT_TRUE(c11[i] != 0);
     ASSERT_TRUE(c02[i] > 0);
-    break;
   }
+
+  std::vector<float> zvec1_grid, zvec2_grid, zvec_pdf;
+  for (float z1 = -10; z1 < 10; z1 += 0.2) {
+    for (float z2 = -10; z2 < 10; z2 += 0.2) {
+      zvec1_grid.push_back(z1);
+      zvec2_grid.push_back(z2);
+      zvec_pdf.push_back(0.0f);
+    }
+  }
+ 
+  calc.set_option("kmax", 200);
+  calc.calc_unified_bivariate_pdf(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, zvec_pdf.size(), &zvec1_grid[0], &zvec2_grid[0], &zvec_pdf[0]);
+  for (int i = 0; i < num_tag; i++) {
+    ASSERT_TRUE(c00[i] > 0);
+    ASSERT_TRUE(c10[i] != 0);
+    ASSERT_TRUE(c01[i] != 0);
+    ASSERT_TRUE(c20[i] > 0);
+    ASSERT_TRUE(c11[i] != 0);
+    ASSERT_TRUE(c02[i] > 0);
+  }
+
 }
 
 void BgmgTest_CalcLikelihood(float r2min) {

@@ -81,14 +81,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
       const int block_jend = std::min(block_jstart + block_size, num_snps);
       const int block_jsize = block_jend - block_jstart;
       if (block_jsize == 0) continue;
-
-      if (block_jdx == block_idx) {
-        chunk_var_ptr = &chunk_fixed;  // reuse the block
-      } else {
-        if (0 != chunk_var.init(num_subj, block_jstart, block_jsize, bedfile.handle()))
-          BGMG_THROW_EXCEPTION(::std::runtime_error("error while reading .bed file"));
-        chunk_var_ptr = &chunk_var;
-      }
+      SimpleTimer timer2(-1);
 
       const int64_t bp_block_dist = bp_dist[block_jstart] - bp_dist[block_iend - 1];
       const int64_t snp_block_dist = snp_dist[block_jstart] - snp_dist[block_iend - 1];
@@ -113,6 +106,14 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
 
       LOG << " processing block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << "... ";
 
+      if (block_jdx == block_idx) {
+        chunk_var_ptr = &chunk_fixed;  // reuse the block
+      } else {
+        if (0 != chunk_var.init(num_subj, block_jstart, block_jsize, bedfile.handle()))
+          BGMG_THROW_EXCEPTION(::std::runtime_error("error while reading .bed file"));
+        chunk_var_ptr = &chunk_var;
+      }
+
       const size_t size_before = ld_matrix_csr_chunk.coo_ld_.size();
       size_t count_below_r2min = 0;
 
@@ -131,7 +132,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
         std::valarray<float> local_ld_tag_r2_sum_adjust_for_hvec(0.0, num_snps);
         size_t local_count_below_r2min = 0;
 
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic, block_size)
         for (int k = 0; k < block_elems; k++) {
           int block_snp_index = k / block_size;
           int block_snp_jndex = k % block_size;
@@ -170,7 +171,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
       }
 
       const size_t size_after = ld_matrix_csr_chunk.coo_ld_.size();
-      LOG << " processed  block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << ", " << (size_after - size_before) << " new r2 elements found, and further " << count_below_r2min << " r2 elements contribute to ld scores";
+      LOG << " processed  block " << (block_idx+1) << "x" << (block_jdx+1) << " of " << num_blocks << "x" << num_blocks << ", " << (size_after - size_before) << " new r2 elements found, and further " << count_below_r2min << " r2 elements contribute to ld scores"  << ", elapsed time " << timer2.elapsed_ms() << "ms";;
     }
   }
 
@@ -181,7 +182,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
 
   save_ld_matrix(ld_matrix_csr_chunk, freqvec, ld_tag_r2_sum_vec, ld_tag_r2_sum_adjust_for_hvec_vec, outfile);
 
-  LOG << ">" << ss.str() << ", nnz=" << ld_matrix_csr_chunk.csr_ld_r_.size() <<", elapsed time " << timer.elapsed_ms() << "ms";
+  LOG << ">" << ss.str() << ", nnz=" << ld_matrix_csr_chunk.csr_ld_r_.size() << ", elapsed time " << timer.elapsed_ms() << "ms";
 }
 
 // reader must know the type

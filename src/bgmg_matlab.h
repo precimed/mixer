@@ -52,8 +52,8 @@ DLL_PUBLIC int64_t bgmg_set_weights(int context_id, int length, float* values);
 DLL_PUBLIC int64_t bgmg_set_weights_randprune(int context_id, int n, float r2);
 DLL_PUBLIC int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer);
 DLL_PUBLIC int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_causal, int length, float* buffer);
-DLL_PUBLIC int64_t bgmg_retrieve_ld_tag_r2_sum(int context_id, int length, float* buffer);  // LD scores (r2 and r4)
-DLL_PUBLIC int64_t bgmg_retrieve_ld_tag_r4_sum(int context_id, int length, float* buffer);
+DLL_PUBLIC int64_t bgmg_retrieve_ld_sum_r2(int context_id, int length, float* buffer);  // LD scores (r2 and r4)
+DLL_PUBLIC int64_t bgmg_retrieve_ld_sum_r4(int context_id, int length, float* buffer);
 DLL_PUBLIC int64_t bgmg_retrieve_weighted_causal_r2(int context_id, int length, float* buffer);
 DLL_PUBLIC double bgmg_calc_univariate_cost(int context_id, int trait_index, double pi_vec, double sig2_zero, double sig2_beta);
 DLL_PUBLIC int64_t bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);

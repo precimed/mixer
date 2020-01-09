@@ -582,7 +582,7 @@ def execute_fit_parser(args):
                     title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
  
                 mafvec = libbgmg.mafvec[libbgmg.defvec]
-                tldvec = libbgmg.ld_tag_r2_sum
+                tldvec = libbgmg.ld_sum_r2[libbgmg.defvec]
                 maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec, [1/3, 2/3]), [np.inf]))
                 tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec, [1/3, 2/3]), [np.inf]))
                 results['qqplot_bins'] = []

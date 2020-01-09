@@ -63,8 +63,8 @@ class LibBgmg(object):
         self.cdll.bgmg_set_ld_r2_coo_from_file.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
         self.cdll.bgmg_set_ld_r2_csr.argtypes = [ctypes.c_int, ctypes.c_int]
         self.cdll.bgmg_set_weights_randprune.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_char_p, ctypes.c_char_p]
-        self.cdll.bgmg_retrieve_ld_tag_r2_sum.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
-        self.cdll.bgmg_retrieve_ld_tag_r4_sum.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
+        self.cdll.bgmg_retrieve_ld_sum_r2.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
+        self.cdll.bgmg_retrieve_ld_sum_r4.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_num_ld_r2_snp.argtypes = [ctypes.c_int, ctypes.c_int]
         self.cdll.bgmg_retrieve_ld_r2_snp.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int, int32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_num_ld_r2_chr.argtypes = [ctypes.c_int, ctypes.c_int]
@@ -263,12 +263,12 @@ class LibBgmg(object):
         self.set_causalbetavec(val, trait=2)
 
     @property
-    def ld_tag_r2_sum(self):
-        return self._get_vec_impl(self.cdll.bgmg_retrieve_ld_tag_r2_sum, np.float32, self.num_tag, trait=None)
+    def ld_sum_r2(self):
+        return self._get_vec_impl(self.cdll.bgmg_retrieve_ld_sum_r2, np.float32, self.num_tag, trait=None)
 
     @property
-    def ld_tag_r4_sum(self):
-        return self._get_vec_impl(self.cdll.bgmg_retrieve_ld_tag_r4_sum, np.float32, self.num_tag, trait=None)
+    def ld_sum_r4(self):
+        return self._get_vec_impl(self.cdll.bgmg_retrieve_ld_sum_r4, np.float32, self.num_tag, trait=None)
 
     # return (tag, r2) tuple, representing LD structure of a given reference snp
     # tag and r2 are vectors of the same length, tag gives an index of a tag snp, r2 gives corresponding LD r2 correlation

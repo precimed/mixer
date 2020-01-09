@@ -105,8 +105,8 @@ extern "C" {
 
   // Retrieve certain aspects of the LD structure. Mainly for debugging purpose.
   DLL_PUBLIC int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_causal, int length, float* buffer);
-  DLL_PUBLIC int64_t bgmg_retrieve_ld_tag_r2_sum(int context_id, int length, float* buffer);  // LD scores (r2 and r4). Not adjusted for hvec.
-  DLL_PUBLIC int64_t bgmg_retrieve_ld_tag_r4_sum(int context_id, int length, float* buffer);
+  DLL_PUBLIC int64_t bgmg_retrieve_ld_sum_r2(int context_id, int length, float* buffer);
+  DLL_PUBLIC int64_t bgmg_retrieve_ld_sum_r4(int context_id, int length, float* buffer);
   DLL_PUBLIC int64_t bgmg_retrieve_weighted_causal_r2(int context_id, int length, float* buffer);
 
   // Calc univariate cost function and pdf

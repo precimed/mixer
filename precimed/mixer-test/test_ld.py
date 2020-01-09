@@ -26,22 +26,22 @@ r4_het = np.multiply(r2_het, r2_het)
 print('max MAF difference:', np.max(np.abs(1-lib.mafvec) - frq.MAF))
 print('max HET difference:', np.max(np.abs(lib_hetvec - hetvec)))
 
-lib.set_option('retrieve_ld_tag_type', 0); ld_tag_r2_sum_above = lib.ld_tag_r2_sum
-lib.set_option('retrieve_ld_tag_type', 1); ld_tag_r2_sum_below = lib.ld_tag_r2_sum
-lib.set_option('retrieve_ld_tag_type', 2); ld_tag_r2_sum_adjust_for_hvec_above = lib.ld_tag_r2_sum
-lib.set_option('retrieve_ld_tag_type', 3); ld_tag_r2_sum_adjust_for_hvec_below = lib.ld_tag_r2_sum
-lib.set_option('retrieve_ld_tag_type', 0); ld_tag_r4_sum_above = lib.ld_tag_r4_sum
-lib.set_option('retrieve_ld_tag_type', 2); ld_tag_r4_sum_adjust_for_hvec_above = lib.ld_tag_r4_sum
+lib.set_option('retrieve_ld_sum_type', 0); ld_sum_r2_above = lib.ld_sum_r2
+lib.set_option('retrieve_ld_sum_type', 1); ld_sum_r2_below = lib.ld_sum_r2
+lib.set_option('retrieve_ld_sum_type', 2); ld_sum_r2_adjust_for_hvec_above = lib.ld_sum_r2
+lib.set_option('retrieve_ld_sum_type', 3); ld_sum_r2_adjust_for_hvec_below = lib.ld_sum_r2
+lib.set_option('retrieve_ld_sum_type', 0); ld_sum_r4_above = lib.ld_sum_r4
+lib.set_option('retrieve_ld_sum_type', 2); ld_sum_r4_adjust_for_hvec_above = lib.ld_sum_r4
 
-print('max diff in r2_sum_above: ', np.max(np.abs(np.sum(np.multiply(r2, r2 >= r2min), 1) - ld_tag_r2_sum_above)))
-print('max diff in r2_sum_below: ', np.max(np.abs(np.sum(np.multiply(r2, (r2 < r2min) & (r2 >= ldscore_r2min) ), 1) - ld_tag_r2_sum_below)))
-print('max diff in r2_sum_total: ', np.max(np.abs(np.sum(np.multiply(r2, (r2 >= ldscore_r2min) ), 1) - (ld_tag_r2_sum_above + ld_tag_r2_sum_below) )))
-print('max diff in r4_sum_above: ', np.max(np.abs(np.sum(np.multiply(r4, r2 >= r2min), 1) - ld_tag_r4_sum_above)))
+print('max diff in r2_sum_above: ', np.max(np.abs(np.sum(np.multiply(r2, r2 >= r2min), 1) - ld_sum_r2_above)))
+print('max diff in r2_sum_below: ', np.max(np.abs(np.sum(np.multiply(r2, (r2 < r2min) & (r2 >= ldscore_r2min) ), 1) - ld_sum_r2_below)))
+print('max diff in r2_sum_total: ', np.max(np.abs(np.sum(np.multiply(r2, (r2 >= ldscore_r2min) ), 1) - (ld_sum_r2_above + ld_sum_r2_below) )))
+print('max diff in r4_sum_above: ', np.max(np.abs(np.sum(np.multiply(r4, r2 >= r2min), 1) - ld_sum_r4_above)))
 
-print('max diff in r2_sum_het_above: ', np.max(np.abs(np.sum(np.multiply(r2_het, r2 >= r2min), 1) - ld_tag_r2_sum_adjust_for_hvec_above)))
-print('max diff in r2_sum_het_below: ', np.max(np.abs(np.sum(np.multiply(r2_het, (r2 < r2min) & (r2 >= ldscore_r2min) ), 1) - ld_tag_r2_sum_adjust_for_hvec_below)))
-print('max diff in r2_sum_het_total: ', np.max(np.abs(np.sum(np.multiply(r2_het, (r2 >= ldscore_r2min) ), 1) - (ld_tag_r2_sum_adjust_for_hvec_above + ld_tag_r2_sum_adjust_for_hvec_below) )))
-print('max diff in r4_sum_het_above: ', np.max(np.abs(np.sum(np.multiply(r4_het, r2 >= r2min), 1) - ld_tag_r4_sum_adjust_for_hvec_above)))
+print('max diff in r2_sum_het_above: ', np.max(np.abs(np.sum(np.multiply(r2_het, r2 >= r2min), 1) - ld_sum_r2_adjust_for_hvec_above)))
+print('max diff in r2_sum_het_below: ', np.max(np.abs(np.sum(np.multiply(r2_het, (r2 < r2min) & (r2 >= ldscore_r2min) ), 1) - ld_sum_r2_adjust_for_hvec_below)))
+print('max diff in r2_sum_het_total: ', np.max(np.abs(np.sum(np.multiply(r2_het, (r2 >= ldscore_r2min) ), 1) - (ld_sum_r2_adjust_for_hvec_above + ld_sum_r2_adjust_for_hvec_below) )))
+print('max diff in r4_sum_het_above: ', np.max(np.abs(np.sum(np.multiply(r4_het, r2 >= r2min), 1) - ld_sum_r4_adjust_for_hvec_above)))
 
 [snp, tag, lib_r] = lib.get_ld_r2_chr(21)
 lib_r_mat = coo_matrix((lib_r, (snp, tag)), shape=(lib.num_snp, lib.num_tag)).toarray()

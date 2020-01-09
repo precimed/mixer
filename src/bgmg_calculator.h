@@ -306,8 +306,8 @@ class BgmgCalculator : public TagToSnpMapping {
   void clear_tag_r2sum(int component_id);
 
   int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
-  int64_t retrieve_ld_tag_r2_sum(int length, float* buffer);
-  int64_t retrieve_ld_tag_r4_sum(int length, float* buffer);
+  int64_t retrieve_ld_sum_r2(int length, float* buffer);
+  int64_t retrieve_ld_sum_r4(int length, float* buffer);
   int64_t retrieve_fixed_effect_delta(int trait_index, int length, float* delta);
   
   // Calculate and retrieve weighted_causal_r2, wcr2[i], i runs from 0 to num_snp
@@ -429,9 +429,9 @@ class BgmgCalculator : public TagToSnpMapping {
   int cubature_max_evals_;
   AuxOption aux_option_;       // controls auxilary data stored in "aux" array of calc_unified_univariate_cost_*** calls
   int ld_format_version_;      // overwrite format version for LD matrix files. Default -1. Set this to 0 to read from MiXeR v1.0 LD files.
-  int retrieve_ld_tag_type_;   // control behaviour of retrieve_ld_tag_r2_sum() and retrieve_ld_tag_r4_sum()
+  int retrieve_ld_sum_type_;   // control behaviour of retrieve_ld_sum_r2() and retrieve_ld_sum_r4()
                                // 0 = above r2min; 1 = below r2min; 2 = above r2min adjusted for hvec; 3 = below r2min adjusted for hvec; 
-                               // For retrieve_ld_tag_r4_sum() the "below r2min" option is not available, therefore 1 will work the same as 0, and 3 will work same as 2.
+                               // For retrieve_ld_sum_r4() the "below r2min" option is not available, therefore 1 will work the same as 0, and 3 will work same as 2.
   std::vector<double> k_pdf_;  // the log-likelihood cost calculated independently for each of 0...k_max-1 selections of causal variants.            
   bool calc_k_pdf_;            // a flag indicating whether we should calculate k_pdf_
   void check_num_snp(int length);

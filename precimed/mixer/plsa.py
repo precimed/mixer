@@ -222,7 +222,7 @@ def apply_nedlermead(args, lib, trait_index, parametrization, params_init):
 
 def apply_univariate_fit_sequence(mixture_model, s_model, l_model, annot_model, args, lib, trait_index, annomat, annonames):
     mafvec = lib.mafvec
-    tldvec = lib.ld_tag_r2_sum  # this is available for tag indices only, hense we enabled use_complete_tag_indices
+    tldvec = lib.ld_sum_r2
 
     s_low,  s_high,  s_value  = (-1.0, 0.25, None) if (s_model is None) else (None, None, s_model)
     l_low,  l_high,  l_value  = (-1.0, 0.25, None) if (l_model is None) else (None, None, l_model)
@@ -366,7 +366,7 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
             lib.weights = test_weights
 
             mafvec = lib.mafvec
-            tldvec = lib.ld_tag_r2_sum  # this is available for tag indices only, hense we enabled use_complete_tag_indices
+            tldvec = lib.ld_sum_r2
             
             lib.set_option('kmax', args.kmax_fit)
             lib.set_option('cost_calculator', _cost_calculator_convolve if ((not args.fit_fast) and (mixture_model != '10')) else _cost_calculator_gaussian)
@@ -380,7 +380,7 @@ def perform_fit(mixture_model, s_model, l_model, annot_model, args, lib, trait_i
         if args.qq_plots:
             # for QQ plots - but here it makes no difference as we use complete tag indices 
             mafvec_tag = lib.mafvec[lib.defvec]
-            tldvec_tag = lib.ld_tag_r2_sum
+            tldvec_tag = lib.ld_sum_r2[lib.defvec]
 
             defvec = np.isfinite(lib.get_zvec(trait_index)) & (lib.weights > 0)
             results['qqplot_{}'.format(suffix)] = calc_qq_plot(lib, params, trait_index, args.downsample_factor, defvec,
@@ -426,7 +426,7 @@ def execute_fit_parser(args):
         annomat = df.values.astype(np.float32)
         annonames = df.columns.values
         del df
-        libbgmg.log_message('Dolibbgmg.num_snplibbgmg.num_snpne, {} annotations available'.format(len(annonames)))
+        libbgmg.log_message('Done, {} annotations available'.format(len(annonames)))
     else:
         annomat = np.ones(shape=(libbgmg.num_snp, 1), dtype=np.float32)
         annonames = ['base']

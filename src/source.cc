@@ -175,11 +175,11 @@ int64_t bgmg_retrieve_tag_indices(int context_id, int num_tag, int* tag_indices)
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_ld_r2_coo(int context_id, int chr_label, int64_t length, int* snp_index, int* tag_index, float* r) {
+int64_t bgmg_set_ld_r2_coo(int context_id, int chr_label, int64_t length, int* snp_index, int* snp_other_index, float* r) {
   try {
     set_last_error(std::string());
-    check_is_positive(length); check_is_not_null(snp_index); check_is_not_null(tag_index); check_is_not_null(r);
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(length, chr_label, snp_index, tag_index, r);
+    check_is_positive(length); check_is_not_null(snp_index); check_is_not_null(snp_other_index); check_is_not_null(r);
+    return BgmgCalculatorManager::singleton().Get(context_id)->set_ld_r2_coo(length, chr_label, snp_index, snp_other_index, r);
   } CATCH_EXCEPTIONS;
 }
 

@@ -73,6 +73,7 @@ public:
     for (int i = 0; i < num_tag_; i++) z_vec_.push_back(norm_dist(g_));
   }
 
+  // note that in this file tag_index usage remain inconsistent - tag_index variable may refer to values that go from 0 to num_snp-1 (i.e. runs across all SNPs, just just tag SNPs)
   void make_r2(int num_r2, std::vector<int>* snp_index, std::vector<int>* tag_index, std::vector<float>* r2) {
     std::uniform_real_distribution<> dis2(0.0f, 1.0f);
     std::vector<float> rand_list;

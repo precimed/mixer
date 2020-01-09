@@ -86,7 +86,7 @@ extern "C" {
   // API to populate LD structure
   // "from_file" expect a binary file produced by bgmg_calc_ld_matrix.
   // NB. we expect that this data originates from plink, where LD matrix is lower triangular, diagonal not included. So snpA must be always lower than snpB.
-  DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int chr_label, int64_t length, int* snp_index, int* tag_index, float* r);
+  DLL_PUBLIC int64_t bgmg_set_ld_r2_coo(int context_id, int chr_label, int64_t length, int* snp_index, int* snp_other_index, float* r);
   DLL_PUBLIC int64_t bgmg_set_ld_r2_coo_from_file(int context_id, int chr_label, const char* filename);
   DLL_PUBLIC int64_t bgmg_set_ld_r2_csr(int context_id, int chr_label);
 

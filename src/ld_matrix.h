@@ -39,5 +39,5 @@ void load_ld_matrix(std::string filename,
 
 void load_ld_matrix_version0(std::string filename,
                              std::vector<int>* snp_index,
-                             std::vector<int>* tag_index,
+                             std::vector<int>* snp_other_index,
                              std::vector<float>* r2);

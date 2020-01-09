@@ -243,7 +243,7 @@ void save_ld_matrix(const LdMatrixCsrChunk& chunk,
 // load LD matrix from an old format
 void load_ld_matrix_version0(std::string filename,
                              std::vector<int>* snp_index,
-                             std::vector<int>* tag_index,
+                             std::vector<int>* snp_other_index,
                              std::vector<float>* r2) {
   LOG << ">load_ld_matrix_version0(filename=" << filename << ")";
 
@@ -256,11 +256,11 @@ void load_ld_matrix_version0(std::string filename,
   LOG << " load_ld_matrix_version0(filename=" << filename << "), reading " << numel << " elements...";
 
   snp_index->resize(numel);
-  tag_index->resize(numel);
+  snp_other_index->resize(numel);
   r2->resize(numel);
 
   is.read(reinterpret_cast<char*>(&snp_index->at(0)), numel * sizeof(int));
-  is.read(reinterpret_cast<char*>(&tag_index->at(0)), numel * sizeof(int));
+  is.read(reinterpret_cast<char*>(&snp_other_index->at(0)), numel * sizeof(int));
   is.read(reinterpret_cast<char*>(&r2->at(0)), numel * sizeof(float));
 
   if (!is) BGMG_THROW_EXCEPTION(::std::runtime_error("can't read from " + filename));

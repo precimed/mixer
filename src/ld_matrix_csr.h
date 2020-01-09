@@ -253,7 +253,7 @@ class LdMatrixCsr {
  public:
    LdMatrixCsr(TagToSnpMapping& mapping) : mapping_(mapping) {}
 
-   int64_t set_ld_r2_coo(int chr_label, int64_t length, int* snp_index, int* tag_index, float* r, float r2_min);
+   int64_t set_ld_r2_coo(int chr_label, int64_t length, int* snp_index, int* snp_other_index, float* r, float r2_min);
    int64_t set_ld_r2_coo_version1plus(int chr_label, const std::string& filename, float r2_min);
    int64_t set_ld_r2_coo_version0(int chr_label, const std::string& filename, float r2_min);
    int64_t set_ld_r2_csr(float r2_min, int chr_label);  // finalize

@@ -375,7 +375,7 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
   }
 
   // apply infinitesimal model to adjust tag_r2sum for all r2 that are below r2min (and thus do not contribute via resampling)
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   const float pival_delta = (num_causals_original - last_num_causals_original) / static_cast<float>(num_snp_);
 
   std::vector<float> hvec; find_hvec(*this, &hvec);
@@ -446,10 +446,10 @@ int64_t BgmgCalculator::retrieve_ld_tag_r2_sum(int length, float* buffer) {
   check_num_tag(length);
   LOG << " retrieve_ld_tag_r2_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (retrieve_ld_tag_type_ == 0) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum()->ld_tag_sum_r2_above_r2min()[tag_index];
-    else if (retrieve_ld_tag_type_ == 1) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum()->ld_tag_sum_r2_below_r2min()[tag_index];
-    else if (retrieve_ld_tag_type_ == 2) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_above_r2min()[tag_index];
-    else if (retrieve_ld_tag_type_ == 3) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min()[tag_index];
+    if (retrieve_ld_tag_type_ == 0) buffer[tag_index] = ld_matrix_csr_.ld_sum()->ld_tag_sum_r2_above_r2min()[tag_index];
+    else if (retrieve_ld_tag_type_ == 1) buffer[tag_index] = ld_matrix_csr_.ld_sum()->ld_tag_sum_r2_below_r2min()[tag_index];
+    else if (retrieve_ld_tag_type_ == 2) buffer[tag_index] = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_above_r2min()[tag_index];
+    else if (retrieve_ld_tag_type_ == 3) buffer[tag_index] = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min()[tag_index];
     else BGMG_THROW_EXCEPTION(::std::runtime_error("invalid retrieve_ld_tag_type_"));
   }
   return 0;
@@ -459,8 +459,8 @@ int64_t BgmgCalculator::retrieve_ld_tag_r4_sum(int length, float* buffer) {
   check_num_tag(length);
   LOG << " retrieve_ld_tag_r4_sum()";
   for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
-    if (retrieve_ld_tag_type_ == 0 || retrieve_ld_tag_type_ == 1) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum()->ld_tag_sum_r4_above_r2min()[tag_index];
-    else if (retrieve_ld_tag_type_ == 2 || retrieve_ld_tag_type_ == 3) buffer[tag_index] = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r4_above_r2min()[tag_index];
+    if (retrieve_ld_tag_type_ == 0 || retrieve_ld_tag_type_ == 1) buffer[tag_index] = ld_matrix_csr_.ld_sum()->ld_tag_sum_r4_above_r2min()[tag_index];
+    else if (retrieve_ld_tag_type_ == 2 || retrieve_ld_tag_type_ == 3) buffer[tag_index] = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r4_above_r2min()[tag_index];
     else BGMG_THROW_EXCEPTION(::std::runtime_error("invalid retrieve_ld_tag_type_"));
   }
   return 0;
@@ -1388,9 +1388,9 @@ double BgmgCalculator::calc_univariate_cost_fast(int trait_index, float pi_vec, 
     int tag_index = deftag_indices[deftag_index];
     double tag_weight = static_cast<double>(weights_[tag_index]);
     
-    const float tag_r2inf = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min()[tag_index];
-    const float tag_r2 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_above_r2min()[tag_index];
-    const float tag_r4 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r4_above_r2min()[tag_index];
+    const float tag_r2inf = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min()[tag_index];
+    const float tag_r2 = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_above_r2min()[tag_index];
+    const float tag_r4 = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r4_above_r2min()[tag_index];
 
     if (tag_r2 == 0 || tag_r4 == 0) {
       num_zero_tag_r2++; continue;
@@ -1458,8 +1458,8 @@ double BgmgCalculator::calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, i
     const float z2 = z2_minus_fixed_effect_delta[tag_index];
     const float n2 = nvec2_[tag_index];
 
-    const float tag_r2 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_above_r2min()[tag_index]; // TBD: apply ld_tag_sum_r2_below_r2min as an infinitesimal model
-    const float tag_r4 = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r4_above_r2min()[tag_index];
+    const float tag_r2 = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_above_r2min()[tag_index]; // TBD: apply ld_tag_sum_r2_below_r2min as an infinitesimal model
+    const float tag_r4 = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r4_above_r2min()[tag_index];
 
     if (tag_r2 == 0 || tag_r4 == 0) {
       num_zero_tag_r2++; continue;
@@ -1837,7 +1837,7 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
     }
   }
 
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
 
   const float pival = num_causal / static_cast<float>(num_snp_);
   for (int i = 0; i < num_tag_; i++) {

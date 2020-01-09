@@ -58,8 +58,8 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
   ld_matrix_csr_chunk.snp_index_to_exclusive_ = num_snps;
   ld_matrix_csr_chunk.chr_label_ = 0;
 
-  std::valarray<float> ld_tag_r2_sum(0.0, num_snps);
-  std::valarray<float> ld_tag_r2_sum_adjust_for_hvec(0.0, num_snps);
+  std::valarray<float> ld_r2_sum(0.0, num_snps);
+  std::valarray<float> ld_r2_sum_adjust_for_hvec(0.0, num_snps);
   std::vector<float> freqvec(num_snps, 0.0);
 
   PlinkLdBedFileChunk chunk_fixed, chunk_var, *chunk_var_ptr;
@@ -128,8 +128,8 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
 #pragma omp parallel
       {
         std::vector<std::tuple<int, int, packed_r_value>> local_coo_ld; // snp, tag, r2
-        std::valarray<float> local_ld_tag_r2_sum(0.0, num_snps);
-        std::valarray<float> local_ld_tag_r2_sum_adjust_for_hvec(0.0, num_snps);
+        std::valarray<float> local_ld_r2_sum(0.0, num_snps);
+        std::valarray<float> local_ld_r2_sum_adjust_for_hvec(0.0, num_snps);
         size_t local_count_below_r2min = 0;
 
 #pragma omp for schedule(dynamic, block_size)
@@ -151,10 +151,10 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
           if ((ldscore_r2min <= ld_r2) && (ld_r2 < r2_min)) {
             const float hval_at_index = chunk_fixed.hetval(block_snp_index);
             const float hval_at_jndex = chunk_var_ptr->hetval(block_snp_jndex);
-            local_ld_tag_r2_sum[global_snp_index] += ld_r2;  // note that i-th SNP is adjusted for het of j-th SNP
-            local_ld_tag_r2_sum[global_snp_jndex] += ld_r2;  // and vice versa.
-            local_ld_tag_r2_sum_adjust_for_hvec[global_snp_index] += ld_r2 * hval_at_jndex;
-            local_ld_tag_r2_sum_adjust_for_hvec[global_snp_jndex] += ld_r2 * hval_at_index;
+            local_ld_r2_sum[global_snp_index] += ld_r2;  // note that i-th SNP is adjusted for het of j-th SNP
+            local_ld_r2_sum[global_snp_jndex] += ld_r2;  // and vice versa.
+            local_ld_r2_sum_adjust_for_hvec[global_snp_index] += ld_r2 * hval_at_jndex;
+            local_ld_r2_sum_adjust_for_hvec[global_snp_jndex] += ld_r2 * hval_at_index;
             local_count_below_r2min++;
           }
           if (ld_r2 >= r2_min) {
@@ -163,8 +163,8 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
         }
 #pragma omp critical 
         {
-          ld_tag_r2_sum += local_ld_tag_r2_sum;
-          ld_tag_r2_sum_adjust_for_hvec += local_ld_tag_r2_sum_adjust_for_hvec;
+          ld_r2_sum += local_ld_r2_sum;
+          ld_r2_sum_adjust_for_hvec += local_ld_r2_sum_adjust_for_hvec;
           ld_matrix_csr_chunk.coo_ld_.insert( ld_matrix_csr_chunk.coo_ld_.end(), local_coo_ld.begin(), local_coo_ld.end() );
           count_below_r2min += local_count_below_r2min;
         }
@@ -176,11 +176,11 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
   }
 
   ld_matrix_csr_chunk.set_ld_r2_csr(nullptr); 
-  std::vector<float> ld_tag_r2_sum_adjust_for_hvec_vec, ld_tag_r2_sum_vec;
-  ld_tag_r2_sum_vec.assign(std::begin(ld_tag_r2_sum), std::end(ld_tag_r2_sum));
-  ld_tag_r2_sum_adjust_for_hvec_vec.assign(std::begin(ld_tag_r2_sum_adjust_for_hvec), std::end(ld_tag_r2_sum_adjust_for_hvec));
+  std::vector<float> ld_r2_sum_adjust_for_hvec_vec, ld_r2_sum_vec;
+  ld_r2_sum_vec.assign(std::begin(ld_r2_sum), std::end(ld_r2_sum));
+  ld_r2_sum_adjust_for_hvec_vec.assign(std::begin(ld_r2_sum_adjust_for_hvec), std::end(ld_r2_sum_adjust_for_hvec));
 
-  save_ld_matrix(ld_matrix_csr_chunk, freqvec, ld_tag_r2_sum_vec, ld_tag_r2_sum_adjust_for_hvec_vec, outfile);
+  save_ld_matrix(ld_matrix_csr_chunk, freqvec, ld_r2_sum_vec, ld_r2_sum_adjust_for_hvec_vec, outfile);
 
   LOG << ">" << ss.str() << ", nnz=" << ld_matrix_csr_chunk.csr_ld_r_.size() << ", elapsed time " << timer.elapsed_ms() << "ms";
 }
@@ -213,8 +213,8 @@ void load_value(std::ifstream& is, T* value) {
 
 void save_ld_matrix(const LdMatrixCsrChunk& chunk,
                     const std::vector<float>& freqvec,
-                    const std::vector<float>& ld_tag_r2_sum,
-                    const std::vector<float>& ld_tag_r2_sum_adjust_for_hvec,
+                    const std::vector<float>& ld_r2_sum,
+                    const std::vector<float>& ld_r2_sum_adjust_for_hvec,
                     std::string filename) {
   std::ofstream os(filename, std::ofstream::binary);
   if (!os) BGMG_THROW_EXCEPTION(std::runtime_error(::std::runtime_error("can't open" + filename)));
@@ -232,8 +232,8 @@ void save_ld_matrix(const LdMatrixCsrChunk& chunk,
   save_vector(os, chunk.csr_ld_r_);
 
   save_vector(os, freqvec);
-  save_vector(os, ld_tag_r2_sum);
-  save_vector(os, ld_tag_r2_sum_adjust_for_hvec);
+  save_vector(os, ld_r2_sum);
+  save_vector(os, ld_r2_sum_adjust_for_hvec);
 
   os.close();
 
@@ -272,8 +272,8 @@ void load_ld_matrix_version0(std::string filename,
 void load_ld_matrix(std::string filename,
                     LdMatrixCsrChunk* chunk,
                     std::vector<float>* freqvec,
-                    std::vector<float>* ld_tag_r2_sum,
-                    std::vector<float>* ld_tag_r2_sum_adjust_for_hvec) {
+                    std::vector<float>* ld_r2_sum,
+                    std::vector<float>* ld_r2_sum_adjust_for_hvec) {
   LOG << ">load_ld_matrix(filename=" << filename << ")";
 
   std::ifstream is(filename, std::ifstream::binary);
@@ -291,8 +291,8 @@ void load_ld_matrix(std::string filename,
   load_vector(is, &chunk->csr_ld_r_);
 
   load_vector(is, freqvec);
-  load_vector(is, ld_tag_r2_sum);
-  load_vector(is, ld_tag_r2_sum_adjust_for_hvec);
+  load_vector(is, ld_r2_sum);
+  load_vector(is, ld_r2_sum_adjust_for_hvec);
 
   if (!is) BGMG_THROW_EXCEPTION(::std::runtime_error("can't read from " + filename));
   is.close();

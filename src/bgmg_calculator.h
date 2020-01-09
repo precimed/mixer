@@ -422,7 +422,6 @@ class BgmgCalculator : public TagToSnpMapping {
   float r2_min_;
   float z1max_;
   float z2max_;
-  float max_chisq_trait2_;
   CostCalculator cost_calculator_;
   bool cache_tag_r2sum_;
   double cubature_abs_error_;
@@ -434,7 +433,7 @@ class BgmgCalculator : public TagToSnpMapping {
                                // 0 = above r2min; 1 = below r2min; 2 = above r2min adjusted for hvec; 3 = below r2min adjusted for hvec; 
                                // For retrieve_ld_tag_r4_sum() the "below r2min" option is not available, therefore 1 will work the same as 0, and 3 will work same as 2.
   std::vector<double> k_pdf_;  // the log-likelihood cost calculated independently for each of 0...k_max-1 selections of causal variants.            
-  bool calc_k_pdf_;            // a calc_fixed_effect_delta_from_causalbetavecflag indicating whether we should calculate k_pdf_
+  bool calc_k_pdf_;            // a flag indicating whether we should calculate k_pdf_
   void check_num_snp(int length);
   void check_num_tag(int length);
   double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);

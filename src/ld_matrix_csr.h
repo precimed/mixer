@@ -79,46 +79,72 @@ public:
 };
 
 #define CHECK_SNP_INDEX(mapping, i) if (i < 0 || i >= mapping.num_snp()) BGMG_THROW_EXCEPTION(::std::runtime_error("CHECK_SNP_INDEX failed"));
-#define CHECK_TAG_INDEX(mapping, i) if (i < 0 || i >= mapping.num_tag)()) BGMG_THROW_EXCEPTION(::std::runtime_error("CHECK_TAG_INDEX failed"));
+#define CHECK_TAG_INDEX(mapping, i) if (i < 0 || i >= mapping.num_tag()) BGMG_THROW_EXCEPTION(::std::runtime_error("CHECK_TAG_INDEX failed"));
 
 void find_hvec_per_chunk(TagToSnpMapping& mapping, std::vector<float>* hvec, int index_from, int index_to);
 void find_hvec(TagToSnpMapping& mapping, std::vector<float>* hvec);
 
-// pre-calculated sum of LD r2 and r4 for each tag snp
+// pre-calculated sum of LD r2 and r4 for each snp
 // This takes hvec into account, e.i. we store sum of r2*hvec and r4*hvec^2.
-class LdTagSum {
+class LdSum {
 public:
-  LdTagSum(int num_tag) {
+  LdSum(TagToSnpMapping& mapping) : mapping_(mapping) {
+    const int num_snp = mapping.num_snp();
+    const int num_tag = mapping.num_tag();
+    ld_sum_r2_below_r2min_.resize(num_snp, 0.0f);
+    ld_sum_r2_above_r2min_.resize(num_snp, 0.0f);
+    ld_sum_r4_above_r2min_.resize(num_snp, 0.0f);
     ld_tag_sum_r2_below_r2min_.resize(num_tag, 0.0f);
     ld_tag_sum_r2_above_r2min_.resize(num_tag, 0.0f);
     ld_tag_sum_r4_above_r2min_.resize(num_tag, 0.0f);
   }
 
-  void store_below_r2min(int tag_index, float r2_times_hval) {
-    ld_tag_sum_r2_below_r2min_[tag_index] += r2_times_hval;
+  void store_below_r2min(int snp_index, float r2_times_hval, int to_be_removed) {
+    ld_sum_r2_below_r2min_[snp_index] += r2_times_hval;
+    if (mapping_.is_tag()[snp_index]) {
+      ld_tag_sum_r2_below_r2min_[mapping_.snp_to_tag()[snp_index]] += r2_times_hval;
+    }
   }
 
-  void store_above_r2min(int tag_index, float r2_times_hval) {
-    ld_tag_sum_r2_above_r2min_[tag_index] += r2_times_hval;
-    ld_tag_sum_r4_above_r2min_[tag_index] += (r2_times_hval * r2_times_hval);
+  void store_above_r2min(int snp_index, float r2_times_hval, int to_be_removed) {
+    ld_sum_r2_above_r2min_[snp_index] += r2_times_hval;
+    ld_sum_r4_above_r2min_[snp_index] += (r2_times_hval * r2_times_hval);
+    if (mapping_.is_tag()[snp_index]) {
+      const int tag_index = mapping_.snp_to_tag()[snp_index];
+      ld_tag_sum_r2_above_r2min_[tag_index] += r2_times_hval;
+      ld_tag_sum_r4_above_r2min_[tag_index] += (r2_times_hval * r2_times_hval);
+    }
   }
 
-  void store(bool below_r2min, int tag_index, float r2_times_hval) {
-    if (below_r2min) store_below_r2min(tag_index, r2_times_hval);
-    else store_above_r2min(tag_index, r2_times_hval);
+  void store(bool below_r2min, int index, float r2_times_hval, int to_be_removed) {
+    if (below_r2min) store_below_r2min(index, r2_times_hval, 0);
+    else store_above_r2min(index, r2_times_hval, 0);
   }
+
+  const std::vector<float>& ld_sum_r2_below_r2min() const { return ld_sum_r2_below_r2min_; }
+  const std::vector<float>& ld_sum_r2_above_r2min() const { return ld_sum_r2_above_r2min_; }
+  const std::vector<float>& ld_sum_r4_above_r2min() const { return ld_sum_r4_above_r2min_; }
 
   const std::vector<float>& ld_tag_sum_r2_below_r2min() const { return ld_tag_sum_r2_below_r2min_; }
   const std::vector<float>& ld_tag_sum_r2_above_r2min() const { return ld_tag_sum_r2_above_r2min_; }
   const std::vector<float>& ld_tag_sum_r4_above_r2min() const { return ld_tag_sum_r4_above_r2min_; }
 
   void clear() {
+    std::fill(ld_sum_r2_below_r2min_.begin(), ld_sum_r2_below_r2min_.end(), 0.0f);
+    std::fill(ld_sum_r2_above_r2min_.begin(), ld_sum_r2_above_r2min_.end(), 0.0f);
+    std::fill(ld_sum_r4_above_r2min_.begin(), ld_sum_r4_above_r2min_.end(), 0.0f);
     std::fill(ld_tag_sum_r2_below_r2min_.begin(), ld_tag_sum_r2_below_r2min_.end(), 0.0f);
     std::fill(ld_tag_sum_r2_above_r2min_.begin(), ld_tag_sum_r2_above_r2min_.end(), 0.0f);
     std::fill(ld_tag_sum_r4_above_r2min_.begin(), ld_tag_sum_r4_above_r2min_.end(), 0.0f);
   }
-private:
-  std::vector<float> ld_tag_sum_r2_below_r2min_;
+ private:
+  TagToSnpMapping& mapping_;
+
+  std::vector<float> ld_sum_r2_below_r2min_;  // master data
+  std::vector<float> ld_sum_r2_above_r2min_;
+  std::vector<float> ld_sum_r4_above_r2min_;
+
+  std::vector<float> ld_tag_sum_r2_below_r2min_;  // derived data
   std::vector<float> ld_tag_sum_r2_above_r2min_;
   std::vector<float> ld_tag_sum_r4_above_r2min_;
 };
@@ -239,8 +265,8 @@ class LdMatrixCsr {
    void extract_row(int snp_index, LdMatrixRow* row);  // retrieve all LD r2 entries for given snp_index
    int num_ld_r2(int snp_index);  // how many LD r2 entries is there for snp_index
 
-   const LdTagSum* ld_tag_sum_adjust_for_hvec() { return ld_tag_sum_adjust_for_hvec_.get(); }
-   const LdTagSum* ld_tag_sum() { return ld_tag_sum_.get(); }
+   const LdSum* ld_sum_adjust_for_hvec() { return ld_sum_adjust_for_hvec_.get(); }
+   const LdSum* ld_sum() { return ld_sum_.get(); }
 
    size_t log_diagnostics();
    void clear();
@@ -251,6 +277,6 @@ private:
   TagToSnpMapping& mapping_;
   std::vector<LdMatrixCsrChunk> chunks_;  // split per chromosomes (before aggregation)
   
-  std::shared_ptr<LdTagSum> ld_tag_sum_adjust_for_hvec_;
-  std::shared_ptr<LdTagSum> ld_tag_sum_;
+  std::shared_ptr<LdSum> ld_sum_adjust_for_hvec_;
+  std::shared_ptr<LdSum> ld_sum_;
 };

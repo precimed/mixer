@@ -119,7 +119,7 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
   // standard variables
   std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
   std::vector<float>& nvec(*get_nvec(trait_index));
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
   const double zmax = (trait_index==1) ? z1max_ : z2max_;
 
@@ -213,7 +213,7 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
   // standard variables
   std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
   std::vector<float>& nvec(*get_nvec(trait_index));
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
   const double zmax = (trait_index==1) ? z1max_ : z2max_;
@@ -360,7 +360,7 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
   // standard variables
   std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
   std::vector<float>& nvec(*get_nvec(trait_index));
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(weights, &deftag_indices);
 
@@ -541,7 +541,7 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
 
   const double pi_k = 1.0 / static_cast<double>(k_max_);
   std::vector<float>& nvec(*get_nvec(trait_index));
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
 
@@ -587,7 +587,7 @@ int64_t BgmgCalculator::calc_unified_univariate_power(int trait_index, int num_c
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
   const double pi_k = 1.0 / static_cast<double>(k_max_);
   std::vector<float> hvec; find_hvec(*this, &hvec);
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> nvec_dummy(num_tag_, 1.0f);
 
   std::valarray<double> s_numerator_global(0.0, length);
@@ -651,7 +651,7 @@ int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index,
   std::vector<float>& nvec(*get_nvec(trait_index));
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
   std::vector<float> hvec; find_hvec(*this, &hvec);
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
 
   std::valarray<double> c0_global(0.0f, num_tag_);
   std::valarray<double> c1_global(0.0f, num_tag_);
@@ -744,7 +744,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_gaussian(int num_snp, float* 
   // standard variables
   std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
   std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
 
@@ -1000,7 +1000,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_convolve(int num_snp, float* 
   // standard variables
   std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
   std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
 
   std::vector<float> weights_convolve(weights_.begin(), weights_.end());
@@ -1098,7 +1098,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_sampling(int num_snp, float* 
   // standard variables
   std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
   std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(weights, &deftag_indices);
 
@@ -1252,7 +1252,7 @@ int64_t BgmgCalculator::calc_unified_bivariate_pdf(int num_snp, float* pi_vec, f
   // standard variables
   std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
   std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
   const double pi_k = 1.0 / static_cast<double>(k_max_);
@@ -1323,7 +1323,7 @@ int64_t BgmgCalculator::calc_unified_bivariate_delta_posterior(int num_snp, floa
   // standard variables
   std::vector<float> z1_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(1, &z1_minus_fixed_effect_delta);
   std::vector<float> z2_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(2, &z2_minus_fixed_effect_delta);
-  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
   std::vector<float> hvec; find_hvec(*this, &hvec);
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(nullptr, &deftag_indices);
 

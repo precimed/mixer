@@ -56,7 +56,7 @@
 
      const double zmax = (trait_index==1) ? z1max_ : z2max_;
      const double pi_k = 1.0 / static_cast<double>(k_max_);
-     const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_tag_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+     const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
      std::vector<float> hvec; find_hvec(*this, &hvec);
      if (snp_order_.empty()) find_snp_order();
      if (cache_tag_r2sum_) find_tag_r2sum(component_id, num_causals);

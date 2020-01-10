@@ -214,7 +214,7 @@ class LdMatrixCsrChunk {
   int num_keys_in_chunk() const { return key_index_to_exclusive_ - key_index_from_inclusive_; }
   bool is_empty() const { return key_index_to_exclusive_ == key_index_from_inclusive_; }
 
-  int64_t set_ld_r2_csr(TagToSnpMapping* mapping);
+  int64_t set_ld_r2_csr();
   int64_t validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_val_index);
   float find_and_retrieve_ld_r2(int key_index, int val_index, const std::vector<uint32_t>& csr_ld_val_index);  // nan if doesn't exist.
   void extract_row(int key_index, LdMatrixRow* row);
@@ -280,14 +280,10 @@ class LdMatrixCsr {
    int64_t set_ld_r2_coo_version0(int chr_label, const std::string& filename, float r2_min);
    int64_t set_ld_r2_csr(float r2_min, int chr_label);  // finalize
 
-   bool is_ready() { return !empty() && std::all_of(chunks_.begin(), chunks_.end(), [](LdMatrixCsrChunk& chunk) { return chunk.coo_ld_.empty(); }); }
-   int64_t size() { return std::accumulate(chunks_.begin(), chunks_.end(), 0, [](int64_t sum, LdMatrixCsrChunk& chunk) {return sum + chunk.csr_ld_r_.size(); }); }
-   bool empty() { return (size() == 0); }
-
    void extract_snp_row(SnpIndex snp_index, LdMatrixRow* row);  // retrieve all LD r2 entries for given snp_index or tag_index
    void extract_tag_row(TagIndex tag_index, LdMatrixRow* row);
 
-   int num_ld_r2(int snp_index);  // how many LD r2 entries is there for snp_index
+   int num_ld_r2_snp(int snp_index);  // how many LD r2 entries is there for snp_index
 
    const LdSum* ld_sum_adjust_for_hvec() { return ld_sum_adjust_for_hvec_.get(); }
    const LdSum* ld_sum() { return ld_sum_.get(); }
@@ -299,7 +295,8 @@ class LdMatrixCsr {
 private:
 
   TagToSnpMapping& mapping_;
-  std::vector<LdMatrixCsrChunk> chunks_;  // split per chromosomes (before aggregation)
+  std::vector<LdMatrixCsrChunk> chunks_forward_;   // split per chromosomes, mapping from snp to tag
+  std::vector<LdMatrixCsrChunk> chunks_reverse_;   // mapping from tag to snp
   
   std::shared_ptr<LdSum> ld_sum_adjust_for_hvec_;
   std::shared_ptr<LdSum> ld_sum_;

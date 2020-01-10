@@ -153,6 +153,7 @@ TEST(LdTest, ValidateMultipleChromosomes) {
   }
 
   calc.set_ld_r2_csr();  // finalize csr structure
+  calc.set_option("diag", 1);
 
   // retrieve cached and non-cached LDr2 sum, and compare the result
   calc.set_option("cache_tag_r2sum", 0);

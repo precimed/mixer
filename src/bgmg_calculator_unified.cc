@@ -812,7 +812,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_gaussian(int num_snp, float* 
     }
   }
 
-  double log_pdf_total;
+  double log_pdf_total = 0;
   int num_zero_tag_r2 = 0;
   int num_infinite = 0;
 

@@ -1614,9 +1614,7 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {
 }
 
 int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold, std::string exclude, std::string extract) {
-  if (!ld_matrix_csr_.is_ready()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_weights_randprune before set_ld_r2_csr"));
   LOG << ">set_weights_randprune(n=" << n << ", r2=" << r2_threshold << ", exclude=" << exclude << ", extract=" << extract << ")";
-    
 
   if (r2_threshold < r2_min_) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: r2 < r2_min_"));
   if (n <= 0) BGMG_THROW_EXCEPTION(::std::runtime_error("set_weights_randprune: n <= 0"));
@@ -1845,31 +1843,6 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
   }
 }
 
-int64_t BgmgCalculator::retrieve_weighted_causal_r2(int length, float* buffer) {
-  if (length != num_snp_) BGMG_THROW_EXCEPTION(::std::runtime_error("length != num_snp_: wrong buffer size"));
-  if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
-  if (!ld_matrix_csr_.is_ready()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call retrieve_weighted_causal_r2 before set_ld_r2_csr"));
-
-  LOG << ">retrieve_weighted_causal_r2()";
-  SimpleTimer timer(-1);
-
-  for (int i = 0; i < num_snp_; i++) buffer[i] = 0.0f;
-
-  LdMatrixRow ld_matrix_row;
-  for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
-    ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
-    auto iter_end = ld_matrix_row.end();
-    for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-      const int tag_index = iter.index();
-      const float r2 = iter.r2();  // here we are interested in r2 (hvec is irrelevant)          
-      buffer[snp_index] += r2 * weights_[tag_index];
-    }
-  }
-
-  LOG << "<retrieve_weighted_causal_r2(), elapsed time " << timer.elapsed_ms() << "ms";
-  return 0;
-}
-
 LoglikeCacheElem::LoglikeCacheElem(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float  rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, double cost) {
   pi_vec1_ = pi_vec[0];
   pi_vec2_ = pi_vec[1];
@@ -1950,9 +1923,8 @@ int64_t BgmgCalculator::retrieve_chrnumvec(int length, int* buffer) {
 }
 
 int64_t BgmgCalculator::num_ld_r2_snp(int snp_index) {
-  if (!ld_matrix_csr_.is_ready()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call num_ld_r2_snp before set_ld_r2_csr"));
   CHECK_SNP_INDEX((*this), snp_index);
-  return ld_matrix_csr_.num_ld_r2(snp_index);
+  return ld_matrix_csr_.num_ld_r2_snp(snp_index);
 }
 
 int64_t BgmgCalculator::retrieve_ld_r2_snp(int snp_index, int length, int* tag_index, float* r2) {
@@ -1973,8 +1945,6 @@ int64_t BgmgCalculator::retrieve_ld_r2_snp(int snp_index, int length, int* tag_i
 }
 
 int64_t BgmgCalculator::num_ld_r2_chr(int chr_label) {
-  if (!ld_matrix_csr_.is_ready()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call num_ld_r2_chr before set_ld_r2_csr"));
-
   int64_t retval = 0;
   for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
     if (chrnumvec_[snp_index] != chr_label) continue;

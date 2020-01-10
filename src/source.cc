@@ -262,13 +262,6 @@ int64_t bgmg_retrieve_ld_sum_r4(int context_id, int length, float* buffer) {
     return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_ld_sum_r4(length, buffer);
   } CATCH_EXCEPTIONS;
 }
-int64_t bgmg_retrieve_weighted_causal_r2(int context_id, int length, float* buffer) {
-  try {
-    set_last_error(std::string());
-    check_is_positive(length); check_is_not_null(buffer);
-    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_weighted_causal_r2(length, buffer);
-  } CATCH_EXCEPTIONS;
-}
 
 int64_t bgmg_retrieve_zvec(int context_id, int trait, int length, float* buffer) {
   try {

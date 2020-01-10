@@ -175,7 +175,7 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
     }
   }
 
-  ld_matrix_csr_chunk.set_ld_r2_csr(nullptr); 
+  ld_matrix_csr_chunk.set_ld_r2_csr(); 
   std::vector<float> ld_r2_sum_adjust_for_hvec_vec, ld_r2_sum_vec;
   ld_r2_sum_vec.assign(std::begin(ld_r2_sum), std::end(ld_r2_sum));
   ld_r2_sum_adjust_for_hvec_vec.assign(std::begin(ld_r2_sum_adjust_for_hvec), std::end(ld_r2_sum_adjust_for_hvec));

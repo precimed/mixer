@@ -267,7 +267,7 @@ int64_t LdMatrixCsrChunk::set_ld_r2_csr(TagToSnpMapping* mapping) {
 
   coo_ld_.clear();
 
-  if (mapping != nullptr) validate_ld_r2_csr(csr_ld_val_index_, *mapping);
+  validate_ld_r2_csr(csr_ld_val_index_);
 
   {
     LOG << ">pack_ld_r2_csr(); ";
@@ -310,7 +310,7 @@ int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min, int chr_label) {
   return 0;
 }
 
-int64_t LdMatrixCsrChunk::validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_val_index_, TagToSnpMapping& mapping_) {
+int64_t LdMatrixCsrChunk::validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_val_index_) {
   LOG << ">validate_ld_r2_csr(); ";
   SimpleTimer timer(-1);
 
@@ -322,7 +322,6 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld
   for (int i = 1; i < csr_ld_key_index_.size(); i++) if (csr_ld_key_index_[i - 1] > csr_ld_key_index_[i]) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_key_index_[i-1] > csr_ld_key_index_[i]"));
   if (csr_ld_key_index_.back() != csr_ld_r_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_key_index_.back() != csr_ld_r_.size()"));
   if (csr_ld_val_index_.size() != csr_ld_r_.size()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_val_index_.size() != csr_ld_r_.size()"));
-  for (int64_t i = 0; i < csr_ld_val_index_.size(); i++) if (csr_ld_val_index_[i] < 0 || csr_ld_val_index_[i] >= mapping_.num_tag()) BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_val_index_ < 0 || csr_ld_val_index_ >= num_tag_"));
 
   // Test that LDr2 does not have duplicates
   for (int key_index_in_chunk = 0; key_index_in_chunk < num_keys_in_chunk(); key_index_in_chunk++) {
@@ -332,33 +331,6 @@ int64_t LdMatrixCsrChunk::validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld
       if (csr_ld_val_index_[r2_index] == csr_ld_val_index_[r2_index + 1])
         BGMG_THROW_EXCEPTION(std::runtime_error("csr_ld_val_index_[r2_index] == csr_ld_val_index_[r2_index + 1]"));
     }
-  }
-
-  // Test that LDr2 is symmetric (as long as both SNPs are tag)
-  // Test that LDr2 contains the diagonal (as long as we looking at correct chr_label; remember that this validation is for a given LD chunk, e.i. for a given LD chromosome)
-  for (int causal_index = key_index_from_inclusive_; causal_index < key_index_to_exclusive_; causal_index++) {
-    if (!mapping_.is_tag()[causal_index]) continue;
-    if (mapping_.chrnumvec()[causal_index] != chr_label_) continue;
-    const int tag_index_of_the_snp = mapping_.snp_to_tag()[causal_index];
-
-    const int64_t r2_index_from = csr_ld_key_index_[causal_index - key_index_from_inclusive_];
-    const int64_t r2_index_to = csr_ld_key_index_[causal_index - key_index_from_inclusive_ + 1];
-    bool ld_r2_contains_diagonal = false;
-    for (int64_t r2_index = r2_index_from; r2_index < r2_index_to; r2_index++) {
-      const int tag_index = csr_ld_val_index_[r2_index];
-      const float r2 = csr_ld_r_[r2_index].get();  // here we are interested in r2 (hvec is irrelevant)
-
-      if (tag_index == tag_index_of_the_snp) ld_r2_contains_diagonal = true;
-      
-      // disable symmetry check for performance reasons
-      if (0) {
-        float r2symm = find_and_retrieve_ld_r2(mapping_.tag_to_snp()[tag_index], tag_index_of_the_snp, csr_ld_val_index_);
-        if (!std::isfinite(r2symm)) BGMG_THROW_EXCEPTION(std::runtime_error("!std::isfinite(r2symm)"));
-        if (r2symm != r2) BGMG_THROW_EXCEPTION(std::runtime_error("r2symm != r2"));
-      }
-    }
-
-    if (!ld_r2_contains_diagonal) BGMG_THROW_EXCEPTION(std::runtime_error("!ld_r2_contains_diagonal"));
   }
 
   LOG << "<validate_ld_r2_csr (); elapsed time " << timer.elapsed_ms() << " ms";

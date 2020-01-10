@@ -215,7 +215,7 @@ class LdMatrixCsrChunk {
   bool is_empty() const { return key_index_to_exclusive_ == key_index_from_inclusive_; }
 
   int64_t set_ld_r2_csr(TagToSnpMapping* mapping);
-  int64_t validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_val_index, TagToSnpMapping& mapping);  // validate
+  int64_t validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_val_index);
   float find_and_retrieve_ld_r2(int key_index, int val_index, const std::vector<uint32_t>& csr_ld_val_index);  // nan if doesn't exist.
   void extract_row(int key_index, LdMatrixRow* row);
 

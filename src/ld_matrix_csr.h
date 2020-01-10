@@ -31,6 +31,27 @@
 #include "parallel_stable_sort.h"
 #endif
 
+// TagIndex and SnpIndex classes wrap an integer that represents either a tag or a snp,
+// to enable compile-time checks (protection agains typos in the code).
+
+class TagIndex {
+ public:
+  explicit TagIndex(int index) : index_(index) {}
+  int operator()() const { return index_; }
+  int index() const { return index_; }
+ private:
+  int index_;
+};
+
+class SnpIndex {
+ public:
+  explicit SnpIndex(int index) : index_(index) {}
+  int operator()() const { return index_; }
+  int index() const { return index_; }
+ private:
+  int index_;
+};
+
 class packed_r_value {
  public:
    packed_r_value() : value_(0) {}
@@ -152,6 +173,8 @@ public:
 class LdMatrixRow; 
 
 // Class to store LD matrix for a given chromosome (or chunk) in CSR format
+// Iterpret this class as a mapping from key to val, where "key" is a snp, and "val" is a tag.
+// Now this class can also store the reverse mapping from tag to snp, but we didn't change the nomenclature.
 class LdMatrixCsrChunk {
  public:
   std::vector<std::tuple<int, int, packed_r_value>> coo_ld_; // snp, tag, r
@@ -205,7 +228,7 @@ class LdMatrixIterator {
 public:
   LdMatrixIterator(int64_t ld_index, const LdMatrixRow* parent) : ld_index_(ld_index), parent_(parent) {}
 
-  int tag_index() const;
+  int index() const;  // this can be tag_index or snp_index, depending on how LdMatrix is stored (as snp->tag mapping or as tag->snp mapping)
   float r() const;
   float r2() const;
 
@@ -239,9 +262,9 @@ inline int operator -(const LdMatrixIterator& lhs, const LdMatrixIterator& rhs)
 class LdMatrixRow {
 public:
   LdMatrixIterator begin() { return LdMatrixIterator(0, this); }
-  LdMatrixIterator end() { return LdMatrixIterator(tag_index_.size(), this); }
+  LdMatrixIterator end() { return LdMatrixIterator(index_vector_.size(), this); }
 private:
-  std::vector<int> tag_index_;
+  std::vector<int> index_vector_;
   std::vector<packed_r_value> r_;
   friend class LdMatrixIterator;
   friend class LdMatrixCsr;
@@ -262,7 +285,9 @@ class LdMatrixCsr {
    int64_t size() { return std::accumulate(chunks_.begin(), chunks_.end(), 0, [](int64_t sum, LdMatrixCsrChunk& chunk) {return sum + chunk.csr_ld_r_.size(); }); }
    bool empty() { return (size() == 0); }
 
-   void extract_row(int snp_index, LdMatrixRow* row);  // retrieve all LD r2 entries for given snp_index
+   void extract_snp_row(SnpIndex snp_index, LdMatrixRow* row);  // retrieve all LD r2 entries for given snp_index or tag_index
+   void extract_tag_row(TagIndex tag_index, LdMatrixRow* row);
+
    int num_ld_r2(int snp_index);  // how many LD r2 entries is there for snp_index
 
    const LdSum* ld_sum_adjust_for_hvec() { return ld_sum_adjust_for_hvec_.get(); }

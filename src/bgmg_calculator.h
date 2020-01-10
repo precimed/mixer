@@ -49,6 +49,15 @@ enum AuxOption {
   AuxOption_MAX = 4,
 };
 
+enum LdMatrixType {
+  LdMatrixType_SnpToTag = 0,
+  LdMatrixType_Complete = 1,  // this option will trigger the mode previously known as use_complete_tag_indices
+                              // (all snp will be marked as tag, leading to square LD matrix)
+  LdMatrixType_TagToSnp = 2,
+  LdMatrixType_Both = 3,      // Store both SnpToTag and TagToSnp mappings
+  LdMatrixType_MAX = 4,
+};
+
 class MultinomialSampler;
 
 // Singleton class to manage a collection of objects, identifiable with some integer ID.

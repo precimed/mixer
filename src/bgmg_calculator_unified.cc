@@ -64,12 +64,8 @@ int calc_univariate_characteristic_function_times_cosinus(unsigned ndim, const d
   
   auto iter_end = data->ld_matrix_row->end();
   for (auto iter = data->ld_matrix_row->begin(); iter < iter_end; iter++) {
-    int snp_index = iter.tag_index();  // yes, this is correct - snp_index on the LHS, tag_index on the RHS.
-                                       // ld_matrix was designed to work with "sampling" calculator which require 
-                                       // a mapping from a causal SNP "i" to all tag SNPs "j" that are in LD with "i".
-                                       // however, for for "convolve" we are interested in mapping from a tag SNP "j"
-                                       // to all causal SNPs "i" in LD with "j". To make this work we store a complete
-                                       // LD matrix (e.g. _num_snp == _num_tag), and explore symmetry of the matrix. 
+    int snp_index = iter.index();
+
     const double r2 = iter.r2();
     const double hval = (*data->hvec)[snp_index];
     const double minus_tsqr_half_r2_hval_nval = minus_tsqr_half * r2 * hval * nval * (data->sig2_zeroC);
@@ -164,8 +160,7 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
       int tag_index = deftag_indices[deftag_index];
       double tag_weight = static_cast<double>(weights_convolve[tag_index]);
 
-      const int causal_index = tag_index; // yes,snp==tag in this case -- see a large comment in calc_univariate_characteristic_function_times_cosinus function.
-      ld_matrix_csr_.extract_row(causal_index, data.ld_matrix_row);
+      ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), data.ld_matrix_row);
       data.tag_index = tag_index;
       data.func_evals = 0;
 
@@ -256,28 +251,27 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
       for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
         int tag_index = deftag_indices[deftag_index];
 
-        const int snp_index = tag_index; // yes, snp==tag in this case -- same story here as in calc_univariate_characteristic_function_times_cosinus function.
-        ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+        ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), &ld_matrix_row);
         auto iter_end = ld_matrix_row.end();
         for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-          const int causal_index = iter.tag_index();   // tag_index on RHS can be misleading here
+          const int snp_index = iter.index();
           const float r2_value = iter.r2();
-          const float a2ij = sig2_zeroC * nvec[tag_index] * hvec[causal_index] * r2_value;
-          Edelta2_local[tag_index] += a2ij *        Ebeta2[causal_index];
-          Edelta4_local[tag_index] += a2ij * a2ij * Ebeta4[causal_index];
+          const float a2ij = sig2_zeroC * nvec[tag_index] * hvec[snp_index] * r2_value;
+          Edelta2_local[tag_index] += a2ij *        Ebeta2[snp_index];
+          Edelta4_local[tag_index] += a2ij * a2ij * Ebeta4[snp_index];
         }
       }
     } else {  // use_complete_tag_indices_
 #pragma omp for schedule(static)
-      for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-        ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
+      for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
+        ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
         auto iter_end = ld_matrix_row.end();
         for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-          const int tag_index = iter.tag_index();
+          const int tag_index = iter.index();
           const float r2_value = iter.r2();
-          const float a2ij = sig2_zeroC * nvec[tag_index] * hvec[causal_index] * r2_value;
-          Edelta2_local[tag_index] += a2ij *        Ebeta2[causal_index];
-          Edelta4_local[tag_index] += a2ij * a2ij * Ebeta4[causal_index];
+          const float a2ij = sig2_zeroC * nvec[tag_index] * hvec[snp_index] * r2_value;
+          Edelta2_local[tag_index] += a2ij *        Ebeta2[snp_index];
+          Edelta4_local[tag_index] += a2ij * a2ij * Ebeta4[snp_index];
         }
       }
     }  // use_complete_tag_indices_
@@ -416,20 +410,19 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
 void BgmgCalculator::find_unified_univariate_tag_delta_sampling(int num_components, float* pi_vec, float* sig2_vec, float sig2_zeroC, int tag_index, const float* nvec, const float* hvec, std::vector<float>* tag_delta2, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
   tag_delta2->assign(k_max_, 0.0f);
-  const int snp_index = tag_index; // yes, snp==tag in this case -- same story here as in calc_univariate_characteristic_function_times_cosinus function.
-  ld_matrix_csr_.extract_row(snp_index, ld_matrix_row);
+  ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), ld_matrix_row);
   auto iter_end = ld_matrix_row->end();
 
   float delta2_inf = 0.0;
   for (auto iter = ld_matrix_row->begin(); iter < iter_end; iter++) {
-    const int causal_index = iter.tag_index();
+    const int snp_index = iter.index();
     const float nval = nvec[tag_index];
     const float r2 = iter.r2();
-    const float hval = hvec[causal_index];
+    const float hval = hvec[snp_index];
     const float r2_hval_nval_sig2zeroC = (r2 * hval * nval * sig2_zeroC);
 
     for (int comp_index = 0; comp_index < num_components; comp_index++) {
-      const int index = (comp_index*num_snp_ + causal_index);
+      const int index = (comp_index*num_snp_ + snp_index);
       float pi_val = pi_vec[index];
       if (pi_val > 0.5f) pi_val = 1.0f - pi_val;
       subset_sampler->p()[comp_index] = static_cast<double>(pi_val);
@@ -438,7 +431,7 @@ void BgmgCalculator::find_unified_univariate_tag_delta_sampling(int num_componen
     int sample_global_index = k_max_ - subset_sampler->sample_shuffle();
     const uint32_t* indices = subset_sampler->data();
     for (int comp_index = 0; comp_index < num_components; comp_index++) {
-      const int index = (comp_index*num_snp_ + causal_index);
+      const int index = (comp_index*num_snp_ + snp_index);
 
       float pi_val = pi_vec[index];
       float delta2_val = r2_hval_nval_sig2zeroC * sig2_vec[index];
@@ -467,30 +460,29 @@ void BgmgCalculator::find_unified_univariate_tag_delta_sampling(int num_componen
 void BgmgCalculator::find_unified_bivariate_tag_delta_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int tag_index, const float* nvec1, const float* nvec2, const float* hvec, std::vector<float>* tag_delta20, std::vector<float>* tag_delta02, std::vector<float>* tag_delta11, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row) {
   if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
   tag_delta20->assign(k_max_, 0.0f); tag_delta02->assign(k_max_, 0.0f); tag_delta11->assign(k_max_, 0.0f);
-  const int snp_index = tag_index; // yes, snp==tag in this case -- same story here as in calc_univariate_characteristic_function_times_cosinus function.
-  ld_matrix_csr_.extract_row(snp_index, ld_matrix_row);
+  ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), ld_matrix_row);
   auto iter_end = ld_matrix_row->end();
 
   float delta20_inf = 0.0, delta02_inf = 0.0, delta11_inf = 0.0;
   for (auto iter = ld_matrix_row->begin(); iter < iter_end; iter++) {
-    const int causal_index = iter.tag_index();
+    const int snp_index = iter.index();
     const float nval1 = nvec1[tag_index];
     const float nval2 = nvec2[tag_index];
     const float r2 = iter.r2();
-    const float hval = hvec[causal_index];
+    const float hval = hvec[snp_index];
 
     const float r2_hval_nval1_sig2_zeroC = (r2 * hval * nval1 * sig2_zeroC[0]);
     const float r2_hval_nval2_sig2_zeroC = (r2 * hval * nval2 * sig2_zeroC[1]);
 
-    const float sig2_beta1_val = sig2_vec[0*num_snp_ + causal_index];
-    const float sig2_beta2_val = sig2_vec[1*num_snp_ + causal_index];
+    const float sig2_beta1_val = sig2_vec[0*num_snp_ + snp_index];
+    const float sig2_beta2_val = sig2_vec[1*num_snp_ + snp_index];
     const float sig2_beta1[3] = {sig2_beta1_val, 0, sig2_beta1_val};
     const float sig2_beta2[3] = {0, sig2_beta2_val, sig2_beta2_val};
-    const float rho[3] = {0, 0, rho_vec[causal_index]};
+    const float rho[3] = {0, 0, rho_vec[snp_index]};
 
     const int num_components = 3;
     for (int comp_index = 0; comp_index < num_components; comp_index++) {
-      const int index = (comp_index*num_snp_ + causal_index);
+      const int index = (comp_index*num_snp_ + snp_index);
       float pi_val = pi_vec[index];
       if (pi_val > 0.5f) pi_val = 1.0f - pi_val;
       subset_sampler->p()[comp_index] = static_cast<double>(pi_val);
@@ -499,7 +491,7 @@ void BgmgCalculator::find_unified_bivariate_tag_delta_sampling(int num_snp, floa
     int sample_global_index = k_max_ - subset_sampler->sample_shuffle();
     const uint32_t* indices = subset_sampler->data();
     for (int comp_index = 0; comp_index < num_components; comp_index++) {
-      const int index = (comp_index*num_snp_ + causal_index);
+      const int index = (comp_index*num_snp_ + snp_index);
 
       float pi_val = pi_vec[index];
       float delta20_val = r2_hval_nval1_sig2_zeroC * sig2_beta1[comp_index];
@@ -784,32 +776,31 @@ double BgmgCalculator::calc_unified_bivariate_cost_gaussian(int num_snp, float* 
       for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
         int tag_index = deftag_indices[deftag_index];
 
-        const int snp_index = tag_index; // yes, snp==tag in this case -- same story here as in calc_univariate_characteristic_function_times_cosinus function.
-        ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+        ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), &ld_matrix_row);
         auto iter_end = ld_matrix_row.end();
         for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-          const int causal_index = iter.tag_index();   // tag_index on RHS can be misleading here
+          const int snp_index = iter.index();
           const float r2_value = iter.r2();
-          const float a2ij1 = sig2_zeroC[0] * nvec1_[tag_index] * hvec[causal_index] * r2_value;
-          const float a2ij2 = sig2_zeroC[1] * nvec2_[tag_index] * hvec[causal_index] * r2_value;
-          Edelta20_local[tag_index] += a2ij1 * Ebeta20[causal_index];
-          Edelta02_local[tag_index] += a2ij2 * Ebeta02[causal_index];
-          Edelta11_local[tag_index] += sqrt(a2ij1 * a2ij2) * Ebeta11[causal_index];
+          const float a2ij1 = sig2_zeroC[0] * nvec1_[tag_index] * hvec[snp_index] * r2_value;
+          const float a2ij2 = sig2_zeroC[1] * nvec2_[tag_index] * hvec[snp_index] * r2_value;
+          Edelta20_local[tag_index] += a2ij1 * Ebeta20[snp_index];
+          Edelta02_local[tag_index] += a2ij2 * Ebeta02[snp_index];
+          Edelta11_local[tag_index] += sqrt(a2ij1 * a2ij2) * Ebeta11[snp_index];
         }
       }
     } else {  // use_complete_tag_indices_
 #pragma omp for schedule(static)        
-      for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-        ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
+      for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
+        ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
         auto iter_end = ld_matrix_row.end();
         for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-          const int tag_index = iter.tag_index();
+          const int tag_index = iter.index();
           const float r2_value = iter.r2();
-          const float a2ij1 = sig2_zeroC[0] * nvec1_[tag_index] * hvec[causal_index] * r2_value;
-          const float a2ij2 = sig2_zeroC[1] * nvec2_[tag_index] * hvec[causal_index] * r2_value;
-          Edelta20_local[tag_index] += a2ij1 * Ebeta20[causal_index];
-          Edelta02_local[tag_index] += a2ij2 * Ebeta02[causal_index];
-          Edelta11_local[tag_index] += sqrt(a2ij1 * a2ij2) * Ebeta11[causal_index];
+          const float a2ij1 = sig2_zeroC[0] * nvec1_[tag_index] * hvec[snp_index] * r2_value;
+          const float a2ij2 = sig2_zeroC[1] * nvec2_[tag_index] * hvec[snp_index] * r2_value;
+          Edelta20_local[tag_index] += a2ij1 * Ebeta20[snp_index];
+          Edelta02_local[tag_index] += a2ij2 * Ebeta02[snp_index];
+          Edelta11_local[tag_index] += sqrt(a2ij1 * a2ij2) * Ebeta11[snp_index];
         }
       }
     }  // use_complete_tag_indices_
@@ -941,8 +932,8 @@ int calc_bivariate_characteristic_function_times_cosinus(unsigned ndim, const do
 
   auto iter_end = data->ld_matrix_row->end();
   for (auto iter = data->ld_matrix_row->begin(); iter < iter_end; iter++) {
-    int snp_index = iter.tag_index();  // yes, causal==tag this is correct - snp_index on the LHS, tag_index on the RHS. 
-                                       // See comment in the univariate counterpart, calc_univariate_characteristic_function_times_cosinus
+    int snp_index = iter.index();
+
     const float r2 = iter.r2();
     const float hval = (*data->hvec)[snp_index];
     const float r2_times_hval = r2 * hval;
@@ -1049,8 +1040,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_convolve(int num_snp, float* 
       int tag_index = deftag_indices[deftag_index];
       double tag_weight = static_cast<double>(weights_convolve[tag_index]);
 
-      const int causal_index = tag_index; // yes, causal==tag in this case -- see a large comment in calc_univariate_characteristic_function_times_cosinus function.
-      ld_matrix_csr_.extract_row(causal_index, data.ld_matrix_row);
+      ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), data.ld_matrix_row);
       data.tag_index = tag_index;
       data.func_evals = 0;
 

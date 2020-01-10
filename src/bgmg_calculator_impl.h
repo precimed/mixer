@@ -44,10 +44,13 @@
   3. Access to LD matrix is as follows:
 
       LdMatrixRow ld_matrix_row;
-      ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+      ld_matrix_csr_.extract_snp_row(snp_index, &ld_matrix_row);  // case A: mapping from snp to tag
+      ld_matrix_csr_.extract_tag_row(tag_index, &ld_matrix_row);  // case B: mapping from tag to snp
+
       auto iter_end = ld_matrix_row.end();
       for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-        int tag_index = iter.tag_index();
+        int snp_index = iter.index();   // for case A
+        int tag_index = iter.index();   // for case B
         float r2 = iter.r2();
         ...
       }

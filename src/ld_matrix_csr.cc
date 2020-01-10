@@ -88,7 +88,7 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version1plus(int chr_label, const std::string
     auto iter_end = ld_matrix_row.end();
     for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
       snp_index[elem_index] = chunk_snp_index;
-      snp_other_index[elem_index] = iter.tag_index();
+      snp_other_index[elem_index] = iter.index();
       r[elem_index] = iter.r();
       elem_index++;
     }
@@ -409,16 +409,16 @@ void LdMatrixCsrChunk::clear() {
 
 void LdMatrixCsrChunk::extract_row(int snp_index, LdMatrixRow* row) {
   const int64_t num_ld_r2 = this->num_ld_r2(snp_index);
-  row->tag_index_.reserve(VSDEC_NUMEL(num_ld_r2));
-  row->tag_index_.resize(num_ld_r2);  // std::vector.resize() never reduce capacity
+  row->index_vector_.reserve(VSDEC_NUMEL(num_ld_r2));
+  row->index_vector_.resize(num_ld_r2);  // std::vector.resize() never reduce capacity
   row->r_.resize(num_ld_r2);
 
   // empty LD entry
   if (num_ld_r2 == 0) return;
 
-  vsdec32(this->csr_ld_tag_index_packed(snp_index), num_ld_r2, reinterpret_cast<unsigned int*>(&row->tag_index_[0]));
+  vsdec32(this->csr_ld_tag_index_packed(snp_index), num_ld_r2, reinterpret_cast<unsigned int*>(&row->index_vector_[0]));
 
-  compute_prefix_sum_inplace(reinterpret_cast<uint32_t*>(&row->tag_index_[0]), num_ld_r2, 0);
+  compute_prefix_sum_inplace(reinterpret_cast<uint32_t*>(&row->index_vector_[0]), num_ld_r2, 0);
 
   const int64_t ld_index_begin = this->ld_index_begin(snp_index);
   const int64_t ld_index_end = this->ld_index_end(snp_index);
@@ -427,10 +427,17 @@ void LdMatrixCsrChunk::extract_row(int snp_index, LdMatrixRow* row) {
   }
 }
 
-void LdMatrixCsr::extract_row(int snp_index, LdMatrixRow* row) {
-  const int chr_label = mapping_.chrnumvec()[snp_index];
+void LdMatrixCsr::extract_snp_row(SnpIndex snp_index, LdMatrixRow* row) {
+  const int chr_label = mapping_.chrnumvec()[snp_index.index()];
   LdMatrixCsrChunk& chunk = chunks_[chr_label];
-  chunk.extract_row(snp_index, row);
+  chunk.extract_row(snp_index.index(), row);
+}
+
+void LdMatrixCsr::extract_tag_row(TagIndex tag_index, LdMatrixRow* row) {
+  assert(mapping_.num_snp() == mapping_.num_tag());
+  const int chr_label = mapping_.chrnumvec()[tag_index.index()];
+  LdMatrixCsrChunk& chunk = chunks_[chr_label];
+  chunk.extract_row(tag_index.index(), row);
 }
 
 int LdMatrixCsr::num_ld_r2(int snp_index) {
@@ -439,7 +446,7 @@ int LdMatrixCsr::num_ld_r2(int snp_index) {
   return chunk.num_ld_r2(snp_index);
 }
 
-int LdMatrixIterator::tag_index() const { return parent_->tag_index_[ld_index_]; }
+int LdMatrixIterator::index() const { return parent_->index_vector_[ld_index_]; }
 float LdMatrixIterator::r() const { return parent_->r_[ld_index_].get(); }
 float LdMatrixIterator::r2() const { float r = parent_->r_[ld_index_].get(); return r*r; }
 

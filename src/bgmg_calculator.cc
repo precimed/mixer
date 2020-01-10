@@ -393,10 +393,10 @@ int64_t BgmgCalculator::find_tag_r2sum(int component_id, float num_causals) {
       int scan_index = change.first;
       float scan_weight = change.second;
       int snp_index = (*snp_order_[component_id])(scan_index, k_index);  // index of a causal snp
-      ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+      ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
       auto iter_end = ld_matrix_row.end();
       for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-        int tag_index = iter.tag_index();
+        int tag_index = iter.index();
         float r2 = iter.r2();
         float hval = hvec[snp_index];
         (*tag_r2sum_[component_id])(tag_index, k_index) += (scan_weight * r2 * hval);
@@ -1692,12 +1692,12 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold, std::st
         }
 
         passed_random_pruning_local[random_tag_index] += 1;
-        int causal_index = tag_to_snp_[random_tag_index];
-        ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
+        int snp_index = tag_to_snp_[random_tag_index];
+        ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
         auto iter_end = ld_matrix_row.end();
         int num_changes = 0;
         for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-          const int tag_index = iter.tag_index();
+          const int tag_index = iter.index();
           const float r2_value = iter.r2();  // here we are interested in r2 (hvec is irrelevant)        
           if (r2_value < r2_threshold) continue;
           if (processed_tag_indices[tag_index]) continue;
@@ -1826,12 +1826,12 @@ void BgmgCalculator::find_tag_r2sum_no_cache(int component_id, float num_causal,
     int scan_index = change.first;
     float scan_weight = change.second;
     int snp_index = (*snp_order_[component_id])(scan_index, k_index);
-    ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+    ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
     auto iter_end = ld_matrix_row.end();
     for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
       const float mafval = mafvec_[snp_index];
       const float hval = 2.0f * mafval * (1 - mafval);
-      const int tag_index = iter.tag_index();
+      const int tag_index = iter.index();
       const float r2 = iter.r2();
       buffer->at(tag_index) += (scan_weight * r2 * hval);
     }
@@ -1856,13 +1856,13 @@ int64_t BgmgCalculator::retrieve_weighted_causal_r2(int length, float* buffer) {
   for (int i = 0; i < num_snp_; i++) buffer[i] = 0.0f;
 
   LdMatrixRow ld_matrix_row;
-  for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-    ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
+  for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
+    ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
     auto iter_end = ld_matrix_row.end();
     for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-      const int tag_index = iter.tag_index();
+      const int tag_index = iter.index();
       const float r2 = iter.r2();  // here we are interested in r2 (hvec is irrelevant)          
-      buffer[causal_index] += r2 * weights_[tag_index];
+      buffer[snp_index] += r2 * weights_[tag_index];
     }
   }
 
@@ -1960,11 +1960,11 @@ int64_t BgmgCalculator::retrieve_ld_r2_snp(int snp_index, int length, int* tag_i
   LOG << " retrieve_ld_r2_snp(snp_index=" << snp_index << ")";
   
   LdMatrixRow ld_matrix_row;
-  ld_matrix_csr_.extract_row(snp_index, &ld_matrix_row);
+  ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
   auto iter_end = ld_matrix_row.end();
   int r2_index = 0;
   for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-    tag_index[r2_index] = iter.tag_index();
+    tag_index[r2_index] = iter.index();
     r2[r2_index] = iter.r();
     r2_index++;
   }
@@ -1984,19 +1984,19 @@ int64_t BgmgCalculator::num_ld_r2_chr(int chr_label) {
   return retval;
 }
 
-int64_t BgmgCalculator::retrieve_ld_r2_chr(int chr_label, int64_t length, int* snp_index, int* tag_index, float* r2) {
+int64_t BgmgCalculator::retrieve_ld_r2_chr(int chr_label, int64_t length, int* snp_index_vector, int* tag_index_vector, float* r2) {
   if (length != num_ld_r2_chr(chr_label)) BGMG_THROW_EXCEPTION(::std::runtime_error("length does not match num_ld_r2_chr"));
   LOG << " retrieve_ld_r2_chr(chr_label=" << chr_label << ")";
   
   int r2_index = 0;
   LdMatrixRow ld_matrix_row;
-  for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-    if (chrnumvec_[causal_index] != chr_label) continue;
-    ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
+  for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
+    if (chrnumvec_[snp_index] != chr_label) continue;
+    ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
     auto iter_end = ld_matrix_row.end();
     for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-      snp_index[r2_index] = causal_index;
-      tag_index[r2_index] = iter.tag_index();
+      snp_index_vector[r2_index] = snp_index;
+      tag_index_vector[r2_index] = iter.index();
       r2[r2_index] = iter.r();
       r2_index++;
     }
@@ -2156,23 +2156,23 @@ int64_t BgmgCalculator::num_ld_r2_snp_range(int snp_index_from, int snp_index_to
   return retrieve_ld_r2_snp_range(snp_index_from, snp_index_to, -1, nullptr, nullptr, nullptr);
 }
 
-int64_t BgmgCalculator::retrieve_ld_r2_snp_range(int snp_index_from, int snp_index_to, int length, int* snp_index, int* tag_index, float* r2) {
+int64_t BgmgCalculator::retrieve_ld_r2_snp_range(int snp_index_from, int snp_index_to, int length, int* snp_index_vector, int* tag_index_vector, float* r2) {
   // length < 0 indicate that we just calculate num_ld_r2_snp_range (i.e. the buffer size needed to copy out the result)
   CHECK_SNP_INDEX((*this), snp_index_from);
   CHECK_SNP_INDEX((*this), snp_index_to);
   int64_t num_r2 = 0;
   LdMatrixRow ld_matrix_row;
-  for (int iter_snp_index = snp_index_from; iter_snp_index < snp_index_to; iter_snp_index++) {
-    ld_matrix_csr_.extract_row(iter_snp_index, &ld_matrix_row);
+  for (int snp_index = snp_index_from; snp_index < snp_index_to; snp_index++) {
+    ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
     auto iter_end = ld_matrix_row.end();
     for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-      const int iter_tag_index = iter.tag_index();
-      if (tag_to_snp_[iter_tag_index] < snp_index_from || tag_to_snp_[iter_tag_index] >= snp_index_to) continue;
+      const int tag_index = iter.index();
+      if (tag_to_snp_[tag_index] < snp_index_from || tag_to_snp_[tag_index] >= snp_index_to) continue;
       num_r2++;
       if (length < 0) continue;
       if (num_r2 > length) BGMG_THROW_EXCEPTION(::std::runtime_error("insufficient length for retrieve_ld_r2_snp_range"));
-      snp_index[num_r2 - 1] = iter_snp_index;
-      tag_index[num_r2 - 1] = iter_tag_index;
+      snp_index_vector[num_r2 - 1] = snp_index;
+      tag_index_vector[num_r2 - 1] = tag_index;
       r2[num_r2 - 1] = iter.r(); // here we are interested in r2 (hvec is irrelevant)
     }
   }
@@ -2210,14 +2210,14 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
     // many entries in causalbetavec are expected to be zero, therefore static scheduler may give an unbalanced load
     // however it's fairly short operation anyway, so we don't bother too much.
 #pragma omp for schedule(static)
-    for (int causal_index = 0; causal_index < num_snp_; causal_index++) {
-      if (causalbetavec[causal_index] == 0.0f) continue;
-      ld_matrix_csr_.extract_row(causal_index, &ld_matrix_row);
+    for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
+      if (causalbetavec[snp_index] == 0.0f) continue;
+      ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
       auto iter_end = ld_matrix_row.end();
       for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-        const int tag_index = iter.tag_index();
+        const int tag_index = iter.index();
         const float r_value = iter.r();
-        delta_local[tag_index] += r_value * sqrt_hvec[causal_index] * causalbetavec[causal_index];
+        delta_local[tag_index] += r_value * sqrt_hvec[snp_index] * causalbetavec[snp_index];
       }
     }
 #pragma omp critical

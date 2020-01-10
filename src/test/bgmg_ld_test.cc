@@ -166,10 +166,10 @@ TEST(TestLd, GatherLdMatrix) {
   LdMatrixCsrChunk chunk;
   std::vector<float> freqvec, ld_tag_r2_sum, ld_tag_r2_sum_adjust_for_hvec;
   load_ld_matrix(fname, &chunk, &freqvec, &ld_tag_r2_sum, &ld_tag_r2_sum_adjust_for_hvec);
-  ASSERT_EQ(chunk.snp_index_to_exclusive_, 2011);
-  ASSERT_EQ(chunk.csr_ld_snp_index_.size(), 2012);
-  ASSERT_EQ(chunk.csr_ld_tag_index_offset_.size(), 2012);
-  ASSERT_EQ(chunk.csr_ld_tag_index_packed_.size(), 84585);
+  ASSERT_EQ(chunk.key_index_to_exclusive_, 2011);
+  ASSERT_EQ(chunk.csr_ld_key_index_.size(), 2012);
+  ASSERT_EQ(chunk.csr_ld_val_index_offset_.size(), 2012);
+  ASSERT_EQ(chunk.csr_ld_val_index_packed_.size(), 84585);
   ASSERT_EQ(chunk.csr_ld_r_.size(), 129834);
   ASSERT_EQ(chunk.csr_ld_r_[0].raw_value(), 63653);
   ASSERT_EQ(chunk.csr_ld_r_[129833].raw_value(), 20092);

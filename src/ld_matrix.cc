@@ -54,8 +54,8 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
   PosixFile bedfile(bfile + ".bed", "rb");
 
   LdMatrixCsrChunk ld_matrix_csr_chunk;
-  ld_matrix_csr_chunk.snp_index_from_inclusive_ = 0;
-  ld_matrix_csr_chunk.snp_index_to_exclusive_ = num_snps;
+  ld_matrix_csr_chunk.key_index_from_inclusive_ = 0;
+  ld_matrix_csr_chunk.key_index_to_exclusive_ = num_snps;
   ld_matrix_csr_chunk.chr_label_ = 0;
 
   std::valarray<float> ld_r2_sum(0.0, num_snps);
@@ -224,11 +224,11 @@ void save_ld_matrix(const LdMatrixCsrChunk& chunk,
   size_t format_version = LD_MATRIX_FORMAT_VERSION;
   os.write(reinterpret_cast<const char*>(&format_version), sizeof(format_version));
 
-  save_value(os, chunk.snp_index_from_inclusive_);
-  save_value(os, chunk.snp_index_to_exclusive_);
-  save_vector(os, chunk.csr_ld_snp_index_);
-  save_vector(os, chunk.csr_ld_tag_index_offset_);
-  save_vector(os, chunk.csr_ld_tag_index_packed_);
+  save_value(os, chunk.key_index_from_inclusive_);
+  save_value(os, chunk.key_index_to_exclusive_);
+  save_vector(os, chunk.csr_ld_key_index_);
+  save_vector(os, chunk.csr_ld_val_index_offset_);
+  save_vector(os, chunk.csr_ld_val_index_packed_);
   save_vector(os, chunk.csr_ld_r_);
 
   save_vector(os, freqvec);
@@ -283,11 +283,11 @@ void load_ld_matrix(std::string filename,
   is.read(reinterpret_cast<char*>(&format_version), sizeof(size_t));
   if (format_version <= 0 || format_version > LD_MATRIX_FORMAT_VERSION) throw("Unable to read an old format version");
 
-  load_value(is, &chunk->snp_index_from_inclusive_);
-  load_value(is, &chunk->snp_index_to_exclusive_);
-  load_vector(is, &chunk->csr_ld_snp_index_);
-  load_vector(is, &chunk->csr_ld_tag_index_offset_);
-  load_vector(is, &chunk->csr_ld_tag_index_packed_);
+  load_value(is, &chunk->key_index_from_inclusive_);
+  load_value(is, &chunk->key_index_to_exclusive_);
+  load_vector(is, &chunk->csr_ld_key_index_);
+  load_vector(is, &chunk->csr_ld_val_index_offset_);
+  load_vector(is, &chunk->csr_ld_val_index_packed_);
   load_vector(is, &chunk->csr_ld_r_);
 
   load_vector(is, freqvec);

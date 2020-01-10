@@ -174,51 +174,50 @@ class LdMatrixRow;
 
 // Class to store LD matrix for a given chromosome (or chunk) in CSR format
 // Iterpret this class as a mapping from key to val, where "key" is a snp, and "val" is a tag.
-// Now this class can also store the reverse mapping from tag to snp, but we didn't change the nomenclature.
 class LdMatrixCsrChunk {
  public:
-  std::vector<std::tuple<int, int, packed_r_value>> coo_ld_; // snp, tag, r
+  std::vector<std::tuple<int, int, packed_r_value>> coo_ld_; // key, val, r
 
   // csr_ld_snp_index_.size() == num_snps_in_chunk() + 1; 
   // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
   // csr_ld_tag_index_.size() == csr_ld_r_.size() == number of non-zero LD r values
   // csr_ld_tag_index_ contains values from 0 to num_tag_-1
   // csr_ld_r_ contains values from -1 to 1, indicating LD allelic correlation (r) between snp and tag variants
-  std::vector<int64_t> csr_ld_snp_index_;
-  std::vector<uint64_t> csr_ld_tag_index_offset_;      // pointers to csr_ld_tag_index_packed_ (location where to decompress)
+  std::vector<int64_t> csr_ld_key_index_;
+  std::vector<uint64_t> csr_ld_val_index_offset_;      // pointers to csr_ld_val_index_packed_ (location where to decompress)
                                                        // number of elements to decompress can be deduced from csr_ld_snp_index_
-  std::vector<unsigned char> csr_ld_tag_index_packed_;  // packed csr_ld_tag_index (delta-encoded, then compressed with TurboPFor vsenc32 algorithm).
+  std::vector<unsigned char> csr_ld_val_index_packed_;  // packed csr_ld_val_index (delta-encoded, then compressed with TurboPFor vsenc32 algorithm).
                                                         // The buffer has some extra capacity (as required by TurboPFor vsenc32/vdec32 algorithms).
   std::vector<packed_r_value> csr_ld_r_;
   
-  unsigned char* csr_ld_tag_index_packed(int snp_index) {
-    return &csr_ld_tag_index_packed_[csr_ld_tag_index_offset_[snp_index - snp_index_from_inclusive_]];
+  unsigned char* csr_ld_val_index_packed(int key_index) {
+    return &csr_ld_val_index_packed_[csr_ld_val_index_offset_[key_index - key_index_from_inclusive_]];
   }
 
-  int64_t num_ld_r2(int snp_index) const {
-    return ld_index_end(snp_index) - ld_index_begin(snp_index);
+  int64_t num_ld_r2(int key_index) const {
+    return ld_index_end(key_index) - ld_index_begin(key_index);
   }
 
   int64_t ld_index_begin(int snp_index) const {
-    return csr_ld_snp_index_[snp_index - snp_index_from_inclusive_];
+    return csr_ld_key_index_[snp_index - key_index_from_inclusive_];
   }
 
   int64_t ld_index_end(int snp_index) const {
-    return csr_ld_snp_index_[snp_index - snp_index_from_inclusive_ + 1];
+    return csr_ld_key_index_[snp_index - key_index_from_inclusive_ + 1];
   }
 
   // indices where chunk starts (inclusive) and ends (exclusive)
-  // [snp_index_from_inclusive_, snp_index_to_exclusive_)
-  int snp_index_from_inclusive_;
-  int snp_index_to_exclusive_;
+  // [key_index_from_inclusive_, key_index_to_exclusive_)
+  int key_index_from_inclusive_;
+  int key_index_to_exclusive_;
   int chr_label_;
-  int num_snps_in_chunk() const { return snp_index_to_exclusive_ - snp_index_from_inclusive_; }
-  bool is_empty() const { return snp_index_to_exclusive_ == snp_index_from_inclusive_; }
+  int num_keys_in_chunk() const { return key_index_to_exclusive_ - key_index_from_inclusive_; }
+  bool is_empty() const { return key_index_to_exclusive_ == key_index_from_inclusive_; }
 
   int64_t set_ld_r2_csr(TagToSnpMapping* mapping);
-  int64_t validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_tag_index, TagToSnpMapping& mapping);  // validate
-  float find_and_retrieve_ld_r2(int snp_index, int tag_index, const std::vector<uint32_t>& csr_ld_tag_index);  // nan if doesn't exist.
-  void extract_row(int snp_index, LdMatrixRow* row);
+  int64_t validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_val_index, TagToSnpMapping& mapping);  // validate
+  float find_and_retrieve_ld_r2(int key_index, int val_index, const std::vector<uint32_t>& csr_ld_val_index);  // nan if doesn't exist.
+  void extract_row(int key_index, LdMatrixRow* row);
 
   size_t log_diagnostics();
   void clear();

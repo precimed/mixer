@@ -178,14 +178,14 @@ class LdMatrixCsrChunk {
  public:
   std::vector<std::tuple<int, int, packed_r_value>> coo_ld_; // key, val, r
 
-  // csr_ld_snp_index_.size() == num_snps_in_chunk() + 1; 
-  // csr_ld_snp_index_[j]..csr_ld_snp_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
-  // csr_ld_tag_index_.size() == csr_ld_r_.size() == number of non-zero LD r values
-  // csr_ld_tag_index_ contains values from 0 to num_tag_-1
+  // csr_ld_key_index_.size() == num_keys_in_chunk() + 1; 
+  // csr_ld_key_index_[j]..csr_ld_key_index_[j+1] is a range of values in CSR matrix corresponding to j-th variant
+  // csr_ld_val_index_.size() == csr_ld_r_.size() == number of non-zero LD r values
+  // csr_ld_val_index_ contains values from 0 to num_val_-1
   // csr_ld_r_ contains values from -1 to 1, indicating LD allelic correlation (r) between snp and tag variants
   std::vector<int64_t> csr_ld_key_index_;
   std::vector<uint64_t> csr_ld_val_index_offset_;      // pointers to csr_ld_val_index_packed_ (location where to decompress)
-                                                       // number of elements to decompress can be deduced from csr_ld_snp_index_
+                                                       // number of elements to decompress can be deduced from csr_ld_key_index_
   std::vector<unsigned char> csr_ld_val_index_packed_;  // packed csr_ld_val_index (delta-encoded, then compressed with TurboPFor vsenc32 algorithm).
                                                         // The buffer has some extra capacity (as required by TurboPFor vsenc32/vdec32 algorithms).
   std::vector<packed_r_value> csr_ld_r_;
@@ -198,12 +198,12 @@ class LdMatrixCsrChunk {
     return ld_index_end(key_index) - ld_index_begin(key_index);
   }
 
-  int64_t ld_index_begin(int snp_index) const {
-    return csr_ld_key_index_[snp_index - key_index_from_inclusive_];
+  int64_t ld_index_begin(int key_index) const {
+    return csr_ld_key_index_[key_index - key_index_from_inclusive_];
   }
 
-  int64_t ld_index_end(int snp_index) const {
-    return csr_ld_key_index_[snp_index - key_index_from_inclusive_ + 1];
+  int64_t ld_index_end(int key_index) const {
+    return csr_ld_key_index_[key_index - key_index_from_inclusive_ + 1];
   }
 
   // indices where chunk starts (inclusive) and ends (exclusive)

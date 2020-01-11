@@ -1690,12 +1690,12 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold, std::st
         }
 
         passed_random_pruning_local[random_tag_index] += 1;
-        int snp_index = tag_to_snp_[random_tag_index];
-        ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);
+        ld_matrix_csr_.extract_tag_row(TagIndex(random_tag_index), &ld_matrix_row);
         auto iter_end = ld_matrix_row.end();
         int num_changes = 0;
         for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-          const int tag_index = iter.index();
+          const int tag_index = snp_to_tag_[iter.index()];
+          if (tag_index == -1) continue;
           const float r2_value = iter.r2();  // here we are interested in r2 (hvec is irrelevant)        
           if (r2_value < r2_threshold) continue;
           if (processed_tag_indices[tag_index]) continue;

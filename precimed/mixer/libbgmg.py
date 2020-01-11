@@ -152,7 +152,7 @@ class LibBgmg(object):
     def defvec(self):
         numpy_ndarray = np.zeros(shape=(self.num_tag,), dtype=np.int32)
         self._check_error(self.cdll.bgmg_retrieve_tag_indices(self._context_id, np.size(numpy_ndarray), numpy_ndarray))
-        return numpy_ndarray
+        return numpy_ndarray  # wow, this needs to be corrected - defvec must be a mask, not list of tag indices!
 
     @defvec.setter
     def defvec(self, val):
@@ -264,11 +264,11 @@ class LibBgmg(object):
 
     @property
     def ld_sum_r2(self):
-        return self._get_vec_impl(self.cdll.bgmg_retrieve_ld_sum_r2, np.float32, self.num_tag, trait=None)
+        return self._get_vec_impl(self.cdll.bgmg_retrieve_ld_sum_r2, np.float32, self.num_snp, trait=None)
 
     @property
     def ld_sum_r4(self):
-        return self._get_vec_impl(self.cdll.bgmg_retrieve_ld_sum_r4, np.float32, self.num_tag, trait=None)
+        return self._get_vec_impl(self.cdll.bgmg_retrieve_ld_sum_r4, np.float32, self.num_snp, trait=None)
 
     # return (tag, r2) tuple, representing LD structure of a given reference snp
     # tag and r2 are vectors of the same length, tag gives an index of a tag snp, r2 gives corresponding LD r2 correlation

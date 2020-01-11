@@ -439,15 +439,20 @@ void LdMatrixCsrChunk::extract_row(int key_index, LdMatrixRow* row) {
 void LdMatrixCsr::extract_snp_row(SnpIndex snp_index, LdMatrixRow* row) {
   const int chr_label = mapping_.chrnumvec()[snp_index.index()];
   LdMatrixCsrChunk& chunk = chunks_forward_[chr_label];
+  if (chunk.is_empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("chunks_forward_ is empty()"));  
   chunk.extract_row(snp_index.index(), row);
 }
 
 void LdMatrixCsr::extract_tag_row(TagIndex tag_index, LdMatrixRow* row) {
   const int chr_label = mapping_.chrnumvec()[mapping_.tag_to_snp()[tag_index.index()]];
   if (mapping_.has_complete_tag_indices()) {
-    chunks_forward_[chr_label].extract_row(tag_index.index(), row);
+    LdMatrixCsrChunk& chunk = chunks_forward_[chr_label];
+    if (chunk.is_empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("chunks_forward_ is empty()"));  
+    chunk.extract_row(tag_index.index(), row);
   } else {
-    chunks_reverse_[chr_label].extract_row(tag_index.index(), row);
+    LdMatrixCsrChunk& chunk = chunks_reverse_[chr_label];
+    if (chunk.is_empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("chunks_reverse_ is empty()"));  
+    chunk.extract_row(tag_index.index(), row);
   }
 }
 

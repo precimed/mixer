@@ -213,7 +213,7 @@ class LdMatrixCsrChunk {
   int key_index_to_exclusive_;
   int chr_label_;
   int num_keys_in_chunk() const { return key_index_to_exclusive_ - key_index_from_inclusive_; }
-  bool is_empty() const { return key_index_to_exclusive_ == key_index_from_inclusive_; }
+  bool is_empty() const { return csr_ld_r_.empty(); }
 
   int64_t set_ld_r2_csr();
   int64_t validate_ld_r2_csr(const std::vector<uint32_t>& csr_ld_val_index);

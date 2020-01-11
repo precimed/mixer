@@ -122,7 +122,7 @@ void LdMatrixCsr::init_chunks() {
     if (chr_label >= max_chr_label) max_chr_label = chr_label;
   }
   chunks_forward_.resize(max_chr_label + 1);  // here we most likely create one useless LD structure for chr_label==0. But that's fine, it'll just stay empty.
-  chunks_reverse_.resize(max_chr_label + 1);  // here we most likely create one useless LD structure for chr_label==0. But that's fine, it'll just stay empty.
+  chunks_reverse_.resize(max_chr_label + 1);
   LOG << " highest chr label: " << max_chr_label;
 
   // Find where each chunk starts and ends
@@ -169,7 +169,8 @@ void LdMatrixCsr::init_diagonal(int chr_label) {
     added++;
     int tag_index = mapping_.snp_to_tag()[snp_index];
     chunks_forward_[chr_label].coo_ld_.push_back(std::make_tuple(snp_index, tag_index, 1.0f));
-    chunks_reverse_[chr_label].coo_ld_.push_back(std::make_tuple(tag_index, snp_index, 1.0f));  // ToDo: make this conditional on use_complete_tag_indices_
+    if (!mapping_.has_complete_tag_indices())
+      chunks_reverse_[chr_label].coo_ld_.push_back(std::make_tuple(tag_index, snp_index, 1.0f));
   }
   LOG << " added " << added << " tag (out of " << (snp_index_to - snp_index_from)  << " snps) elements with r2=1.0 to the diagonal of LD r2 matrix";  
   LOG << "<LdMatrixCsr::init_diagonal(chr_label=" << chr_label << "); ";
@@ -222,14 +223,16 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_
     if (mapping_.is_tag()[snp_other_index]) { 
       const int tag_other_index = mapping_.snp_to_tag()[snp_other_index];
       chunks_forward_[chr_label].coo_ld_.push_back(std::make_tuple(snp_index, tag_other_index, r[i]));
-      chunks_reverse_[chr_label].coo_ld_.push_back(std::make_tuple(tag_other_index, snp_index, r[i]));  // ToDo: make this conditional on use_complete_tag_indices_
+      if (!mapping_.has_complete_tag_indices())
+        chunks_reverse_[chr_label].coo_ld_.push_back(std::make_tuple(tag_other_index, snp_index, r[i]));
       new_elements++;
     }
 
     if (mapping_.is_tag()[snp_index]) {
       const int tag_index = mapping_.snp_to_tag()[snp_index];
       chunks_forward_[chr_label].coo_ld_.push_back(std::make_tuple(snp_other_index, tag_index, r[i]));
-      chunks_reverse_[chr_label].coo_ld_.push_back(std::make_tuple(tag_index, snp_other_index, r[i]));  // ToDo: make this conditional on use_complete_tag_indices_
+      if (!mapping_.has_complete_tag_indices())
+        chunks_reverse_[chr_label].coo_ld_.push_back(std::make_tuple(tag_index, snp_other_index, r[i]));
       new_elements++;
     }
   }
@@ -333,7 +336,7 @@ int64_t LdMatrixCsr::set_ld_r2_csr(float r2_min, int chr_label) {
     for (int i = 0; i < chunks_forward_.size(); i++) set_ld_r2_csr(r2_min, i);
   } else {  
     chunks_forward_[chr_label].set_ld_r2_csr();
-    chunks_reverse_[chr_label].set_ld_r2_csr();
+    chunks_reverse_[chr_label].set_ld_r2_csr();  // save to call if (!mapping_.has_complete_tag_indices()) ?
   }
   return 0;
 }
@@ -441,7 +444,7 @@ void LdMatrixCsr::extract_snp_row(SnpIndex snp_index, LdMatrixRow* row) {
 
 void LdMatrixCsr::extract_tag_row(TagIndex tag_index, LdMatrixRow* row) {
   const int chr_label = mapping_.chrnumvec()[mapping_.tag_to_snp()[tag_index.index()]];
-  if (mapping_.num_snp() == mapping_.num_tag()) {
+  if (mapping_.has_complete_tag_indices()) {
     chunks_forward_[chr_label].extract_row(tag_index.index(), row);
   } else {
     chunks_reverse_[chr_label].extract_row(tag_index.index(), row);

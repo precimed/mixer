@@ -366,6 +366,7 @@ class BgmgCalculator : public TagToSnpMapping {
 
   virtual int num_snp() { return num_snp_; }
   virtual int num_tag() { return num_tag_; }
+  virtual bool has_complete_tag_indices() { return num_snp_ == num_tag_; }
   virtual const std::vector<int>& tag_to_snp() { return  tag_to_snp_; }
   virtual const std::vector<int>& snp_to_tag() { return snp_to_tag_; }
   virtual const std::vector<char>& is_tag() { return is_tag_; }

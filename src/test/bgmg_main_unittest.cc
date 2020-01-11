@@ -48,6 +48,7 @@ public:
   TestMother(int num_snp, int num_tag, int n) : num_snp_(num_snp), num_tag_(num_tag), rd_(), g_(12341234) {
     std::uniform_real_distribution<> mafvec_dist(0.0f, 0.5f);
 
+    for (int i = 0; i < num_snp_; i++) tag_to_snp_complete_.push_back(i);
     for (int i = 0; i < num_snp_; i++) tag_to_snp_.push_back(i);
     std::shuffle(tag_to_snp_.begin(), tag_to_snp_.end(), g_);
     tag_to_snp_.resize(num_tag_);
@@ -55,7 +56,12 @@ public:
 
     regenerate_zvec();
     for (int i = 0; i < num_tag_; i++) n_vec_.push_back(n);
+    for (int i = 0; i < num_snp_; i++) n_vec_complete_.push_back(n);
+
     for (int i = 0; i < num_tag_; i++) weights_.push_back(1.0f);
+    for (int i = 0; i < num_snp_; i++) weights_complete_.push_back(0);
+    for (int i = 0; i < num_tag_; i++) weights_complete_[tag_to_snp_[i]] = weights_[i];
+
     for (int i = 0; i < num_snp_; i++) mafvec_.push_back(mafvec_dist(g_));
     for (int i = 0; i < num_snp_; i++) chrnumvec_.push_back(1);
   }
@@ -67,10 +73,19 @@ public:
   std::vector<int>* chrnumvec() { return &chrnumvec_; }
   std::vector<float>* weights() { return &weights_; }
 
+  // functions with complete=true return logically the same data, but suitable for use_complete_tag_indices representation.
+  std::vector<int>* tag_to_snp(bool complete) { return complete ? &tag_to_snp_complete_ : &tag_to_snp_; }
+  std::vector<float>* zvec(bool complete) { return complete ? &z_vec_complete_ : &z_vec_; }
+  std::vector<float>* nvec(bool complete) { return complete ? &n_vec_complete_ : &n_vec_; }
+  std::vector<float>* weights(bool complete) { return complete ? &weights_complete_ : &weights_; }
+
   void regenerate_zvec() {
     z_vec_.clear();
+    z_vec_complete_.clear();
     std::normal_distribution<float> norm_dist(0.0, 1.5);
     for (int i = 0; i < num_tag_; i++) z_vec_.push_back(norm_dist(g_));
+    for (int i = 0; i < num_snp_; i++) z_vec_complete_.push_back(NAN);
+    for (int i = 0; i < num_tag_; i++) z_vec_complete_[tag_to_snp_[i]] = z_vec_[i];
   }
 
   // note that in this file tag_index usage remain inconsistent - tag_index variable may refer to values that go from 0 to num_snp-1 (i.e. runs across all SNPs, just just tag SNPs)
@@ -101,11 +116,15 @@ private:
   int num_snp_;
   int num_tag_;
   std::vector<int> tag_to_snp_;
+  std::vector<int> tag_to_snp_complete_;
   std::vector<float> z_vec_;
+  std::vector<float> z_vec_complete_;
   std::vector<float> mafvec_;
   std::vector<int> chrnumvec_;
   std::vector<float> n_vec_;
+  std::vector<float> n_vec_complete_;
   std::vector<float> weights_;
+  std::vector<float> weights_complete_;
   std::random_device rd_;
   std::mt19937 g_;
 };
@@ -276,30 +295,31 @@ TEST(UgmgTest, CalcLikelihood_with_r2min) {
   UgmgTest_CalcLikelihood(r2min, trait_index);
 }
 
-void UgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, int trait_index, float pi_val, double costvec[5]) {
+void UgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, int trait_index, float pi_val, double costvec[5], bool use_complete_tag_indices) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
-  int num_tag = 10;
+  int num_tag = 5;
+  int num_tag_internal = (use_complete_tag_indices ? num_snp : num_tag);
   int kmax = 20000; // #permutations
   int N = 100;  // gwas sample size, constant across all variants
   int chr_label = 1;
   TestMother tm(num_snp, num_tag, N);
   BgmgCalculator calc;
-  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_tag_indices(num_snp, num_tag_internal, &tm.tag_to_snp(use_complete_tag_indices)->at(0));
   calc.set_option("seed", 0);
   calc.set_option("max_causals", num_snp);
   calc.set_option("kmax", kmax);
   calc.set_option("num_components", 1);
   calc.set_option("cache_tag_r2sum", 1);
   calc.set_option("r2min", r2min);
-  calc.set_option("use_complete_tag_indices", 1);
+  calc.set_option("use_complete_tag_indices", use_complete_tag_indices);
   calc.set_option("threads", 1);
   calc.set_option("z1max", z1max);
   calc.set_option("z2max", z1max); // set this for both traits
 
-  calc.set_zvec(trait_index, num_tag, &tm.zvec()->at(0));
-  calc.set_nvec(trait_index, num_tag, &tm.nvec()->at(0));
-  calc.set_weights(num_tag, &tm.weights()->at(0));
+  calc.set_zvec(trait_index, num_tag_internal, &tm.zvec(use_complete_tag_indices)->at(0));
+  calc.set_nvec(trait_index, num_tag_internal, &tm.nvec(use_complete_tag_indices)->at(0));
+  calc.set_weights(num_tag_internal, &tm.weights(use_complete_tag_indices)->at(0));
 
   std::vector<int> snp_index, tag_index;
   std::vector<float> r2;
@@ -309,7 +329,8 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, int trait
   calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
   calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
-
+  calc.set_option("diag", 0);
+  
   const float sig2_beta = 0.1f;
   const float sig2_zeroL = pi_val * sig2_beta;
   const float sig2_zeroA = 1.2f;
@@ -327,6 +348,8 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, int trait
   double cost_unified_gaussian = calc.calc_unified_univariate_cost_gaussian(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, nullptr);
   double cost_unified_sampling = calc.calc_unified_univariate_cost_sampling(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, nullptr, nullptr);
 
+  std::cout << std::setprecision(9) << cost_sampling << "(s), " << cost_gaussian << "(g), " << cost_convolve << "(c), " << cost_unified_gaussian << "(ug), " << cost_unified_sampling << "(us)" << std::endl;
+
   ASSERT_TRUE(std::isfinite(cost_sampling));
   ASSERT_TRUE(std::isfinite(cost_gaussian));
   ASSERT_TRUE(std::isfinite(cost_convolve));
@@ -334,19 +357,11 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, int trait
   ASSERT_TRUE(std::isfinite(cost_unified_sampling));  
 
   // compare that unified gaussian approximation gives the same answer as fast cost function
-  if (pi_val==1.0f) {
-    ASSERT_FLOAT_EQ(cost_gaussian, cost_unified_gaussian); 
-  }
-
-  if (pi_val != 1.0f) {
-    ASSERT_NEAR(cost_gaussian, cost_unified_gaussian, 1e-5); 
-  }
-
+  ASSERT_NEAR(cost_gaussian, cost_unified_gaussian, 1e-5); 
+  
   if (pi_val==1.0f) {
     ASSERT_FLOAT_EQ(cost_unified_sampling, cost_unified_gaussian); 
   }
-
-  std::cout << std::setprecision(9) << cost_sampling << "(s), " << cost_gaussian << "(g), " << cost_convolve << "(c), " << cost_unified_gaussian << "(ug), " << cost_unified_sampling << "(us)" << std::endl;
 
   ASSERT_FLOAT_EQ(costvec[0], cost_sampling);
   ASSERT_FLOAT_EQ(costvec[1], cost_gaussian);
@@ -381,17 +396,19 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, int trait
     //for (int i = 0; i < svec.size(); i++) std::cout << svec[i] << "\t" << svec_unified[i] << std::endl;
   }
 
-  std::vector<float> c0_unified(num_tag, 0.0), c1_unified(num_tag, 0.0), c2_unified(num_tag, 0.0);
-  calc.calc_unified_univariate_delta_posterior(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, num_tag, &c0_unified[0], &c1_unified[0], &c2_unified[0]);
-  for (int i = 0; i < num_tag; i++) {
+  std::vector<float> c0_unified(num_tag_internal, 0.0), c1_unified(num_tag_internal, 0.0), c2_unified(num_tag_internal, 0.0);
+  calc.calc_unified_univariate_delta_posterior(trait_index, 1, num_snp, &pi_vec[0], &sig2_vec[0], sig2_zeroA, sig2_zeroC, sig2_zeroL, num_tag_internal, &c0_unified[0], &c1_unified[0], &c2_unified[0]);
+  for (int i = 0; i < num_tag_internal; i++) {
+    if (tm.weights(use_complete_tag_indices)->at(i) == 0) continue;
     ASSERT_TRUE(c0_unified[i] > 0); ASSERT_TRUE(c1_unified[i] != 0); ASSERT_TRUE(c2_unified[i] > 0);
     //std::cout << c0_unified[i] << "\t" << c1_unified[i] << "\t" << c2_unified[i] << std::endl;
   }
   
   if (pi_val != 1.0f) {
-    std::vector<float> c0(num_tag, 0.0), c1(num_tag, 0.0), c2(num_tag, 0.0);
-    calc.calc_univariate_delta_posterior(trait_index, pi_val, sig2_zeroA, sig2_beta, num_tag, &c0[0], &c1[0], &c2[0]);
-    for (int i = 0; i < num_tag; i++) {
+    std::vector<float> c0(num_tag_internal, 0.0), c1(num_tag_internal, 0.0), c2(num_tag_internal, 0.0);
+    calc.calc_univariate_delta_posterior(trait_index, pi_val, sig2_zeroA, sig2_beta, num_tag_internal, &c0[0], &c1[0], &c2[0]);
+    for (int i = 0; i < num_tag_internal; i++) {
+      if (tm.weights(use_complete_tag_indices)->at(i) == 0) continue;
       ASSERT_TRUE(c0[i] > 0); ASSERT_TRUE(c1[i] != 0); ASSERT_TRUE(c2[i] > 0);
       //std::cout << c0_unified[i] << "\t" << c1_unified[i] << "\t" << c2_unified[i] << "\t\t" << c0[i] << "\t" << c1[i] << "\t" << c2[i] << std::endl;
     }
@@ -400,21 +417,22 @@ void UgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, int trait
 
 double calcLikelihoodUnifiedGaussian(float r2min, int trait_index, bool use_complete_tag_indices, float pi_val) {
   // Tests calculation of log likelihood, assuming that all data is already set
-  int num_snp = 5;
-  int num_tag = 5;  // ideally we should with num_tag < num_snp (i.e. some SNPs having undefined values), but for that it'll be easier to use "init" method
+  int num_snp = 10;
+  int num_tag = 5;
+  int num_tag_internal = (use_complete_tag_indices ? num_snp : num_tag);
   int N = 100;  // gwas sample size, constant across all variants
   int chr_label = 1;
   TestMother tm(num_snp, num_tag, N);
   BgmgCalculator calc;
-  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_tag_indices(num_snp, num_tag_internal, &tm.tag_to_snp(use_complete_tag_indices)->at(0));
   calc.set_option("seed", 0);
   calc.set_option("r2min", r2min);
   calc.set_option("use_complete_tag_indices", use_complete_tag_indices);
   calc.set_option("threads", 1);
 
-  calc.set_zvec(trait_index, num_tag, &tm.zvec()->at(0));
-  calc.set_nvec(trait_index, num_tag, &tm.nvec()->at(0));
-  calc.set_weights(num_tag, &tm.weights()->at(0));
+  calc.set_zvec(trait_index, num_tag_internal, &tm.zvec(use_complete_tag_indices)->at(0));
+  calc.set_nvec(trait_index, num_tag_internal, &tm.nvec(use_complete_tag_indices)->at(0));
+  calc.set_weights(num_tag_internal, &tm.weights(use_complete_tag_indices)->at(0));
 
   std::vector<int> snp_index, tag_index;
   std::vector<float> r2;
@@ -439,48 +457,60 @@ double calcLikelihoodUnifiedGaussian(float r2min, int trait_index, bool use_comp
 TEST(UgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; const float z1max = 100000;
   const int trait_index = 2; // use second trait for calculations; should work...
-  double costvec[5] = {16.0114786, 15.8589964, 15.9299297, 15.8589949, 15.9333976};
-  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec);
+  //double costvec[5] = {16.0114786, 15.8589964, 15.9299297, 15.8589949, 15.9333976};
+  double costvec[5] = {7.73306899, 7.68907727, 7.69623015, 7.68907783, 7.69566212};
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec, true);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec, false);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood_z1max
 TEST(UgmgTest, CalcConvolveLikelihood_z1max) {
   const float r2min = 0.0; const float z1max = 1.2;
   const int trait_index = 2; // use second trait for calculations; should work...
-  double costvec[5] = {13.0109558, 12.789616, 12.9043533, 12.789611, 12.9075708};
-  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec);
+  //double costvec[5] = {13.0109558, 12.789616, 12.9043533, 12.789611, 12.9075708};
+  double costvec[5] = {6.25358767, 6.16207771, 6.20770748, 6.16207692, 6.20474518 };
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec, true);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec, false);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihoodInft
 TEST(UgmgTest, CalcConvolveLikelihoodInft) {
   const float r2min = 0.0; const float z1max = 100000;
   const int trait_index = 2; // use second trait for calculations; should work...
-  double costvec[5] = {1e+100, 20.5189491, 20.5189537, 20.518953, 20.5189529};
-  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec);
+  //double costvec[5] = {1e+100, 20.5189491, 20.5189537, 20.518953, 20.5189529};
+  double costvec[5] = { 1e+100, 9.93359483, 9.93360452, 9.93360435, 9.93360429 } ;
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec, true);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec, false);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihoodInft_z1max
 TEST(UgmgTest, CalcConvolveLikelihoodInft_z1max) {
   const float r2min = 0.0; const float z1max = 1.2;
   const int trait_index = 2; // use second trait for calculations; should work...
-  double costvec[5] = {1e+100, 16.9341954, 16.9341894, 16.9341892, 16.934189};
-  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec);
+  //double costvec[5] = {1e+100, 16.9341954, 16.9341894, 16.9341892, 16.934189};
+  double costvec[5] = {1e+100, 8.05745833, 8.05746337, 8.05746326, 8.05746319};
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec, true);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec, false);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood_with_r2min
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2; const float z1max = 100000;
   const int trait_index = 1;
-  double costvec[5] = {16.00285, 15.840247, 15.9186396, 15.8402427, 15.925907};  
-  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec);
+  //double costvec[5] = {16.00285, 15.840247, 15.9186396, 15.8402427, 15.925907};  
+  double costvec[5] = {7.73092555, 7.72741705, 7.71021994, 7.72741465, 7.71344399};
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec, true);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 0.2f, costvec, false);
 }
 
 // --gtest_filter=UgmgTest.CalcConvolveLikelihood_with_r2min_inft
 TEST(UgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
   const float r2min = 0.2; const float z1max = 100000;
   const int trait_index = 1;
-  double costvec[5] = {1e+100, 20.5189491, 20.5189472, 20.5189468, 20.5189467};  
-  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec);
+  //double costvec[5] = {1e+100, 20.5189491, 20.5189472, 20.5189468, 20.5189467};  
+  double costvec[5] = {1e+100, 9.93359483, 9.93359888, 9.9335989, 9.93359867};
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec, true);
+  UgmgTest_CalcLikelihood_testConvolution(r2min, z1max, trait_index, 1.0f, costvec, false);
 }
 
 // --gtest_filter=UgmgTest.CalcUnifiedGaussianLikelihood
@@ -502,36 +532,37 @@ TEST(UgmgTest, CalcUnifiedGaussianLikelihood) {
   ASSERT_FLOAT_EQ(v1, v2);
 }
 
-void BgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, float z2max, float* pi_vec, double costvec[5]) {
+void BgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, float z2max, float* pi_vec, double costvec[5], bool use_complete_tag_indices) {
   // Tests calculation of log likelihood, assuming that all data is already set
   int num_snp = 10;
-  int num_tag = 10;
+  int num_tag = 5;
+  int num_tag_internal = (use_complete_tag_indices ? num_snp : num_tag);
   int kmax = 20000; // #permutations
   int N = 100;  // gwas sample size, constant across all variants
   TestMother tm(num_snp, num_tag, N);
   BgmgCalculator calc;
-  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_tag_indices(num_snp, num_tag_internal, &tm.tag_to_snp(use_complete_tag_indices)->at(0));
   calc.set_option("seed", 0);
   calc.set_option("max_causals", num_snp);
   calc.set_option("kmax", kmax);
   calc.set_option("num_components", 3);
   calc.set_option("cache_tag_r2sum", 1);
   calc.set_option("r2min", r2min);
-  calc.set_option("use_complete_tag_indices", 1);
+  calc.set_option("use_complete_tag_indices", use_complete_tag_indices);
   calc.set_option("threads", 1);
   calc.set_option("z1max", z1max);
   calc.set_option("z2max", z1max);
 
   int trait = 1;
   int chr_label = 1;
-  calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
-  calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+  calc.set_zvec(trait, num_tag_internal, &tm.zvec(use_complete_tag_indices)->at(0));
+  calc.set_nvec(trait, num_tag_internal, &tm.nvec(use_complete_tag_indices)->at(0));
 
   trait = 2; tm.regenerate_zvec();
-  calc.set_zvec(trait, num_tag, &tm.zvec()->at(0));
-  calc.set_nvec(trait, num_tag, &tm.nvec()->at(0));
+  calc.set_zvec(trait, num_tag_internal, &tm.zvec(use_complete_tag_indices)->at(0));
+  calc.set_nvec(trait, num_tag_internal, &tm.nvec(use_complete_tag_indices)->at(0));
 
-  calc.set_weights(num_tag, &tm.weights()->at(0));
+  calc.set_weights(num_tag_internal, &tm.weights(use_complete_tag_indices)->at(0));
 
   std::vector<int> snp_index, tag_index;
   std::vector<float> r2;
@@ -541,7 +572,8 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, float z2m
   calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
   calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
-  calc.set_weights_randprune(20, 0.25);
+  //calc.set_weights_randprune(20, 0.25);
+  calc.set_option("diag", 0);
 
   float sig2_beta[] = { 0.5, 0.3 };
   float rho_beta = 0.8;
@@ -590,9 +622,10 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, float z2m
     ASSERT_NEAR(cost_gaussian, cost_gaussian_unified, 1e-4);
   }
 
-  std::vector<float> c00(num_tag, 0.0), c10(num_tag, 0.0), c01(num_tag, 0.0), c20(num_tag, 0.0), c11(num_tag, 0.0), c02(num_tag, 0.0);
-  calc.calc_unified_bivariate_delta_posterior(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, num_tag, &c00[0], &c10[0], &c01[0], &c20[0], &c11[0], &c02[0]);
-  for (int i = 0; i < num_tag; i++) {
+  std::vector<float> c00(num_tag_internal, 0.0), c10(num_tag_internal, 0.0), c01(num_tag_internal, 0.0), c20(num_tag_internal, 0.0), c11(num_tag_internal, 0.0), c02(num_tag_internal, 0.0);
+  calc.calc_unified_bivariate_delta_posterior(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, num_tag_internal, &c00[0], &c10[0], &c01[0], &c20[0], &c11[0], &c02[0]);
+  for (int i = 0; i < num_tag_internal; i++) {
+    if (tm.weights(use_complete_tag_indices)->at(i) == 0) continue;
     ASSERT_TRUE(c00[i] > 0);
     ASSERT_TRUE(c10[i] != 0);
     ASSERT_TRUE(c01[i] != 0);
@@ -612,7 +645,8 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, float z2m
  
   calc.set_option("kmax", 200);
   calc.calc_unified_bivariate_pdf(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, zvec_pdf.size(), &zvec1_grid[0], &zvec2_grid[0], &zvec_pdf[0]);
-  for (int i = 0; i < num_tag; i++) {
+  for (int i = 0; i < num_tag_internal; i++) {
+    if (tm.weights(use_complete_tag_indices)->at(i) == 0) continue;
     ASSERT_TRUE(c00[i] > 0);
     ASSERT_TRUE(c10[i] != 0);
     ASSERT_TRUE(c01[i] != 0);
@@ -725,48 +759,60 @@ void BgmgTest_CalcLikelihood(float r2min) {
 TEST(BgmgTest, CalcConvolveLikelihood_inft) {
   const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.0, 0.0, 1.0 }; 
-  double costvec[5] = {1e+100, 23.7376571, 23.7376779, 23.7376838, 23.7376843};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
+  //double costvec[5] = {1e+100, 23.7376571, 23.7376779, 23.7376838, 23.7376843};
+  double costvec[5] = {1e+100, 24.5043969, 24.5040033, 24.5043765, 24.5043765};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_inft_z1max
 TEST(BgmgTest, CalcConvolveLikelihood_inft_z1max) {
   const float r2min = 0.0; const float z1max = 1.2; const float z2max = 0.5;
   float pi_vec[] = { 0.0, 0.0, 1.0 }; 
-  double costvec[5] = {1e+100, 15.4232014, 15.4232295, 15.4232234, 15.4232239};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
+  //double costvec[5] = {1e+100, 15.4232014, 15.4232295, 15.4232234, 15.4232239};
+  double costvec[5] = {1e+100, 9.92858297, 9.92856951, 9.92855016, 9.92855022 };
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood
 TEST(BgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
-  double costvec[5] = {18.9650083, 18.0064621, 18.7262241, 20.3703903, 18.7258614};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
+  //double costvec[5] = {18.9650083, 18.0064621, 18.7262241, 20.3703903, 18.7258614};
+  double costvec[5] = { 20.1751637, 19.5427144, 19.9417243, 21.1827832, 19.949932 };
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_z1max
 TEST(BgmgTest, CalcConvolveLikelihood_z1max) {
   const float r2min = 0.0; const float z1max = 1.2; const float z2max = 0.5;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
-  double costvec[5] = {11.7194747, 10.7965121, 11.4819549, 13.1884063, 11.489059};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
+  //double costvec[5] = {11.7194747, 10.7965121, 11.4819549, 13.1884063, 11.489059};
+  double costvec[5] = {7.79574923, 7.28866735, 7.64924327, 8.63425674, 7.64984386};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_with_r2min_inft
 TEST(BgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
   const float r2min = 0.2; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.0, 0.0, 1.0 };
-  double costvec[5] = {1e+100, 23.5455545, 23.7376709, 23.7376766, 23.7376769};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
+  //double costvec[5] = {1e+100, 23.5455545, 23.7376709, 23.7376766, 23.7376769};
+  double costvec[5] = {1e+100, 24.2959385, 24.5039971, 24.5043688, 24.5043702};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
 
 // --gtest_filter=BgmgTest.CalcConvolveLikelihood_with_r2min
 TEST(BgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
-  double costvec[5] = {18.9611203, 17.834824, 18.8095303, 20.3703838, 18.8040619};
-  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec);
+  //double costvec[5] = {18.9611203, 17.834824, 18.8095303, 20.3703838, 18.8040619};
+  double costvec[5] = {20.1445922, 19.4030883, 20.0373171, 21.1827779, 20.0463165};
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
+  BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
 
 // bgmg-test.exe --gtest_filter=BgmgTest.CalcLikelihood

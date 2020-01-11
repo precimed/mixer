@@ -2212,8 +2212,6 @@ void BgmgCalculator::find_z_minus_fixed_effect_delta(int trait_index, std::vecto
     z_minus_fixed_effect_delta->at(i) = std::isfinite(zvec[i]) ? (zvec[i] - fixed_effect_delta[i]) : zvec[i];
 }
 
-// in use_complete_tag_indices_ many tag indices are undefined,
-// so we may want to compute deftag to avoid unbalanced load across OpenMP threads (static scheduler is still the way to go in most cases)
 int BgmgCalculator::find_deftag_indices_znw(int trait_index, std::vector<int>* deftag_indices) {
   std::vector<float>& zvec(*get_zvec(trait_index));
   std::vector<float>& nvec(*get_nvec(trait_index));

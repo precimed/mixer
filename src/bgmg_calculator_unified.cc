@@ -39,8 +39,6 @@ class UnivariateCharacteristicFunctionData {
   float sig2_zeroC;
   float sig2_zeroL;
   int tag_index;  // for which SNP to calculate the characteristic function
-                  // note that use_complete_tag_indices_ must be enabled for "convolve" calculator, 
-                  // so "tag" and "snp" are in the same indexing
   LdMatrixRow* ld_matrix_row;
   const std::vector<float>* hvec;
   const std::vector<float>* nvec;
@@ -99,8 +97,6 @@ int calc_univariate_characteristic_function_for_integration(unsigned ndim, const
 }
 
 double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
-  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
-
   std::stringstream ss;
   ss << "trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL;
   LOG << ">calc_unified_univariate_cost_convolve(" << ss.str() << ")";
@@ -339,7 +335,6 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
 }
 
 double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux, const float* weights) {
-  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
   if (weights == nullptr) {
     if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
     weights = &weights_[0];
@@ -408,7 +403,6 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
 }
 
 void BgmgCalculator::find_unified_univariate_tag_delta_sampling(int num_components, float* pi_vec, float* sig2_vec, float sig2_zeroC, int tag_index, const float* nvec, const float* hvec, std::vector<float>* tag_delta2, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row) {
-  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
   tag_delta2->assign(k_max_, 0.0f);
   ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), ld_matrix_row);
   auto iter_end = ld_matrix_row->end();
@@ -458,7 +452,6 @@ void BgmgCalculator::find_unified_univariate_tag_delta_sampling(int num_componen
 }
 
 void BgmgCalculator::find_unified_bivariate_tag_delta_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int tag_index, const float* nvec1, const float* nvec2, const float* hvec, std::vector<float>* tag_delta20, std::vector<float>* tag_delta02, std::vector<float>* tag_delta11, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row) {
-  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
   tag_delta20->assign(k_max_, 0.0f); tag_delta02->assign(k_max_, 0.0f); tag_delta11->assign(k_max_, 0.0f);
   ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), ld_matrix_row);
   auto iter_end = ld_matrix_row->end();
@@ -887,10 +880,7 @@ class BivariateCharacteristicFunctionData {
   const float* sig2_zeroL;
   float rho_zeroA;
   float rho_zeroL;
-
   int tag_index;  // for which SNP to calculate the characteristic function
-                  // note that use_complete_tag_indices_ must be enabled for "convolve" calculator, 
-                  // so "tag" and "snp" are in the same indexing
   LdMatrixRow* ld_matrix_row;
 
   const std::vector<float>* hvec;
@@ -977,7 +967,6 @@ int calc_bivariate_characteristic_function_for_integration(unsigned ndim, const 
 }
 
 double BgmgCalculator::calc_unified_bivariate_cost_convolve(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux) {
-  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Convolve calculator require 'use_complete_tag_indices' option"));
   std::string ss = find_bivariate_params_description(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL);
   LOG << ">calc_unified_bivariate_cost_convolve(" << ss << ")";
 
@@ -1073,7 +1062,6 @@ double BgmgCalculator::calc_unified_bivariate_cost_convolve(int num_snp, float* 
 }
 
 double BgmgCalculator::calc_unified_bivariate_cost_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux, const float* weights) {
-  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
   if (weights == nullptr) {
     if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
     weights = &weights_[0];
@@ -1231,8 +1219,6 @@ void BgmgCalculator::calc_bivariate_delta_posterior_integrals(float a, float b, 
 }
 
 int64_t BgmgCalculator::calc_unified_bivariate_pdf(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int length, float* zvec1, float* zvec2, float* pdf) {
-  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
-
   std::stringstream ss;
   ss << "calc_unified_bivariate_pdf(" << find_bivariate_params_description(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL) << ", k_max_=" << k_max_ << ", length=" << length << ")";
   LOG << ">" << ss.str();
@@ -1302,8 +1288,6 @@ int64_t BgmgCalculator::calc_unified_bivariate_pdf(int num_snp, float* pi_vec, f
 
 int64_t BgmgCalculator::calc_unified_bivariate_delta_posterior(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL,
                                                                int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
-  if (!use_complete_tag_indices_) BGMG_THROW_EXCEPTION(::std::runtime_error("Unified Sampling calculator require 'use_complete_tag_indices' option"));
-
   std::stringstream ss;
   ss << "calc_unified_bivariate_delta_posterior(" << find_bivariate_params_description(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL) << ", k_max_=" << k_max_ << ")";
   LOG << ">" << ss.str();

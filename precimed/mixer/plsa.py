@@ -411,7 +411,7 @@ def execute_fit_parser(args):
 
     fix_and_validate_args(libbgmg, args)
     
-    libbgmg.set_option('use_complete_tag_indices', 1)
+    libbgmg.set_option('disable_snp_to_tag_map', 1)
     libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
     libbgmg.init(args.bim_file, args.frq_file, ' '.join([str(x) for x in args.chr2use]), args.trait1_file, "", "", "")
 

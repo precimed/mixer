@@ -36,7 +36,7 @@ std::vector<float>* BgmgCalculator::get_causalbetavec(int trait_index) {
 }
 
 BgmgCalculator::BgmgCalculator() : num_snp_(-1), num_tag_(-1), k_max_(100), seed_(0), aux_option_(AuxOption_Ezvec2),
-    use_complete_tag_indices_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), ld_format_version_(-1), retrieve_ld_sum_type_(0), num_components_(1), 
+    use_complete_tag_indices_(false), disable_snp_to_tag_map_(false), r2_min_(0.0), z1max_(1e10), z2max_(1e10), ld_format_version_(-1), retrieve_ld_sum_type_(0), num_components_(1), 
     max_causals_(100000), cost_calculator_(CostCalculator_Sampling), cache_tag_r2sum_(false), ld_matrix_csr_(*this),
     cubature_abs_error_(0), cubature_rel_error_(1e-4), cubature_max_evals_(0), calc_k_pdf_(false) {
   boost::posix_time::ptime const time_epoch(boost::gregorian::date(1970, 1, 1));
@@ -160,6 +160,8 @@ int64_t BgmgCalculator::set_option(char* option, double value) {
     retrieve_ld_sum_type_ = int(value); return 0;
   } else if (!strcmp(option, "use_complete_tag_indices")) {
     use_complete_tag_indices_ = (value != 0); return 0;
+  } else if (!strcmp(option, "disable_snp_to_tag_map")) {
+    disable_snp_to_tag_map_ = (value != 0); return 0;
   } else if (!strcmp(option, "threads")) {
     if (value > 0) {
       LOG << " omp_set_num_threads(" << static_cast<int>(value) << ")";

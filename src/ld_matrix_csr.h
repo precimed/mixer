@@ -91,7 +91,7 @@ public:
   virtual ~TagToSnpMapping() {}
   virtual int num_snp() = 0;
   virtual int num_tag() = 0;
-  virtual bool has_complete_tag_indices() = 0;
+  virtual bool disable_snp_to_tag_map() = 0;
   virtual const std::vector<int>& tag_to_snp() = 0;
   virtual const std::vector<int>& snp_to_tag() = 0;
   virtual const std::vector<char>& is_tag() = 0;

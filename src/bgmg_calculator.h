@@ -49,15 +49,6 @@ enum AuxOption {
   AuxOption_MAX = 4,
 };
 
-enum LdMatrixType {
-  LdMatrixType_SnpToTag = 0,
-  LdMatrixType_Complete = 1,  // this option will trigger the mode previously known as use_complete_tag_indices
-                              // (all snp will be marked as tag, leading to square LD matrix)
-  LdMatrixType_TagToSnp = 2,
-  LdMatrixType_Both = 3,      // Store both SnpToTag and TagToSnp mappings
-  LdMatrixType_MAX = 4,
-};
-
 class MultinomialSampler;
 
 // Singleton class to manage a collection of objects, identifiable with some integer ID.
@@ -367,6 +358,7 @@ class BgmgCalculator : public TagToSnpMapping {
   virtual int num_snp() { return num_snp_; }
   virtual int num_tag() { return num_tag_; }
   virtual bool has_complete_tag_indices() { return num_snp_ == num_tag_; }
+  virtual bool disable_snp_to_tag_map() { return disable_snp_to_tag_map_ || (num_snp_ == num_tag_); }
   virtual const std::vector<int>& tag_to_snp() { return  tag_to_snp_; }
   virtual const std::vector<int>& snp_to_tag() { return snp_to_tag_; }
   virtual const std::vector<char>& is_tag() { return is_tag_; }
@@ -423,6 +415,8 @@ class BgmgCalculator : public TagToSnpMapping {
   int num_components_;
   int64_t seed_;
   bool use_complete_tag_indices_;  // an option that indicates that all SNPs are TAG (i.e. num_snp_ == num_tag_).
+  bool disable_snp_to_tag_map_;    // save memory by disabling ld_matrix_csr_.chunks_forward_ (not needed in unified implementation)
+
   float r2_min_;
   float z1max_;
   float z2max_;

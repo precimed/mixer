@@ -2,6 +2,7 @@
 
 #include <string>
 #include <valarray>
+#include <algorithm>
 
 #include "bgmg_log.h"
 #include "bgmg_parse.h"
@@ -38,10 +39,11 @@ void generate_ld_matrix_from_bed_file(std::string bfile, float r2_min, float lds
   const int64_t ld_window_bp = (int64_t)ceil(1000.0f * ld_window_kb);
   std::vector<int64_t> bp_dist(num_snps, 0);
   std::vector<int64_t> snp_dist(num_snps, 0);
+  const int max_bp = *std::max_element(bim_file.bp().begin(), bim_file.bp().end());
   for (int i = 0; i < num_snps; i++) {
     int64_t chr_label = bim_file.chr_label()[i];
     int64_t bp = bim_file.bp()[i];
-    bp_dist[i] = chr_label * (2*ld_window_bp) + bp; // we don't want inter-chr correlations => to be safe we add 
+    bp_dist[i] = chr_label * (2*ld_window_bp + 2*max_bp) + bp; // we don't want inter-chr correlations => to be safe we add 
     snp_dist[i] = chr_label * (2*ld_window) + i;    // twice the ld_window_kb (or twice the ld_window) in between chromosomes
     if ((ld_window_kb > 0) && (i > 0) && (bp_dist[i] < bp_dist[i-1])) BGMG_THROW_EXCEPTION(::std::runtime_error("bfile must be sorted on CHR:BP"));
     if ((ld_window > 0) && (i > 0) && (snp_dist[i] < snp_dist[i-1])) BGMG_THROW_EXCEPTION(::std::runtime_error("bfile must be sorted on CHR:BP"));

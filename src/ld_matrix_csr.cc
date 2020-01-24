@@ -76,7 +76,7 @@ int64_t LdMatrixCsr::set_ld_r2_coo_version1plus(int chr_label, const std::string
   int64_t numel = chunk.csr_ld_r_.size();
   LOG << " set_ld_r2_coo(filename=" << filename << ", numel=" << numel << ")...";
 
-  const int index0 = chunks_forward_[chr_label].key_index_from_inclusive_;
+  const int index0 = (chr_label < 0) ? 0 : chunks_forward_[chr_label].key_index_from_inclusive_;
 
   std::vector<int> snp_index(numel, 0), snp_other_index(numel, 0);
   std::vector<float> r(numel, 0.0f);
@@ -191,14 +191,19 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_
 
   SimpleTimer timer(-1);
 
-  init_diagonal(chr_label_data);
+  if (chr_label_data < 0) {
+    for (int i = 0; i < chunks_forward_.size(); i++) 
+      init_diagonal(i);
+  } else {
+    init_diagonal(chr_label_data);
+  }
 
   int64_t new_elements = 0;
   int64_t elements_on_different_chromosomes = 0;
 
-  if (chr_label_data < 0 || chr_label_data >= chunks_forward_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("invalid value for chr_label argument"));
-  const int snp_index_from = chunks_forward_[chr_label_data].key_index_from_inclusive_;
-  const int snp_index_to = chunks_forward_[chr_label_data].key_index_to_exclusive_;
+  if (chr_label_data >= chunks_forward_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("invalid value for chr_label argument"));
+  const int snp_index_from = (chr_label_data < 0) ? 0 : chunks_forward_[chr_label_data].key_index_from_inclusive_;
+  const int snp_index_to = (chr_label_data < 0) ? mapping_.num_snp() : chunks_forward_[chr_label_data].key_index_to_exclusive_;
 
   std::vector<float> hvec_per_chunk;
   find_hvec_per_chunk(mapping_, &hvec_per_chunk, snp_index_from, snp_index_to);

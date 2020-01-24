@@ -153,7 +153,6 @@ void LdMatrixCsr::init_chunks() {
 }
 
 void LdMatrixCsr::init_diagonal(int chr_label) {
-  LOG << ">LdMatrixCsr::init_diagonal(chr_label=" << chr_label << "); ";
   if (chr_label < 0 || chr_label >= chunks_forward_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("invalid value for chr_label argument"));
   const int snp_index_from = chunks_forward_[chr_label].key_index_from_inclusive_;
   const int snp_index_to =  chunks_forward_[chr_label].key_index_to_exclusive_;
@@ -172,14 +171,13 @@ void LdMatrixCsr::init_diagonal(int chr_label) {
       chunks_forward_[chr_label].coo_ld_.push_back(std::make_tuple(snp_index, tag_index, 1.0f));
     chunks_reverse_[chr_label].coo_ld_.push_back(std::make_tuple(tag_index, snp_index, 1.0f));
   }
-  LOG << " added " << added << " tag (out of " << (snp_index_to - snp_index_from)  << " snps) elements with r2=1.0 to the diagonal of LD r2 matrix";  
-  LOG << "<LdMatrixCsr::init_diagonal(chr_label=" << chr_label << "); ";
+  LOG << " LdMatrixCsr::init_diagonal(chr_label=" << chr_label << ") added " << added << " tag (out of " << (snp_index_to - snp_index_from)  << " snps) elements with r2=1.0 to the diagonal of LD r2 matrix";  
 }
 
 int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_index_data, int* snp_other_index_data, float* r, float r2_min) {
   if (mapping_.mafvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_mafvec"));
   if (mapping_.chrnumvec().empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can't call set_ld_r2_coo before set_chrnumvec"));
-  LOG << ">set_ld_r2_coo(length=" << length << "); ";
+  LOG << ">set_ld_r2_coo(chr_label=" << chr_label_data << ", length=" << length << "); ";
 
   for (int64_t i = 0; i < length; i++)
     if (snp_index_data[i] == snp_other_index_data[i])
@@ -201,7 +199,7 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_
   int64_t new_elements = 0;
   int64_t elements_on_different_chromosomes = 0;
 
-  if (chr_label_data >= chunks_forward_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("invalid value for chr_label argument"));
+  if (chr_label_data >= (int)chunks_forward_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("invalid value for chr_label argument"));
   const int snp_index_from = (chr_label_data < 0) ? 0 : chunks_forward_[chr_label_data].key_index_from_inclusive_;
   const int snp_index_to = (chr_label_data < 0) ? mapping_.num_snp() : chunks_forward_[chr_label_data].key_index_to_exclusive_;
 

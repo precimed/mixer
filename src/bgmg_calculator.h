@@ -288,6 +288,7 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t set_weights(int length, float* values);
   int64_t set_weights_randprune(int n, float r2);   // alternative to set_weights; calculates weights based on random pruning from LD matrix
   int64_t set_weights_randprune(int n, float r2, std::string exclude, std::string extract);   // alternative to set_weights; calculates weights based on random pruning from LD matrix
+  int64_t perform_ld_clump(float r2, int length, float* buffer);
 
   int64_t retrieve_zvec(int trait, int length, float* buffer);
   int64_t retrieve_nvec(int trait, int length, float* buffer);

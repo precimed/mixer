@@ -63,6 +63,7 @@ class LibBgmg(object):
         self.cdll.bgmg_set_ld_r2_coo_from_file.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
         self.cdll.bgmg_set_ld_r2_csr.argtypes = [ctypes.c_int, ctypes.c_int]
         self.cdll.bgmg_set_weights_randprune.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_float, ctypes.c_char_p, ctypes.c_char_p]
+        self.cdll.bgmg_perform_ld_clump.argtypes = [ctypes.c_int, ctypes.c_float, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_retrieve_ld_sum_r2.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_retrieve_ld_sum_r4.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type]
         self.cdll.bgmg_num_ld_r2_snp.argtypes = [ctypes.c_int, ctypes.c_int]
@@ -131,6 +132,11 @@ class LibBgmg(object):
 
     def set_weights_randprune(self, n, r2, exclude="", extract=""):
         return self._check_error(self.cdll.bgmg_set_weights_randprune(self._context_id, n, r2, _p2n(exclude), _p2n(extract)))
+
+    def perform_ld_clump(self, r2, buffer):
+        buffer_data = (buffer if isinstance(buffer, np.ndarray) else np.array(buffer)).astype(np.float32)
+        self._check_error(self.cdll.bgmg_perform_ld_clump(self._context_id, r2, np.size(buffer), buffer_data))
+        return buffer_data
 
     @property
     def num_tag(self):
@@ -361,7 +367,9 @@ class LibBgmg(object):
 
     def calc_univariate_power(self, trait, pi_vec, sig2_zero, sig2_beta, zthresh, ngrid):
         ngrid_data = (ngrid if isinstance(ngrid, np.ndarray) else np.array(ngrid)).astype(np.float32)
-        svec = np.zeros(shape=(np.size(ngrid),), dtype=np.float32)
+        ngrid_size = np.size(ngrid)
+        svec_size = self.num_tag if (ngrid_size == 1) else ngrid_size  # hack-hack, bgmg_calc_univariate_power returns a very different thing when ngrid size is 1
+        svec = np.zeros(shape=(svec_size,), dtype=np.float32)
         self._check_error(self.cdll.bgmg_calc_univariate_power(self._context_id, trait, pi_vec, sig2_zero, sig2_beta, zthresh, np.size(ngrid), ngrid_data, svec))
         return svec    
 

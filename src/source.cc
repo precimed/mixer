@@ -311,6 +311,14 @@ int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer) {
   } CATCH_EXCEPTIONS;
 }
 
+int64_t bgmg_perform_ld_clump(int context_id, float r2, int length, float* buffer) {
+  try {
+    set_last_error(std::string());
+    check_is_positive(length); check_is_not_null(buffer);
+    return BgmgCalculatorManager::singleton().Get(context_id)->perform_ld_clump(r2, length, buffer);
+  } CATCH_EXCEPTIONS;
+}
+
 int64_t bgmg_set_option(int context_id, char* option, double value) {
   try {
     set_last_error(std::string());

@@ -1000,6 +1000,37 @@ TEST(Test, tag_r2_caching) {
   test_tag_r2_caching();
 }
 
+// --gtest_filter=Test.perform_ld_clump
+TEST(Test, perform_ld_clump) {
+  int num_snp = 100;
+  int num_tag = 50;
+  int N = 100; 
+  int num_r2 = 2500;
+  int chr_label = 1;
+  TestMother tm(num_snp, num_tag, N);
+  std::vector<int> snp_index, tag_index;
+  std::vector<float> r2;
+  tm.make_r2(num_r2, &snp_index, &tag_index, &r2);
+  
+  BgmgCalculator calc;
+  calc.set_tag_indices(num_snp, num_tag, &tm.tag_to_snp()->at(0));
+  calc.set_mafvec(num_snp, &tm.mafvec()->at(0));
+  calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
+  calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
+  calc.set_ld_r2_csr();  // finalize csr structure
+  
+  std::vector<float> buffer;
+  std::uniform_real_distribution<float> rng(0.0f, 1.0f);
+  for (int i = 0; i < num_tag; i++) buffer.push_back(rng(tm.random_engine()));
+  // for (int i = 0; i < num_tag; i++) std::cout << buffer[i] << " "; std::cout << std::endl;
+  calc.perform_ld_clump(0.6, num_tag, &buffer[0]);
+  // for (int i = 0; i < num_tag; i++) std::cout << buffer[i] << " "; std::cout << std::endl;
+
+  int pass_clump = 0;
+  for (int i = 0; i < num_tag; i++) if (std::isfinite(buffer[i])) pass_clump ++;
+  ASSERT_EQ(pass_clump, 18); // hardcode how many pass clumping on this specific dataset
+}
+
 // --gtest_filter=Test.performance
 TEST(Test, performance) {
   return;

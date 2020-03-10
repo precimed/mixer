@@ -102,7 +102,10 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_set_weights(int context_id, int length, float* values);
   DLL_PUBLIC int64_t bgmg_set_weights_randprune(int context_id, int n, float r2, const char* exclude, const char* extract);
   DLL_PUBLIC int64_t bgmg_retrieve_weights(int context_id, int length, float* buffer);
-
+  
+  // Perform informed clumping - i.e. pick the largest value in the buffer, remove everything in LD with it, and continue until no work is left
+  DLL_PUBLIC int64_t bgmg_perform_ld_clump(int context_id, float r2, int length, float* buffer);
+  
   // Retrieve certain aspects of the LD structure. Mainly for debugging purpose.
   DLL_PUBLIC int64_t bgmg_retrieve_tag_r2_sum(int context_id, int component_id, float num_causal, int length, float* buffer);
   DLL_PUBLIC int64_t bgmg_retrieve_ld_sum_r2(int context_id, int length, float* buffer);

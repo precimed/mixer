@@ -580,6 +580,7 @@ int64_t BgmgCalculator::calc_univariate_pdf(int trait_index, float pi_vec, float
 int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec) {
   // input buffer "nvec" contains a set of sample sizes (N) to calculate power
   // output buffer svec(n), e.i. a fraction of heritability explained by genome-wide significant SNPs, aggregated across all SNPs with corresponding weights.
+  // note a special case: when  nvec contains just one element, the svec buffer is expected to length num_tag, so that S(N) can be saved for each SNP independently.
   //
   // NB! This function uses analytical formula for the following double integral:
   // C(z) = E(\delta^2 | z) * P(z) = \int_{z : |z| > zt} \int_{delta} p(z|delta) p(delta) delta^2 d[delta] d[z]
@@ -599,13 +600,15 @@ int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, flo
   std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices_w(&deftag_indices);
   const double pi_k = 1.0 / static_cast<double>(k_max_);
 
-  std::valarray<double> s_numerator_global(0.0, length);
-  std::valarray<double> s_denominator_global(0.0, length);
+  const int out_length = (length > 1) ? length : num_tag_;
+
+  std::valarray<double> s_numerator_global(0.0, out_length);
+  std::valarray<double> s_denominator_global(0.0, out_length);
 
 #pragma omp parallel
   {
-    std::valarray<double> s_numerator_local(0.0, length);
-    std::valarray<double> s_denominator_local(0.0, length);
+    std::valarray<double> s_numerator_local(0.0, out_length);
+    std::valarray<double> s_denominator_local(0.0, out_length);
     std::vector<float> tag_r2sum(num_tag_, 0.0f);
 
 #pragma omp for schedule(static)
@@ -626,14 +629,15 @@ int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, flo
 
         float tag_r2sum_value = tag_r2sum[tag_index];
         for (int n_index = 0; n_index < length; n_index++) {
+          const int out_index = (length > 1) ? n_index : tag_index;
           float delta2eff = tag_r2sum_value * nvec[n_index] * sig2_beta;
           float sig2eff = delta2eff + sig2_zero;
           float sqrt_sig2eff = sqrt(sig2eff);
           static const float sqrt_2 = sqrtf(2.0);
           float numerator1 = gaussian_pdf<FLOAT_TYPE>(zthresh, sqrt_sig2eff) * 2 * delta2eff * delta2eff * zthresh / sig2eff;
           float numerator2 = std::erfcf(zthresh / (sqrt_2 * sqrt_sig2eff)) * delta2eff;
-          s_numerator_local[n_index] += tag_weight*(numerator1 + numerator2);
-          s_denominator_local[n_index] += tag_weight*delta2eff;
+          s_numerator_local[out_index] += tag_weight*(numerator1 + numerator2);
+          s_denominator_local[out_index] += tag_weight*delta2eff;
         }
       }
     }
@@ -644,7 +648,7 @@ int64_t BgmgCalculator::calc_univariate_power(int trait_index, float pi_vec, flo
     }
   }
 
-  for (int i = 0; i < length; i++) svec[i] = static_cast<float>(s_numerator_global[i] / s_denominator_global[i]);
+  for (int i = 0; i < out_length; i++) svec[i] = static_cast<float>(s_numerator_global[i] / s_denominator_global[i]);
   LOG << "<calc_univariate_power(trait_index=" << trait_index << ", pi_vec=" << pi_vec << ", sig2_zero=" << sig2_zero << ", sig2_beta=" << sig2_beta << ", zthresh=" << zthresh << ", length(nvec)=" << length << "), elapsed time " << timer.elapsed_ms() << "ms";
   return 0;
 }
@@ -1610,6 +1614,53 @@ void apply_exclude(std::string exclude, const BimFile& bim_file, std::vector<int
   }
 
   LOG << " constrain analysis to " << std::accumulate(defvec->begin(), defvec->end(), 0) << " tag variants (due to exclude='" << exclude << "')";
+}
+
+int64_t BgmgCalculator::perform_ld_clump(float r2_threshold, int length, float* buffer) {
+  check_num_tag(length);
+  if (r2_threshold < r2_min_) BGMG_THROW_EXCEPTION(::std::runtime_error("perform_ld_clump: r2 < r2_min_"));
+  LOG << ">perform_ld_clump(length=" << length << ", r2=" << r2_threshold << ")";
+  SimpleTimer timer(-1);
+
+  LdMatrixRow ld_matrix_row;
+
+  std::vector<std::tuple<float, int>> sorted_buffer;
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (std::isfinite(buffer[tag_index])) {
+      sorted_buffer.push_back(std::tuple<float, int>(buffer[tag_index], tag_index));
+    }
+  }
+  std::sort(sorted_buffer.rbegin(), sorted_buffer.rend());  // use reverse iterators to sort in descending order
+
+  std::vector<char> processed_tag_indices(num_tag_, 0);
+  for (int tag_index = 0; tag_index < num_tag_; tag_index++) {
+    if (!std::isfinite(buffer[tag_index]))
+      processed_tag_indices[tag_index] = 1;
+  }
+
+  int count = 0;
+  for (int sorted_index = 0; sorted_index < sorted_buffer.size(); sorted_index++) {
+    const int tag_index = std::get<1>(sorted_buffer[sorted_index]);
+    if (processed_tag_indices[tag_index]) continue;
+    
+    count++;
+    processed_tag_indices[tag_index] = 1;
+
+    // Step 3. eliminate all unprocessed tag SNPs in LD with max_index
+    ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), &ld_matrix_row);
+    auto iter_end = ld_matrix_row.end();
+    for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
+      const int tag_index_in_ld = iter.index();
+      const float r2_value = iter.r2();  // here we are interested in r2 (hvec is irrelevant)        
+      if (r2_value < r2_threshold) continue;
+      if (processed_tag_indices[tag_index_in_ld]) continue;
+      processed_tag_indices[tag_index_in_ld] = 1;
+      buffer[tag_index_in_ld] = NAN;
+    }   
+  }
+
+  LOG << "<perform_ld_clump(length=" << length << ", r2=" << r2_threshold << "), elapsed time " << timer.elapsed_ms() << "ms, keep " << count << " tag SNPs";
+  return 0;
 }
 
 int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold) {

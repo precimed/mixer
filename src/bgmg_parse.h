@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <algorithm>
 
 #define BED_HEADER_SIZE 3
 

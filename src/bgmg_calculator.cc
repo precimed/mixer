@@ -1342,6 +1342,7 @@ void BgmgCalculator::log_diagnostics() {
     LOG << " diag: last_num_causals_[" << i << "]=" << last_num_causals_[i];
   LOG << " diag: options.k_max_=" << k_max_;
   LOG << " diag: options.use_complete_tag_indices_=" << use_complete_tag_indices_;
+  LOG << " diag: options.disable_snp_to_tag_map_=" << disable_snp_to_tag_map_;
   LOG << " diag: options.max_causals_=" << max_causals_;
   LOG << " diag: options.num_components_=" << num_components_;
   LOG << " diag: options.r2_min_=" << r2_min_;

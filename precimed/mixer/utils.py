@@ -271,6 +271,16 @@ class AnnotUnivariateParams(object):
         sig2_mat = self.find_sig2_mat()
         return lib.calc_unified_univariate_power(trait, pi_mat, sig2_mat, self._sig2_zeroA, sig2_zeroC=1, sig2_zeroL=self._sig2_zeroL, zthresh=zthresh, ngrid=ngrid)
 
+class AnnotBivariateParams(object):
+    def __init__(self):
+        self._params1 = None # univariate architecture for each trait
+        self._params2 = None # both params must be either single-component causal mixture, or an infinitesimal model
+                             # both params are automatically alighed to share the list of annotation categories, and annotatinos not present in _params1 or _params2 receive sig2_annot=0.
+        self._pi12 = None    # polygenic overlap parameter (must not exceed _params1._pi and _params2._pi)
+        self._rho_annot = None # vector of effect size correlations for each annotation category
+        self._rho_zeroA = None # correlation of sig2_zeroA
+        self._rho_zeroL = None # correlation of sig2_zeroL
+
 class AnnotUnivariateParametrization(object):
     def __init__(self, lib, trait, constraint):
         self._lib = lib

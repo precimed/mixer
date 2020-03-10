@@ -206,7 +206,11 @@ int64_t LdMatrixCsr::set_ld_r2_coo(int chr_label_data, int64_t length, int* snp_
   std::vector<float> hvec_per_chunk;
   find_hvec_per_chunk(mapping_, &hvec_per_chunk, snp_index_from, snp_index_to);
 
+  SimpleTimer log_timer(30000); // log a message each 30 seconds
   for (int64_t i = 0; i < length; i++) {
+    if (log_timer.fire())
+      LOG << " set_ld_r2_coo(" << chr_label_data << ") is still working, " << ((int)(1000 * (float)i / (float) length)) / 10 << "% complete";
+
     const int snp_index = snp_index_data[i] + snp_index_from;
     const int snp_other_index = snp_other_index_data[i] + snp_index_from;
     CHECK_SNP_INDEX(mapping_, snp_index); CHECK_SNP_INDEX(mapping_, snp_other_index);

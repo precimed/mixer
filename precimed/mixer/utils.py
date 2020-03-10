@@ -107,6 +107,12 @@ class BivariateParams(object):
         pi2u = self._pi[1] + self._pi[2]
         return self._rho_beta * self._pi[2] / np.sqrt(pi1u * pi2u)
 
+    def _params1(self):
+        return UnivariateParams(pi=self._pi[0] + self._pi[2], sig2_beta=self._sig2_beta[0], sig2_zero=self._sig2_zero[0])
+
+    def _params2(self):
+        return UnivariateParams(pi=self._pi[1] + self._pi[2], sig2_beta=self._sig2_beta[1], sig2_zero=self._sig2_zero[1])
+
     def _validate(self):
         assert len(self._pi) == 3
         assert len(self._sig2_beta) == 2
@@ -509,7 +515,7 @@ def _hessian_robust(hessian, hessdiag):
     if np.less_equal(np.linalg.eigvals(hessinv), 0).any(): return hessdiag
     return hessian
 
-def _calculate_univariate_uncertainty(parametrization, alpha, totalhet, num_snps, num_samples):
+def _calculate_univariate_uncertainty_funcs(alpha, totalhet, num_snps):
     NCKoef = 0.319 # this koef gives proportion of causal variants that explain 90% of heritability. 
                    # it is specific to BGMG with single gaussian, with MAF specific model
     funcs = [('pi', lambda x: x._pi),
@@ -523,6 +529,10 @@ def _calculate_univariate_uncertainty(parametrization, alpha, totalhet, num_snps
              ('std', lambda x: np.std(x)),
              ('lower', lambda x: np.percentile(x, 100.0 * (  alpha/2))),
              ('upper', lambda x: np.percentile(x, 100.0 * (1-alpha/2)))]
+    return funcs, stats
+
+def _calculate_univariate_uncertainty(parametrization, alpha, totalhet, num_snps, num_samples):
+    funcs, stats = _calculate_univariate_uncertainty_funcs(alpha, totalhet, num_snps)
     hessian = _hessian_robust(nd.Hessian(parametrization._calc_cost)(parametrization._init_vec), 
                               nd.Hessdiag(parametrization._calc_cost)(parametrization._init_vec))
     x_sample = np.random.multivariate_normal(parametrization._init_vec, np.linalg.inv(hessian), num_samples)
@@ -535,7 +545,7 @@ def _calculate_univariate_uncertainty(parametrization, alpha, totalhet, num_snps
             result[func_name][stat_name] = stat(param_vector)
     return result, sample
 
-def _calculate_bivariate_uncertainty(parametrization, ci_samples, alpha, totalhet, num_snps, num_samples):
+def _calculate_bivariate_uncertainty_funcs(alpha, totalhet, num_snps):
     NCKoef = 0.319 # this koef gives proportion of causal variants that explain 90% of heritability. 
                    # it is specific to BGMG with single gaussian, with MAF specific model
     
@@ -581,7 +591,11 @@ def _calculate_bivariate_uncertainty(parametrization, ci_samples, alpha, totalhe
              ('std', lambda x: np.std(x)),
              ('lower', lambda x: np.percentile(x, 100.0 * (  alpha/2))),
              ('upper', lambda x: np.percentile(x, 100.0 * (1-alpha/2)))]
-    
+
+    return funcs, stats
+
+def _calculate_bivariate_uncertainty(parametrization, ci_samples, alpha, totalhet, num_snps, num_samples):
+    funcs, stats = _calculate_bivariate_uncertainty_funcs(alpha, totalhet, num_snps)
     hessian = _hessian_robust(nd.Hessian(parametrization._calc_cost)(parametrization._init_vec), 
                               nd.Hessdiag(parametrization._calc_cost)(parametrization._init_vec))
     x_sample = np.random.multivariate_normal(parametrization._init_vec, np.linalg.inv(hessian), num_samples)

@@ -1,5 +1,5 @@
 '''
-(c) 2018-2019 Oleksandr Frei, Alexey A. Shadrin
+(c) 2016-2020 Oleksandr Frei, Alexey A. Shadrin, Dominic Holland
 MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
 '''
 # Utility classes for univariate and bivariate fit

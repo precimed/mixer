@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 '''
-(c) 2018-2019 Oleksandr Frei, Alexey A. Shadrin
+(c) 2016-2020 Oleksandr Frei, Alexey A. Shadrin, Dominic Holland
 MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
 '''
 
@@ -35,8 +35,9 @@ MASTHEAD = "********************************************************************
 MASTHEAD += "* mixer_plsa.py: Annotation-Informed Causal Mixture\n"
 MASTHEAD += "*                for MAF- and LD- dependent genetic architectures\n"
 MASTHEAD += "* Version {V}\n".format(V=__version__)
-MASTHEAD += "* (c) 2018-2019 Oleksandr Frei, Alexey A. Shadrin\n"
+MASTHEAD += "* (c) 2016-2020 Oleksandr Frei, Alexey A. Shadrin, Dominic Holland\n"
 MASTHEAD += "* Norwegian Centre for Mental Disorders Research / University of Oslo\n"
+MASTHEAD += "* Center for Multimodal Imaging and Genetics / UCSD\n"
 MASTHEAD += "* GNU General Public License v3\n"
 MASTHEAD += "***********************************************************************\n"
 

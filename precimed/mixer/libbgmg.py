@@ -133,7 +133,7 @@ class LibBgmg(object):
     def set_weights_randprune(self, n, r2, exclude="", extract=""):
         return self._check_error(self.cdll.bgmg_set_weights_randprune(self._context_id, n, r2, _p2n(exclude), _p2n(extract)))
 
-    def perform_ld_clump(self, r2, buffer):
+    def perform_ld_clump(self, r2, buffer): # buffer must have a length equal to 'num_tag'
         buffer_data = (buffer if isinstance(buffer, np.ndarray) else np.array(buffer)).astype(np.float32)
         self._check_error(self.cdll.bgmg_perform_ld_clump(self._context_id, r2, np.size(buffer), buffer_data))
         return buffer_data

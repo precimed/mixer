@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 '''
-(c) 2018-2019 Oleksandr Frei, Alexey A. Shadrin
+(c) 2016-2020 Oleksandr Frei, Alexey A. Shadrin, Dominic Holland
 MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
 NB! PLSA does not refer to Probabilistic latent semantic analysis, rather
     P <- causal mixture model (pi) 

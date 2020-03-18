@@ -1650,7 +1650,9 @@ int64_t BgmgCalculator::perform_ld_clump(float r2_threshold, int length, float* 
     ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), &ld_matrix_row);
     auto iter_end = ld_matrix_row.end();
     for (auto iter = ld_matrix_row.begin(); iter < iter_end; iter++) {
-      const int tag_index_in_ld = iter.index();
+      const int snp_index_in_ld = iter.index();
+      const int tag_index_in_ld = snp_to_tag_[snp_index_in_ld];
+      if (tag_index_in_ld==-1) continue;
       const float r2_value = iter.r2();  // here we are interested in r2 (hvec is irrelevant)        
       if (r2_value < r2_threshold) continue;
       if (processed_tag_indices[tag_index_in_ld]) continue;

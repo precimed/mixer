@@ -1018,6 +1018,7 @@ TEST(Test, perform_ld_clump) {
   calc.set_chrnumvec(num_snp, &tm.chrnumvec()->at(0));
   calc.set_ld_r2_coo(chr_label, r2.size(), &snp_index[0], &tag_index[0], &r2[0]);
   calc.set_ld_r2_csr();  // finalize csr structure
+  calc.set_option("diag", 0);
   
   std::vector<float> buffer;
   std::uniform_real_distribution<float> rng(0.0f, 1.0f);

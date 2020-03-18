@@ -88,16 +88,25 @@ class UnivariateParams(object):
 
     def as_dict(self):
         return {'pi': self._pi, 'sig2_beta': self._sig2_beta, 'sig2_zero': self._sig2_zero}
-    
+
+    def find_pi_mat(self, num_snp):
+        return self._pi * np.ones(shape=(num_snp, 1), dtype=np.float32)
+
+    def find_sig2_mat(self, num_snp):
+        return self._sig2_beta * np.ones(shape=(num_snp, 1), dtype=np.float32)
+
     def cost(self, lib, trait):
-        value = lib.calc_univariate_cost(trait, self._pi, self._sig2_zero, self._sig2_beta)
+        value = lib.calc_unified_univariate_cost(trait, self.find_pi_mat(lib.num_snp), self.find_sig2_mat(lib.num_snp), 
+                                                 sig2_zeroA=self._sig2_zero, sig2_zeroC=1, sig2_zeroL=0)
         return value if np.isfinite(value) else 1e100
 
     def pdf(self, lib, trait, zgrid):
-        return lib.calc_univariate_pdf(trait, self._pi, self._sig2_zero, self._sig2_beta, zgrid)
+        return lib.calc_unified_univariate_pdf(trait, self.find_pi_mat(lib.num_snp), self.find_sig2_mat(lib.num_snp),
+                                               sig2_zeroA=self._sig2_zero, sig2_zeroC=1, sig2_zeroL=0, zrid=zgrid)
 
     def power(self, lib, trait, ngrid, zthresh=5.45):
-        return lib.calc_univariate_power(trait, self._pi, self._sig2_zero, self._sig2_beta, zthresh, ngrid)
+        return lib.calc_unified_univariate_power(trait, self.find_pi_mat(lib.num_snp), self.find_sig2_mat(lib.num_snp),
+                                                 sig2_zeroA=self._sig2_zero, sig2_zeroC=1, sig2_zeroL=0, zthresh=zthresh, ngrid=ngrid)
 
 # somewhat useless class.. should be removed?
 class UnifiedUnivariateParams(object):
@@ -927,8 +936,8 @@ def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None, title=''):
     return {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
             'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])), 'title' : title}
 
-def calc_power_curve(libbgmg, params, trait_index, downsample):
-    power_nvec = np.power(10, np.arange(3, 8, 0.1))
+def calc_power_curve(libbgmg, params, trait_index, downsample, nvec=None):
+    power_nvec = np.power(10, np.arange(3, 8, 0.1)) if (nvec is None) else nvec
 
     original_weights = libbgmg.weights
     model_weights = libbgmg.weights
@@ -939,10 +948,14 @@ def calc_power_curve(libbgmg, params, trait_index, downsample):
     model_weights = model_weights/np.sum(model_weights)
 
     libbgmg.weights = model_weights     # temporary set downsampled weights
-    power_svec = params.power(libbgmg, trait_index, power_nvec)
-    libbgmg.weights = original_weights  # restore original weights
+    try:
+        power_svec = params.power(libbgmg, trait_index, power_nvec)
+        libbgmg.weights = original_weights  # restore original weights
+    except:
+        libbgmg.weights = original_weights  # restore original weights
+        return {}
 
-    return power_nvec, power_svec
+    return {'nvec': power_nvec, 'svec': power_svec}
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):

@@ -183,7 +183,6 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--downsample-factor', default=50, type=int, help="Applies to --power-curve. "
         "'--downsample-factor N' imply that only 1 out of N available z-score values will be used in calculations.")
     parser.add_argument('--power-curve', default=False, action="store_true", help="generate power curves")
-    parser.add_argument('--power-curve-clump-r2', default=None, type=float, help="Threshold for clumping SNPs in power curve calculations")
     parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
 
     parser.set_defaults(func=func)
@@ -425,107 +424,6 @@ def apply_bivariate_fit_sequence(args, libbgmg):
     if params == None: raise(RuntimeError('Empty --fit-sequence'))
     return (params, params1, params2, optimize_result_sequence)
 
-def calc_power_curve_clump(libbgmg, params, trait_index, clump_r2):
-    # step 1 - calculate power at current sample size, and pick "best performing" SNPs via clumping
-    power_nvec = [np.nanmedian(libbgmg.get_nvec(trait_index))]
-    snp_svec_total  = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
-    snp_svec_clump = libbgmg.perform_ld_clump(clump_r2, snp_svec_total)
-    weights = np.isfinite(snp_svec_clump).astype(np.float32)
-
-    # step 2 - calculate power curve across the wide range of sample sizes
-    power_nvec = np.power(10, np.arange(3, 8, 0.1))
-    original_weights = libbgmg.weights
-    libbgmg.weights = weights     # temporary set downsampled weights
-    power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
-    libbgmg.weights = original_weights  # restore original weights
-
-    return {'nvec': power_nvec, 'svec': power_svec, 'snp_svec_total': snp_svec_total, 'snp_svec_clump':snp_svec_clump }
-
-def calc_power_curve(libbgmg, params, trait_index, downsample, nvec=None):
-    power_nvec = np.power(10, np.arange(3, 8, 0.1)) if (nvec is None) else nvec
-
-    original_weights = libbgmg.weights
-    if not np.all(np.isfinite(original_weights)): raise(RuntimeError('undefined weights not supported'))
-    if not np.all(np.isfinite(libbgmg.get_zvec(trait_index))): raise(RuntimeError('undefined weights not supported'))
-    model_weights = libbgmg.weights
-
-    mask = np.zeros((len(model_weights), ), dtype=bool)
-    mask[range(0, len(model_weights), downsample)] = 1
-    model_weights[~mask] = 0
-    model_weights = model_weights/np.sum(model_weights)
-
-    libbgmg.weights = model_weights     # temporary set downsampled weights
-    try:
-        power_svec = libbgmg.calc_univariate_power(trait_index, params._pi, params._sig2_zero, params._sig2_beta, 5.45, power_nvec)
-        libbgmg.weights = original_weights  # restore original weights
-    except:
-        libbgmg.weights = original_weights  # restore original weights
-        return {}
-
-    return {'nvec': power_nvec, 'svec': power_svec}
-
-def calc_qq_data(zvec, weights, hv_logp):
-    # Step 0. calculate weights for all data poitns
-    # Step 1. convert zvec to -log10(pvec)
-    # Step 2. sort pval from large (1.0) to small (0.0), and take empirical cdf of this distribution
-    # Step 3. interpolate (data_x, data_y) curve, as we don't need 10M data points on QQ plots
-    data_weights = weights / np.sum(weights)                            # step 0
-    data_y = -np.log10(2*scipy.stats.norm.cdf(-np.abs(zvec)))           # step 1
-    si = np.argsort(data_y); data_y = data_y[si]                        # step 2
-    data_x=-np.log10(np.flip(np.cumsum(np.flip(data_weights[si]))))     # step 2
-    data_idx = np.not_equal(data_y, np.concatenate((data_y[1:], [np.Inf])))
-    data_logpvec = interp1d(data_y[data_idx], data_x[data_idx],         # step 3
-                            bounds_error=False, fill_value=np.nan)(hv_logp)
-    return data_logpvec
-
-def calc_qq_model(zgrid, pdf, hv_z):
-    model_cdf = np.cumsum(pdf) * (zgrid[1] - zgrid[0])
-    model_cdf = 0.5 * (np.concatenate(([0.0], model_cdf[:-1])) + np.concatenate((model_cdf[:-1], [1.0])))
-    model_logpvec = -np.log10(2*interp1d(-zgrid[zgrid<=0], model_cdf[zgrid<=0],
-                                         bounds_error=False, fill_value=np.nan)(hv_z))
-    return model_logpvec
-
-def calc_qq_plot(libbgmg, params, trait_index, downsample, mask=None, title=''):
-    # mask can subset SNPs that are going into QQ curve, for example LDxMAF bin.
-    if mask is None:
-        mask = np.ones((libbgmg.num_tag, ), dtype=bool)
-
-    zvec = libbgmg.get_zvec(trait_index)[mask]
-
-    # Regular grid (vertical axis of the QQ plots)
-    hv_z = np.linspace(0, np.min([np.max(np.abs(zvec)), 38.0]), 1000)
-    hv_logp = -np.log10(2*scipy.stats.norm.cdf(-hv_z))
-
-    # Empirical (data) QQ plot
-    data_logpvec = calc_qq_data(zvec, libbgmg.weights[mask], hv_logp)
-
-    # Estimated (model) QQ plots
-    model_weights = libbgmg.weights
-    mask_indices = np.nonzero(mask)[0]
-    model_mask = np.zeros((len(model_weights), ), dtype=bool)
-    model_mask[mask_indices[range(0, len(mask_indices), downsample)]] = 1
-    model_weights[~model_mask] = 0
-    model_weights = model_weights/np.sum(model_weights)
-
-    zgrid = np.arange(0, 38.0, 0.05, np.float32)
-
-    original_weights = libbgmg.weights
-    libbgmg.weights = model_weights
-    pdf = libbgmg.calc_univariate_pdf(trait_index, params._pi, params._sig2_zero, params._sig2_beta, zgrid)
-    libbgmg.weights = original_weights
-
-    pdf = pdf / np.sum(model_weights)
-    zgrid = np.concatenate((np.flip(-zgrid[1:]), zgrid))  # extend [0, 38] to [-38, 38]
-    pdf = np.concatenate((np.flip(pdf[1:]), pdf))
-    model_logpvec = calc_qq_model(zgrid, pdf, hv_z)
-    #plt.plot(model_logpvec, hv_logp, '-')
-    #plt.plot(data_logpvec, hv_logp, '-')
-    #plt.plot(hv_logp, hv_logp, '--k')
-
-    return {'hv_logp': hv_logp, 'data_logpvec': data_logpvec, 'model_logpvec': model_logpvec,
-            'n_snps': int(np.sum(mask)), 'sum_data_weights': float(np.sum(libbgmg.weights[mask])), 'title' : title}
-    
-
 def calc_bivariate_pdf(libbgmg, params, downsample):
     original_weights = libbgmg.weights
     if not np.all(np.isfinite(original_weights)): raise(RuntimeError('undefined weights not supported'))
@@ -677,18 +575,15 @@ def execute_fit_parser(args):
 
             if args.power_curve:
                 trait_index = 1
-                if args.power_curve_clump_r2 is None:
-                    results['power'] = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
-                    if ci_sample is not None:
-                        power_ci = []
-                        for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
-                            libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
-                            max_causals_pi = (float(args.max_causals - 1) / float(libbgmg.num_snp)) if (args.max_causals > 1) else args.max_causals
-                            if ci_params._pi > max_causals_pi: ci_params._pi = max_causals_pi
-                            power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor))
-                        results['power_ci'] = power_ci
-                else:
-                    results['power'] = calc_power_curve_clump(libbgmg, params, trait_index, args.power_curve_clump_r2)
+                results['power'] = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
+                if ci_sample is not None:
+                    power_ci = []
+                    for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
+                        libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
+                        max_causals_pi = (float(args.max_causals - 1) / float(libbgmg.num_snp)) if (args.max_causals > 1) else args.max_causals
+                        if ci_params._pi > max_causals_pi: ci_params._pi = max_causals_pi
+                        power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor))
+                    results['power_ci'] = power_ci
 
             if args.qq_plots:
                 trait_index = 1

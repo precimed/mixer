@@ -135,7 +135,7 @@ Not available yet.
    * Run ``python mixer.py ld`` to convert plink output into a binary format. The following command must be run once for each chromosome. 
     Note that ``--bim`` argument is the same, e.g. ``1000G.EUR.QC.@.bim`` (with ``@``) regardless of the actual chromosome that you use in ``--plink-ld`` and ``--out``.
     ```
-    python3 <MIXER_ROOT>/python/precimed/mixer.py ld \
+    python3 <MIXER_ROOT>/precimed/mixer.py ld \
        --lib <MIXER_ROOT>/src/build/lib/bgmglib.so
        --bim LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
        --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.gz \

@@ -108,33 +108,6 @@ class UnivariateParams(object):
         return lib.calc_unified_univariate_power(trait, self.find_pi_mat(lib.num_snp), self.find_sig2_mat(lib.num_snp),
                                                  sig2_zeroA=self._sig2_zero, sig2_zeroC=1, sig2_zeroL=0, zthresh=zthresh, ngrid=ngrid)
 
-# somewhat useless class.. should be removed?
-class UnifiedUnivariateParams(object):
-    def __init__(self, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL):
-        self._pi_vec = pi_vec
-        self._sig2_vec = sig2_vec
-        self._sig2_zeroA = sig2_zeroA
-        self._sig2_zeroC = sig2_zeroC
-        self._sig2_zeroL = sig2_zeroL
-
-    def __str__(self):
-        description = []
-        for attr_name in '_pi_vec', '_sig2_vec', '_sig2_zeroA', '_sig2_zeroC', '_sig2_zeroL':
-            try:
-                attr_value = getattr(self, attr_name)
-                description.append('{}: {}'.format(attr_name, np.mean(attr_value)))
-            except RuntimeError:
-                pass
-        return 'UnifiedUnivariateParams({})'.format(', '.join(description))
-    __repr__ = __str__
-
-    def cost(self, lib, trait):
-        value = lib.calc_unified_univariate_cost(trait, self._pi_vec, self._sig2_vec, self._sig2_zeroA, self._sig2_zeroC, self._sig2_zeroL)
-        return value if np.isfinite(value) else 1e100
-
-    def pdf(self, lib, trait, zgrid):
-        return lib.calc_unified_univariate_pdf(trait, self._pi_vec, self._sig2_vec, self._sig2_zeroA, self._sig2_zeroC, self._sig2_zeroL, zgrid)
-
 # params for MAF-, LD-, and annotation-dependent architectures
 # this also supports mixture of small and large effects (pass vector pi and sig2_beta)
 # NB! Trick #1 np.cumsum(sig2_beta) is what gives variance per SNP
@@ -205,6 +178,7 @@ class AnnotUnivariateParams(object):
     
     def find_pi_mat(self, num_snp):
         pi = ([np.max([0, 1-np.sum(self._pi[1:])])] + self._pi[1:]) if (self._pi[0]==1) else self._pi  # Trick #2
+        if (len(self._pi) > 1): raise(NotImplementedError("I suspect the matrix is wrongly oriented here"))
         return np.matmul(np.ones(shape=(num_snp, 1), dtype=np.float32), np.array(pi, dtype=np.float32).reshape(1, -1))
 
     def find_sig2_mat(self):
@@ -412,8 +386,20 @@ class BivariateParams(object):
         return {'pi': self._pi, 'sig2_beta': self._sig2_beta, 'sig2_zero': self._sig2_zero,
                 'rho_zero': self._rho_zero, 'rho_beta': self._rho_beta}
 
+    def find_pi_mat(self, num_snp):
+        return np.matmul(np.array(self._pi, dtype=np.float32).reshape(-1, 1), np.ones(shape=(1, num_snp), dtype=np.float32))
+
+    def find_sig2_mat(self, num_snp):
+        return np.matmul(np.array(self._sig2_beta, dtype=np.float32).reshape(-1, 1), np.ones(shape=(1, num_snp), dtype=np.float32))
+
+    def find_rho_vec(self, num_snp):
+        return self._rho_beta * np.ones(shape=(num_snp, 1), dtype=np.float32)
+
     def cost(self, lib):
-        value = lib.calc_bivariate_cost(self._pi, self._sig2_beta, self._rho_beta, self._sig2_zero, self._rho_zero)
+        #value = lib.calc_bivariate_cost(self._pi, self._sig2_beta, self._rho_beta, self._sig2_zero, self._rho_zero)
+        num_snp = lib.num_snp
+        value = lib.calc_unified_bivariate_cost(self.find_pi_mat(num_snp), self.find_sig2_mat(num_snp), self.find_rho_vec(num_snp),
+                                                sig2_zeroA=self._sig2_zero, sig2_zeroC=[1, 1], sig2_zeroL=[0, 0], rho_zeroA=self._rho_zero, rho_zeroL=0)
         return value if np.isfinite(value) else 1e100
 
 # TBD: there is some inconsistency across "Parametrization" classes.

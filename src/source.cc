@@ -58,6 +58,7 @@ template<typename T> void fix_rho(T *rho) {
   if (*rho < -1) { LOG << " FIX: rho < -1"; *rho = -1; }; 
   if (*rho > 1) { LOG << " FIX: rho > 1"; *rho = 1; }
 }
+template<typename T> void fix_rho(int numel, T *rho) {for ( int i = 0; i < numel; i++) fix_rho(&rho[i]); }
 
 void check_trait_index(int trait_index) { if ((trait_index != 1) && (trait_index != 2)) { BGMG_THROW_EXCEPTION(::std::runtime_error("trait must be 1 or 2")); } }
 template<typename T> void check_is_positive(T arg) { if (arg <= 0) { BGMG_THROW_EXCEPTION(::std::runtime_error("arg <= 0")); } }
@@ -513,16 +514,27 @@ int64_t bgmg_calc_ld_matrix(const char* bfile, const char* outfile, double r2min
   } CATCH_EXCEPTIONS;
 }
 
-void check_and_fix_unified(int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL) {
+void check_and_fix_unified_univariate(int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL) {
   check_is_positive(num_components); check_is_positive(num_snp); 
   fix_pi_vec(num_snp*num_components, pi_vec); check_is_nonnegative(num_snp*num_components, sig2_vec);
   check_is_nonnegative(sig2_zeroA); check_is_nonnegative(sig2_zeroC); check_is_nonnegative(sig2_zeroL); 
 }
 
+void check_and_fix_unified_bivariate(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, 
+                                     float* sig2_zeroL, float *rho_zeroA, float *rho_zeroL) {
+  check_is_positive(num_snp);
+  fix_pi_vec(num_snp*3, pi_vec);
+  check_is_nonnegative(num_snp*2, sig2_vec);
+  fix_rho(num_snp, rho_vec);
+  check_is_nonnegative(2, sig2_zeroA); check_is_nonnegative(2, sig2_zeroC); check_is_nonnegative(2, sig2_zeroL); 
+  fix_rho(rho_zeroA);
+  fix_rho(rho_zeroL);
+}
+
 double bgmg_calc_unified_univariate_cost(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
   try {
     set_last_error(std::string());
-    check_trait_index(trait_index); check_and_fix_unified(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL);
+    check_trait_index(trait_index); check_and_fix_unified_univariate(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_cost(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
   } CATCH_EXCEPTIONS;
 }
@@ -530,7 +542,7 @@ double bgmg_calc_unified_univariate_cost(int context_id, int trait_index, int nu
 int64_t bgmg_calc_unified_univariate_pdf(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf) {
   try {
     set_last_error(std::string());
-    check_trait_index(trait_index); check_and_fix_unified(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL); check_is_positive(length); check_is_not_null(zvec); check_is_not_null(pdf);
+    check_trait_index(trait_index); check_and_fix_unified_univariate(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL); check_is_positive(length); check_is_not_null(zvec); check_is_not_null(pdf);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_pdf(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, length, zvec, pdf);
   } CATCH_EXCEPTIONS;
 }
@@ -538,7 +550,7 @@ int64_t bgmg_calc_unified_univariate_pdf(int context_id, int trait_index, int nu
 int64_t bgmg_calc_unified_univariate_power(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float zthresh, int length, float* nvec, float* svec) {
   try {
     set_last_error(std::string());
-    check_trait_index(trait_index); check_and_fix_unified(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL); check_is_positive(length); check_is_not_null(nvec); check_is_not_null(svec);
+    check_trait_index(trait_index); check_and_fix_unified_univariate(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL); check_is_positive(length); check_is_not_null(nvec); check_is_not_null(svec);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_power(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, zthresh, length, nvec, svec);
   } CATCH_EXCEPTIONS;
 }
@@ -546,7 +558,34 @@ int64_t bgmg_calc_unified_univariate_power(int context_id, int trait_index, int 
 int64_t bgmg_calc_unified_univariate_delta_posterior(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* c0, float* c1, float* c2) {
   try {
     set_last_error(std::string());
-    check_trait_index(trait_index); check_and_fix_unified(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL); check_is_positive(length); check_is_not_null(c0); check_is_not_null(c1); check_is_not_null(c2);
+    check_trait_index(trait_index); check_and_fix_unified_univariate(num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL); check_is_positive(length); check_is_not_null(c0); check_is_not_null(c1); check_is_not_null(c2);
     return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_univariate_delta_posterior(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, length, c0, c1, c2);
+  } CATCH_EXCEPTIONS;
+}
+
+double bgmg_calc_unified_bivariate_cost(int context_id, int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux) {
+  try {
+    set_last_error(std::string());
+    check_and_fix_unified_bivariate(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC,  sig2_zeroL, &rho_zeroA, &rho_zeroL);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_bivariate_cost(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC,  sig2_zeroL, rho_zeroA, rho_zeroL, aux);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_calc_unified_bivariate_pdf(int context_id, int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int length, float* zvec1, float* zvec2, float* pdf) {
+  try {
+    set_last_error(std::string());
+    check_and_fix_unified_bivariate(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC,  sig2_zeroL, &rho_zeroA, &rho_zeroL);
+    check_is_positive(length); check_is_not_null(zvec1); check_is_not_null(zvec2); check_is_not_null(pdf);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_bivariate_pdf(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC,  sig2_zeroL, rho_zeroA, rho_zeroL, length, zvec1, zvec2, pdf);
+  } CATCH_EXCEPTIONS;
+}
+
+int64_t bgmg_calc_unified_bivariate_delta_posterior(int context_id, int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL,
+                                                    int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
+  try {
+    set_last_error(std::string());
+    check_and_fix_unified_bivariate(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC,  sig2_zeroL, &rho_zeroA, &rho_zeroL);
+    check_is_positive(length); check_is_not_null(c00); check_is_not_null(c10); check_is_not_null(c01); check_is_not_null(c20); check_is_not_null(c11); check_is_not_null(c02);
+    return BgmgCalculatorManager::singleton().Get(context_id)->calc_unified_bivariate_delta_posterior(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC,  sig2_zeroL, rho_zeroA, rho_zeroL, length, c00, c10, c01, c20, c11, c02);
   } CATCH_EXCEPTIONS;
 }

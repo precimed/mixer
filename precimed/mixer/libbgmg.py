@@ -1,5 +1,5 @@
 '''
-(c) 2018-2019 Oleksandr Frei, Alexey A. Shadrin
+(c) 2016-2020 Oleksandr Frei, Alexey A. Shadrin, Dominic Holland
 MiXeR software: Univariate and Bivariate Causal Mixture for GWAS
 '''
 import os
@@ -86,6 +86,22 @@ class LibBgmg(object):
         self.cdll.bgmg_calc_bivariate_cost.restype = ctypes.c_double
         self.cdll.bgmg_calc_bivariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type]
         self.cdll.bgmg_calc_bivariate_delta_posterior.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type]
+
+        self.cdll.bgmg_calc_unified_bivariate_cost.argtypes = [ctypes.c_int,            #int context_id
+                                                               ctypes.c_int,            #int num_snp
+                                                               float32_pointer_type,    #float* pi_vec
+                                                               float32_pointer_type,    #float* sig2_vec
+                                                               float32_pointer_type,    #float* rho_vec
+                                                               float32_pointer_type,    #float* sig2_zeroA
+                                                               float32_pointer_type,    #float* sig2_zeroC
+                                                               float32_pointer_type,    #float* sig2_zeroL
+                                                               ctypes.c_float,          #float rho_zeroA
+                                                               ctypes.c_float,          #float rho_zeroL
+                                                               float32_pointer_type]    #float* aux
+        self.cdll.bgmg_calc_unified_bivariate_cost.restype = ctypes.c_double
+        self.cdll.bgmg_calc_unified_bivariate_pdf.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type]
+        self.cdll.bgmg_calc_unified_bivariate_delta_posterior.argtypes = [ctypes.c_int, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, ctypes.c_float, ctypes.c_float, ctypes.c_int, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type, float32_pointer_type]
+
         self.cdll.bgmg_calc_ld_matrix.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_double, ctypes.c_double, ctypes.c_int, ctypes.c_float]
 
         if init_log: self.init_log(init_log)
@@ -412,6 +428,52 @@ class LibBgmg(object):
         c11 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
         c02 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
         self._check_error(self.cdll.bgmg_calc_bivariate_delta_posterior(self._context_id, np.size(pi_vec), pi_vec, np.size(sig2_beta), sig2_beta, rho_beta, np.size(sig2_zero), sig2_zero, rho_zero, self.num_tag, c00, c10, c01, c20, c11, c02))
+        return (c00, c10, c01, c20, c11, c02)
+
+    def calc_unified_bivariate_cost(self, pi_vec, sig2_beta, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL):
+        pi_vec = (pi_vec if isinstance(pi_vec, np.ndarray) else np.array(pi_vec)).astype(np.float32)
+        sig2_beta = (sig2_beta if isinstance(sig2_beta, np.ndarray) else np.array(sig2_beta)).astype(np.float32)
+        rho_vec = (rho_vec if isinstance(rho_vec, np.ndarray) else np.array(rho_vec)).astype(np.float32)
+        sig2_zeroA = (sig2_zeroA if isinstance(sig2_zeroA, np.ndarray) else np.array(sig2_zeroA)).astype(np.float32)
+        sig2_zeroC = (sig2_zeroC if isinstance(sig2_zeroC, np.ndarray) else np.array(sig2_zeroC)).astype(np.float32)
+        sig2_zeroL = (sig2_zeroL if isinstance(sig2_zeroL, np.ndarray) else np.array(sig2_zeroL)).astype(np.float32)
+        aux = np.zeros(shape=(self.num_tag, 3), dtype=np.float32)
+
+        print(self._context_id, self.num_snp, pi_vec.shape, sig2_beta.shape, rho_vec.shape, sig2_zeroA.shape, sig2_zeroC.shape, sig2_zeroL.shape, rho_zeroA, rho_zeroL, aux.shape)
+        print(self._context_id, self.num_snp, pi_vec.flatten()[:10], sig2_beta.flatten()[:10], rho_vec.flatten()[:10], sig2_zeroA.flatten()[:10], sig2_zeroC.flatten()[:10], sig2_zeroL.flatten(), rho_zeroA, rho_zeroL, aux.flatten()[:10])
+
+        cost = self.cdll.bgmg_calc_unified_bivariate_cost(self._context_id, self.num_snp, pi_vec.flatten(), sig2_beta.flatten(), rho_vec.flatten(), sig2_zeroA.flatten(), sig2_zeroC.flatten(), sig2_zeroL.flatten(), rho_zeroA, rho_zeroL, aux.flatten())
+        self._check_error()
+        return cost
+
+    def calc_unified_bivariate_pdf(self, pi_vec, sig2_beta, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL, zvec1, zvec2):
+        pi_vec = (pi_vec if isinstance(pi_vec, np.ndarray) else np.array(pi_vec)).astype(np.float32)
+        sig2_beta = (sig2_beta if isinstance(sig2_beta, np.ndarray) else np.array(sig2_beta)).astype(np.float32)
+        rho_vec = (rho_vec if isinstance(rho_vec, np.ndarray) else np.array(rho_vec)).astype(np.float32)
+        sig2_zeroA = (sig2_zeroA if isinstance(sig2_zeroA, np.ndarray) else np.array(sig2_zeroA)).astype(np.float32)
+        sig2_zeroC = (sig2_zeroC if isinstance(sig2_zeroC, np.ndarray) else np.array(sig2_zeroC)).astype(np.float32)
+        sig2_zeroL = (sig2_zeroL if isinstance(sig2_zeroL, np.ndarray) else np.array(sig2_zeroL)).astype(np.float32)
+        zvec1 = (zvec1 if isinstance(zvec1, np.ndarray) else np.array(zvec1)).astype(np.float32)
+        zvec2 = (zvec2 if isinstance(zvec2, np.ndarray) else np.array(zvec2)).astype(np.float32)
+        if np.size(zvec1) != np.size(zvec2): raise(RuntimeError("len(zvec1) != len(zvec2)"))
+        pdf = np.zeros(shape=(np.size(zvec1),), dtype=np.float32)
+        self._check_error(self.cdll.bgmg_calc_unified_bivariate_pdf(self._context_id, self.num_snp, pi_vec.flatten(), sig2_beta.flatten(), rho_vec.flatten(), sig2_zeroA.flatten(), sig2_zeroC.flatten(), sig2_zeroL.flatten(), rho_zeroA, rho_zeroL, np.size(zvec1), zvec1, zvec2, pdf))
+        return pdf
+
+    def calc_unified_bivariate_delta_posterior(self, pi_vec, sig2_beta, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL):
+        pi_vec = (pi_vec if isinstance(pi_vec, np.ndarray) else np.array(pi_vec)).astype(np.float32)
+        sig2_beta = (sig2_beta if isinstance(sig2_beta, np.ndarray) else np.array(sig2_beta)).astype(np.float32)
+        rho_vec = (rho_vec if isinstance(rho_vec, np.ndarray) else np.array(rho_vec)).astype(np.float32)
+        sig2_zeroA = (sig2_zeroA if isinstance(sig2_zeroA, np.ndarray) else np.array(sig2_zeroA)).astype(np.float32)
+        sig2_zeroC = (sig2_zeroC if isinstance(sig2_zeroC, np.ndarray) else np.array(sig2_zeroC)).astype(np.float32)
+        sig2_zeroL = (sig2_zeroL if isinstance(sig2_zeroL, np.ndarray) else np.array(sig2_zeroL)).astype(np.float32)
+        c00 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c10 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c01 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c20 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c11 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        c02 = np.zeros(shape=(self.num_tag,), dtype=np.float32)
+        self._check_error(self.cdll.bgmg_calc_unified_bivariate_delta_posterior(self._context_id, self.num_snp, pi_vec.flatten(), sig2_beta.flatten(), rho_vec.flatten(), sig2_zeroA.flatten(), sig2_zeroC.flatten(), sig2_zeroL.flatten(), rho_zeroA, rho_zeroL, self.num_tag, c00, c10, c01, c20, c11, c02))
         return (c00, c10, c01, c20, c11, c02)
 
     def __str__(self):

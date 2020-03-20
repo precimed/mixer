@@ -102,7 +102,7 @@ class UnivariateParams(object):
 
     def pdf(self, lib, trait, zgrid):
         return lib.calc_unified_univariate_pdf(trait, self.find_pi_mat(lib.num_snp), self.find_sig2_mat(lib.num_snp),
-                                               sig2_zeroA=self._sig2_zero, sig2_zeroC=1, sig2_zeroL=0, zrid=zgrid)
+                                               sig2_zeroA=self._sig2_zero, sig2_zeroC=1, sig2_zeroL=0, zgrid=zgrid)
 
     def power(self, lib, trait, ngrid, zthresh=5.45):
         return lib.calc_unified_univariate_power(trait, self.find_pi_mat(lib.num_snp), self.find_sig2_mat(lib.num_snp),

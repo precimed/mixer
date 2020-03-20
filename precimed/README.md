@@ -172,7 +172,7 @@ Not available yet.
 
 Fit the model:
 ```
-python3 <MIXER_ROOT>/python/precimed/mixer.py fit \
+python3 <MIXER_ROOT>/precimed/mixer.py fit \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --out SSGAC_EDU_2018_no23andMe_noMHC.fit \
       --extract LDSR/w_hm3.justrs --ci-alpha 0.05 \
@@ -184,7 +184,7 @@ python3 <MIXER_ROOT>/python/precimed/mixer.py fit \
 
 Apply the model to the entire set of SNPs, without constraining to ``LDSR/w_hm3.justrs``:
 ```
-python3 <MIXER_ROOT>/python/precimed/mixer.py fit \
+python3 <MIXER_ROOT>/precimed/mixer.py fit \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --load-params-file SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
       --out SSGAC_EDU_2018_no23andMe_noMHC.test \

@@ -136,7 +136,7 @@ Not available yet.
     Note that ``--bim`` argument is the same, e.g. ``1000G.EUR.QC.@.bim`` (with ``@``) regardless of the actual chromosome that you use in ``--plink-ld`` and ``--out``.
     ```
     python3 <MIXER_ROOT>/python/precimed/mixer.py ld \
-       --lib <MIXER_ROOT>/src/build/lib/bgmglib.so
+       --lib <MIXER_ROOT>/src/build/lib/libbgmg.so
        --bim LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
        --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.gz \
        --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld
@@ -179,7 +179,7 @@ python3 <MIXER_ROOT>/precimed/mixer.py fit \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
       --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
-      --lib  <MIXER_ROOT>/src/build/lib/bgmglib.so \
+      --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
 Apply the model to the entire set of SNPs, without constraining to ``LDSR/w_hm3.justrs``:
@@ -192,7 +192,7 @@ python3 <MIXER_ROOT>/precimed/mixer.py fit \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
       --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
-      --lib  <MIXER_ROOT>/src/build/lib/bgmglib.so \
+      --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
 The results will be saved ``<out_file>.json`` file.
@@ -218,7 +218,7 @@ python3 <MIXER_ROOT>/python/mixer.py fit \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
       --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
-      --lib  <MIXER_ROOT>/src/build/lib/bgmglib.so \
+      --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
 Apply the model to the entire set of SNPs, without constraining to ``LDSR/w_hm3.justrs``:
@@ -232,7 +232,7 @@ python3 <MIXER_ROOT>/python/mixer.py fit \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
       --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
-      --lib  <MIXER_ROOT>/src/build/lib/bgmglib.so \
+      --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
 Note that these parameters point to the results of univariate analysis for both traits, so those must be generated first.

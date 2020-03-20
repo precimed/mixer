@@ -438,10 +438,6 @@ class LibBgmg(object):
         sig2_zeroC = (sig2_zeroC if isinstance(sig2_zeroC, np.ndarray) else np.array(sig2_zeroC)).astype(np.float32)
         sig2_zeroL = (sig2_zeroL if isinstance(sig2_zeroL, np.ndarray) else np.array(sig2_zeroL)).astype(np.float32)
         aux = np.zeros(shape=(self.num_tag, 3), dtype=np.float32)
-
-        print(self._context_id, self.num_snp, pi_vec.shape, sig2_beta.shape, rho_vec.shape, sig2_zeroA.shape, sig2_zeroC.shape, sig2_zeroL.shape, rho_zeroA, rho_zeroL, aux.shape)
-        print(self._context_id, self.num_snp, pi_vec.flatten()[:10], sig2_beta.flatten()[:10], rho_vec.flatten()[:10], sig2_zeroA.flatten()[:10], sig2_zeroC.flatten()[:10], sig2_zeroL.flatten(), rho_zeroA, rho_zeroL, aux.flatten()[:10])
-
         cost = self.cdll.bgmg_calc_unified_bivariate_cost(self._context_id, self.num_snp, pi_vec.flatten(), sig2_beta.flatten(), rho_vec.flatten(), sig2_zeroA.flatten(), sig2_zeroC.flatten(), sig2_zeroL.flatten(), rho_zeroA, rho_zeroL, aux.flatten())
         self._check_error()
         return cost

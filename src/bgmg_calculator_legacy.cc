@@ -51,6 +51,7 @@ int BgmgCalculator::find_deftag_indices_nw(int trait_index, std::vector<int>* de
 int BgmgCalculator::find_deftag_indices_w(std::vector<int>* deftag_indices) {
 int BgmgCalculator::find_deftag_indices_znw(std::vector<int>* deftag_indices) {
 int BgmgCalculator::find_deftag_indices_nw(std::vector<int>* deftag_indices) {
+void BgmgCalculator::clear_state() {
 */
 
 int64_t BgmgCalculator::find_snp_order() {
@@ -1403,4 +1404,14 @@ int BgmgCalculator::find_deftag_indices_nw(std::vector<int>* deftag_indices) {
     deftag_indices->push_back(tag_index);
   }
   return deftag_indices->size();
+}
+
+void BgmgCalculator::clear_state() {
+  LOG << " clear_state";
+
+  // clear ordering of SNPs
+  snp_order_.clear();
+  k_pdf_.clear();
+  tag_r2sum_.clear();
+  last_num_causals_.clear();
 }

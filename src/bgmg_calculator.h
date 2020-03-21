@@ -262,8 +262,6 @@ class BgmgCalculator : public TagToSnpMapping {
 
   int64_t set_option(char* option, double value);
   
-  void clear_state();
-
   int64_t retrieve_ld_sum_r2(int length, float* buffer);
   int64_t retrieve_ld_sum_r4(int length, float* buffer);
   int64_t retrieve_fixed_effect_delta(int trait_index, int length, float* delta);
@@ -331,17 +329,8 @@ class BgmgCalculator : public TagToSnpMapping {
   std::vector<float>* get_nvec(int trait_index);
   std::vector<float>* get_causalbetavec(int trait_index);
 
-  // vectors with one value for each component in the mixture
-  // snp_order_ gives the order of how SNPs are considered to be causal 
-  // tag_r2_sum_ gives cumulated r2 across causal SNPs, according to snp_order, where last_num_causals_ define the actual number of causal variants.
-  std::vector<std::shared_ptr<DenseMatrix<int>>> snp_order_;  // permutation matrix; #rows = pimax*num_snp; #cols=k_max_
-  std::vector<std::shared_ptr<DenseMatrix<float>>> tag_r2sum_;
-  std::vector<float>                               last_num_causals_;
-
   // options, and what do they affect
   int k_max_;
-  int max_causals_;
-  int num_components_;
   int64_t seed_;
   bool use_complete_tag_indices_;  // an option that indicates that all SNPs are TAG (i.e. num_snp_ == num_tag_).
   bool disable_snp_to_tag_map_;    // save memory by disabling ld_matrix_csr_.chunks_forward_ (not needed in unified implementation)
@@ -350,7 +339,6 @@ class BgmgCalculator : public TagToSnpMapping {
   float z1max_;
   float z2max_;
   CostCalculator cost_calculator_;
-  bool cache_tag_r2sum_;
   double cubature_abs_error_;
   double cubature_rel_error_;
   int cubature_max_evals_;
@@ -359,8 +347,6 @@ class BgmgCalculator : public TagToSnpMapping {
   int retrieve_ld_sum_type_;   // control behaviour of retrieve_ld_sum_r2() and retrieve_ld_sum_r4()
                                // 0 = above r2min; 1 = below r2min; 2 = above r2min adjusted for hvec; 3 = below r2min adjusted for hvec; 
                                // For retrieve_ld_sum_r4() the "below r2min" option is not available, therefore 1 will work the same as 0, and 3 will work same as 2.
-  std::vector<double> k_pdf_;  // the log-likelihood cost calculated independently for each of 0...k_max-1 selections of causal variants.            
-  bool calc_k_pdf_;            // a flag indicating whether we should calculate k_pdf_
 
   void check_num_snp(int length);
   void check_num_tag(int length);
@@ -386,6 +372,8 @@ class BgmgCalculator : public TagToSnpMapping {
   void clear_tag_r2sum(int component_id);
   int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
 
+  void clear_state();
+
   double calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_univariate_cost_cache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
   double calc_univariate_cost_nocache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)
@@ -406,6 +394,18 @@ class BgmgCalculator : public TagToSnpMapping {
   int k_max() const { return k_max_; }
 
  private:
+  // vectors with one value for each component in the mixture
+  // snp_order_ gives the order of how SNPs are considered to be causal 
+  // tag_r2_sum_ gives cumulated r2 across causal SNPs, according to snp_order, where last_num_causals_ define the actual number of causal variants.
+  int max_causals_;
+  int num_components_;
+  bool cache_tag_r2sum_;  
+  bool calc_k_pdf_;            // a flag indicating whether we should calculate k_pdf_
+  std::vector<std::shared_ptr<DenseMatrix<int>>> snp_order_;  // permutation matrix; #rows = pimax*num_snp; #cols=k_max_
+  std::vector<std::shared_ptr<DenseMatrix<float>>> tag_r2sum_;
+  std::vector<float>                               last_num_causals_;
+  std::vector<double> k_pdf_;  // the log-likelihood cost calculated independently for each of 0...k_max-1 selections of causal variants.            
+
   int find_deftag_indices_znw(int trait_index, std::vector<int>* deftag_indices);
   int find_deftag_indices_znw(std::vector<int>* deftag_indices);
   int find_deftag_indices_nw(int trait_index, std::vector<int>* deftag_indices);

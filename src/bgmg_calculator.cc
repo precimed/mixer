@@ -344,16 +344,6 @@ void BgmgCalculator::log_diagnostics() {
   LOG << " diag: Estimated memory usage (total): " << mem_bytes_total << " bytes";
 }
 
-void BgmgCalculator::clear_state() {
-  LOG << " clear_state";
-
-  // clear ordering of SNPs
-  snp_order_.clear();
-  k_pdf_.clear();
-  tag_r2sum_.clear();
-  last_num_causals_.clear();
-}
-
 void apply_extract(std::string extract, const BimFile& bim_file, std::vector<int> *defvec) {
   SnpList extract_object;
   extract_object.read(extract);

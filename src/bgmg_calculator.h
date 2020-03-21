@@ -251,13 +251,10 @@ class BgmgCalculator : public TagToSnpMapping {
   // indices = array of size num_tag, containing indices from 0 to num_snp-1
   // NB: all tag variants must have defined zvec, nvec, mafvec and weights.
   int64_t set_tag_indices(int num_snp, int num_tag, int* tag_indices);
-  
+  int64_t retrieve_tag_indices(int num_tag, int* tag_indices);
+
   int64_t set_chrnumvec(int num_snp, const int* chrlabel);
   int64_t retrieve_chrnumvec(int length, int* buffer);
-
-  int64_t set_snp_order(int component_id, int64_t length, const int* buffer);
-  int64_t retrieve_snp_order(int component_id, int64_t length, int* buffer);
-  int64_t retrieve_k_pdf(int length, double* buffer);
 
   // consume input in plink format, e.i. lower triangular LD r2 matrix
   // - snp_index is less than tag_index;
@@ -295,37 +292,15 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t retrieve_causalbetavec(int trait, int length, float* buffer);
   int64_t retrieve_mafvec(int length, float* buffer);
   int64_t retrieve_weights(int length, float* buffer);
-  int64_t retrieve_tag_indices(int num_tag, int* tag_indices);
-
-  int64_t find_snp_order();  // private - only for testing
-  int64_t find_tag_r2sum(int component_id, float num_causals);  // private - only for testing
-  void find_tag_r2sum_no_cache(int component_id, float num_causal, int k_index, std::vector<float>* buffer); // private - only for testing
 
   int64_t set_option(char* option, double value);
   
   void clear_state();
-  void clear_tag_r2sum(int component_id);
 
-  int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
   int64_t retrieve_ld_sum_r2(int length, float* buffer);
   int64_t retrieve_ld_sum_r4(int length, float* buffer);
   int64_t retrieve_fixed_effect_delta(int trait_index, int length, float* delta);
   
-  double calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
-  double calc_univariate_cost_cache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
-  double calc_univariate_cost_nocache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)
-  double calc_univariate_cost_nocache_float(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);  // for testing single vs double precision
-  double calc_univariate_cost_nocache_double(int trait_index, float pi_vec, float sig2_zero, float sig2_beta); // for testing single vs double precision
-  int64_t calc_univariate_pdf(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
-  int64_t calc_univariate_power(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec);
-  int64_t calc_univariate_delta_posterior(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* c0, float* c1, float* c2);
-  int64_t calc_bivariate_delta_posterior(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero,
-                                         int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02);
-
-  double calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
-  double calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
-  double calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
-  int64_t calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
   void log_diagnostics();
  
   double calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
@@ -433,31 +408,65 @@ class BgmgCalculator : public TagToSnpMapping {
                                // For retrieve_ld_sum_r4() the "below r2min" option is not available, therefore 1 will work the same as 0, and 3 will work same as 2.
   std::vector<double> k_pdf_;  // the log-likelihood cost calculated independently for each of 0...k_max-1 selections of causal variants.            
   bool calc_k_pdf_;            // a flag indicating whether we should calculate k_pdf_
+
   void check_num_snp(int length);
   void check_num_tag(int length);
-  double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
-  double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
-  double calc_univariate_cost_convolve(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
-  double calc_bivariate_cost_convolve(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
-  void calc_fixed_effect_delta_from_causalbetavec(int trait_index, std::valarray<float>* delta);
   void find_unified_univariate_tag_delta_sampling(int num_components, float* pi_vec, float* sig2_vec, float sig2_zeroC, int tag_index, const float* nvec, const float* hvec, std::vector<float>* tag_delta2, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row);
   void find_unified_bivariate_tag_delta_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int tag_index, const float* nvec1, const float* nvec2, const float* hvec, std::vector<float>* tag_delta20, std::vector<float>* tag_delta02, std::vector<float>* tag_delta11, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row);
 
+  void calc_fixed_effect_delta_from_causalbetavec(int trait_index, std::valarray<float>* delta);
   void find_z_minus_fixed_effect_delta(int trait_index, std::vector<float>* z_minus_fixed_effect_delta);
-  static void calc_bivariate_delta_posterior_integrals(float a, float b, float c, float i, float j, float k, float z1, float z2,
-                                                       float* c00, float* c10, float* c01, float* c20, float* c11, float* c02);
 
+  int find_deftag_indices(const float* weights, std::vector<int>* deftag_indices);
+
+  BimFile bim_file_;
+
+  // ============= legacy stuff starts ============= 
+ public:
+  int64_t set_snp_order(int component_id, int64_t length, const int* buffer);
+  int64_t retrieve_snp_order(int component_id, int64_t length, int* buffer);
+  int64_t retrieve_k_pdf(int length, double* buffer);
+
+  int64_t find_snp_order();  // private - only for testing
+  int64_t find_tag_r2sum(int component_id, float num_causals);  // private - only for testing
+  void find_tag_r2sum_no_cache(int component_id, float num_causal, int k_index, std::vector<float>* buffer); // private - only for testing
+  void clear_tag_r2sum(int component_id);
+  int64_t retrieve_tag_r2_sum(int component_id, float num_causal, int length, float* buffer);
+
+  double calc_univariate_cost(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_univariate_cost_cache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_univariate_cost_nocache(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);        // default precision (see FLOAT_TYPE in bgmg_calculator.cc)
+  double calc_univariate_cost_nocache_float(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);  // for testing single vs double precision
+  double calc_univariate_cost_nocache_double(int trait_index, float pi_vec, float sig2_zero, float sig2_beta); // for testing single vs double precision
+  int64_t calc_univariate_pdf(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
+  int64_t calc_univariate_power(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec);
+  int64_t calc_univariate_delta_posterior(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* c0, float* c1, float* c2);
+  int64_t calc_bivariate_delta_posterior(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero,
+                                         int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02);
+
+  double calc_bivariate_cost(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+  double calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+  double calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+  int64_t calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
+
+ private:
   int find_deftag_indices_znw(int trait_index, std::vector<int>* deftag_indices);
   int find_deftag_indices_znw(std::vector<int>* deftag_indices);
   int find_deftag_indices_nw(int trait_index, std::vector<int>* deftag_indices);
   int find_deftag_indices_nw(std::vector<int>* deftag_indices);
   int find_deftag_indices_w(std::vector<int>* deftag_indices);
-  int find_deftag_indices(const float* weights, std::vector<int>* deftag_indices);
 
-  BimFile bim_file_;
+  double calc_univariate_cost_fast(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_bivariate_cost_fast(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+  double calc_univariate_cost_convolve(int trait_index, float pi_vec, float sig2_zero, float sig2_beta);
+  double calc_bivariate_cost_convolve(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
+
+  static void calc_bivariate_delta_posterior_integrals(float a, float b, float c, float i, float j, float k, float z1, float z2,
+                                                       float* c00, float* c10, float* c01, float* c20, float* c11, float* c02);
 
   template<typename T>
   friend double calc_univariate_cost_nocache_template(int trait_index, float pi_vec, float sig2_zero, float sig2_beta, BgmgCalculator& rhs);
+  // ============= legacy stuff ends ============= 
 };
 
 typedef TemplateManager<BgmgCalculator> BgmgCalculatorManager;

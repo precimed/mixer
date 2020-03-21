@@ -43,6 +43,12 @@ If you use MiXeR software for your research publication, please cite the followi
 The MiXeR software may not be used for commercial purpose or in medical applications.
 We encourage all users to familiarize themselves with US patent https://www.google.no/patents/US20150356243 "Systems and methods for identifying polymorphisms".
 
+MiXeR versions:
+
+* ``v1.0`` - public release for Matlab
+* ``v1.1`` - internal release for Matlab and Python
+* ``v1.2`` - internal release for Python (Matlab support removed)
+
 ## Install MiXeR
 
 ### Prerequisites
@@ -135,7 +141,7 @@ Not available yet.
    * Run ``python mixer.py ld`` to convert plink output into a binary format. The following command must be run once for each chromosome. 
     Note that ``--bim`` argument is the same, e.g. ``1000G.EUR.QC.@.bim`` (with ``@``) regardless of the actual chromosome that you use in ``--plink-ld`` and ``--out``.
     ```
-    python3 <MIXER_ROOT>/python/precimed/mixer.py ld \
+    python3 <MIXER_ROOT>/precimed/mixer.py ld \
        --lib <MIXER_ROOT>/src/build/lib/libbgmg.so
        --bim LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
        --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.gz \
@@ -256,8 +262,7 @@ usage: mixer.py fit [-h] [--argsfile ARGSFILE] [--out OUT] [--lib LIB]
                     [--fit-sequence {load,inflation,infinitesimal,diffevo,diffevo-fast,neldermead,neldermead-fast,brute1,brute1-fast,brent1,brent1-fast} [{load,inflation,infinitesimal,diffevo,diffevo-fast,neldermead,neldermead-fast,brute1,brute1-fast,brent1,brent1-fast} ...]]
                     [--preliminary] [--extract EXTRACT] [--exclude EXCLUDE]
                     [--randprune-n RANDPRUNE_N] [--randprune-r2 RANDPRUNE_R2]
-                    [--kmax KMAX] [--seed SEED] [--cache-tag-r2sum]
-                    [--max-causals MAX_CAUSALS] [--r2min R2MIN]
+                    [--kmax KMAX] [--seed SEED]
                     [--ci-alpha CI_ALPHA] [--ci-samples CI_SAMPLES]
                     [--threads THREADS] [--tol-x TOL_X] [--tol-func TOL_FUNC]
                     [--cubature-rel-error CUBATURE_REL_ERROR]
@@ -336,11 +341,6 @@ optional arguments:
                         Threshold for random pruning
   --kmax KMAX           Number of sampling iterations
   --seed SEED           Random seed
-  --cache-tag-r2sum     enable tag-r2sum caching
-  --max-causals MAX_CAUSALS
-                        upper limit for the total number of causal variants in
-                        the reference; a number between 0 and 1 represents a
-                        fraction of the total number SNPs in the reference
   --r2min R2MIN         r2 values below this threshold will contribute via
                         infinitesimal model
   --ci-alpha CI_ALPHA   significance level for the confidence interval

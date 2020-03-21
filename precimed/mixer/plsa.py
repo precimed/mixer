@@ -30,7 +30,7 @@ from .utils import calc_qq_plot
 from .utils import calc_power_curve
 from .utils import NumpyEncoder
 
-__version__ = '1.0.0'
+__version__ = '1.2.0'
 MASTHEAD = "***********************************************************************\n"
 MASTHEAD += "* mixer_plsa.py: Annotation-Informed Causal Mixture\n"
 MASTHEAD += "*                for MAF- and LD- dependent genetic architectures\n"

@@ -107,14 +107,6 @@ int64_t bgmg_set_weights(int context_id, int length, float* values) {
   } CATCH_EXCEPTIONS;
 }
 
-int64_t bgmg_set_snp_order(int context_id, int component_id, int64_t length, int* values) {
-  try {
-    set_last_error(std::string());
-    check_is_positive(length); check_is_not_null(values);
-    return BgmgCalculatorManager::singleton().Get(context_id)->set_snp_order(component_id, length, values);
-  } CATCH_EXCEPTIONS;
-}
-
 int64_t bgmg_set_tag_indices(int context_id, int num_snp, int num_tag, int* tag_indices) {
   try {
     if (!LoggerImpl::singleton().is_initialized()) LoggerImpl::singleton().init("bgmg.log");
@@ -135,36 +127,6 @@ int64_t bgmg_get_num_snp(int context_id) {
   try {
     set_last_error(std::string());
     return BgmgCalculatorManager::singleton().Get(context_id)->num_snp();
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_get_k_max(int context_id) {
-  try {
-    set_last_error(std::string());
-    return BgmgCalculatorManager::singleton().Get(context_id)->k_max();
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_get_max_causals(int context_id) {
-  try {
-    set_last_error(std::string());
-    return BgmgCalculatorManager::singleton().Get(context_id)->max_causals();
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_retrieve_snp_order(int context_id, int component_id, int64_t length, int* values) {
-  try {
-    set_last_error(std::string());
-    check_is_positive(length); check_is_not_null(values);
-    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_snp_order(component_id, length, values);
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_retrieve_k_pdf(int context_id, int length, double* values) {
-  try {
-    set_last_error(std::string());
-    check_is_positive(length); check_is_not_null(values);
-    return BgmgCalculatorManager::singleton().Get(context_id)->retrieve_k_pdf(length, values);
   } CATCH_EXCEPTIONS;
 }
 
@@ -325,77 +287,6 @@ int64_t bgmg_set_option(int context_id, char* option, double value) {
     set_last_error(std::string());
     check_is_not_null(option);
     return BgmgCalculatorManager::singleton().Get(context_id)->set_option(option, value);
-  } CATCH_EXCEPTIONS;
-}
-
-double bgmg_calc_univariate_cost(int context_id, int trait_index, double pi_vec, double sig2_zero, double sig2_beta) {
-  try {
-    set_last_error(std::string());
-    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta);
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_cost(trait_index, pi_vec, sig2_zero, sig2_beta);
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf) {
-  try {
-    set_last_error(std::string());
-    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta); check_is_positive(length); check_is_not_null(zvec); check_is_not_null(pdf);
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_pdf(trait_index, pi_vec, sig2_zero, sig2_beta, length, zvec, pdf);
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_calc_univariate_power(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec) {
-  try {
-    set_last_error(std::string());
-    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta); check_is_positive(length); check_is_not_null(nvec); check_is_not_null(svec);
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_power(trait_index, pi_vec, sig2_zero, sig2_beta, zthresh, length, nvec, svec);
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_calc_univariate_delta_posterior(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* c0, float* c1, float* c2) {
-  try {
-    set_last_error(std::string());
-    check_trait_index(trait_index); fix_pi_vec(&pi_vec); check_is_positive(sig2_zero); check_is_positive(sig2_beta); check_is_positive(length); check_is_not_null(c1); check_is_not_null(c1); check_is_not_null(c2);
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_univariate_delta_posterior(trait_index, pi_vec, sig2_zero, sig2_beta, length, c0, c1, c2);
-  } CATCH_EXCEPTIONS;
-}
-
-double bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero) {
-  try {
-    set_last_error(std::string());
-    check_is_positive(pi_vec_len); check_is_positive(sig2_beta_len); check_is_positive(sig2_zero_len);
-    for (int i = 0; i < pi_vec_len; i++) fix_pi_vec(&pi_vec[i]);
-    for (int i = 0; i < sig2_beta_len; i++) check_is_positive(&sig2_beta[i]);
-    for (int i = 0; i < sig2_zero_len; i++) check_is_positive(&sig2_zero[i]);
-    fix_rho(&rho_beta); fix_rho(&rho_zero);
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_cost(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_calc_bivariate_pdf(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf) {
-  try {
-    set_last_error(std::string());
-    check_is_positive(pi_vec_len); check_is_positive(sig2_beta_len); check_is_positive(sig2_zero_len);
-    for (int i = 0; i < pi_vec_len; i++) fix_pi_vec(&pi_vec[i]);
-    for (int i = 0; i < sig2_beta_len; i++) check_is_positive(&sig2_beta[i]);
-    for (int i = 0; i < sig2_zero_len; i++) check_is_positive(&sig2_zero[i]);
-    fix_rho(&rho_beta); fix_rho(&rho_zero);
-    check_is_positive(length); check_is_not_null(zvec1); check_is_not_null(zvec2); check_is_not_null(pdf);
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_pdf(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, length, zvec1, zvec2, pdf);
-  } CATCH_EXCEPTIONS;
-}
-
-int64_t bgmg_calc_bivariate_delta_posterior(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero,
-                                            int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02) {
-  try {
-    set_last_error(std::string());
-    check_is_positive(pi_vec_len); check_is_positive(sig2_beta_len); check_is_positive(sig2_zero_len);
-    for (int i = 0; i < pi_vec_len; i++) fix_pi_vec(&pi_vec[i]);
-    for (int i = 0; i < sig2_beta_len; i++) check_is_positive(&sig2_beta[i]);
-    for (int i = 0; i < sig2_zero_len; i++) check_is_positive(&sig2_zero[i]);
-    fix_rho(&rho_beta); fix_rho(&rho_zero);
-    check_is_positive(length); check_is_not_null(c00); check_is_not_null(c10); check_is_not_null(c01); check_is_not_null(c20); check_is_not_null(c11); check_is_not_null(c02);
-    return BgmgCalculatorManager::singleton().Get(context_id)->calc_bivariate_delta_posterior(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, length, c00, c10, c01, c20, c11, c02);
   } CATCH_EXCEPTIONS;
 }
 

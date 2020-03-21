@@ -295,9 +295,6 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t seed() { return seed_; }
   void set_seed(int64_t seed) { seed_ = seed; }
 
-  int max_causals() const { return max_causals_; }
-  int k_max() const { return k_max_; }
-
   virtual int num_snp() { return num_snp_; }
   virtual int num_tag() { return num_tag_; }
   virtual bool has_complete_tag_indices() { return num_snp_ == num_tag_; }
@@ -404,6 +401,9 @@ class BgmgCalculator : public TagToSnpMapping {
   double calc_bivariate_cost_nocache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   double calc_bivariate_cost_cache(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
   int64_t calc_bivariate_pdf(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
+
+  int max_causals() const { return max_causals_; }
+  int k_max() const { return k_max_; }
 
  private:
   int find_deftag_indices_znw(int trait_index, std::vector<int>* deftag_indices);

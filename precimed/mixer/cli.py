@@ -96,12 +96,15 @@ def fix_and_validate_args(args):
 
 def convert_args_to_libbgmg_options(args, num_snp):
     libbgmg_options = {
-        'r2min': args.r2min, 'kmax': args.kmax, 
-        'max_causals': args.max_causals if (args.max_causals > 1) else (args.max_causals * num_snp),
+        'r2min': args.r2min,
+        'kmax': args.kmax, 
         'num_components': 1 if (not args.trait2_file) else 3,
-        'cache_tag_r2sum': args.cache_tag_r2sum, 'threads': args.threads, 'seed': args.seed,
-        'cubature_rel_error': args.cubature_rel_error, 'cubature_max_evals':args.cubature_max_evals,
-        'z1max': args.z1max, 'z2max': args.z2max, 
+        'threads': args.threads,
+        'seed': args.seed,
+        'cubature_rel_error': args.cubature_rel_error,
+        'cubature_max_evals':args.cubature_max_evals,
+        'z1max': args.z1max,
+        'z2max': args.z2max, 
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
 
@@ -160,8 +163,6 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--kmax', type=int, default=20000, help="Number of sampling iterations")
     parser.add_argument('--seed', type=int, default=123, help="Random seed")
 
-    parser.add_argument('--cache-tag-r2sum', default=False, action="store_true", help="enable tag-r2sum caching")
-    parser.add_argument('--max-causals', type=float, default=0.02, help="upper limit for the total number of causal variants in the reference; a number between 0 and 1 represents a fraction of the total number SNPs in the reference")
     parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
     parser.add_argument('--ci-alpha', type=float, default=None, help="significance level for the confidence interval estimation")
     parser.add_argument('--ci-samples', type=int, default=10000, help="number of samples in uncertainty estimation")
@@ -441,11 +442,9 @@ def calc_bivariate_pdf(libbgmg, params, downsample):
     zgrid1=zgrid1[zgrid>=0, :]; zgrid2=zgrid2[zgrid>=0, :]
 
     libbgmg.weights = model_weights     # temporary set downsampled weights
-    pdf = libbgmg.calc_bivariate_pdf(params._pi, params._sig2_beta, params._rho_beta, params._sig2_zero, params._rho_zero, zgrid1.flatten(), zgrid2.flatten())
-    libbgmg.weights = original_weights  # restore original weights
-    pdf = pdf.reshape(zgrid1.shape)
-    pdf = np.concatenate((np.fliplr(np.flipud(pdf[1:, :])), pdf))
+    pdf = params.pdf(libbgmg, zgrid)
     pdf = pdf/np.sum(model_weights)
+    libbgmg.weights = original_weights  # restore original weights
 
     return zgrid, pdf
 
@@ -580,8 +579,6 @@ def execute_fit_parser(args):
                     power_ci = []
                     for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
                         libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
-                        max_causals_pi = (float(args.max_causals - 1) / float(libbgmg.num_snp)) if (args.max_causals > 1) else args.max_causals
-                        if ci_params._pi > max_causals_pi: ci_params._pi = max_causals_pi
                         power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor))
                     results['power_ci'] = power_ci
 

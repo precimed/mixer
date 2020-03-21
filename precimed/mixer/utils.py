@@ -396,11 +396,23 @@ class BivariateParams(object):
         return self._rho_beta * np.ones(shape=(num_snp, 1), dtype=np.float32)
 
     def cost(self, lib):
-        #value = lib.calc_bivariate_cost(self._pi, self._sig2_beta, self._rho_beta, self._sig2_zero, self._rho_zero)
         num_snp = lib.num_snp
         value = lib.calc_unified_bivariate_cost(self.find_pi_mat(num_snp), self.find_sig2_mat(num_snp), self.find_rho_vec(num_snp),
                                                 sig2_zeroA=self._sig2_zero, sig2_zeroC=[1, 1], sig2_zeroL=[0, 0], rho_zeroA=self._rho_zero, rho_zeroL=0)
         return value if np.isfinite(value) else 1e100
+
+    def pdf(self, lib, zgrid):
+        num_snp = lib.num_snp
+        [zgrid1, zgrid2] = np.meshgrid(zgrid, zgrid)
+        zgrid1=zgrid1[zgrid>=0, :]; zgrid2=zgrid2[zgrid>=0, :]
+
+        pdf = lib.calc_unified_bivariate_pdf(self.find_pi_mat(num_snp), self.find_sig2_mat(num_snp), self.find_rho_vec(num_snp),
+                                             sig2_zeroA=self._sig2_zero, sig2_zeroC=[1, 1], sig2_zeroL=[0, 0], rho_zeroA=self._rho_zero, rho_zeroL=0,
+                                             zvec1=zgrid1.flatten(), zvec2=zgrid2.flatten())
+
+        pdf = pdf.reshape(zgrid1.shape)
+        pdf = np.concatenate((np.fliplr(np.flipud(pdf[1:, :])), pdf))
+        return pdf
 
 # TBD: there is some inconsistency across "Parametrization" classes.
 # The following classes are OK:

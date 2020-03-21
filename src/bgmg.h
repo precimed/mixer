@@ -55,18 +55,11 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_get_num_snp(int context_id);
   DLL_PUBLIC int64_t bgmg_retrieve_tag_indices(int context_id, int num_tag, int* tag_indices);
 
-  DLL_PUBLIC int64_t bgmg_get_k_max(int context_id);
-  DLL_PUBLIC int64_t bgmg_get_max_causals(int context_id);
-
   DLL_PUBLIC int64_t bgmg_set_chrnumvec(int context_id, int length, int* values);
   DLL_PUBLIC int64_t bgmg_retrieve_chrnumvec(int context_id, int length, int* buffer);
 
-  DLL_PUBLIC int64_t bgmg_set_snp_order(int context_id, int component_id, int64_t length, int* values);
-  DLL_PUBLIC int64_t bgmg_retrieve_snp_order(int context_id, int component_id, int64_t length, int* values);
-  DLL_PUBLIC int64_t bgmg_retrieve_k_pdf(int context_id, int length, double* values);
-
   // Set variouns options:
-  // diag, kmax, r2min, max_causals, num_components, seed, fast_cost, threads, cache_tag_r2sum; refer to BgmgCalculator::set_option for a full list.
+  // diag, kmax, r2min, num_components, seed, fast_cost, threads; refer to BgmgCalculator::set_option for a full list.
   // NB. Most options reset LD structure, you'll have to bgmg_set_ld_r2_coo / bgmg_set_ld_r2_csr again.
   DLL_PUBLIC int64_t bgmg_set_option(int context_id, char* option, double value);
 
@@ -112,21 +105,12 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_retrieve_ld_sum_r4(int context_id, int length, float* buffer);
   
   // Calc univariate cost function and pdf
-  DLL_PUBLIC double bgmg_calc_univariate_cost(int context_id, int trait_index, double pi_vec, double sig2_zero, double sig2_beta);
-  DLL_PUBLIC int64_t bgmg_calc_univariate_pdf(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* zvec, float* pdf);
-  DLL_PUBLIC int64_t bgmg_calc_univariate_power(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, float zthresh, int length, float* nvec, float* svec);
-  DLL_PUBLIC int64_t bgmg_calc_univariate_delta_posterior(int context_id, int trait_index, float pi_vec, float sig2_zero, float sig2_beta, int length, float* c0, float* c1, float* c2);
   DLL_PUBLIC double bgmg_calc_unified_univariate_cost(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
   DLL_PUBLIC int64_t bgmg_calc_unified_univariate_pdf(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf);
   DLL_PUBLIC int64_t bgmg_calc_unified_univariate_power(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float zthresh, int length, float* nvec, float* svec);
   DLL_PUBLIC int64_t bgmg_calc_unified_univariate_delta_posterior(int context_id, int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* c0, float* c1, float* c2);
 
   // Calc bivariate cost function and pdf
-  DLL_PUBLIC double bgmg_calc_bivariate_cost(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero);
-  DLL_PUBLIC int64_t bgmg_calc_bivariate_pdf(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, int length, float* zvec1, float* zvec2, float* pdf);
-  DLL_PUBLIC int64_t bgmg_calc_bivariate_delta_posterior(int context_id, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero,
-                                                         int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02);
-
   DLL_PUBLIC double bgmg_calc_unified_bivariate_cost(int context_id, int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, float* aux);
   DLL_PUBLIC int64_t bgmg_calc_unified_bivariate_pdf(int context_id, int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int length, float* zvec1, float* zvec2, float* pdf);
   DLL_PUBLIC int64_t bgmg_calc_unified_bivariate_delta_posterior(int context_id, int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL,

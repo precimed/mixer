@@ -25,7 +25,7 @@ from matplotlib_venn import venn2
 from scipy.interpolate import interp1d
 from scipy.stats import multivariate_normal
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 MASTHEAD = "***********************************************************************\n"
 MASTHEAD += "* mixer_figures.py: Visualization tools for MiXeR\n"
 MASTHEAD += "* Version {V}\n".format(V=__version__)

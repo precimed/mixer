@@ -33,6 +33,11 @@ If you use MiXeR software for your research publication, please cite the followi
 The MiXeR software may not be used for commercial purpose or in medical applications.
 We encourage all users to familiarize themselves with US patent https://www.google.no/patents/US20150356243 "Systems and methods for identifying polymorphisms".
 
+MiXeR versions:
+
+* ``v1.0`` - public release for Matlab
+* ``v1.1`` - internal release for Matlab and Python
+
 ## Install MiXeR
 
 ### Prerequisites

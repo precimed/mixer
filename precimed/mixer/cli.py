@@ -36,7 +36,7 @@ from .utils import _calculate_univariate_uncertainty
 from .utils import _calculate_bivariate_uncertainty
 
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 MASTHEAD = "***********************************************************************\n"
 MASTHEAD += "* mixer.py: Univariate and Bivariate Causal Mixture for GWAS\n"
 MASTHEAD += "* Version {V}\n".format(V=__version__)

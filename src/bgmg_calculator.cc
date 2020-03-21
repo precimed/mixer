@@ -1690,7 +1690,7 @@ int64_t BgmgCalculator::set_weights_randprune(int n, float r2_threshold, std::st
     std::valarray<int> passed_random_pruning_local(0, num_tag_);  // count how many times an index  has passed random pruning
     LdMatrixRow ld_matrix_row;
 
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic)
     for (int prune_i = 0; prune_i < n; prune_i++) {
       std::mt19937_64 random_engine;
       random_engine.seed(seed_ + prune_i);
@@ -2235,7 +2235,7 @@ void BgmgCalculator::calc_fixed_effect_delta_from_causalbetavec(int trait_index,
 
     // many entries in causalbetavec are expected to be zero, therefore static scheduler may give an unbalanced load
     // however it's fairly short operation anyway, so we don't bother too much.
-#pragma omp for schedule(static)
+#pragma omp for schedule(static)  // or dynamic?
     for (int snp_index = 0; snp_index < num_snp_; snp_index++) {
       if (causalbetavec[snp_index] == 0.0f) continue;
       ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), &ld_matrix_row);

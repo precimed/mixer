@@ -19,6 +19,7 @@
 #include "bgmg_calculator_impl.h"
 
 static const double kMinTagPdf = 1e-100;
+static const int kOmpDynamicChunk = 512;
 
 double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux) {
   check_num_snp(num_snp);
@@ -151,7 +152,7 @@ double BgmgCalculator::calc_unified_univariate_cost_convolve(int trait_index, in
     data.nvec = &nvec;
     data.ld_tag_sum_r2_below_r2min_adjust_for_hvec = &ld_tag_sum_r2_below_r2min_adjust_for_hvec;
 
-#pragma omp for schedule(static) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals, total_weight)
+#pragma omp for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals, total_weight)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
       double tag_weight = static_cast<double>(weights_convolve[tag_index]);
@@ -235,7 +236,7 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
     std::valarray<float> Edelta2_local(0.0, num_tag_);
     std::valarray<float> Edelta4_local(0.0, num_tag_);
 
-#pragma omp for schedule(static)    
+#pragma omp for schedule(dynamic, kOmpDynamicChunk)    
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
 
@@ -261,7 +262,7 @@ double BgmgCalculator::calc_unified_univariate_cost_gaussian(int trait_index, in
   int num_zero_tag_r2 = 0;
   int num_infinite = 0;
 
-#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
+#pragma omp parallel for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
   for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
     int tag_index = deftag_indices[deftag_index];
     if (Edelta2[tag_index] == 0) { num_zero_tag_r2++; continue;}
@@ -342,7 +343,7 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
     MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     std::vector<float> tag_delta2(k_max_, 0.0f);
 
-#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
+#pragma omp parallel for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_infinite)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       const int tag_index = deftag_indices[deftag_index];
       const float sig2_zero = sig2_zeroA + ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index] * nvec[tag_index] * sig2_zeroL;
@@ -516,7 +517,7 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
     MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     std::vector<float> tag_delta2(k_max_, 0.0f);
 
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
       find_unified_univariate_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, tag_index, &nvec[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
@@ -564,7 +565,7 @@ int64_t BgmgCalculator::calc_unified_univariate_power(int trait_index, int num_c
     MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     std::vector<float> tag_delta2(k_max_, 0.0f);
 
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
       const double tag_weight = static_cast<double>(weights_[tag_index]);
@@ -629,7 +630,7 @@ int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index,
     std::valarray<double> c1_local(0.0f, num_tag_);
     std::valarray<double> c2_local(0.0f, num_tag_);
 
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
       find_unified_univariate_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, tag_index, &nvec[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
@@ -742,7 +743,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_gaussian(int num_snp, float* 
     std::valarray<float> Edelta02_local(0.0, num_snp_);
     std::valarray<float> Edelta11_local(0.0, num_snp_);
 
-#pragma omp for schedule(static)    
+#pragma omp for schedule(dynamic, kOmpDynamicChunk)    
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
 
@@ -771,7 +772,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_gaussian(int num_snp, float* 
   int num_zero_tag_r2 = 0;
   int num_infinite = 0;
 
-#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
+#pragma omp parallel for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_zero_tag_r2, num_infinite)
   for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
     int tag_index = deftag_indices[deftag_index];
     if (Edelta20[tag_index] == 0 && Edelta02[tag_index] == 0) { num_zero_tag_r2++; continue;}
@@ -986,7 +987,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_convolve(int num_snp, float* 
     data.nvec2 = &nvec2_;
     data.ld_tag_sum_r2_below_r2min_adjust_for_hvec = &ld_tag_sum_r2_below_r2min_adjust_for_hvec;
 
-#pragma omp for schedule(static) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals, total_weight)
+#pragma omp for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_snp_failed, num_infinite, func_evals, total_weight)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
       double tag_weight = static_cast<double>(weights_convolve[tag_index]);
@@ -1055,7 +1056,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_sampling(int num_snp, float* 
     std::vector<float> tag_delta02(k_max_, 0.0f);
     std::vector<float> tag_delta11(k_max_, 0.0f);
 
-#pragma omp parallel for schedule(static) reduction(+: log_pdf_total, num_infinite)
+#pragma omp parallel for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_infinite)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       const int tag_index = deftag_indices[deftag_index];
       const float adj_hval = ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index];
@@ -1207,7 +1208,7 @@ int64_t BgmgCalculator::calc_unified_bivariate_pdf(int num_snp, float* pi_vec, f
     std::vector<float> tag_delta02(k_max_, 0.0f);
     std::vector<float> tag_delta11(k_max_, 0.0f);
 
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       const int tag_index = deftag_indices[deftag_index];
       double tag_weight = static_cast<double>(weights_[tag_index]);
@@ -1280,7 +1281,7 @@ int64_t BgmgCalculator::calc_unified_bivariate_delta_posterior(int num_snp, floa
     std::vector<float> tag_delta02(k_max_, 0.0f);
     std::vector<float> tag_delta11(k_max_, 0.0f);
 
-#pragma omp for schedule(static)
+#pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       const int tag_index = deftag_indices[deftag_index];
       const float adj_hval = ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index];

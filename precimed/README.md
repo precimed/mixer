@@ -228,7 +228,7 @@ python3 <MIXER_ROOT>/python/mixer.py fit \
       --trait2-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --load-params-file PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
       --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test \
-      --fit-sequence load inflation --power-curve --qq-plots --kmax 100 \
+      --fit-sequence load inflation --qq-plots --kmax 100 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
       --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \

@@ -132,12 +132,6 @@ extern "C" {
   DLL_PUBLIC int64_t bgmg_calc_unified_bivariate_delta_posterior(int context_id, int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL,
                                                                  int length, float* c00, float* c10, float* c01, float* c20, float* c11, float* c02);
 
-  // functions to work with loglikelihood cache
-  DLL_PUBLIC int64_t bgmg_clear_loglike_cache(int context_id);
-  DLL_PUBLIC int64_t bgmg_get_loglike_cache_size(int context_id);
-  DLL_PUBLIC int64_t bgmg_get_loglike_cache_univariate_entry(int context_id, int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost);
-  DLL_PUBLIC int64_t bgmg_get_loglike_cache_bivariate_entry(int context_id, int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost);
-
   // estimate LD structure
   DLL_PUBLIC int64_t bgmg_calc_ld_matrix(const char* bfile, const char* outfile, double r2min, double ldscore_r2min, int ld_window, float ld_window_kb);
 }

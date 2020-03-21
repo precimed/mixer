@@ -510,8 +510,6 @@ double BgmgCalculator::calc_univariate_cost(int trait_index, float pi_vec, float
   else if (cost_calculator_ == CostCalculator_Convolve) cost = calc_univariate_cost_convolve(trait_index, pi_vec, sig2_zero, sig2_beta);
   else if (!cache_tag_r2sum_) cost = calc_univariate_cost_nocache(trait_index, pi_vec, sig2_zero, sig2_beta);
   else cost = calc_univariate_cost_cache(trait_index, pi_vec, sig2_zero, sig2_beta);
-
-  loglike_cache_.add_entry(pi_vec, sig2_zero, sig2_beta, cost);
   return cost;
 }
 
@@ -660,8 +658,6 @@ double BgmgCalculator::calc_bivariate_cost(int pi_vec_len, float* pi_vec, int si
   else if (cost_calculator_==CostCalculator_Convolve) cost = calc_bivariate_cost_convolve(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   else if (!cache_tag_r2sum_) cost = calc_bivariate_cost_nocache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
   else cost = calc_bivariate_cost_cache(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero);
-
-  loglike_cache_.add_entry(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
   return cost;
 }
 

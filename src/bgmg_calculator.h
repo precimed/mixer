@@ -205,39 +205,6 @@ class DenseMatrix {
   T* data_;
 };
 
-struct LoglikeCacheElem {
- public:
-  LoglikeCacheElem() {}
-  LoglikeCacheElem(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float  rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, double cost);
-  void get(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost);
-
- private:
-  float pi_vec1_;
-  float pi_vec2_;
-  float pi_vec3_;
-  float sig2_beta1_;
-  float sig2_beta2_;
-  float sig2_zero1_;
-  float sig2_zero2_;
-  float rho_beta_;
-  float rho_zero_;
-  double cost_;
-};
-
-// History of log likelihood calculations
-class LoglikeCache {
-public:
- void    add_entry(float pi_vec, float sig2_zero, float sig2_beta, double cost);
- int64_t get_entry(int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost);
- void    add_entry(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float  rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, double cost);
- int64_t get_entry(int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost);
-
- void clear() { cache_.clear(); }
- int num_entries() { return cache_.size(); }
-private:
-  std::vector<LoglikeCacheElem> cache_;
-};
-
 class BgmgCalculator : public TagToSnpMapping {
  public:
   BgmgCalculator();
@@ -342,15 +309,6 @@ class BgmgCalculator : public TagToSnpMapping {
   virtual const std::vector<float>& mafvec() { return mafvec_; }
   virtual std::vector<float>* mutable_mafvec() { return &mafvec_; }
 
-  int64_t clear_loglike_cache() { loglike_cache_.clear(); return 0; }
-  int64_t get_loglike_cache_size() { return loglike_cache_.num_entries(); }
-  int64_t get_loglike_cache_univariate_entry(int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost) {
-    return loglike_cache_.get_entry(entry_index, pi_vec, sig2_zero, sig2_beta, cost);
-  }
-  int64_t get_loglike_cache_bivariate_entry(int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost) {
-    return loglike_cache_.get_entry(entry_index, pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
-  }
-
  private:
   int num_snp_;
   int num_tag_;
@@ -375,8 +333,6 @@ class BgmgCalculator : public TagToSnpMapping {
   std::vector<float>* get_zvec(int trait_index);
   std::vector<float>* get_nvec(int trait_index);
   std::vector<float>* get_causalbetavec(int trait_index);
-
-  LoglikeCache loglike_cache_;
 
   // vectors with one value for each component in the mixture
   // snp_order_ gives the order of how SNPs are considered to be causal 

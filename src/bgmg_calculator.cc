@@ -581,62 +581,6 @@ int64_t BgmgCalculator::retrieve_weights(int length, float* buffer) {
   return 0;
 }
 
-LoglikeCacheElem::LoglikeCacheElem(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float  rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, double cost) {
-  pi_vec1_ = pi_vec[0];
-  pi_vec2_ = pi_vec[1];
-  pi_vec3_ = pi_vec[2];
-  sig2_beta1_ = sig2_beta[0];
-  sig2_beta2_ = sig2_beta[1];
-  sig2_zero1_ = sig2_zero[0];
-  sig2_zero2_ = sig2_zero[1];
-  rho_zero_ = rho_zero;
-  rho_beta_ = rho_beta;
-  cost_ = cost;
-}
-
-void LoglikeCacheElem::get(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost) {
-  pi_vec[0] = pi_vec1_;
-  pi_vec[1] = pi_vec2_;
-  pi_vec[2] = pi_vec3_;
-  sig2_beta[0] = sig2_beta1_;
-  sig2_beta[1] = sig2_beta2_;
-  sig2_zero[0] = sig2_zero1_;
-  sig2_zero[1] = sig2_zero2_;
-  *rho_zero = rho_zero_;
-  *rho_beta = rho_beta_;
-  *cost = cost_;
-}
-
-void    LoglikeCache::add_entry(float pi_vec, float sig2_zero, float sig2_beta, double cost) {
-  float tmp_pi_vec[3] = { pi_vec, NAN, NAN };
-  float tmp_sig2_zero[2] = { sig2_zero, NAN };
-  float tmp_sig2_beta[2] = { sig2_beta, NAN };
-  add_entry(3, tmp_pi_vec, 2, tmp_sig2_beta, NAN, 2, tmp_sig2_zero, NAN, cost);
-}
-
-int64_t LoglikeCache::get_entry(int entry_index, float* pi_vec, float* sig2_zero, float* sig2_beta, double* cost) {
-  float tmp_pi_vec[3];
-  float tmp_sig2_zero[2];
-  float tmp_sig2_beta[2];
-  float tmp_rho_beta;
-  float tmp_rho_zero;
-  double tmp_cost;
-  int64_t retval = get_entry(entry_index, 3, tmp_pi_vec, 2, tmp_sig2_beta, &tmp_rho_beta, 2, tmp_sig2_zero, &tmp_rho_zero, &tmp_cost);
-  *cost = tmp_cost;
-  *pi_vec = tmp_pi_vec[0];
-  *sig2_zero = tmp_sig2_zero[0];
-  *sig2_beta = tmp_sig2_beta[0];
-  return retval;
-}
-void    LoglikeCache::add_entry(int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float  rho_beta, int sig2_zero_len, float* sig2_zero, float rho_zero, double cost) {
-  cache_.push_back(LoglikeCacheElem(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost));
-}
-int64_t LoglikeCache::get_entry(int entry_index, int pi_vec_len, float* pi_vec, int sig2_beta_len, float* sig2_beta, float* rho_beta, int sig2_zero_len, float* sig2_zero, float* rho_zero, double* cost) {
-  if (entry_index < 0 || entry_index > cache_.size()) BGMG_THROW_EXCEPTION(::std::runtime_error("entry_index out of range"));
-  cache_[entry_index].get(pi_vec_len, pi_vec, sig2_beta_len, sig2_beta, rho_beta, sig2_zero_len, sig2_zero, rho_zero, cost);
-  return 0;
-}
-
 int64_t BgmgCalculator::set_chrnumvec(int num_snp, const int* chrlabel) {
   if (!chrnumvec_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("can not set chrnumvec twice"));
   for (int i = 1; i < num_snp; i++) {

@@ -22,11 +22,6 @@ def _n2p(res_value):  # native2python
             return res_value.decode('utf-8')
     return res_value
 
-# Not implemented:
-# - clear_loglike_cache
-# - extract_univariate_loglike_trajectory
-# - extract_bivariate_loglike_trajectory
-
 class LibBgmg(object):
     def __init__(self, lib_name=None, context_id=0, init_log=None, dispose=False):
         self._context_id = context_id

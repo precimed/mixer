@@ -705,24 +705,10 @@ void BgmgTest_CalcLikelihood(float r2min) {
   ASSERT_TRUE(std::isfinite(cost));
   ASSERT_FLOAT_EQ(cost, cost_nocache);
 
-  // Expect one entry, because calc_bivariate_cost_nocache goes around loglike caching mechanism.
-  // If user calls set_option('cache_tag_r2sum', 1), then calc_bivariate_cost will do caching of the log like calculations.
-  ASSERT_EQ(calc.get_loglike_cache_size(), 1); int cache_entry = 0;
-  calc.get_loglike_cache_bivariate_entry(cache_entry, 3, pi_vec, 2, sig2_beta, &rho_beta, 2, sig2_zero, &rho_zero, &cost);
-  ASSERT_FLOAT_EQ(cost, cost_nocache);
-  ASSERT_FLOAT_EQ(pi_vec[1], 0.2);
-  ASSERT_FLOAT_EQ(sig2_zero[1], 1.2);
-  ASSERT_FLOAT_EQ(sig2_beta[0], 0.5);
-  ASSERT_FLOAT_EQ(rho_zero, 0.1);
-  ASSERT_FLOAT_EQ(rho_beta, 0.8);
-
-
   calc.set_option("diag", 0.0);
-
   calc.set_option("fast_cost", 1);
   cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
   ASSERT_TRUE(std::isfinite(cost));
-  ASSERT_EQ(calc.get_loglike_cache_size(), 2);
 
   std::vector<float> zvec1_grid, zvec2_grid, zvec_pdf, zvec_pdf_nocache;
   for (float z1 = -10; z1 < 10; z1 += 0.2) {
@@ -976,20 +962,6 @@ void test_tag_r2_caching() {
       float pi = static_cast<float>(num_causal_sequence[i]) / static_cast<float>(num_snp);
       double cost = calc.calc_univariate_cost(trait_index, pi, 0.2, 0.15);
       if (j == 0) costs[i] = cost;
-      ASSERT_FLOAT_EQ(cost, costs[i]);
-    }
-  }
-
-  ASSERT_EQ(calc.get_loglike_cache_size(), repeats_count*sequence_length);
-  int entry_index = 0;
-  for (int j = 0; j < repeats_count; j++) {  // repeat the sequence 100 times and validate that we got the same cost.
-    for (int i = 0; i < sequence_length; i++) {
-      float pi_vec, sig2_zero, sig2_beta;
-      double cost;
-      calc.get_loglike_cache_univariate_entry(entry_index++, &pi_vec, &sig2_zero, &sig2_beta, &cost);
-      ASSERT_FLOAT_EQ(sig2_zero, 0.2);
-      ASSERT_FLOAT_EQ(sig2_beta, 0.15);
-      ASSERT_FLOAT_EQ(pi_vec, static_cast<float>(num_causal_sequence[i]) / static_cast<float>(num_snp));
       ASSERT_FLOAT_EQ(cost, costs[i]);
     }
   }

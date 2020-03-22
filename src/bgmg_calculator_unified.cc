@@ -27,6 +27,7 @@ double BgmgCalculator::calc_unified_univariate_cost(int trait_index, int num_com
   if (cost_calculator_ == CostCalculator_Gaussian) return calc_unified_univariate_cost_gaussian(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
   else if (cost_calculator_ == CostCalculator_Convolve) return calc_unified_univariate_cost_convolve(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux);
   else if (cost_calculator_ == CostCalculator_Sampling) return calc_unified_univariate_cost_sampling(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux, nullptr);
+  else if (cost_calculator_ == CostCalculator_Smplfast) return calc_unified_univariate_cost_smplfast(trait_index, num_components, num_snp, pi_vec, sig2_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, aux, nullptr);
   else BGMG_THROW_EXCEPTION(::std::runtime_error("unsupported cost calculator in calc_unified_univariate_cost"));
 }
 
@@ -381,6 +382,87 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
   return log_pdf_total;
 }
 
+double BgmgCalculator::calc_unified_univariate_cost_smplfast(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux, const float* weights) {
+  if (weights == nullptr) {
+    if (weights_.empty()) BGMG_THROW_EXCEPTION(::std::runtime_error("weights are not set"));
+    weights = &weights_[0];
+  }
+
+  std::stringstream ss;
+  ss << "calc_unified_univariate_cost_smplfast(trait_index=" << trait_index << ", num_components=" << num_components << ", num_snp=" << num_snp << ", sig2_zeroA=" << sig2_zeroA << ", sig2_zeroC=" << sig2_zeroC << ", sig2_zeroL=" << sig2_zeroL << ", k_max_=" << k_max_ << ")";
+  LOG << ">" << ss.str();
+
+  for (int comp_index = 0; comp_index < num_components; comp_index++) {
+    const float ref_pi = pi_vec[comp_index*num_snp_];
+    if (ref_pi > 0.5) LOG << " warning: pi_vec has values above 0.5, which is not optimized in calc_unified_univariate_cost_smplfast; consider using calc_unified_univariate_cost_sampling instead";
+    for (int snp_index = 1; snp_index < num_snp; snp_index++) {
+      if (ref_pi != pi_vec[comp_index*num_snp + snp_index]) {
+        LOG << " warning: pi_vec doesn't appear to be constant across SNPs";
+        comp_index = num_components;
+        break;
+      }
+    }
+  }
+
+  SimpleTimer timer(-1);
+
+  // standard variables
+  std::vector<float> z_minus_fixed_effect_delta; find_z_minus_fixed_effect_delta(trait_index, &z_minus_fixed_effect_delta);
+  std::vector<float>& nvec(*get_nvec(trait_index));
+  const std::vector<float>& ld_tag_sum_r2_below_r2min_adjust_for_hvec = ld_matrix_csr_.ld_sum_adjust_for_hvec()->ld_tag_sum_r2_below_r2min();
+  std::vector<float> hvec; find_hvec(*this, &hvec);
+  std::vector<int> deftag_indices; const int num_deftag = find_deftag_indices(weights, &deftag_indices);
+
+  const double z_max = (trait_index==1) ? z1max_ : z2max_;
+  const double pi_k = 1.0 / static_cast<double>(k_max_);
+
+  std::valarray<double> pdf_double(0.0, num_tag_);
+
+//#pragma omp parallel
+  {
+    LdMatrixRow ld_matrix_row;
+    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), num_snp_, num_components);
+    std::vector<float> tag_delta2(num_tag_, 0.0f);
+    std::valarray<double> pdf_double_local(0.0, num_tag_);
+
+//#pragma omp parallel for schedule(dynamic, 1)
+    for (int k_index = 0; k_index < k_max_; k_index++) {
+      find_unified_univariate_tag_delta_smplfast(num_components, pi_vec, sig2_vec, sig2_zeroC, k_index, &nvec[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
+      for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+        const int tag_index = deftag_indices[deftag_index];
+        const float sig2_zero = sig2_zeroA + ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index] * nvec[tag_index] * sig2_zeroL;
+
+        float s = sqrt(tag_delta2[tag_index] + sig2_zero);
+        const float tag_z = z_minus_fixed_effect_delta[tag_index];
+        const bool censoring = std::abs(tag_z) > z_max;
+        double pdf = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z_max, s) : gaussian_pdf<FLOAT_TYPE>(tag_z, s));
+        pdf_double_local[tag_index] += pdf * pi_k;
+      }
+    }
+
+//#pragma omp critical
+    pdf_double += pdf_double_local;
+  }
+
+  double log_pdf_total = 0.0;
+  int num_infinite = 0;
+  for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
+    int tag_index = deftag_indices[deftag_index];
+    double increment = -std::log(pdf_double[tag_index]) * static_cast<double>(weights[tag_index]);
+    if (!std::isfinite(increment)) {
+      increment = static_cast<double>(-std::log(kMinTagPdf) * static_cast<double>(weights[tag_index]));
+      num_infinite++;
+    }
+    log_pdf_total += increment;
+  }
+
+  if (num_infinite > 0)
+    LOG << " warning: infinite increments encountered " << num_infinite << " times";
+
+  LOG << "<" << ss.str() << ", cost=" << log_pdf_total << ", num_deftag=" << num_deftag << ", elapsed time " << timer.elapsed_ms() << "ms";
+  return log_pdf_total;
+}
+
 void BgmgCalculator::find_unified_univariate_tag_delta_sampling(int num_components, float* pi_vec, float* sig2_vec, float sig2_zeroC, int tag_index, const float* nvec, const float* hvec, std::vector<float>* tag_delta2, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row) {
   tag_delta2->assign(k_max_, 0.0f);
   ld_matrix_csr_.extract_tag_row(TagIndex(tag_index), ld_matrix_row);
@@ -428,6 +510,38 @@ void BgmgCalculator::find_unified_univariate_tag_delta_sampling(int num_componen
     if (val < 0.0f) val=0.0f;
     tag_delta2->at(k_index) = val;
   }
+}
+
+void BgmgCalculator::find_unified_univariate_tag_delta_smplfast(int num_components, float* pi_vec, float* sig2_vec, float sig2_zeroC, int k_index, const float* nvec, const float* hvec, std::vector<float>* tag_delta2, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row) {
+  tag_delta2->assign(num_tag_, 0.0f);
+
+  const int global_snp_pi_index = 0; // here in smplfast we assume that all SNPs share the same pi
+  for (int comp_index = 0; comp_index < num_components; comp_index++) {
+    const int index = (comp_index*num_snp_ + global_snp_pi_index);
+    const float pi_val = pi_vec[index];
+    subset_sampler->p()[comp_index] = static_cast<double>(pi_val);
+  }
+
+  int sample_global_index = num_snp_ - subset_sampler->sample_shuffle();
+  const uint32_t* indices = subset_sampler->data();
+  for (int comp_index = 0; comp_index < num_components; comp_index++) {
+    const int num_samples=subset_sampler->counts()[comp_index];
+    for (int sample_index=0; sample_index < num_samples; sample_index++, sample_global_index++) {
+      const int snp_index = indices[sample_global_index];
+      ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), ld_matrix_row);
+      auto iter_end = ld_matrix_row->end();
+
+      for (auto iter = ld_matrix_row->begin(); iter < iter_end; iter++) {
+        const int tag_index = iter.index();
+        const float nval_times_sig2_zeroC = nvec[tag_index] * sig2_zeroC; // can be moved to the caller of find_unified_univariate_tag_delta_smplfast
+        const float hval = hvec[snp_index];
+        const float r2 = iter.r2();
+        const float delta2_val = r2 * hval * nval_times_sig2_zeroC * sig2_vec[comp_index*num_snp_ + snp_index];
+        tag_delta2->at(tag_index) += delta2_val;
+      }
+    }
+  }
+  assert(sample_global_index==num_snp_);
 }
 
 void BgmgCalculator::find_unified_bivariate_tag_delta_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int tag_index, const float* nvec1, const float* nvec2, const float* hvec, std::vector<float>* tag_delta20, std::vector<float>* tag_delta02, std::vector<float>* tag_delta11, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row) {

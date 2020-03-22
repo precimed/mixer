@@ -38,7 +38,8 @@ enum CostCalculator {
   CostCalculator_Sampling = 0,
   CostCalculator_Gaussian = 1,
   CostCalculator_Convolve = 2,
-  CostCalculator_MAX = 3,
+  CostCalculator_Smplfast = 2,
+  CostCalculator_MAX = 4,
 }; 
 
 enum AuxOption {
@@ -267,11 +268,13 @@ class BgmgCalculator : public TagToSnpMapping {
   int64_t retrieve_fixed_effect_delta(int trait_index, int length, float* delta);
   
   void log_diagnostics();
- 
+
+  // a note about 'smplfast': this is a special implementation of sampling, valid when 'pi' is constant across SNPs, and it use chunks_forward_ (while all other functions in unified implementation use chunks_reverse_).
   double calc_unified_univariate_cost(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
   double calc_unified_univariate_cost_gaussian(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
   double calc_unified_univariate_cost_convolve(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux);
   double calc_unified_univariate_cost_sampling(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux, const float* weights);
+  double calc_unified_univariate_cost_smplfast(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float* aux, const float* weights);
   int64_t calc_unified_univariate_pdf(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* zvec, float* pdf);
   int64_t calc_unified_univariate_power(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, float zthresh, int length, float* nvec, float* svec);
   int64_t calc_unified_univariate_delta_posterior(int trait_index, int num_components, int num_snp, float* pi_vec, float* sig2_vec, float sig2_zeroA, float sig2_zeroC, float sig2_zeroL, int length, float* c0, float* c1, float* c2);
@@ -352,6 +355,8 @@ class BgmgCalculator : public TagToSnpMapping {
   void check_num_tag(int length);
   void find_unified_univariate_tag_delta_sampling(int num_components, float* pi_vec, float* sig2_vec, float sig2_zeroC, int tag_index, const float* nvec, const float* hvec, std::vector<float>* tag_delta2, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row);
   void find_unified_bivariate_tag_delta_sampling(int num_snp, float* pi_vec, float* sig2_vec, float* rho_vec, float* sig2_zeroA, float* sig2_zeroC, float* sig2_zeroL, float rho_zeroA, float rho_zeroL, int tag_index, const float* nvec1, const float* nvec2, const float* hvec, std::vector<float>* tag_delta20, std::vector<float>* tag_delta02, std::vector<float>* tag_delta11, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row);
+
+  void find_unified_univariate_tag_delta_smplfast(int num_components, float* pi_vec, float* sig2_vec, float sig2_zeroC, int k_index, const float* nvec, const float* hvec, std::vector<float>* tag_delta2, MultinomialSampler* subset_sampler, LdMatrixRow* ld_matrix_row);
 
   void calc_fixed_effect_delta_from_causalbetavec(int trait_index, std::valarray<float>* delta);
   void find_z_minus_fixed_effect_delta(int trait_index, std::vector<float>* z_minus_fixed_effect_delta);

@@ -1068,7 +1068,7 @@ TEST(Test, performance) {
   }
 }
 
-void BgmgTest_CalcSampling_testPerformance(float r2min, float z1max, float z2max, float* pi_vec) {
+void BgmgTest_CalcSampling_testPerformance(float r2min, float z1max, float z2max, float* pi_vec, int type) {
   int num_snp = 1000;
   int num_tag = 100;
   bool use_complete_tag_indices = false;
@@ -1134,26 +1134,36 @@ void BgmgTest_CalcSampling_testPerformance(float r2min, float z1max, float z2max
   float sig2_zeroC[] = { 1.0, 1.0 };
   float sig2_zeroL[] = { (pi_vec[0] + pi_vec[2]) * sig2_beta[0], (pi_vec[1] + pi_vec[2]) * sig2_beta[1] };
   float rho_zeroL = rho_beta * pi_vec[2] / sqrt((pi_vec[0]+pi_vec[2]) * (pi_vec[1]+pi_vec[2]));
-
-  for (int repi = 0; repi < 1; repi++) {
-    std::cout << ".\n";
-    double cost_sampling_unified = calc.calc_unified_bivariate_cost_sampling(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr, nullptr);
-    ASSERT_TRUE(std::isfinite(cost_sampling_unified));  
-  }
-
-  for (int repi = 0; repi < 1; repi++) {
-    std::cout << ":\n";
-    calc.set_option("cost_calculator", 0);
-    //double cost_sampling_legacy = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero);
-    //ASSERT_TRUE(std::isfinite(cost_sampling_legacy));  
+  
+  const int nrep = 5;
+  for (int repi = 0; repi < nrep; repi++) {
+    double cost;
+    if (type == 0) cost = calc.calc_unified_bivariate_cost_sampling(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr, nullptr);
+    if (type == 1) cost = calc.calc_unified_bivariate_cost_smplfast(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr, nullptr);
+    if (type == 2) { calc.set_option("cost_calculator", 0); cost = calc.calc_bivariate_cost(3, pi_vec, 2, sig2_beta, rho_beta, 2, sig2_zero, rho_zero); }
+    ASSERT_TRUE(std::isfinite(cost));  
   }
 }
 
-// --gtest_filter=BgmgTest.CalcSamplingPerformance
-TEST(BgmgTest, CalcSamplingPerformance) {
+// --gtest_filter=BgmgTest.CalcSamplingPerformanceSampling
+TEST(BgmgTest, CalcSamplingPerformanceSampling) {
   const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.2, 0.1, 0.15 }; 
-  BgmgTest_CalcSampling_testPerformance(r2min, z1max, z2max, pi_vec);
+  BgmgTest_CalcSampling_testPerformance(r2min, z1max, z2max, pi_vec, 0);
+}
+
+// --gtest_filter=BgmgTest.CalcSamplingPerformanceSmplfast
+TEST(BgmgTest, CalcSamplingPerformanceSmplfast) {
+  const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
+  float pi_vec[] = { 0.2, 0.1, 0.15 }; 
+  BgmgTest_CalcSampling_testPerformance(r2min, z1max, z2max, pi_vec, 1);
+}
+
+// --gtest_filter=BgmgTest.CalcSamplingPerformanceLegacy
+TEST(BgmgTest, CalcSamplingPerformanceLegacy) {
+  const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
+  float pi_vec[] = { 0.2, 0.1, 0.15 }; 
+  BgmgTest_CalcSampling_testPerformance(r2min, z1max, z2max, pi_vec, 2);
 }
 
 

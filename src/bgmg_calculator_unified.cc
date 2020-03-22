@@ -396,11 +396,8 @@ double BgmgCalculator::calc_unified_univariate_cost_smplfast(int trait_index, in
     const float ref_pi = pi_vec[comp_index*num_snp_];
     if (ref_pi > 0.5) LOG << " warning: pi_vec has values above 0.5, which is not optimized in calc_unified_univariate_cost_smplfast; consider using calc_unified_univariate_cost_sampling instead";
     for (int snp_index = 1; snp_index < num_snp; snp_index++) {
-      if (ref_pi != pi_vec[comp_index*num_snp + snp_index]) {
-        LOG << " warning: pi_vec doesn't appear to be constant across SNPs";
-        comp_index = num_components;
-        break;
-      }
+      if (ref_pi != pi_vec[comp_index*num_snp + snp_index])
+        BGMG_THROW_EXCEPTION(::std::runtime_error("pi_vec doesn't appear to be constant across SNPs; use calc_unified_univariate_cost_sampling instead"));
     }
   }
 
@@ -621,40 +618,63 @@ void BgmgCalculator::find_unified_bivariate_tag_delta_smplfast(int num_snp, floa
 
   int sample_global_index = num_snp_ - subset_sampler->sample_shuffle();
   const uint32_t* indices = subset_sampler->data();
-  for (int comp_index = 0; comp_index < num_components; comp_index++) {
-    const int num_samples=subset_sampler->counts()[comp_index];
-    for (int sample_index=0; sample_index < num_samples; sample_index++, sample_global_index++) {
-      const int snp_index = indices[sample_global_index];
-      ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), ld_matrix_row);
-      auto iter_end = ld_matrix_row->end();
 
-      for (auto iter = ld_matrix_row->begin(); iter < iter_end; iter++) {
-        const int tag_index = iter.index();
+  // int comp_index = 0;
+  const int num_samples0=subset_sampler->counts()[0];
+  for (int sample_index=0; sample_index < num_samples0; sample_index++, sample_global_index++) {
+    const int snp_index = indices[sample_global_index];
 
-        const float nval1 = nvec1[tag_index];
-        const float nval2 = nvec2[tag_index];
-        const float r2 = iter.r2();
-        const float hval = hvec[snp_index];
+    const float hval = hvec[snp_index];
+    const float sig2_beta1 = sig2_vec[0*num_snp_ + snp_index] * hval;
 
-        const float r2_hval_nval1_sig2_zeroC = (r2 * hval * nval1 * sig2_zeroC[0]);
-        const float r2_hval_nval2_sig2_zeroC = (r2 * hval * nval2 * sig2_zeroC[1]);
-
-        const float sig2_beta1_val = sig2_vec[0*num_snp_ + snp_index];
-        const float sig2_beta2_val = sig2_vec[1*num_snp_ + snp_index];
-        const float sig2_beta1[3] = {sig2_beta1_val, 0, sig2_beta1_val};
-        const float sig2_beta2[3] = {0, sig2_beta2_val, sig2_beta2_val};
-        const float rho[3] = {0, 0, rho_vec[snp_index]};
-
-        const float delta20_val = r2_hval_nval1_sig2_zeroC * sig2_beta1[comp_index];
-        const float delta02_val = r2_hval_nval2_sig2_zeroC * sig2_beta2[comp_index];
-        const float delta11_val = rho[comp_index] * sqrt(delta20_val * delta02_val);
-
-        tag_delta20->at(tag_index) += delta20_val;
-        tag_delta02->at(tag_index) += delta02_val;
-        tag_delta11->at(tag_index) += delta11_val;
-      }
+    ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), ld_matrix_row);
+    auto iter_end = ld_matrix_row->end();
+    for (auto iter = ld_matrix_row->begin(); iter < iter_end; iter++) {
+      const int tag_index = iter.index();
+      const float r2 = iter.r2();
+      tag_delta20->at(tag_index) += r2 * sig2_beta1;
     }
   }
+
+  // int comp_index = 1;
+  const int num_samples1=subset_sampler->counts()[1];
+  for (int sample_index=0; sample_index < num_samples1; sample_index++, sample_global_index++) {
+    const int snp_index = indices[sample_global_index];
+
+    const float hval = hvec[snp_index];
+    const float sig2_beta2 = sig2_vec[1*num_snp_ + snp_index] * hval;
+
+    ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), ld_matrix_row);
+    auto iter_end = ld_matrix_row->end();
+    for (auto iter = ld_matrix_row->begin(); iter < iter_end; iter++) {
+      const int tag_index = iter.index();
+      const float r2 = iter.r2();
+      tag_delta02->at(tag_index) += r2 * sig2_beta2;
+    }
+  }
+
+  // int comp_index = 2;
+  const int num_samples2=subset_sampler->counts()[2];
+  for (int sample_index=0; sample_index < num_samples2; sample_index++, sample_global_index++) {
+    const int snp_index = indices[sample_global_index];
+
+    const float hval = hvec[snp_index];
+    const float rho_val = rho_vec[snp_index];
+    const float sig2_beta1 = sig2_vec[0*num_snp_ + snp_index] * hval;
+    const float sig2_beta2 = sig2_vec[1*num_snp_ + snp_index] * hval;
+    const float rho_beta12 = rho_vec[snp_index] * sqrt(sig2_beta1 * sig2_beta2);
+
+    ld_matrix_csr_.extract_snp_row(SnpIndex(snp_index), ld_matrix_row);
+    auto iter_end = ld_matrix_row->end();
+    for (auto iter = ld_matrix_row->begin(); iter < iter_end; iter++) {
+      const int tag_index = iter.index();
+      const float r2 = iter.r2();
+      tag_delta20->at(tag_index) += r2 * sig2_beta1;
+      tag_delta02->at(tag_index) += r2 * sig2_beta2;
+      tag_delta11->at(tag_index) += r2 * rho_beta12;
+    }
+  }
+
   assert(sample_global_index==num_snp_);
 }
 
@@ -1292,11 +1312,8 @@ double BgmgCalculator::calc_unified_bivariate_cost_smplfast(int num_snp, float* 
     const float ref_pi = pi_vec[comp_index*num_snp_];
     if (ref_pi > 0.5) LOG << " warning: pi_vec has values above 0.5, which is not optimized in calc_unified_bivariate_cost_smplfast; consider using calc_unified_bivariate_cost_sampling instead";
     for (int snp_index = 1; snp_index < num_snp; snp_index++) {
-      if (ref_pi != pi_vec[comp_index*num_snp + snp_index]) {
-        LOG << " warning: pi_vec doesn't appear to be constant across SNPs";
-        comp_index = num_components;
-        break;
-      }
+      if (ref_pi != pi_vec[comp_index*num_snp + snp_index])
+        BGMG_THROW_EXCEPTION(::std::runtime_error("pi_vec doesn't appear to be constant across SNPs; use calc_unified_bivariate_cost_sampling instead"));
     }
   }
 
@@ -1342,9 +1359,9 @@ double BgmgCalculator::calc_unified_bivariate_cost_smplfast(int num_snp, float* 
 
         double pdf_tag = 0.0;
       
-        const float a11 = tag_delta20[tag_index] + sig2_zero_11;
-        const float a12 = tag_delta11[tag_index] + sig2_zero_12;
-        const float a22 = tag_delta02[tag_index] + sig2_zero_22;
+        const float a11 = tag_delta20[tag_index] * tag_n1 * sig2_zeroC[0] + sig2_zero_11;
+        const float a12 = tag_delta11[tag_index] * sqrt(tag_n1 * tag_n2 * sig2_zeroC[0] * sig2_zeroC[1]) + sig2_zero_12;
+        const float a22 = tag_delta02[tag_index] * tag_n2 * sig2_zeroC[1] + sig2_zero_22;
         const double pdf = static_cast<double>(censoring ? censored2_cdf<FLOAT_TYPE>(z1max_, z2max_, a11, a12, a22) : gaussian2_pdf<FLOAT_TYPE>(tag_z1, tag_z2, a11, a12, a22));
         pdf_double_local[tag_index] += pdf * pi_k;
       }

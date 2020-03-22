@@ -602,24 +602,27 @@ void BgmgTest_CalcLikelihood_testConvolution(float r2min, float z1max, float z2m
   float rho_zeroL = rho_beta * pi_vec[2] / sqrt((pi_vec[0]+pi_vec[2]) * (pi_vec[1]+pi_vec[2]));
   double cost_gaussian_unified = calc.calc_unified_bivariate_cost_gaussian(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr);
   double cost_sampling_unified = calc.calc_unified_bivariate_cost_sampling(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr, nullptr);
+  double cost_smplfast_unified = calc.calc_unified_bivariate_cost_smplfast(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr, nullptr);
 
   ASSERT_TRUE(std::isfinite(cost_sampling));
   ASSERT_TRUE(std::isfinite(cost_gaussian));
   ASSERT_TRUE(std::isfinite(cost_convolve));
   ASSERT_TRUE(std::isfinite(cost_gaussian_unified));  
   ASSERT_TRUE(std::isfinite(cost_sampling_unified));  
+  ASSERT_TRUE(std::isfinite(cost_smplfast_unified));  
 
   // There are subtle details in the ways "pi" coefficients are treated in old sampling, new sampling and convolve
   // In the old sampling we sample exactly (N*pi) causal SNPs -- no variation here, while if we strictly follow the model this needs to follow binomial distributino
   // New sampling is asymptotically correct, and gives the same answer as convolve.
   // There is always a difference between cost_sampling and cost_sampling_unified due to the reasons highlighted above.
-  std::cout << std::setprecision(9) << cost_sampling << "(s), " << cost_gaussian << "(g), " << cost_convolve << "(c), " << cost_gaussian_unified << "(ug), " << cost_sampling_unified << "(us)" << std::endl;
+  std::cout << std::setprecision(9) << cost_sampling << "(s), " << cost_gaussian << "(g), " << cost_convolve << "(c), " << cost_gaussian_unified << "(ug), " << cost_sampling_unified << "(us), " << cost_smplfast_unified << "(usf), " << std::endl;
 
   ASSERT_FLOAT_EQ(costvec[0], cost_sampling);
   ASSERT_FLOAT_EQ(costvec[1], cost_gaussian);
   ASSERT_FLOAT_EQ(costvec[2], cost_convolve);
   ASSERT_FLOAT_EQ(costvec[3], cost_gaussian_unified);
   ASSERT_FLOAT_EQ(costvec[4], cost_sampling_unified);
+  ASSERT_FLOAT_EQ(costvec[5], cost_smplfast_unified);
 
   if (pi_vec[2] == 1 && r2min == 0) {
     // can't validate this for r2min != 0, see "TBD: apply ld_tag_sum_r2_below_r2min as an infinitesimal model"  in BgmgCalculator::calc_bivariate_cost_fast.
@@ -750,7 +753,7 @@ TEST(BgmgTest, CalcConvolveLikelihood_inft) {
   const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.0, 0.0, 1.0 }; 
   //double costvec[5] = {1e+100, 23.7376571, 23.7376779, 23.7376838, 23.7376843};
-  double costvec[5] = {1e+100, 24.5043969, 24.5040033, 24.5043765, 24.5043765};
+  double costvec[6] = {1e+100, 24.5043969, 24.5040033, 24.5043765, 24.5043765, 24.5043765};
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
@@ -760,7 +763,7 @@ TEST(BgmgTest, CalcConvolveLikelihood_inft_z1max) {
   const float r2min = 0.0; const float z1max = 1.2; const float z2max = 0.5;
   float pi_vec[] = { 0.0, 0.0, 1.0 }; 
   //double costvec[5] = {1e+100, 15.4232014, 15.4232295, 15.4232234, 15.4232239};
-  double costvec[5] = {1e+100, 9.92858297, 9.92856951, 9.92855016, 9.92855022 };
+  double costvec[6] = {1e+100, 9.92858297, 9.92856951, 9.92855016, 9.92855022, 9.92855012 };
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
@@ -770,7 +773,7 @@ TEST(BgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
   //double costvec[5] = {18.9650083, 18.0064621, 18.7262241, 20.3703903, 18.7258614};
-  double costvec[5] = { 20.1751637, 19.5427144, 19.9417243, 21.1827832, 19.949932 };
+  double costvec[6] = { 20.1751637, 19.5427144, 19.9417243, 21.1827832, 19.949932, 19.9332203 };
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
@@ -780,7 +783,7 @@ TEST(BgmgTest, CalcConvolveLikelihood_z1max) {
   const float r2min = 0.0; const float z1max = 1.2; const float z2max = 0.5;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
   //double costvec[5] = {11.7194747, 10.7965121, 11.4819549, 13.1884063, 11.489059};
-  double costvec[5] = {7.79574923, 7.28866735, 7.64924327, 8.63425674, 7.64984386};
+  double costvec[6] = {7.79574923, 7.28866735, 7.64924327, 8.63425674, 7.64984386, 7.6444876};
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
@@ -790,7 +793,7 @@ TEST(BgmgTest, CalcConvolveLikelihood_with_r2min_inft) {
   const float r2min = 0.2; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.0, 0.0, 1.0 };
   //double costvec[5] = {1e+100, 23.5455545, 23.7376709, 23.7376766, 23.7376769};
-  double costvec[5] = {1e+100, 24.2959385, 24.5039971, 24.5043688, 24.5043702};
+  double costvec[6] = {1e+100, 24.2959385, 24.5039971, 24.5043688, 24.5043702, 24.5043707};
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
@@ -800,7 +803,7 @@ TEST(BgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
   //double costvec[5] = {18.9611203, 17.834824, 18.8095303, 20.3703838, 18.8040619};
-  double costvec[5] = {20.1445922, 19.4030883, 20.0373171, 21.1827779, 20.0463165};
+  double costvec[6] = {20.1445922, 19.4030883, 20.0373171, 21.1827779, 20.0463165, 20.033266};
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }

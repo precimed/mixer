@@ -38,7 +38,7 @@ enum CostCalculator {
   CostCalculator_Sampling = 0,
   CostCalculator_Gaussian = 1,
   CostCalculator_Convolve = 2,
-  CostCalculator_Smplfast = 2,
+  CostCalculator_Smplfast = 3,
   CostCalculator_MAX = 4,
 }; 
 

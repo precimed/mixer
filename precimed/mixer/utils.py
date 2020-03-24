@@ -100,6 +100,10 @@ class UnivariateParams(object):
                                                  sig2_zeroA=self._sig2_zero, sig2_zeroC=1, sig2_zeroL=0)
         return value if np.isfinite(value) else 1e100
 
+    def aux(self, lib, trait):
+        return lib.calc_unified_univariate_aux(trait, self.find_pi_mat(lib.num_snp), self.find_sig2_mat(lib.num_snp), 
+                                                 sig2_zeroA=self._sig2_zero, sig2_zeroC=1, sig2_zeroL=0)
+
     def pdf(self, lib, trait, zgrid):
         return lib.calc_unified_univariate_pdf(trait, self.find_pi_mat(lib.num_snp), self.find_sig2_mat(lib.num_snp),
                                                sig2_zeroA=self._sig2_zero, sig2_zeroC=1, sig2_zeroL=0, zgrid=zgrid)
@@ -400,6 +404,11 @@ class BivariateParams(object):
         value = lib.calc_unified_bivariate_cost(self.find_pi_mat(num_snp), self.find_sig2_mat(num_snp), self.find_rho_vec(num_snp),
                                                 sig2_zeroA=self._sig2_zero, sig2_zeroC=[1, 1], sig2_zeroL=[0, 0], rho_zeroA=self._rho_zero, rho_zeroL=0)
         return value if np.isfinite(value) else 1e100
+
+    def aux(self, lib):
+        num_snp = lib.num_snp
+        return lib.calc_unified_bivariate_aux(self.find_pi_mat(num_snp), self.find_sig2_mat(num_snp), self.find_rho_vec(num_snp),
+                                              sig2_zeroA=self._sig2_zero, sig2_zeroC=[1, 1], sig2_zeroL=[0, 0], rho_zeroA=self._rho_zero, rho_zeroL=0)
 
     def pdf(self, lib, zgrid):
         num_snp = lib.num_snp

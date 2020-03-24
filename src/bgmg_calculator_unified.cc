@@ -341,12 +341,16 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
 #pragma omp parallel
   {
     LdMatrixRow ld_matrix_row;
-    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     std::vector<float> tag_delta2(k_max_, 0.0f);
 
-#pragma omp parallel for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_infinite)
+#pragma omp for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_infinite)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       const int tag_index = deftag_indices[deftag_index];
+      
+      // for those who are woundering what's the point of tag_to_snp_[tag_index]...
+      // each tag SNPs should have its own sequence of random values, and we control this by second seed
+      // however, in unit-tests we validate that use_complete_tag_indices doesn't change anything => it's best to parametrize each tag variant by its snp index
+      MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + tag_to_snp_[tag_index], k_max_, num_components);
       const float sig2_zero = sig2_zeroA + ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index] * nvec[tag_index] * sig2_zeroL;
       find_unified_univariate_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, tag_index, &nvec[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
 
@@ -371,7 +375,10 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
         num_infinite++;
       }
 
-      log_pdf_total += increment;
+#pragma omp critical
+      {
+        log_pdf_total += increment;
+      }
     }
   }
 
@@ -419,13 +426,13 @@ double BgmgCalculator::calc_unified_univariate_cost_smplfast(int trait_index, in
 #pragma omp parallel
   {
     LdMatrixRow ld_matrix_row;
-    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), num_snp_, num_components);
     std::vector<float> tag_delta2(num_tag_, 0.0f);
     std::valarray<double> pdf_double_local(0.0, num_tag_);
     std::valarray<double> aux_Ezvec2_local(0.0, num_tag_);
 
-#pragma omp parallel for schedule(dynamic, 1)
+#pragma omp for schedule(dynamic)
     for (int k_index = 0; k_index < k_max_; k_index++) {
+      MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + k_index, num_snp_, num_components);
       find_unified_univariate_tag_delta_smplfast(num_components, pi_vec, sig2_vec, sig2_zeroC, k_index, &nvec[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
       for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
         const int tag_index = deftag_indices[deftag_index];
@@ -708,12 +715,12 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
   {
     std::valarray<double> pdf_double_local(0.0, length);
     LdMatrixRow ld_matrix_row;
-    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     std::vector<float> tag_delta2(k_max_, 0.0f);
 
 #pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
+      MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + tag_to_snp_[tag_index], k_max_, num_components);
       find_unified_univariate_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, tag_index, &nvec[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
       const float sig2_zero = sig2_zeroA + ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index] * nvec[tag_index] * sig2_zeroL;
       const double tag_weight = static_cast<double>(weights_[tag_index]);
@@ -758,12 +765,12 @@ int64_t BgmgCalculator::calc_unified_univariate_power(int trait_index, int num_c
     std::valarray<double> s_numerator_local(0.0, length);
     std::valarray<double> s_denominator_local(0.0, length);
     LdMatrixRow ld_matrix_row;
-    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     std::vector<float> tag_delta2(k_max_, 0.0f);
 
 #pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
+      MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + tag_to_snp_[tag_index], k_max_, num_components);
       const double tag_weight = static_cast<double>(weights_[tag_index]);
       find_unified_univariate_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, tag_index, &nvec_dummy[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
 
@@ -820,7 +827,6 @@ int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index,
 #pragma omp parallel
   {
     LdMatrixRow ld_matrix_row;
-    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     std::vector<float> tag_delta2(k_max_, 0.0f);
     std::valarray<double> c0_local(0.0f, num_tag_);
     std::valarray<double> c1_local(0.0f, num_tag_);
@@ -829,6 +835,7 @@ int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index,
 #pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
+      MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + tag_to_snp_[tag_index], k_max_, num_components);
       find_unified_univariate_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, tag_index, &nvec[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
     
       for (int k_index = 0; k_index < k_max_; k_index++) {
@@ -1248,14 +1255,14 @@ double BgmgCalculator::calc_unified_bivariate_cost_sampling(int num_snp, float* 
 #pragma omp parallel
   {
     LdMatrixRow ld_matrix_row;
-    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     std::vector<float> tag_delta20(k_max_, 0.0f);
     std::vector<float> tag_delta02(k_max_, 0.0f);
     std::vector<float> tag_delta11(k_max_, 0.0f);
 
-#pragma omp parallel for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_infinite)
+#pragma omp for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_infinite)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       const int tag_index = deftag_indices[deftag_index];
+      MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + tag_to_snp_[tag_index], k_max_, num_components);
       const float adj_hval = ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index];
       const float sig2_zero_11 = sig2_zeroA[0] + adj_hval * nvec1_[tag_index] * sig2_zeroL[0];
       const float sig2_zero_22 = sig2_zeroA[1] + adj_hval * nvec2_[tag_index] * sig2_zeroL[1];
@@ -1347,7 +1354,6 @@ double BgmgCalculator::calc_unified_bivariate_cost_smplfast(int num_snp, float* 
 #pragma omp parallel
   {
     LdMatrixRow ld_matrix_row;
-    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), num_snp_, num_components);
     std::vector<float> tag_delta20(num_tag_, 0.0f);
     std::vector<float> tag_delta02(num_tag_, 0.0f);
     std::vector<float> tag_delta11(num_tag_, 0.0f);
@@ -1356,8 +1362,9 @@ double BgmgCalculator::calc_unified_bivariate_cost_smplfast(int num_snp, float* 
     std::valarray<double> average_tag_delta11_local(0.0, num_tag_);
     std::valarray<double> average_tag_delta02_local(0.0, num_tag_);
 
-#pragma omp parallel for schedule(dynamic, 1)
+#pragma omp for schedule(dynamic, 1) 
     for (int k_index = 0; k_index < k_max_; k_index++) {
+      MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + k_index, num_snp_, num_components);
       find_unified_bivariate_tag_delta_smplfast(num_snp, pi_vec, sig2_vec, rho_vec, sig2_zeroA, sig2_zeroC, sig2_zeroL, rho_zeroA, rho_zeroL, k_index, &nvec1_[0], &nvec2_[0], &hvec[0], &tag_delta20, &tag_delta02, &tag_delta11, &subset_sampler, &ld_matrix_row);
       for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
         const int tag_index = deftag_indices[deftag_index];
@@ -1513,15 +1520,15 @@ int64_t BgmgCalculator::calc_unified_bivariate_pdf(int num_snp, float* pi_vec, f
 #pragma omp parallel
   {
     LdMatrixRow ld_matrix_row;
-    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     std::valarray<double> pdf_double_local(0.0, length);
     std::vector<float> tag_delta20(k_max_, 0.0f);
     std::vector<float> tag_delta02(k_max_, 0.0f);
     std::vector<float> tag_delta11(k_max_, 0.0f);
 
-#pragma omp parallel for schedule(dynamic, kOmpDynamicChunk)
+#pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       const int tag_index = deftag_indices[deftag_index];
+      MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + tag_to_snp_[tag_index], k_max_, num_components);
       double tag_weight = static_cast<double>(weights_[tag_index]);
 
       const float adj_hval = ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index];
@@ -1588,7 +1595,6 @@ int64_t BgmgCalculator::calc_unified_bivariate_delta_posterior(int num_snp, floa
 #pragma omp parallel
   {
     LdMatrixRow ld_matrix_row;
-    MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), k_max_, num_components);
     double c00_local, c10_local, c01_local, c20_local, c11_local, c02_local;
     std::vector<float> tag_delta20(k_max_, 0.0f);
     std::vector<float> tag_delta02(k_max_, 0.0f);
@@ -1597,6 +1603,7 @@ int64_t BgmgCalculator::calc_unified_bivariate_delta_posterior(int num_snp, floa
 #pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       const int tag_index = deftag_indices[deftag_index];
+      MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + tag_to_snp_[tag_index], k_max_, num_components);
       const float adj_hval = ld_tag_sum_r2_below_r2min_adjust_for_hvec[tag_index];
       const float sig2_zeroL_11 = adj_hval * nvec1_[tag_index] * sig2_zeroL[0];
       const float sig2_zeroL_22 = adj_hval * nvec2_[tag_index] * sig2_zeroL[1];

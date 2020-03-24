@@ -773,7 +773,7 @@ TEST(BgmgTest, CalcConvolveLikelihood) {
   const float r2min = 0.0; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
   //double costvec[5] = {18.9650083, 18.0064621, 18.7262241, 20.3703903, 18.7258614};
-  double costvec[6] = { 20.1751637, 19.5427144, 19.9417243, 21.1827832, 19.949932, 19.9332203 };
+  double costvec[6] = { 20.1751637, 19.5427144, 19.9417243, 21.1827832, 19.9471259, 19.9283836 };
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
@@ -783,7 +783,7 @@ TEST(BgmgTest, CalcConvolveLikelihood_z1max) {
   const float r2min = 0.0; const float z1max = 1.2; const float z2max = 0.5;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
   //double costvec[5] = {11.7194747, 10.7965121, 11.4819549, 13.1884063, 11.489059};
-  double costvec[6] = {7.79574923, 7.28866735, 7.64924327, 8.63425674, 7.64984386, 7.6444876};
+  double costvec[6] = {7.79574923, 7.28866735, 7.64816694, 8.63425681, 7.65108184, 7.63906013};
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
@@ -803,7 +803,7 @@ TEST(BgmgTest, CalcConvolveLikelihood_with_r2min) {
   const float r2min = 0.2; const float z1max = 10000; const float z2max = 10000;
   float pi_vec[] = { 0.1, 0.2, 0.15 };
   //double costvec[5] = {18.9611203, 17.834824, 18.8095303, 20.3703838, 18.8040619};
-  double costvec[6] = {20.1445922, 19.4030883, 20.0373171, 21.1827779, 20.0463165, 20.033266};
+  double costvec[6] = {20.1445922, 19.4030883, 20.0373171, 21.1827779, 20.0454545, 20.0298678};
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, true);
   BgmgTest_CalcLikelihood_testConvolution(r2min, z1max, z2max, pi_vec, costvec, false);
 }
@@ -1085,7 +1085,7 @@ void BgmgTest_CalcSampling_testPerformance(float r2min, float z1max, float z2max
   calc.set_option("cache_tag_r2sum", 0);
   calc.set_option("r2min", r2min);
   calc.set_option("use_complete_tag_indices", use_complete_tag_indices);
-  calc.set_option("threads", 1);
+  calc.set_option("threads", 6);
   calc.set_option("z1max", z1max);
   calc.set_option("z2max", z1max);
 
@@ -1135,7 +1135,7 @@ void BgmgTest_CalcSampling_testPerformance(float r2min, float z1max, float z2max
   float sig2_zeroL[] = { (pi_vec[0] + pi_vec[2]) * sig2_beta[0], (pi_vec[1] + pi_vec[2]) * sig2_beta[1] };
   float rho_zeroL = rho_beta * pi_vec[2] / sqrt((pi_vec[0]+pi_vec[2]) * (pi_vec[1]+pi_vec[2]));
   
-  const int nrep = 5;
+  const int nrep = 1;
   for (int repi = 0; repi < nrep; repi++) {
     double cost;
     if (type == 0) cost = calc.calc_unified_bivariate_cost_sampling(num_snp, &pi_unified[0], &sig2_unified[0], &rho_unified[0], sig2_zero, sig2_zeroC, sig2_zeroL, rho_zero, rho_zeroL, nullptr, nullptr);

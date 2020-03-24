@@ -414,6 +414,7 @@ double BgmgCalculator::calc_unified_univariate_cost_smplfast(int trait_index, in
   const double pi_k = 1.0 / static_cast<double>(k_max_);
 
   std::valarray<double> pdf_double(0.0, num_tag_);
+  std::valarray<double> aux_Ezvec2(0.0, num_tag_);
 
 #pragma omp parallel
   {
@@ -421,6 +422,7 @@ double BgmgCalculator::calc_unified_univariate_cost_smplfast(int trait_index, in
     MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + omp_get_thread_num(), num_snp_, num_components);
     std::vector<float> tag_delta2(num_tag_, 0.0f);
     std::valarray<double> pdf_double_local(0.0, num_tag_);
+    std::valarray<double> aux_Ezvec2_local(0.0, num_tag_);
 
 #pragma omp parallel for schedule(dynamic, 1)
     for (int k_index = 0; k_index < k_max_; k_index++) {
@@ -434,11 +436,13 @@ double BgmgCalculator::calc_unified_univariate_cost_smplfast(int trait_index, in
         const bool censoring = std::abs(tag_z) > z_max;
         double pdf = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z_max, s) : gaussian_pdf<FLOAT_TYPE>(tag_z, s));
         pdf_double_local[tag_index] += pdf * pi_k;
+        aux_Ezvec2_local[tag_index] += (tag_delta2[tag_index] + sig2_zero) * pi_k;
       }
     }
 
 #pragma omp critical
     pdf_double += pdf_double_local;
+    aux_Ezvec2 += aux_Ezvec2_local;
   }
 
   double log_pdf_total = 0.0;
@@ -451,6 +455,10 @@ double BgmgCalculator::calc_unified_univariate_cost_smplfast(int trait_index, in
       num_infinite++;
     }
     log_pdf_total += increment;
+
+    // export the expected values of z^2 distribution
+    if ((aux != nullptr) && (aux_option_ == AuxOption_Ezvec2)) aux[tag_index] = aux_Ezvec2[tag_index];
+    if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = pdf_double[tag_index];
   }
 
   if (num_infinite > 0)
@@ -1328,6 +1336,9 @@ double BgmgCalculator::calc_unified_bivariate_cost_smplfast(int num_snp, float* 
 
   const double pi_k = 1.0 / static_cast<double>(k_max_);
   std::valarray<double> pdf_double(0.0, num_tag_);
+  std::valarray<double> average_tag_delta20(0.0, num_tag_);
+  std::valarray<double> average_tag_delta11(0.0, num_tag_);
+  std::valarray<double> average_tag_delta02(0.0, num_tag_);
 
 #pragma omp parallel
   {
@@ -1337,6 +1348,9 @@ double BgmgCalculator::calc_unified_bivariate_cost_smplfast(int num_snp, float* 
     std::vector<float> tag_delta02(num_tag_, 0.0f);
     std::vector<float> tag_delta11(num_tag_, 0.0f);
     std::valarray<double> pdf_double_local(0.0, num_tag_);
+    std::valarray<double> average_tag_delta20_local(0.0, num_tag_);
+    std::valarray<double> average_tag_delta11_local(0.0, num_tag_);
+    std::valarray<double> average_tag_delta02_local(0.0, num_tag_);
 
 #pragma omp parallel for schedule(dynamic, 1)
     for (int k_index = 0; k_index < k_max_; k_index++) {
@@ -1357,18 +1371,23 @@ double BgmgCalculator::calc_unified_bivariate_cost_smplfast(int num_snp, float* 
 
         const bool censoring = (std::abs(tag_z1) > z1max_) || (std::abs(tag_z2) > z2max_);
 
-        double pdf_tag = 0.0;
-      
         const float a11 = tag_delta20[tag_index] * tag_n1 * sig2_zeroC[0] + sig2_zero_11;
         const float a12 = tag_delta11[tag_index] * sqrt(tag_n1 * tag_n2 * sig2_zeroC[0] * sig2_zeroC[1]) + sig2_zero_12;
         const float a22 = tag_delta02[tag_index] * tag_n2 * sig2_zeroC[1] + sig2_zero_22;
         const double pdf = static_cast<double>(censoring ? censored2_cdf<FLOAT_TYPE>(z1max_, z2max_, a11, a12, a22) : gaussian2_pdf<FLOAT_TYPE>(tag_z1, tag_z2, a11, a12, a22));
         pdf_double_local[tag_index] += pdf * pi_k;
+
+        average_tag_delta20_local[tag_index] += a11 * pi_k;
+        average_tag_delta11_local[tag_index] += a12 * pi_k;
+        average_tag_delta02_local[tag_index] += a22 * pi_k;
       }
     }
 
 #pragma omp critical
     pdf_double += pdf_double_local;
+    average_tag_delta20 += average_tag_delta20_local;
+    average_tag_delta11 += average_tag_delta11_local;
+    average_tag_delta02 += average_tag_delta02_local;
   }
 
   double log_pdf_total = 0.0;
@@ -1381,6 +1400,14 @@ double BgmgCalculator::calc_unified_bivariate_cost_smplfast(int num_snp, float* 
       num_infinite++;
     }
     log_pdf_total += increment;
+
+    // export the expected values of z^2 distribution
+    if ((aux != nullptr) && (aux_option_ == AuxOption_Ezvec2)) {
+      aux[0 * num_tag_ + tag_index] = average_tag_delta20[tag_index];
+      aux[1 * num_tag_ + tag_index] = average_tag_delta11[tag_index];
+      aux[2 * num_tag_ + tag_index] = average_tag_delta02[tag_index];
+    }
+    if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = pdf_double[tag_index];
   }
 
   if (num_infinite > 0)

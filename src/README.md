@@ -194,3 +194,21 @@ cd /cluster/projects/nn9114k/oleksanf/github/mixer_plsa/src/build
 cmake .. -DBOOST_ROOT=/cluster/projects/nn9114k/oleksanf/software/boost_1_69_0
 make -j16 bgmg
 ```
+
+**Build on Saga (newer boost)**
+```
+module load Python/3.7.4-GCCcore-8.3.0 CMake/3.12.1
+
+cd /cluster/projects/nn9114k/oleksanf/software
+https://dl.bintray.com/boostorg/release/1.72.0/source/boost_1_72_0.tar.gz
+tar -xzvf boost_1_72_0.tar.gz
+./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time i  # not sure what's i here, remove?
+./b2 cxxflags=-fPIC cflags=-fPIC variant=release threading=multi runtime-link=shared link=shared -j12
+
+cd /cluster/projects/nn9114k/oleksanf/github/mixer_plsa/src/build_static
+cmake .. -DBOOST_ROOT=/cluster/projects/nn9114k/oleksanf/software/boost_1_72_0
+make -j16 
+
+# for unit tests
+Boost/1.71.0-GCC-8.3.0 CMake/3.12.1
+```

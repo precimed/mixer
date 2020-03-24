@@ -441,8 +441,10 @@ double BgmgCalculator::calc_unified_univariate_cost_smplfast(int trait_index, in
     }
 
 #pragma omp critical
-    pdf_double += pdf_double_local;
-    aux_Ezvec2 += aux_Ezvec2_local;
+    {
+      pdf_double += pdf_double_local;
+      aux_Ezvec2 += aux_Ezvec2_local;
+    }
   }
 
   double log_pdf_total = 0.0;
@@ -726,7 +728,9 @@ int64_t BgmgCalculator::calc_unified_univariate_pdf(int trait_index, int num_com
       }
     }
 #pragma omp critical
-    pdf_double += pdf_double_local;
+    {
+      pdf_double += pdf_double_local;
+    }
   }
 
   for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);
@@ -1384,10 +1388,12 @@ double BgmgCalculator::calc_unified_bivariate_cost_smplfast(int num_snp, float* 
     }
 
 #pragma omp critical
-    pdf_double += pdf_double_local;
-    average_tag_delta20 += average_tag_delta20_local;
-    average_tag_delta11 += average_tag_delta11_local;
-    average_tag_delta02 += average_tag_delta02_local;
+    {
+      pdf_double += pdf_double_local;
+      average_tag_delta20 += average_tag_delta20_local;
+      average_tag_delta11 += average_tag_delta11_local;
+      average_tag_delta02 += average_tag_delta02_local;
+    }
   }
 
   double log_pdf_total = 0.0;
@@ -1545,7 +1551,9 @@ int64_t BgmgCalculator::calc_unified_bivariate_pdf(int num_snp, float* pi_vec, f
       }
     }
 #pragma omp critical
-    pdf_double += pdf_double_local;
+    {
+      pdf_double += pdf_double_local;
+    }
   }
 
   for (int i = 0; i < length; i++) pdf[i] = static_cast<float>(pdf_double[i]);

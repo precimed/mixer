@@ -212,3 +212,26 @@ make -j16
 # for unit tests
 Boost/1.71.0-GCC-8.3.0 CMake/3.12.1
 ```
+
+## Build on Saga (intel compiler) **
+
+
+```
+Boost/1.68.0-intel-2018b-Python-3.6.6
+Python/3.6.6-intel-2018b
+CMake/3.12.1
+
+CC=icc CXX=icpc cmake ..
+```
+
+## Buildon Saga (pre-installed boost) **
+
+```
+module load Boost/1.71.0-GCC-8.3.0 Python/3.7.4-GCCcore-8.3.0 CMake/3.12.1
+pip install numpy scipy pandas numdifftools --only-binary numpy scipy pandas --user 
+
+git clone --recurse-submodules https://github.com/precimed/mixer.git
+mkdir mixer/src/build && cd mixer/src/build
+cmake ..
+make -j16 bgmg
+```

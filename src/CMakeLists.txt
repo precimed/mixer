@@ -11,6 +11,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_BUILD_TYPE "Release")
 #set(CMAKE_BUILD_TYPE "Debug")
 message("-- Build type: ${CMAKE_BUILD_TYPE}")
+message("-- C++ compiler: ${CMAKE_CXX_COMPILER_ID}")
 
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
@@ -24,13 +25,15 @@ else (COMPILER_SUPPORTS_CXX11)
 endif (COMPILER_SUPPORTS_CXX11)
 
 if (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
-    ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
-   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -mavx -march=native -mfpmath=sse -ggdb")
-   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -mavx -march=native -mfpmath=sse -ggdb")
+    ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU") OR
+    ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel"))
+   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -march=native -mfpmath=sse -ggdb")
+   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -march=native -mfpmath=sse -ggdb")
    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0")
    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0")
 endif (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") OR
-      ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU"))
+      ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU") OR
+      ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel"))
 
 #SET(BUILD_GMOCK OFF CACHE BOOL "Builds the googlemock subproject")
 #SET(BUILD_GTEST ON CACHE BOOL "Builds the googletest subproject")
@@ -45,8 +48,10 @@ endif()
 
 add_subdirectory(zlib)
 
+message("CMAKE_C_FLAGS is ${CMAKE_C_FLAGS}")
 message("CMAKE_C_FLAGS_DEBUG is ${CMAKE_C_FLAGS_DEBUG}")
 message("CMAKE_C_FLAGS_RELEASE is ${CMAKE_C_FLAGS_RELEASE}")
+message("CMAKE_CXX_FLAGS is ${CMAKE_CXX_FLAGS}")
 message("CMAKE_CXX_FLAGS_DEBUG is ${CMAKE_CXX_FLAGS_DEBUG}")
 message("CMAKE_CXX_FLAGS_RELEASE is ${CMAKE_CXX_FLAGS_RELEASE}")
 

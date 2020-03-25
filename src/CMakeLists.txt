@@ -50,38 +50,14 @@ message("CMAKE_C_FLAGS_RELEASE is ${CMAKE_C_FLAGS_RELEASE}")
 message("CMAKE_CXX_FLAGS_DEBUG is ${CMAKE_CXX_FLAGS_DEBUG}")
 message("CMAKE_CXX_FLAGS_RELEASE is ${CMAKE_CXX_FLAGS_RELEASE}")
 
-set(Boost_ADDITIONAL_VERSIONS "1.57" "1.57.0" "1.56" "1.56.0" "1.55" "1.55.0" "1.54" "1.54.0" "1.53" "1.53.0" "1.52" "1.52.0" "1.51" "1.51.0" "1.50" "1.50.0" "1.49" "1.49.0" "1.48" "1.48.0" "1.47" "1.47.0" "1.46" "1.46.0" "1.45" "1.45.0" "1.44" "1.44.0" "1.42" "1.42.0" "1.41.0" "1.41" "1.40.0" "1.40")
 set(BGMG_BOOST_COMPONENTS program_options filesystem system date_time)
-
-# find boost (static runtime version of BOOST for BGMG command-line interface)
-set(Boost_USE_STATIC_LIBS   OFF)
-set(Boost_USE_STATIC_RUNTIME_LIBS   ON)
 find_package(Boost COMPONENTS REQUIRED ${BGMG_BOOST_COMPONENTS})
 if (NOT Boost_FOUND)
   message(SEND_ERROR "Failed to find required boost libraries.")
   return()
 endif (NOT Boost_FOUND)
-set(Boost_LIBRARIES_STATIC_RUNTIME_LIBS ${Boost_LIBRARIES})
-message("-- Boost_LIBRARIES_STATIC_RUNTIME_LIBS: ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS}")
-
-# find boost (static version of BOOST for libbgmg.so / libbgmg.dynlib / bgmglib.dll )
-find_package(Boost REQUIRED)
-if (NOT Boost_FOUND)
-  message(SEND_ERROR "Failed to find boost libraries.")
-endif (NOT Boost_FOUND)
-
-set(Boost_USE_MULTITHREADED ON)
-set(Boost_USE_STATIC_LIBS   ON)
-set(Boost_USE_STATIC_RUNTIME_LIBS   OFF)
-find_package(Boost COMPONENTS REQUIRED ${BGMG_BOOST_COMPONENTS})
-if (NOT Boost_FOUND)
-  message(SEND_ERROR "Failed to find required boost libraries.")
-  return()
-endif (NOT Boost_FOUND)
+message("-- Boost_LIBRARIES: ${Boost_LIBRARIES}")
 include_directories(${Boost_INCLUDE_DIRS})
-set(Boost_LIBRARIES_STATIC_LIBS ${Boost_LIBRARIES})
-message("-- Boost_LIBRARIES_STATIC_LIBS: ${Boost_LIBRARIES_STATIC_LIBS}")
-
 
 set(SRC_LIST
 	bgmg_calculator.cc
@@ -126,11 +102,7 @@ target_include_directories(bgmg-static PUBLIC ${PROJECT_SOURCE_DIR}/zlib)
 target_compile_definitions(bgmg-static PRIVATE USE_SSE)
 
 add_library(bgmg SHARED source.cc)
-if (MSVC)
-	target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS})
-else (MSVC)
-	target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_RUNTIME_LIBS})
-endif (MSVC)
+target_link_libraries(bgmg bgmg-static zlibstatic ${Boost_LIBRARIES})
 
 set(SRC_TEST_LIST
 	source.cc
@@ -146,7 +118,7 @@ set(SRC_TEST_LIST
 	${PROJECT_SOURCE_DIR}/googletest/googletest/src/gtest-all.cc
 )
 add_executable(bgmg-test ${SRC_TEST_LIST})
-target_link_libraries(bgmg-test bgmg-static zlibstatic ${Boost_LIBRARIES_STATIC_LIBS}) 
+target_link_libraries(bgmg-test bgmg-static zlibstatic ${Boost_LIBRARIES}) 
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest/include)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR}/googletest/googletest)
 target_include_directories(bgmg-test PUBLIC ${PROJECT_SOURCE_DIR})

@@ -29,7 +29,7 @@
 ## https://unix.stackexchange.com/questions/277981/gnu-parallel-immediately-display-job-stderr-stdout-one-at-a-time-by-jobs-order
 set MIXER_ROOT=/home/oleksandr/github/mixer
 set SUMSTAT=/space/syn03/1/data/GWAS/SUMSTAT
-set OUT_DIR=/space/syn03/1/data/oleksandr/mixer_test/cleanup_legacy
+set OUT_DIR=/space/syn03/1/data/oleksandr/mixer_test/fix_parallel_for_omp
 set PYTHON=/home/oleksandr/miniconda3/bin/python3
 set TRAIT1=PGC_SCZ_2014_EUR
 set TRAIT2=SSGAC_EDU_2018_no23andMe
@@ -49,8 +49,8 @@ $PYTHON $MIXER_ROOT/precimed/mixer.py fit \
 #      --chr2use 1 --diffevo-fast-repeats 2 --fit-sequence diffevo-fast neldermead-fast
 
 $PYTHON $MIXER_ROOT/precimed/mixer.py fit \
-      --trait1-file $SUMSTAT/TMP/ldsr/$TRAIT1.sumstats.gz \
-      --trait2-file $SUMSTAT/TMP/ldsr/$TRAIT2.sumstats.gz \
+      --trait1-file $SUMSTAT/TMP/nomhc/$TRAIT1.sumstats.gz \
+      --trait2-file $SUMSTAT/TMP/nomhc/$TRAIT2.sumstats.gz \
       --load-params-file $OUT_DIR/${TRAIT1}_vs_${TRAIT2}.fit.json \
       --out $OUT_DIR/${TRAIT1}_vs_${TRAIT2}.test \
       --bim-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \

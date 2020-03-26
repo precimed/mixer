@@ -546,6 +546,8 @@ def execute_perf_parser(args):
 
                 if (kmax!=np.max(args.kmax)) and (costcalc in ['gaussian', 'convolve']):
                     continue  # gaussian and convolve are calculated only for one value of kmax, e.g. for the largest one
+                if (costcalc == 'convolve') and (args.trait2_file):
+                    continue  # skip convolve for bivariate analysis
 
                 start = time.time()
                 cost = (params12.cost(libbgmg) if args.trait2_file else params1.cost(libbgmg, trait=1))

@@ -342,6 +342,7 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
   {
     LdMatrixRow ld_matrix_row;
     std::vector<float> tag_delta2(k_max_, 0.0f);
+    std::valarray<double> tag_kpdf(0.0f, k_max_);
 
 #pragma omp for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_infinite)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
@@ -363,11 +364,13 @@ double BgmgCalculator::calc_unified_univariate_cost_sampling(int trait_index, in
         double pdf = static_cast<double>(censoring ? censored_cdf<FLOAT_TYPE>(z_max, s) : gaussian_pdf<FLOAT_TYPE>(tag_z, s));
         pdf_tag += pdf * pi_k;
         average_tag_delta2 += tag_delta2[k] * pi_k;
+        tag_kpdf[k] = pdf;
       }
 
       // export the expected values of z^2 distribution
       if ((aux != nullptr) && (aux_option_ == AuxOption_Ezvec2)) aux[tag_index] = average_tag_delta2 + sig2_zero;
       if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = pdf_tag;
+      if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdfErr)) aux[tag_index] = sqrt(((tag_kpdf - pdf_tag) * (tag_kpdf - pdf_tag)).sum() / (static_cast<double>(k_max_) - 1.0));
 
       double increment = -std::log(pdf_tag) * static_cast<double>(weights[tag_index]);
       if (!std::isfinite(increment)) {
@@ -1258,6 +1261,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_sampling(int num_snp, float* 
     std::vector<float> tag_delta20(k_max_, 0.0f);
     std::vector<float> tag_delta02(k_max_, 0.0f);
     std::vector<float> tag_delta11(k_max_, 0.0f);
+    std::valarray<double> tag_kpdf(0.0f, k_max_);
 
 #pragma omp for schedule(dynamic, kOmpDynamicChunk) reduction(+: log_pdf_total, num_infinite)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
@@ -1289,6 +1293,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_sampling(int num_snp, float* 
         average_tag_delta20 += a11 * pi_k;
         average_tag_delta11 += a12 * pi_k;
         average_tag_delta02 += a22 * pi_k;
+        tag_kpdf[k] = pdf;        
       }
 
       // export the expected values of z^2 distribution
@@ -1298,6 +1303,7 @@ double BgmgCalculator::calc_unified_bivariate_cost_sampling(int num_snp, float* 
         aux[2 * num_tag_ + tag_index] = average_tag_delta02;
       }
       if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdf)) aux[tag_index] = pdf_tag;
+      if ((aux != nullptr) && (aux_option_ == AuxOption_TagPdfErr)) aux[tag_index] = sqrt(((tag_kpdf - pdf_tag) * (tag_kpdf - pdf_tag)).sum() / (static_cast<double>(k_max_) - 1.0));
 
       double increment = -std::log(pdf_tag) * static_cast<double>(weights[tag_index]);
       if (!std::isfinite(increment)) {

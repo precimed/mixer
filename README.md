@@ -25,11 +25,12 @@ for processing summary statistics. For the reference panel we recommend to use 1
 pre-processed according to LD Score Regression pipeline, and available for download from LDSC website.
 Further details are given in [Data downloads](#data-downloads) and [Data preparation](#data-preparation) sections.
 
-Once you have all input data in MiXeR-compatible format you may proceed with running univariate or
+Once you have all input data in MiXeR-compatible format you may proceed with running univariate
 and cross-trait analysis, as implemented in ``mixer.py`` command-line interface.
 The results will be saved as ``.json`` files.
 To visualize the results we provide a script in python, but we encourage users to write their own scripts
-that process the results. Further details are given in [Run MiXeR](#run-mixer),
+that understand the structure of ``.json`` files, process the results.
+Further details are given in [Run MiXeR](#run-mixer),
 [MiXeR options](#mixer-options) and [Visualize MiXeR results](#visualize-mixer-results) sections.
 
 If you encounter an issue, or have further questions, please create a
@@ -55,17 +56,18 @@ MiXeR versions:
 
 * Linux environment (tested on CentOS release 6.9, Ubuntu 18.04).
 * Python 3 (tested with Python 3.7), with numpy, scipy>=1.2.1, numdifftools, matplotlib_venn
-* Reasonably new GCC compiler (tested with gcc/6.1.0)
+* Reasonably new GCC compiler (tested with gcc/6.1.0) or an Intel C++ compiler (tested with intel-2018b)
+* Boost libraries (https://www.boost.org/, tested with 1.68.0)
 
 If you are an experienced C++ programmer it shouldn't be difficult to compile MiXeR core in MAC or Windows.
 If you've made it work, please share your changes via pull request.
 
 ### Hardware requirements
 
-MiXeR software is very CPU and memory intensive. 
-Minimal memory requirement is to have 61.5 GB of RAM available to MiXeR.
-MiXeR efficiently uses multiple CPUs. We recommend to run MiXeR on a system with 16 physical cores.
-When use MiXeR on a cluster, we recommend to assign the whole node to each MiXeR run.
+MiXeR software is very CPU intensive. 
+Minimal memory requirement is to have 32 GB of RAM available to MiXeR.
+MiXeR efficiently uses multiple CPUs.
+We recommend to run MiXeR on a system with at least 16 physical cores.
 
 ### Install on Linux using pre-built binaries
 
@@ -89,7 +91,8 @@ Not available yet.
 
 * Recommended combination of modules on different HPC systems:
   ```
-  module load cmake/3.7.1 python3/3.7.0.gnu   # UiO Abel
+  module load Boost/1.68.0-intel-2018b-Python-3.6.6 Python/3.6.6-intel-2018b CMake/3.12.1  # SAGA (intel)
+  module load Boost/1.71.0-GCC-8.3.0 Python/3.7.4-GCCcore-8.3.0 CMake/3.12.1               # SAGA (gcc)  
   ```
 
 ## Data downloads
@@ -126,47 +129,23 @@ Not available yet.
     ```
   * We note that for case/control ``munge_sumstats.py`` generate sample size as a sum ``n = ncase + ncontrol``. We recommend to use ``neff = 4 / (1/ncase + 1/ncontrol)`` to account for imbalanced classes. Additionaly, we recommend to keep summary statistics for the entire set of SNPs available in GWAS, without filtering by HapMap3 SNPs). HapMap3 constraint can be applied later during fit procedure.
 
-* Reference panel (alternatively, download [this](https://1drv.ms/u/s!Ai1YZmdFa9ati40Inztrv_4erqcdWw?e=ixWDUe) or take it from NIRD (``/projects/NS9114K/users/oleksanf/public_file_share/mixer``). NB! Download size is ``24 GB``.
-  * Run ``plink`` to calculate allele frequencies and pairwise LD r2 for each chromosome
-    ```
-    plink \
-       --freq --threads 1 --memory 1024 \
-       --bfile LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label> \
-       --out LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.<chr_label>
-    plink --r2 gz --ld-window-kb 1000000 --ld-window 50000 --ld-window-r2 0.05 --threads 24 \
-       --bfile LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label> \
-       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k
-    ```
-    This step takes about 1 hour (here and below all times are measured on a server with 24 physical cores).
+* Reference panel (alternatively, download [this](https://1drv.ms/u/s!Ai1YZmdFa9ati40Inztrv_4erqcdWw?e=ixWDUe) or take it from NIRD (``/projects/NS9114K/MMIL/SUMSTAT/LDSR/1000G_EUR_Phase3_plink``). NB! Download size is ``24 GB``.
    * Run ``python mixer.py ld`` to convert plink output into a binary format. The following command must be run once for each chromosome. 
-    Note that ``--bim`` argument is the same, e.g. ``1000G.EUR.QC.@.bim`` (with ``@``) regardless of the actual chromosome that you use in ``--plink-ld`` and ``--out``.
     ```
     python3 <MIXER_ROOT>/precimed/mixer.py ld \
        --lib <MIXER_ROOT>/src/build/lib/libbgmg.so
-       --bim LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-       --plink-ld LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.gz \
-       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld
+       --bfile LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label> \
+       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.run4.ld \
+       --r2min 0.05 --ldscore-r2min 0.05 --ld-window-kb 30000
     ```
-    The conversion is single-threaded, and takes about 10 minutes for the longest chromosome.
-    The output is written to ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.bin`` file,
-    and log details into ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.log`` file:
-    ```
-    20181213 02:18:20.854727         Create new context (id=0)
-    20181213 02:18:20.854751        >init(bim_file=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim, frq_file=, chr_labels=, trait1_file=, trait2_file=, exclude=, extract=);
-    20181213 02:18:20.857294         Construct reference from 22 files...
-    20181213 02:18:22.110188         Found 141123 variants in LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.22.bim
-    ...
-    20181213 02:18:25.890214         Found 9997231 variants in total.
-    20181213 02:18:48.881013         set_tag_indices(num_snp=9997231, num_tag=9997231);
-    20181213 02:18:48.939690        >set_chrnumvec(9997231);
-    20181213 02:18:48.953602        <set_chrnumvec(9997231);
-    20181213 02:18:48.953646        <init(bim_file=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim, frq_file=, chr_labels=, trait1_file=, trait2_file=, exclude=, extract=);  elapsed time 28098ms
-    20181213 02:18:48.953918         Reading LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p05_SNPwind50k.ld.gz...
-    20181213 02:18:49.433315         Processed 100000 lines
-    ...
-    20181213 02:20:01.654392         Parsed 18495973 r2 values from LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p05_SNPwind50k.ld.gz
-    20181213 02:20:01.657704         PlinkLdFile::save_as_binary(filename=LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.21.p05_SNPwind50k.ld.bin), writing 18495973 elements...
-    ```
+    The output is written to ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.run4.ld`` file,
+    and log details into ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.log`` file.
+    The resulting files contain information about alleling LD r2 correlations,
+    LD scores, and allele frequencies of the variants in the reference panel passed as ``--bfile`` argument.
+    The files DO NOT contain any individual-level information.
+    When you store the resulting ``.ld`` file, it is important to keep it along side with corresponding ``.bim`` file,
+    as information about marker name (SNP rs#), chromosome,  position, and alleles (A1/A2) is NOT encoded in ``.ld`` file.
+    
   * Save the list of dbSNP rs# into a separate file called ``w_hm3.justrs``:
     ```
     cut -f1 w_hm3.snplist | tail -n +2 > w_hm3.justrs
@@ -183,8 +162,7 @@ python3 <MIXER_ROOT>/precimed/mixer.py fit \
       --out SSGAC_EDU_2018_no23andMe_noMHC.fit \
       --extract LDSR/w_hm3.justrs --ci-alpha 0.05 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
-      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
+      --plink-ld-bin LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
@@ -196,8 +174,7 @@ python3 <MIXER_ROOT>/precimed/mixer.py fit \
       --out SSGAC_EDU_2018_no23andMe_noMHC.test \
       --fit-sequence load inflation --power-curve --qq-plots --kmax 100 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
-      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
+      --plink-ld-bin LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
@@ -222,8 +199,7 @@ python3 <MIXER_ROOT>/python/mixer.py fit \
       --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit \
       --extract LDSR/w_hm3.justrs --ci-alpha 0.05 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
-      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
+      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
@@ -236,8 +212,7 @@ python3 <MIXER_ROOT>/python/mixer.py fit \
       --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test \
       --fit-sequence load inflation --qq-plots --kmax 100 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --frq-file LDSR/1000G_EUR_Phase3_plink_freq/1000G.EUR.QC.@.frq \
-      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
+      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 

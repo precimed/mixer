@@ -37,7 +37,7 @@ set TRAIT2=SSGAC_EDU_2018_no23andMe
 ##      --trait1-file $SUMSTAT/TMP/ldsr/$TRAIT1.sumstats.gz \
 ##      --out $OUT_DIR/${TRAIT1} \
 ##      --bim-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-##      --plink-ld-bin $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
+##      --ld-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
 ##      --lib $MIXER_ROOT/src/build/lib/libbgmg.so \
 ##      --kmax 20000 2000 200 \
 ##      --threads 1 2 4 8 12 16 20  30 40  \
@@ -49,7 +49,7 @@ $PYTHON $MIXER_ROOT/precimed/mixer.py perf \
       --trait2-file $SUMSTAT/TMP/ldsr/$TRAIT2.sumstats.gz \
       --out $OUT_DIR/${TRAIT1}_vs_${TRAIT2} \
       --bim-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --plink-ld-bin $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
+      --ld-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib $MIXER_ROOT/src/build/lib/libbgmg.so \
       --kmax 20000 2000 200 \
       --threads 1 2 4 8 12 16 20  30 40  \

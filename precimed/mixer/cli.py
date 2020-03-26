@@ -128,9 +128,9 @@ def parser_add_common_arguments(parser):
         "Marker names must not have duplicated entries. "
         "May contain simbol '@', which will be replaced with the actual chromosome label. ")
     parser.add_argument("--frq-file", type=str, default=None, help="Plink frq file (alleles frequencies). "
-        "May contain simbol '@', similarly to --bim-file argument. Required for --plink-ld-bin0; not used with --plink-ld-bin.")
-    parser.add_argument("--plink-ld-bin", type=str, default=None, help="File with linkage disequilibrium information, "
-        "converted from plink format as described in the README.md file. "
+        "May contain simbol '@', similarly to --bim-file argument. Required for --plink-ld-bin0; not used with --ld-file.")
+    parser.add_argument("--ld-file", type=str, default=None, help="File with linkage disequilibrium information, "
+        "generated via 'mixer.py ld' command. "
         "May contain simbol '@', similarly to --bim-file argument. ")
     parser.add_argument("--plink-ld-bin0", type=str, default=None, help="File with linkage disequilibrium information in an old format (deprecated)")
     parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
@@ -514,11 +514,11 @@ def initialize_mixer_plugin(args):
 
     if args.plink_ld_bin0 is not None:
         libbgmg.set_option('ld_format_version', 0)
-        args.plink_ld_bin = args.plink_ld_bin0
+        args.ld_file = args.plink_ld_bin0
         args.plink_ld_bin0 = None
 
     for chr_label in args.chr2use: 
-        libbgmg.set_ld_r2_coo_from_file(chr_label, args.plink_ld_bin.replace('@', str(chr_label)))
+        libbgmg.set_ld_r2_coo_from_file(chr_label, args.ld_file.replace('@', str(chr_label)))
         libbgmg.set_ld_r2_csr(chr_label)
 
     libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude=args.exclude, extract=args.extract)

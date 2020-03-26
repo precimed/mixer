@@ -39,7 +39,7 @@ set PYTHON=/home/oleksandr/miniconda3/bin/python3
 set TRAIT=PGC_SCZ_2014_EUR
 #set TRAIT=SSGAC_EDU_2018_no23andMe 
 
-$PYTHON $MIXER_ROOT/precimed/mixer.py fit \
+$PYTHON $MIXER_ROOT/precimed/mixer.py perf \
       --trait1-file $SUMSTAT/TMP/ldsr/$TRAIT.sumstats.gz \
       --out $OUT_DIR/$TRAIT.fit \
       --extract $SUMSTAT/LDSR/w_hm3.justrs --ci-alpha 0.05 \
@@ -47,6 +47,7 @@ $PYTHON $MIXER_ROOT/precimed/mixer.py fit \
       --frq-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.frq \
       --plink-ld-bin0 $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
       --lib $MIXER_ROOT/src/build/lib/libbgmg.so \
+      --chr2use 21
 
 #      --chr2use 1 --diffevo-fast-repeats 2 --fit-sequence diffevo-fast neldermead-fast
 

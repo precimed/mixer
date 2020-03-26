@@ -837,6 +837,7 @@ def _calculate_bivariate_uncertainty_funcs(alpha, totalhet, num_snps):
              ('pi12', lambda x: x._pi[2]),
              ('pi1u', lambda x: x._pi[0] + x._pi[2]),
              ('pi2u', lambda x: x._pi[1] + x._pi[2]),
+             ('dice', lambda x: (2 * x._pi[2]) / (x._pi[0] + x._pi[1] + 2*x._pi[2])),
              ('nc1', lambda x: num_snps * x._pi[0]),
              ('nc2', lambda x: num_snps * x._pi[1]),
              ('nc12', lambda x: num_snps * x._pi[2]),

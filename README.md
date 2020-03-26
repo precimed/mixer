@@ -133,7 +133,7 @@ Not available yet.
    * Run ``python mixer.py ld`` to calculate linkage disequilibrium information in a genotype reference panel. The following command must be run once for each chromosome. 
     ```
     python3 <MIXER_ROOT>/precimed/mixer.py ld \
-       --lib <MIXER_ROOT>/src/build/lib/libbgmg.so
+       --lib <MIXER_ROOT>/src/build/lib/libbgmg.so \
        --bfile LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label> \
        --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.run4.ld \
        --r2min 0.05 --ldscore-r2min 0.05 --ld-window-kb 30000

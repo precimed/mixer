@@ -184,21 +184,19 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument('--trait1-params-file', type=str, default=None, help="univariate params for the first trait (for the cross-trait analysis only). ")
     parser.add_argument('--trait2-params-file', type=str, default=None, help="univariate params for the second trait (for the cross-trait analysis only). ")
 
-    parser.add_argument('--downsample-factor', default=50, type=int, help="Applies to --power-curve. "
-        "'--downsample-factor N' imply that only 1 out of N available z-score values will be used in calculations.")
+    parser.add_argument('--downsample-factor', default=50, type=int, help="Applies to --power-curve and --qq-plots. "
+        "'--downsample-factor N' imply that only 1 out of N available z-score values will be used in model calculations.")
     parser.add_argument('--power-curve', default=False, action="store_true", help="generate power curves")
     parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
 
     parser.set_defaults(func=func)
 
 def parser_ld_add_arguments(args, func, parser):
-    parser.add_argument("--plink-ld", type=str, default=None, help="Path to plink .ld.gz file to convert into BGMG binary format. ")
-    parser.add_argument("--bim-file", type=str, default=None, help="Plink bim file. "
-        "Defines the reference set of SNPs used for the analysis. "
-        "Marker names must not have duplicated entries. "
-        "May contain simbol '@', which will be replaced with the actual chromosome label. ")
-    parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
-         "(e.g. 1,2,3 or 1-4,12,16-20). Chromosome must be labeled by integer, i.e. X and Y are not acceptable. ")
+    parser.add_argument("--bfile", type=str, default=None, help="Path to plink bfile. ")
+    parser.add_argument('--r2min', type=float, default=0.05, help="r2 values above this threshold will be stored in sparse LD format")
+    parser.add_argument('--ldscore-r2min', type=float, default=0.001, help="r2 values above this threshold (and below --r2min) will be stored as LD scores that contribute to the cost function via an infinitesimal model")
+    parser.add_argument('--ld-window-kb', type=float, default=0, help="limit window similar to --ld-window-kb in 'plink r2'; 0 will disable this constraint")
+    parser.add_argument('--ld-window', type=int, default=0, help="limit window similar to --ld-window in 'plink r2'; 0 will disable this constraint")
     parser.set_defaults(func=func)
 
 def parser_perf_add_arguments(args, func, parser):
@@ -504,10 +502,7 @@ def print_types(results, libbgmg):
 
 def execute_ld_parser(args):
     libbgmg = LibBgmg(args.lib)
-    fix_and_validate_args(args)
-
-    libbgmg.init(args.bim_file, "", args.chr2use, "", "", "", "")
-    libbgmg.convert_plink_ld(args.plink_ld, args.out + '.bin')
+    libbgmg.calc_ld_matrix(args.bfile, args.out, args.r2min, args.ldscore_r2min, args.ld_window, args.ld_window_kb)
     libbgmg.log_message('Done')
 
 def initialize_mixer_plugin(args):

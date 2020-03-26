@@ -139,7 +139,7 @@ Not available yet.
        --r2min 0.05 --ldscore-r2min 0.05 --ld-window-kb 30000
     ```
     The output is written to ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.run4.ld`` file,
-    and log details into ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.p05_SNPwind50k.ld.log`` file.
+    and log details into ``LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.<chr_label>.run4.ld.log`` file.
     The resulting files contain information about alleling LD r2 correlations,
     LD scores, and allele frequencies of the variants in the reference panel passed as ``--bfile`` argument.
     The files DO NOT contain any individual-level information.
@@ -162,7 +162,7 @@ python3 <MIXER_ROOT>/precimed/mixer.py fit \
       --out SSGAC_EDU_2018_no23andMe_noMHC.fit \
       --extract LDSR/w_hm3.justrs --ci-alpha 0.05 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --plink-ld-bin LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
+      --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
@@ -174,7 +174,7 @@ python3 <MIXER_ROOT>/precimed/mixer.py fit \
       --out SSGAC_EDU_2018_no23andMe_noMHC.test \
       --fit-sequence load inflation --power-curve --qq-plots --kmax 100 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --plink-ld-bin LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
+      --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
@@ -199,7 +199,7 @@ python3 <MIXER_ROOT>/python/mixer.py fit \
       --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit \
       --extract LDSR/w_hm3.justrs --ci-alpha 0.05 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
+      --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 
@@ -212,7 +212,7 @@ python3 <MIXER_ROOT>/python/mixer.py fit \
       --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test \
       --fit-sequence load inflation --qq-plots --kmax 100 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --plink-ld-bin0 LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
+      --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
 ```
 

@@ -8,12 +8,14 @@ import sys
 import os
 import argparse
 import numpy as np
+import pandas as pd
 from numpy import ma
 import scipy.optimize
 import logging
 import json
 import scipy.stats
 from scipy.interpolate import interp1d
+import time
 
 from .libbgmg import LibBgmg
 from .utils import UnivariateParams
@@ -54,11 +56,13 @@ MASTHEAD += "*******************************************************************
 _cost_calculator_sampling = 0
 _cost_calculator_gaussian = 1
 _cost_calculator_convolve = 2
+_cost_calculator_smplfast = 3
 
 _cost_calculator = {
     'gaussian': _cost_calculator_gaussian, 
     'sampling': _cost_calculator_sampling,
     'convolve': _cost_calculator_convolve,
+    'smplfast': _cost_calculator_smplfast,
 }
 
 def enhance_optimize_result(r, cost_n, cost_df=None, cost_fast=None):
@@ -97,9 +101,8 @@ def fix_and_validate_args(args):
 def convert_args_to_libbgmg_options(args, num_snp):
     libbgmg_options = {
         'r2min': args.r2min,
-        'kmax': args.kmax, 
-        'num_components': 1 if (not args.trait2_file) else 3,
-        'threads': args.threads,
+        'kmax': args.kmax[0], 
+        'threads': args.threads[0],
         'seed': args.seed,
         'cubature_rel_error': args.cubature_rel_error,
         'cubature_max_evals':args.cubature_max_evals,
@@ -119,13 +122,13 @@ class LoadFromFile (argparse.Action):
             if v and k != option_string.lstrip('-'):
                 setattr(namespace, k, v)
 
-def parser_fit_add_arguments(args, func, parser):
+def parser_add_common_arguments(parser):
     parser.add_argument("--bim-file", type=str, default=None, help="Plink bim file. "
         "Defines the reference set of SNPs used for the analysis. "
         "Marker names must not have duplicated entries. "
         "May contain simbol '@', which will be replaced with the actual chromosome label. ")
     parser.add_argument("--frq-file", type=str, default=None, help="Plink frq file (alleles frequencies). "
-        "May contain simbol '@', similarly to --bim-file argument. ")
+        "May contain simbol '@', similarly to --bim-file argument. Required for --plink-ld-bin0; not used with --plink-ld-bin.")
     parser.add_argument("--plink-ld-bin", type=str, default=None, help="File with linkage disequilibrium information, "
         "converted from plink format as described in the README.md file. "
         "May contain simbol '@', similarly to --bim-file argument. ")
@@ -133,8 +136,24 @@ def parser_fit_add_arguments(args, func, parser):
     parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
          "(e.g. 1,2,3 or 1-4,12,16-20). Chromosome must be labeled by integer, i.e. X and Y are not acceptable. ")
     parser.add_argument("--trait1-file", type=str, default=None, help="GWAS summary statistics for the first trait. ")
-    parser.add_argument("--trait2-file", type=str, default="", help="GWAS summary statistics for the first trait. "
-        "Specifying this argument triggers cross-trait analysis.")
+    parser.add_argument("--trait2-file", type=str, default="", help="GWAS summary statistics for the second trait. "
+         "Specifying this argument triggers cross-trait analysis.")
+    parser.add_argument('--extract', type=str, default="", help="File with variants to include in the fit procedure")
+    parser.add_argument('--exclude', type=str, default="", help="File with variants to exclude from the fit procedure")
+    parser.add_argument('--randprune-n', type=int, default=64, help="Number of random pruning iterations")
+    parser.add_argument('--randprune-r2', type=float, default=0.1, help="Threshold for random pruning")
+    parser.add_argument('--kmax', type=int, default=[20000], nargs='+', help="Number of sampling iterations")
+    parser.add_argument('--seed', type=int, default=123, help="Random seed")
+    parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
+    parser.add_argument('--threads', type=int, default=[None], nargs='+', help="specify how many threads to use (concurrency). None will default to the total number of CPU cores. ")
+    parser.add_argument('--cubature-rel-error', type=float, default=1e-5, help="relative error for cubature stop criteria (applies to 'convolve' cost calculator). ")
+    parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). "
+        "Bivariate cubature require in the order of 10^4 evaluations and thus is much slower than sampling, therefore it is not exposed via mixer.py command-line interface. ")
+    parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
+    parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
+
+def parser_fit_add_arguments(args, func, parser):
+    parser_add_common_arguments(parser)
     parser.add_argument('--fit-sequence', type=str, default=[], nargs='+',
         choices=['load', 'inflation', 'infinitesimal', 'diffevo', 'diffevo-fast', 'neldermead', 'neldermead-fast', 'brute1', 'brute1-fast', 'brent1', 'brent1-fast'],
         help="Specify fit sequence: "
@@ -155,27 +174,11 @@ def parser_fit_add_arguments(args, func, parser):
         help="perform an additional run using fast model with 'diffevo-fast nelderead-fast' to generate preliminary data. "
         "After preliminary run fit sequence is applied from scratch using full model.")
 
-    parser.add_argument('--extract', type=str, default="", help="File with variants to include in the fit procedure")
-    parser.add_argument('--exclude', type=str, default="", help="File with variants to exclude from the fit procedure")
-
-    parser.add_argument('--randprune-n', type=int, default=64, help="Number of random pruning iterations")
-    parser.add_argument('--randprune-r2', type=float, default=0.1, help="Threshold for random pruning")
-    parser.add_argument('--kmax', type=int, default=20000, help="Number of sampling iterations")
-    parser.add_argument('--seed', type=int, default=123, help="Random seed")
-
-    parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
     parser.add_argument('--ci-alpha', type=float, default=None, help="significance level for the confidence interval estimation")
     parser.add_argument('--ci-samples', type=int, default=10000, help="number of samples in uncertainty estimation")
     parser.add_argument('--ci-power-samples', type=int, default=100, help="number of samples in power curves uncertainty estimation")
-    parser.add_argument('--threads', type=int, default=None, help="specify how many threads to use (concurrency). None will default to the total number of CPU cores. ")
     parser.add_argument('--tol-x', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
     parser.add_argument('--tol-func', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
-    parser.add_argument('--cubature-rel-error', type=float, default=1e-5, help="relative error for cubature stop criteria (applies to 'convolve' cost calculator). ")
-    parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). "
-        "Bivariate cubature require in the order of 10^4 evaluations and thus is much slower than sampling, therefore it is not exposed via mixer.py command-line interface. ")
-
-    parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
-    parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
 
     parser.add_argument('--load-params-file', type=str, default=None, help="initial params for the optimization. ")
     parser.add_argument('--trait1-params-file', type=str, default=None, help="univariate params for the first trait (for the cross-trait analysis only). ")
@@ -198,6 +201,10 @@ def parser_ld_add_arguments(args, func, parser):
          "(e.g. 1,2,3 or 1-4,12,16-20). Chromosome must be labeled by integer, i.e. X and Y are not acceptable. ")
     parser.set_defaults(func=func)
 
+def parser_perf_add_arguments(args, func, parser):
+    parser_add_common_arguments(parser)    
+    parser.set_defaults(func=func)
+
 def parse_args(args):
     parser = argparse.ArgumentParser(description="MiXeR: Univariate and Bivariate Causal Mixture for GWAS.")
 
@@ -211,6 +218,7 @@ def parse_args(args):
 
     parser_fit_add_arguments(args=args, func=execute_fit_parser, parser=subparsers.add_parser("fit", parents=[parent_parser], help='fit MiXeR model'))
     parser_ld_add_arguments(args=args, func=execute_ld_parser, parser=subparsers.add_parser("ld", parents=[parent_parser], help='prepare files with linkage disequilibrium information'))
+    parser_perf_add_arguments(args=args, func=execute_perf_parser, parser=subparsers.add_parser("perf", parents=[parent_parser], help='run performance evaluation of the MiXeR'))
 
     return parser.parse_args(args)
 
@@ -221,7 +229,7 @@ def log_header(args, subparser_name, lib):
     header = MASTHEAD
     header += "Call: \n"
     header += './mixer.py {} \\\n'.format(subparser_name)
-    options = ['\t--'+x.replace('_','-')+' '+str(opts[x]).replace('\t', '\\t')+' \\' for x in non_defaults]
+    options = ['\t--'+x.replace('_','-')+' '+(' '.join([str(y) for y in opts[x]]) if isinstance(opts[x], list) else str(opts[x])).replace('\t', '\\t')+' \\' for x in non_defaults]
     header += '\n'.join(options).replace('True','').replace('False','')
     header = header[0:-1]+'\n'
     lib.log_message(header)
@@ -502,17 +510,8 @@ def execute_ld_parser(args):
     libbgmg.convert_plink_ld(args.plink_ld, args.out + '.bin')
     libbgmg.log_message('Done')
 
-def execute_fit_parser(args):
+def initialize_mixer_plugin(args):
     libbgmg = LibBgmg(args.lib)
-    fix_and_validate_args(args)
-
-    # for univariate optimization, if fit steps involve "diffevo" or "neldermead", set "use_complete_tag_indices" (to enable convolution cost calculator)
-    if not args.trait2_file:
-        for fit_type in args.fit_sequence:
-            if fit_type in ['diffevo', 'neldermead']:
-                libbgmg.set_option('use_complete_tag_indices', 1)
-                break
-
     libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, args.trait2_file, "", "")
 
     for opt, val in convert_args_to_libbgmg_options(args, libbgmg.num_snp):
@@ -529,6 +528,37 @@ def execute_fit_parser(args):
 
     libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude=args.exclude, extract=args.extract)
     libbgmg.set_option('diag', 0)
+    return libbgmg
+
+def execute_perf_parser(args):
+    fix_and_validate_args(args)
+    libbgmg = initialize_mixer_plugin(args)
+    params1 = UnivariateParams(pi=3e-3, sig2_beta=1e-5, sig2_zero=1.05)
+    params12 = BivariateParams(params1=params1, params2=params1, pi12=2e-3, rho_beta=0.5, rho_zero=0.3)
+
+    perf_data = []
+    for threads in args.threads:
+        for kmax in args.kmax:
+            for costcalc in _cost_calculator:
+                libbgmg.set_option('threads', threads)
+                libbgmg.set_option('kmax', kmax)
+                libbgmg.set_option('cost_calculator', _cost_calculator[costcalc])
+
+                if (kmax!=np.max(args.kmax)) and (costcalc in ['gaussian', 'convolve']):
+                    continue  # gaussian and convolve are calculated only for one value of kmax, e.g. for the largest one
+
+                start = time.time()
+                cost = (params12.cost(libbgmg) if args.trait2_file else params1.cost(libbgmg, trait=1))
+                end = time.time()
+                perf_data.append((threads, kmax, costcalc, end-start, cost))
+                libbgmg.log_message('threads={}, kmax={}, costcalt={} took {} seconds'.format(threads, kmax, costcalc, end-start))
+
+    pd.DataFrame(perf_data, columns=['threads', 'kmax', 'costcalc', 'time_sec', 'cost']).to_csv(args.out + '.csv', sep='\t', index=False)
+    libbgmg.log_message('Done')
+
+def execute_fit_parser(args):
+    fix_and_validate_args(args)
+    libbgmg = initialize_mixer_plugin(args)
 
     totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))
 

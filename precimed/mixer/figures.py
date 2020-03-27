@@ -232,10 +232,10 @@ def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
 
         if 'power_ci' in data:
             if power_thresh is not None:
-                future_n_ci = [np.power(10, float(interp1d(data_power['svec'], np.log10(data_power['nvec']))(power_thresh))) for data_power in data['power_ci']]
+                future_n_ci = [np.power(10, float(interp1d(data_power['svec'], np.log10(data_power['nvec']))(power_thresh))) for data_power in data['power_ci'] if data_power]
                 leg_labels.append('{} {} ({})'.format(trait, display_auto(future_n_val), display_auto(np.std(future_n_ci))))
             else:
-                current_s_ci = [float(interp1d(np.log10(data_power['nvec']),data_power['svec'])(np.log10(data['options']['trait1_nval']))) for data_power in data['power_ci']]
+                current_s_ci = [float(interp1d(np.log10(data_power['nvec']),data_power['svec'])(np.log10(data['options']['trait1_nval']))) for data_power in data['power_ci'] if data_power]
                 leg_labels.append('{} {:.1f}% ({:.1f}%)'.format(trait, 100 * cs, 100*np.std(current_s_ci)))
         else:
             if power_thresh is not None:

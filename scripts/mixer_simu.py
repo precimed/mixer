@@ -19,6 +19,7 @@ import subprocess
 import sys
 import sys, traceback
 import time
+import scipy.stats as st
 
 mysystem = 'MMIL'
 
@@ -29,7 +30,6 @@ if mysystem == 'MMIL':
     mixer_lib='/home/oleksandr/github/mixer/src/build/lib/libbgmg.so'
     bfile='/space/syn03/1/data/oleksandr/SynGen2/11015833/bfile_merged/chr'    # for simu_linux
     defvec_hm3 = '/space/syn03/1/data/oleksandr/SynGen2/11015833/bfile_merged/defvec_hapmap3_hardprune_p1.snps'
-    all_chromosomes_ref = '/space/syn03/1/data/oleksandr/SynGen2/11015833/bfile_merged/all_chromosomes.ref.gz'
     ld_file=bfile+'@.run4.ld'
     bim_file=bfile+'@.bim'
     out_prefix_default = '/space/gwas-syn1/1/data/GWAS/UKBioBank/projects/plsa_mixer/simu/run1/simu'
@@ -40,7 +40,7 @@ if mysystem == 'MMIL':
     load_plink = 'true'
 
 class Params(object):
-    def __init__(self, bfile_chr, pi1u, pi2u, pi12, hsq, rg, rep, tag1, tag2, spow, folder):
+    def __init__(self, bfile_chr, pi1u, pi2u, pi12, hsq, rg, rep, tag1, tag2, spow, args):
         self._pi1u = pi1u
         self._pi2u = pi2u
         self._pi12 = pi12
@@ -53,7 +53,7 @@ class Params(object):
         self._tag1 = tag1
         self._tag2 = tag2
         self._spow = spow
-        self._folder = folder
+        self._args = args
 
     def num_components(self):
         return str(int(self._pi1 > 0) + int(self._pi2 > 0) + int(self._pi12>0))
@@ -79,25 +79,26 @@ class Params(object):
     def hsq(self):
         return self._hsq + ' ' + self._hsq
 
-    def out(self):
+    def out(self, tmp=False):
         format_string = '{:.4e}'
-        return self._folder + '_h2=' + self._hsq + "_rg=" + self._rg + "_pi1u=" + format_string.format(self._pi1u) + \
+        return (self._args.tmp_prefix if tmp else self._args.out_prefix ) + '_h2=' + self._hsq + "_rg=" + self._rg + "_pi1u=" + format_string.format(self._pi1u) + \
                '_pi2u=' + format_string.format(self._pi2u) + '_pi12=' + format_string.format(self._pi12) + '_rep=' + self._rep + \
                ('_spow={}'.format(self._spow) if self._spow else '') + \
                '_tag1=' + self._tag1 + "_tag2=" + self._tag2
 
     def plink_out(self, trait, chri):
-        return '{out}.pheno.{t}.chr{chri}'.format(chri=chri, t=trait, out=self.out())
+        return '{out}.pheno.{t}.chr{chri}'.format(chri=chri, t=trait, out=self.out(tmp=True))
   
     def plink_cmd(self, trait, chri):
         extract_snps = '--extract {}'.format(defvec_hm3)
-        return load_plink + ' | plink --bfile {bfile} --assoc {extract} --memory 2048 --allow-no-sex --no-pheno --pheno {out}.pheno --pheno-name {t} --out {o} && gzip -f {o}.qassoc'.format(bfile=bfile, chri=chri, out=self.out(), t=trait, o=self.plink_out(trait, chri), extract=extract_snps)
+        return load_plink + ' | plink --bfile {bfile}{chri} --assoc {extract} --memory 2048 --allow-no-sex --no-pheno --pheno {out}.pheno --pheno-name {t} --out {o} && gzip -f {o}.qassoc'.format(bfile=bfile, chri=chri, out=self.out(), t=trait, o=self.plink_out(trait, chri), extract=extract_snps)
  
     def cmd(self):
         return  simu_linux + ' --bfile-chr ' + self._bfile_chr + \
                ' --qt --num-traits 2 --hsq ' + self.hsq() + \
                ' --num-components ' + self.num_components() + \
                ' --causal-pi ' + self.causal_pi() + \
+               ' --chr-labels ' + ' '.join(self._args.chr2use) + \
                (' --trait1-s-pow ' + self.traitN_spow() if self._spow else '') + \
                (' --trait2-s-pow ' + self.traitN_spow() if self._spow else '') + \
                ' --trait1-sigsq ' + self.trait1_sigsq() + \
@@ -113,8 +114,10 @@ class Params(object):
         mixer_args = {}
         mixer_args['bim-file'] = bim_file
         mixer_args['ld-file'] = ld_file
-        mixer_args['chr2use'] = '1-22'
+        mixer_args['chr2use'] = ','.join(self._args.chr2use)
         mixer_args['lib'] = mixer_lib
+        #mixer_args['fit-sequence'] = 'diffevo-fast'
+        #mixer_args['diffevo-fast-repeats'] = '1'
         return mixer_args      
 
     def python_ugmg_cmd(self, trait):
@@ -163,12 +166,12 @@ class Logger(object):
         except OSError:
             pass
 
-    def system(self, command, args):
+    def system(self, command, dry_run):
         start_time = time.time()
         log.log('>command start time: {T}'.format(T=time.ctime()) )
         self.log(('[DRY-RUN] ' if args.dry_run else '') + command)
 
-        if not args.dry_run: os.system(command)
+        if not dry_run: os.system(command)
  
         time_elapsed = round(time.time()-start_time,2)
         log.log('=command elapsed time: {T}'.format(T=sec_to_str(time_elapsed)))
@@ -206,6 +209,7 @@ def parse_args(args):
     parser.add_argument("--pifrac", type=str, default=0.4, help="polygenicity of the second trait")
     parser.add_argument("--out-prefix", type=str, default=out_prefix_default)
     parser.add_argument("--tmp-prefix", type=str, default=tmp_prefix_default)
+    parser.add_argument("--chr2use", type=str, nargs='+', default=[str(x) for x in range(1, 23)])
     parser.add_argument("--analysis", type=str, default=['simu', 'plink', 'ugmg', 'bgmg'], nargs='*', choices=['simu', 'plink', 'ugmg', 'bgmg'])
     return parser.parse_args(args)
 
@@ -216,18 +220,27 @@ def run_analysis(args, log, param):
     #    args.analysis = [x for x in args.analysis if x != 'pheno']
 
     if 'simu' in args.analysis:
-        log.system(param.cmd(), args)
+        log.system(param.cmd(), args.dry_run)
         
     if 'plink' in args.analysis:
         task = param.plink_cmd('{1}', '{2}')
-        log.system('parallel -k -lb -j16 "' + task + '" ::: trait1 trait2 ::: {1..22}', args)
+        log.system('parallel -j16 "' + task + '" ::: trait1 trait2 ::: {}'.format(' '.join(args.chr2use)), args.dry_run)
+        ref = pd.concat([pd.read_csv(bim_file.replace('@', str(chri)), delim_whitespace=True, header=None, names='CHR SNP GP BP A1 A2'.split()) for chri in args.chr2use])
+        for trait in ['trait1', 'trait2']:
+            plink_out = param.out() + '.{}.sumstats.gz'.format(trait)
+            df=pd.concat([pd.read_csv(param.out(tmp=True) + '.pheno.{}.chr{}.qassoc.gz'.format(trait, chri),delim_whitespace=True) for chri in args.chr2use])
+            df.reset_index(drop=True, inplace=True)
+            df['Z'] = st.norm.ppf(df.P.values*0.5)*np.sign(df.BETA)
+            df = pd.merge(df, ref[['SNP', 'A1', 'A2']], on='SNP', how='left')[['SNP', 'A1', 'A2', 'NMISS', 'Z']].rename(columns={'NMISS':'N'})
+            df.to_csv(plink_out, index=False, sep='\t')
+            log.log('generate {}'.format(plink_out))
 
     if 'ugmg' in args.analysis:
-        log.system(param.python_ugmg_cmd("trait1"), args)
-        log.system(param.python_ugmg_cmd("trait2"), args)
+        log.system(param.python_ugmg_cmd("trait1"), args.dry_run)
+        log.system(param.python_ugmg_cmd("trait2"), args.dry_run)
 
     if 'bgmg' in args.analysis:
-        log.system(param.python_bgmg_cmd(), args)
+        log.system(param.python_bgmg_cmd(), args.dry_run)
 
 
 def insert_key_to_dictionary_as_list(key, value, df_data):
@@ -247,7 +260,7 @@ if __name__ == "__main__":
         if not tag2: raise(ValueError('Error'))
 
         param=Params(bfile, args.pi1u, args.pi2u, args.pi2u*args.pifrac, args.h2, args.rg, args.rep,
-            'customPolygenicOverlapAt'+str(args.pifrac).replace('.', 'p'), tag2, args.spow, args.out_prefix)
+            'customPolygenicOverlapAt'+str(args.pifrac).replace('.', 'p'), tag2, args.spow, args)
 
         log = Logger(param.out() + '.log', 'a')
         start_time = time.time()
@@ -268,7 +281,7 @@ if __name__ == "__main__":
             log.log('os.environ["{}"] = {}'.format(envvar, os.environ[envvar]))
 
         run_analysis(args, log, param)
-        # log.system('rm {}*'.format(args.tmp_prefix))
+        log.system('rm {}*'.format(param.out(tmp=True)), args.dry_run)
 
     except Exception:
         log.error( traceback.format_exc() )

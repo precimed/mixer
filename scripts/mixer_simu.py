@@ -40,7 +40,7 @@ if mysystem == 'MMIL':
     load_plink = 'true'
 
 class Params(object):
-    def __init__(self, bfile_chr, pi1u, pi2u, pi12, hsq, rg, rep, tag1, tag2, spow, args):
+    def __init__(self, bfile_chr, pi1u, pi2u, pi12, hsq, rg, rep, spow, args):
         self._pi1u = pi1u
         self._pi2u = pi2u
         self._pi12 = pi12
@@ -50,8 +50,6 @@ class Params(object):
         self._rg = str(rg)
         self._bfile_chr = str(bfile_chr)
         self._rep = str(rep)
-        self._tag1 = tag1
-        self._tag2 = tag2
         self._spow = spow
         self._args = args
 
@@ -80,18 +78,14 @@ class Params(object):
         return self._hsq + ' ' + self._hsq
 
     def out(self, tmp=False):
-        format_string = '{:.4e}'
-        return (self._args.tmp_prefix if tmp else self._args.out_prefix ) + '_h2=' + self._hsq + "_rg=" + self._rg + "_pi1u=" + format_string.format(self._pi1u) + \
-               '_pi2u=' + format_string.format(self._pi2u) + '_pi12=' + format_string.format(self._pi12) + '_rep=' + self._rep + \
-               ('_spow={}'.format(self._spow) if self._spow else '') + \
-               '_tag1=' + self._tag1 + "_tag2=" + self._tag2
+        return (self._args.tmp_prefix if tmp else self._args.out_prefix ) 
 
     def plink_out(self, trait, chri):
         return '{out}.pheno.{t}.chr{chri}'.format(chri=chri, t=trait, out=self.out(tmp=True))
   
     def plink_cmd(self, trait, chri):
         extract_snps = '--extract {}'.format(defvec_hm3)
-        return load_plink + ' | plink --bfile {bfile}{chri} --assoc {extract} --memory 2048 --allow-no-sex --no-pheno --pheno {out}.pheno --pheno-name {t} --out {o} && gzip -f {o}.qassoc'.format(bfile=bfile, chri=chri, out=self.out(), t=trait, o=self.plink_out(trait, chri), extract=extract_snps)
+        return load_plink + ' | plink --bfile {bfile}{chri} --assoc {extract} --memory 2048 --allow-no-sex --no-pheno --pheno {out}.simu.pheno --pheno-name {t} --out {o} && gzip -f {o}.qassoc'.format(bfile=bfile, chri=chri, out=self.out(), t=trait, o=self.plink_out(trait, chri), extract=extract_snps)
  
     def cmd(self):
         return  simu_linux + ' --bfile-chr ' + self._bfile_chr + \
@@ -104,7 +98,7 @@ class Params(object):
                ' --trait1-sigsq ' + self.trait1_sigsq() + \
                ' --trait2-sigsq ' + self.trait2_sigsq() + \
                ' --rg ' + self.rg() + \
-               ' --out ' + self.out()
+               ' --out ' + self.out() + '.simu'
 
     def python_mixer_cmd(self, mixer_args):
         return '{} {}/precimed/mixer.py fit \\\n'.format(python_cmd, mixer_dir) + \
@@ -116,6 +110,8 @@ class Params(object):
         mixer_args['ld-file'] = ld_file
         mixer_args['chr2use'] = ','.join(self._args.chr2use)
         mixer_args['lib'] = mixer_lib
+        mixer_args['threads'] = str(self._args.threads)
+        mixer_args['ci-alpha'] = '0.05'
         #mixer_args['fit-sequence'] = 'diffevo-fast'
         #mixer_args['diffevo-fast-repeats'] = '1'
         return mixer_args      
@@ -207,6 +203,7 @@ def parse_args(args):
     parser.add_argument("--pi1u", type=str, default=3e-03, help="polygenicity of the first trait")
     parser.add_argument("--pi2u", type=str, default=3e-03, help="polygenicity of the second trait")
     parser.add_argument("--pifrac", type=str, default=0.4, help="polygenicity of the second trait")
+    parser.add_argument("--threads", type=str, default=8, help="number of threads to use in MiXeR computations")
     parser.add_argument("--out-prefix", type=str, default=out_prefix_default)
     parser.add_argument("--tmp-prefix", type=str, default=tmp_prefix_default)
     parser.add_argument("--chr2use", type=str, nargs='+', default=[str(x) for x in range(1, 23)])
@@ -252,19 +249,12 @@ if __name__ == "__main__":
     args = parse_args(sys.argv[1:])
     #if args.seed != None: np.random.seed(args.seed)
    
+    param=Params(bfile, float(args.pi1u), float(args.pi2u), np.minimum(float(args.pi2u), float(args.pi1u))*float(args.pifrac), args.h2, args.rg, args.rep, args.spow, args)
+
+    log = Logger(param.out() + '.log', 'a')
+    start_time = time.time()
+
     try:
-        tag2 = None
-        if np.isclose(args.pi1u, args.pi2u): tag2 = 'evenPolygenicity'
-        if np.isclose(args.pi1u, 3*args.pi2u): tag2 = 'unevenPoly03fold'
-        if np.isclose(args.pi1u, 10*args.pi2u): tag2 = 'unevenPoly10fold'
-        if not tag2: raise(ValueError('Error'))
-
-        param=Params(bfile, args.pi1u, args.pi2u, args.pi2u*args.pifrac, args.h2, args.rg, args.rep,
-            'customPolygenicOverlapAt'+str(args.pifrac).replace('.', 'p'), tag2, args.spow, args)
-
-        log = Logger(param.out() + '.log', 'a')
-        start_time = time.time()
-
         defaults = vars(parse_args([]))
         opts = vars(args)
         non_defaults = [x for x in opts.keys() if opts[x] != defaults[x]]
@@ -281,7 +271,7 @@ if __name__ == "__main__":
             log.log('os.environ["{}"] = {}'.format(envvar, os.environ[envvar]))
 
         run_analysis(args, log, param)
-        log.system('rm {}*'.format(param.out(tmp=True)), args.dry_run)
+        if (args.out_prefix != args.tmp_prefix): log.system('rm {}*'.format(param.out(tmp=True)), args.dry_run)
 
     except Exception:
         log.error( traceback.format_exc() )

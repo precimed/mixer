@@ -25,6 +25,10 @@ from matplotlib_venn import venn2
 from scipy.interpolate import interp1d
 from scipy.stats import multivariate_normal
 
+from .utils import BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO
+from .utils import _calculate_bivariate_uncertainty_funcs
+from .utils import BivariateParams
+
 __version__ = '1.2.0'
 MASTHEAD = "***********************************************************************\n"
 MASTHEAD += "* mixer_figures.py: Visualization tools for MiXeR\n"
@@ -165,6 +169,9 @@ def plot_z_vs_z_data(df, traits=['Trait1', 'Trait2'], plot_limits=15, bins=100):
     plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
 
 def plot_predicted_zscore(data, num_snps, flip=False, traits=['Trait1', 'Trait2'], plot_limits=15, bins=100):
+    if ('pdf' not in data):
+        print('Skip generating pdf plots, data not available. Did you include --qq-plots in your "python mixer.py fit" command?')
+        return
     pdf = np.array(data['pdf'])
     zgrid = np.array(data['pdf_zgrid'])
     data_limits = max(zgrid)
@@ -205,6 +212,27 @@ def plot_causal_density(data, flip=False, traits=['Trait1', 'Trait2'], vmax=1e3,
     plt.xlabel('$\\beta_{'+traits[0]+'}$')
     plt.ylabel('$\\beta_{'+traits[1]+'}$')
     plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
+
+def extract_likelihood_function(data):
+    funcs, stats = _calculate_bivariate_uncertainty_funcs(alpha=0.05, totalhet=data['options']['totalhet'], num_snps=data['options']['num_snp'])
+    p=data['params']; params=BivariateParams(pi=p['pi'],sig2_beta=p['sig2_beta'], rho_beta=p['rho_beta'],sig2_zero=p['sig2_zero'],rho_zero=p['rho_zero'])
+    parametrization = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(lib=None, const_params1=params._params1(), const_params2=params._params2(), const_rg=params._rg(), const_rho_zero=params._rho_zero)
+    brute1_results = []
+    if 'optimize' in data:
+        for x in data['optimize']:
+            if x[0]=='brute1':
+                brute1_results=x[1]
+                break
+    if not brute1_results:
+        print('--json argument does not contain brute1 optimization results, skip likelihood plot generation')
+        return [], []
+    
+    return [dict(funcs)['nc12@p9'](parametrization.vec_to_params([x])) for x in brute1_results['grid']], brute1_results['Jout']
+
+def plot_likelihood(data):
+    like_x, like_y = extract_likelihood_function(data)
+    plt.plot(np.array(like_x)/1000, like_y)
+    #plt.title('cost={}'.format(data['optimize'][-1][1]['fun']))
 
 def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
     if colors is None: colors = list(range(0, len(data_vec)))
@@ -345,20 +373,22 @@ def execute_two_parser(args):
         df = merge_z_vs_z(df1, df2)
 
         plt.figure(figsize=[12, 6])
-        plt.subplot(2,3,1); make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,1); make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
         if 'qqplot' in data:
-            plt.subplot(2,3,2); make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
-            plt.subplot(2,3,3); make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
-        plt.subplot(2,3,4); plot_causal_density(data, traits=[args.trait1, args.trait2])
-        plt.subplot(2,3,5); plot_z_vs_z_data(df, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
-        plt.subplot(2,3,6); plot_predicted_zscore(data, len(df), plot_limits=args.zmax, flip=False, traits=[args.trait1, args.trait2])
+            plt.subplot(2,4,2); make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(2,4,3); make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
+        plt.subplot(2,4,4); plot_likelihood(data)
+        plt.subplot(2,4,5); plot_causal_density(data, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,6); plot_z_vs_z_data(df, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,7); plot_predicted_zscore(data, len(df), plot_limits=args.zmax, flip=False, traits=[args.trait1, args.trait2])
     else:
         plt.figure(figsize=[12, 3])
-        plt.subplot(1,3,1); make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
+        plt.subplot(1,4,1); make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
         if 'qqplot' in data:
-            plt.subplot(1,3,2); make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
-            plt.subplot(1,3,3); make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
-
+            plt.subplot(1,4,2); make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(1,4,3); make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
+        plt.subplot(1,4,4); plot_likelihood(data)
+        
     for ext in args.ext:
         plt.savefig(args.out + '.' + ext, bbox_inches='tight')
         print('Generated ' + args.out + '.' + ext)

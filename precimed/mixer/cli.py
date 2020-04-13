@@ -170,9 +170,6 @@ def parser_fit_add_arguments(args, func, parser):
              "Typical univariate sequence: 'diffevo-fast neldermead'"
              "Typical bivariate sequence: 'diffevo neldermead brute1 brent1'")
     parser.add_argument('--diffevo-fast-repeats', type=int, default=20, help="repeat --diffevo-fast step this many times and choose the best run")
-    parser.add_argument('--preliminary', default=False, action="store_true",
-        help="perform an additional run using fast model with 'diffevo-fast nelderead-fast' to generate preliminary data. "
-        "After preliminary run fit sequence is applied from scratch using full model.")
 
     parser.add_argument('--ci-alpha', type=float, default=None, help="significance level for the confidence interval estimation")
     parser.add_argument('--ci-samples', type=int, default=10000, help="number of samples in uncertainty estimation")
@@ -559,105 +556,101 @@ def execute_fit_parser(args):
 
     totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))
 
-    fit_sequence = args.fit_sequence.copy()
-    for repeat in range(2):
-        if (repeat == 0) and (not args.preliminary): continue # skip generating preliminary data
-        args.fit_sequence = ['diffevo-fast', 'neldermead-fast'] if (repeat==0) else fit_sequence
-        libbgmg.log_message('Apply fit sequence: {}{}...'.format(args.fit_sequence, ' (--preliminary)' if (repeat == 0) else '' ))
+    libbgmg.log_message('Apply fit sequence: {}...'.format(args.fit_sequence))
 
-        results = {}
-        results['options'] = vars(args).copy()
-        results['options']['totalhet'] = totalhet
-        results['options']['num_snp'] = float(libbgmg.num_snp)
-        results['options']['num_tag'] = float(libbgmg.num_tag)
-        results['options']['sum_weights'] = float(np.sum(libbgmg.weights))
-        results['options']['trait1_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=1)))
+    results = {}
+    results['options'] = vars(args).copy()
+    results['options']['totalhet'] = totalhet
+    results['options']['num_snp'] = float(libbgmg.num_snp)
+    results['options']['num_tag'] = float(libbgmg.num_tag)
+    results['options']['sum_weights'] = float(np.sum(libbgmg.weights))
+    results['options']['trait1_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=1)))
 
-        if not args.trait2_file:
-            results['analysis'] = 'univariate'
+    if not args.trait2_file:
+        results['analysis'] = 'univariate'
 
-            params, optimize_result = apply_univariate_fit_sequence(args, libbgmg, args.fit_sequence)
-            results['params'] = params.as_dict()
-            results['optimize'] = optimize_result
+        params, optimize_result = apply_univariate_fit_sequence(args, libbgmg, args.fit_sequence)
+        results['params'] = params.as_dict()
+        results['optimize'] = optimize_result
 
-            libbgmg.log_message('Calculate AIC/BIC w.r.t. infinitesimal model (fast cost function)...')
-            params_inft, optimize_result_inft = apply_univariate_fit_sequence(args, libbgmg, ['infinitesimal'], init_params=params)
-            results['inft_params'] = params_inft.as_dict()
-            results['inft_optimize'] = optimize_result_inft
+        libbgmg.log_message('Calculate AIC/BIC w.r.t. infinitesimal model (fast cost function)...')
+        params_inft, optimize_result_inft = apply_univariate_fit_sequence(args, libbgmg, ['infinitesimal'], init_params=params)
+        results['inft_params'] = params_inft.as_dict()
+        results['inft_optimize'] = optimize_result_inft
 
-            ci_sample = None
-            if args.ci_alpha and np.isfinite(args.ci_alpha):
-                libbgmg.log_message("Uncertainty estimation...")
-                libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-                results['ci'], ci_sample = _calculate_univariate_uncertainty(UnivariateParametrization(params, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-                for k, v in results['ci'].items():
-                    libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
-                libbgmg.log_message("Uncertainty estimation done.")
-            elif args.load_params_file:
-                data = json.loads(open(args.load_params_file).read())
-                if 'ci' in data:
-                    libbgmg.log_message('copy "ci" results from --load-params-file')
-                    results['ci'] = data['ci']
+        ci_sample = None
+        if args.ci_alpha and np.isfinite(args.ci_alpha):
+            libbgmg.log_message("Uncertainty estimation...")
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+            results['ci'], ci_sample = _calculate_univariate_uncertainty(UnivariateParametrization(params, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+            for k, v in results['ci'].items():
+                libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
+            libbgmg.log_message("Uncertainty estimation done.")
+        elif args.load_params_file:
+            data = json.loads(open(args.load_params_file).read())
+            if 'ci' in data:
+                libbgmg.log_message('copy "ci" results from --load-params-file')
+                results['ci'] = data['ci']
 
-            if args.power_curve:
-                trait_index = 1
-                results['power'] = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
-                if ci_sample is not None:
-                    power_ci = []
-                    for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
-                        libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
-                        power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor))
-                    results['power_ci'] = power_ci
+        if args.power_curve:
+            trait_index = 1
+            results['power'] = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
+            if ci_sample is not None:
+                power_ci = []
+                for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
+                    libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
+                    power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor))
+                results['power_ci'] = power_ci
 
-            if args.qq_plots:
-                trait_index = 1
-                mask = np.ones((libbgmg.num_tag, ), dtype=bool)
-                results['qqplot'] = calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
-                    title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
- 
-                mafvec = libbgmg.mafvec[libbgmg.defvec]
-                tldvec = libbgmg.ld_sum_r2[libbgmg.defvec]
-                maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec, [1/3, 2/3]), [np.inf]))
-                tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec, [1/3, 2/3]), [np.inf]))
-                results['qqplot_bins'] = []
-                for i in range(0, 3):
-                    for j in range(0, 3):
-                        mask = ((mafvec>=maf_bins[i]) & (mafvec<maf_bins[i+1]) & (tldvec >= tld_bins[j]) &  (tldvec < tld_bins[j+1]))
-                        results['qqplot_bins'].append(calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
-                            title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
-        else:
-            results['analysis'] = 'bivariate'
-            results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
+        if args.qq_plots:
+            trait_index = 1
+            mask = np.ones((libbgmg.num_tag, ), dtype=bool)
+            results['qqplot'] = calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
+                title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
 
-            params, params1, params2, optimize_result = apply_bivariate_fit_sequence(args, libbgmg)
-            results['params'] = params.as_dict()
-            results['optimize'] = optimize_result
-            if args.ci_alpha and np.isfinite(args.ci_alpha):
-                libbgmg.log_message("Uncertainty estimation...")
-                libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-                _, ci_sample1 = _calculate_univariate_uncertainty(UnivariateParametrization(params1, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-                _, ci_sample2 = _calculate_univariate_uncertainty(UnivariateParametrization(params2, libbgmg, trait=2), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-                results['ci'], _ = _calculate_bivariate_uncertainty(BivariateParametrization_constUNIVARIATE(
-                    const_params1=params1, const_params2=params2, init_pi12=params._pi[2],
-                    init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
-                    lib=libbgmg), [ci_sample1, ci_sample2], args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-                for k, v in results['ci'].items():
-                    libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
-                libbgmg.log_message("Uncertainty estimation done.")
-            elif args.load_params_file:
-                data = json.loads(open(args.load_params_file).read())
-                if 'ci' in data:
-                    libbgmg.log_message('copy "ci" results from --load-params-file')
-                    results['ci'] = data['ci']
+            mafvec = libbgmg.mafvec[libbgmg.defvec]
+            tldvec = libbgmg.ld_sum_r2[libbgmg.defvec]
+            maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec, [1/3, 2/3]), [np.inf]))
+            tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec, [1/3, 2/3]), [np.inf]))
+            results['qqplot_bins'] = []
+            for i in range(0, 3):
+                for j in range(0, 3):
+                    mask = ((mafvec>=maf_bins[i]) & (mafvec<maf_bins[i+1]) & (tldvec >= tld_bins[j]) &  (tldvec < tld_bins[j+1]))
+                    results['qqplot_bins'].append(calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
+                        title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
+    else:
+        results['analysis'] = 'bivariate'
+        results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
 
-            if args.qq_plots:
-                zgrid, pdf = calc_bivariate_pdf(libbgmg, params, args.downsample_factor)
-                results['pdf_zgrid'] = zgrid
-                results['pdf'] = pdf
-                results['qqplot'] = calc_bivariate_qq(libbgmg, zgrid, pdf)
+        params, params1, params2, optimize_result = apply_bivariate_fit_sequence(args, libbgmg)
+        results['params'] = params.as_dict()
+        results['optimize'] = optimize_result
+        if args.ci_alpha and np.isfinite(args.ci_alpha):
+            libbgmg.log_message("Uncertainty estimation...")
+            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+            _, ci_sample1 = _calculate_univariate_uncertainty(UnivariateParametrization(params1, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+            _, ci_sample2 = _calculate_univariate_uncertainty(UnivariateParametrization(params2, libbgmg, trait=2), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+            results['ci'], _ = _calculate_bivariate_uncertainty(BivariateParametrization_constUNIVARIATE(
+                const_params1=params1, const_params2=params2, init_pi12=params._pi[2],
+                init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
+                lib=libbgmg), [ci_sample1, ci_sample2], args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+            for k, v in results['ci'].items():
+                libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
+            libbgmg.log_message("Uncertainty estimation done.")
+        elif args.load_params_file:
+            data = json.loads(open(args.load_params_file).read())
+            if 'ci' in data:
+                libbgmg.log_message('copy "ci" results from --load-params-file')
+                results['ci'] = data['ci']
 
-        with open(args.out + ('.preliminary' if (repeat == 0) else '')+ '.json', 'w') as outfile:  
-            json.dump(results, outfile, cls=NumpyEncoder)
+        if args.qq_plots:
+            zgrid, pdf = calc_bivariate_pdf(libbgmg, params, args.downsample_factor)
+            results['pdf_zgrid'] = zgrid
+            results['pdf'] = pdf
+            results['qqplot'] = calc_bivariate_qq(libbgmg, zgrid, pdf)
+
+    with open(args.out + '.json', 'w') as outfile:
+        json.dump(results, outfile, cls=NumpyEncoder)
 
     libbgmg.set_option('diag', 0)
     libbgmg.log_message('Done')

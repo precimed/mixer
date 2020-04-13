@@ -75,16 +75,20 @@ def enhance_optimize_result(r, cost_n, cost_df=None, cost_fast=None):
     r['AIC'] =                   2 * r['cost_df'] + 2 * r['cost']
     if cost_fast is not None: r['cost_fast'] = cost_fast
 
+def check_input_file(args, argname, chri=None):
+    arg_dict = vars(args)
+    if argname in arg_dict:
+        if not arg_dict[argname]: raise ValueError("Missing required argument --{}".format(argname))
+        argval = arg_dict[argname]
+        if chri: argval=argval.replace('@', str(chri))
+        if not os.path.isfile(argval): raise ValueError("Input file --{a} does not exist: {f}".format(a=argname, f=argval))
+
 def fix_and_validate_args(args):
-    if 'fit_sequence' in args:
-        if not args.fit_sequence:
-            if not args.trait2_file: # univariate fit
-                args.fit_sequence = ['diffevo-fast', 'neldermead']
-            else:                    # bivariate fit
-                args.fit_sequence = ['diffevo-fast', 'neldermead-fast', 'brute1', 'brent1']
-        if args.trait2_file and (args.fit_sequence[0] != 'load'):
-            if (not args.trait2_params_file) or (not args.trait1_params_file):
-                raise ValueError('--trait1-params-file and --trait2-params-file are required for bivariate analysis (i.e. with --trait2-file argument), unless --fit-sequence starts with "load" step' )
+    check_input_file(args, 'trait1_file')
+    check_input_file(args, 'trait2_file')
+    check_input_file(args, 'trait1_params_file')
+    check_input_file(args, 'trait2_params_file')
+    check_input_file(args, 'load-params-file')
 
     arg_dict = vars(args)
     chr2use_arg = arg_dict["chr2use"]
@@ -98,6 +102,10 @@ def fix_and_validate_args(args):
     if np.any([not x.isdigit() for x in chr2use]): raise ValueError('Chromosome labels must be integer')
     arg_dict["chr2use"] = [int(x) for x in chr2use]
 
+    for chri in arg_dict["chr2use"]:
+        check_input_file(args, 'bim-file', chri)
+        check_input_file(args, 'ld-file', chri)
+
 def convert_args_to_libbgmg_options(args, num_snp):
     libbgmg_options = {
         'r2min': args.r2min,
@@ -105,9 +113,9 @@ def convert_args_to_libbgmg_options(args, num_snp):
         'threads': args.threads[0],
         'seed': args.seed,
         'cubature_rel_error': args.cubature_rel_error,
-        'cubature_max_evals':args.cubature_max_evals,
+        'cubature_max_evals': args.cubature_max_evals,
         'z1max': args.z1max,
-        'z2max': args.z2max, 
+        'z2max': args.z2max if ('z2max' in args) else None, 
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
 
@@ -122,69 +130,82 @@ class LoadFromFile (argparse.Action):
             if v and k != option_string.lstrip('-'):
                 setattr(namespace, k, v)
 
-def parser_add_common_arguments(parser):
+def parser_add_common_arguments(parser, num_traits):
     parser.add_argument("--bim-file", type=str, default=None, help="Plink bim file. "
         "Defines the reference set of SNPs used for the analysis. "
         "Marker names must not have duplicated entries. "
         "May contain simbol '@', which will be replaced with the actual chromosome label. ")
-    parser.add_argument("--frq-file", type=str, default=None, help="Plink frq file (alleles frequencies). "
-        "May contain simbol '@', similarly to --bim-file argument. Required for --plink-ld-bin0; not used with --ld-file.")
     parser.add_argument("--ld-file", type=str, default=None, help="File with linkage disequilibrium information, "
         "generated via 'mixer.py ld' command. "
         "May contain simbol '@', similarly to --bim-file argument. ")
-    parser.add_argument("--plink-ld-bin0", type=str, default=None, help="File with linkage disequilibrium information in an old format (deprecated)")
     parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
          "(e.g. 1,2,3 or 1-4,12,16-20). Chromosome must be labeled by integer, i.e. X and Y are not acceptable. ")
     parser.add_argument("--trait1-file", type=str, default=None, help="GWAS summary statistics for the first trait. ")
-    parser.add_argument("--trait2-file", type=str, default="", help="GWAS summary statistics for the second trait. "
-         "Specifying this argument triggers cross-trait analysis.")
-    parser.add_argument('--extract', type=str, default="", help="File with variants to include in the fit procedure")
-    parser.add_argument('--exclude', type=str, default="", help="File with variants to exclude from the fit procedure")
+    if num_traits==2: parser.add_argument("--trait2-file", type=str, default="", help="GWAS summary statistics for the second trait. ")
+    parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
+    if num_traits==2: parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
+    parser.add_argument('--extract', type=str, default="", help="File with variants to include in the analysis")
+    parser.add_argument('--exclude', type=str, default="", help="File with variants to exclude from the analysis")
     parser.add_argument('--randprune-n', type=int, default=64, help="Number of random pruning iterations")
     parser.add_argument('--randprune-r2', type=float, default=0.1, help="Threshold for random pruning")
-    parser.add_argument('--kmax', type=int, default=[20000], nargs='+', help="Number of sampling iterations")
     parser.add_argument('--seed', type=int, default=123, help="Random seed")
-    parser.add_argument('--r2min', type=float, default=0.05, help="r2 values below this threshold will contribute via infinitesimal model")
+    parser.add_argument('--r2min', type=float, default=0.0, help="r2 values below this threshold will contribute via infinitesimal model")
     parser.add_argument('--threads', type=int, default=[None], nargs='+', help="specify how many threads to use (concurrency). None will default to the total number of CPU cores. ")
     parser.add_argument('--cubature-rel-error', type=float, default=1e-5, help="relative error for cubature stop criteria (applies to 'convolve' cost calculator). ")
     parser.add_argument('--cubature-max-evals', type=float, default=1000, help="max evaluations for cubature stop criteria (applies to 'convolve' cost calculator). "
         "Bivariate cubature require in the order of 10^4 evaluations and thus is much slower than sampling, therefore it is not exposed via mixer.py command-line interface. ")
-    parser.add_argument('--z1max', type=float, default=None, help="right-censoring threshold for the first trait. ")
-    parser.add_argument('--z2max', type=float, default=None, help="right-censoring threshold for the second trait. ")
 
-def parser_fit_add_arguments(args, func, parser):
-    parser_add_common_arguments(parser)
-    parser.add_argument('--fit-sequence', type=str, default=[], nargs='+',
-        choices=['load', 'inflation', 'infinitesimal', 'diffevo', 'diffevo-fast', 'neldermead', 'neldermead-fast', 'brute1', 'brute1-fast', 'brent1', 'brent1-fast'],
-        help="Specify fit sequence: "
-             "'load' reads previosly fitted parameters from a file (--load-params-file); "
-             "'diffevo' performs a single iteration of differential evolution, which is the right way to setup an initial approximation; "
-             "'neldermead' applies Nelder-Mead downhill simplex search; "             
-             "'brute1' applies only to bivariate optimization; it performs brute-force for one-dimentional optimization, searching optimal pi12 value constrained on genetic correlation (rg) and intercept (rho0); "
-             "'brent1' is similar to brute1, but it uses brent method (inverse parabolic interpolation); "
-             "'inflation' fits sig2zero (univariate) and rho_zero (bivariate), using fast cost function; this is quite special optimization step, typically useful for adjusting inflation parameters to another reference; "
-             "'infinitesimal' fits a model with pi1=1 (univariate) or pi12=1 (bivariate) constrains, using fast cost function; this is quite special optimization step, typically used internally for AIC/BIC computation; " 
-             "Note that bivariate fit is always constrained on univariate parameters, except for 'inflation' fit which adjust rho_zero and sig2_zero. "
-             "The '...-fast' optimizations use fast cost function. "
-             "Note that univariate optimization uses 'convolve' cost calculator, bivariate optimization uses 'sampling' cost calculator. "
-             "Typical univariate sequence: 'diffevo-fast neldermead'"
-             "Typical bivariate sequence: 'diffevo neldermead brute1 brent1'")
-    parser.add_argument('--diffevo-fast-repeats', type=int, default=20, help="repeat --diffevo-fast step this many times and choose the best run")
+def parser_fit_or_test_add_arguments(args, func, parser, do_fit, num_traits):
+    parser_add_common_arguments(parser, num_traits)
 
-    parser.add_argument('--ci-alpha', type=float, default=None, help="significance level for the confidence interval estimation")
-    parser.add_argument('--ci-samples', type=int, default=10000, help="number of samples in uncertainty estimation")
-    parser.add_argument('--ci-power-samples', type=int, default=100, help="number of samples in power curves uncertainty estimation")
-    parser.add_argument('--tol-x', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
-    parser.add_argument('--tol-func', type=float, default=1e-2, help="tolerance for the stop criteria in fminsearch optimization. ")
+    if do_fit and (num_traits==1):
+        parser.add_argument('--analysis', type=str, default='fit1', help=argparse.SUPPRESS, choices=['fit1', 'fit2', 'test1', 'test2'])
+        parser.add_argument('--fit-sequence', type=str, default=['diffevo-fast', 'neldermead'], nargs='+', help=argparse.SUPPRESS, choices=['diffevo', 'diffevo-fast', 'neldermead', 'neldermead-fast'])
+    elif do_fit and (num_traits==2):
+        parser.add_argument('--analysis', type=str, default='fit2', help=argparse.SUPPRESS, choices=['fit1', 'fit2', 'test1', 'test2'])
+        parser.add_argument('--fit-sequence', type=str, default=['diffevo-fast', 'neldermead-fast', 'brute1', 'brent1'], nargs='+', help=argparse.SUPPRESS, choices=['diffevo-fast', 'neldermead-fast', 'brute1', 'brute1-fast', 'brent1', 'brent1-fast'])
+        parser.add_argument('--trait1-params-file', type=str, default=None, help="univariate params for the first trait (for the cross-trait analysis only). ")
+        parser.add_argument('--trait2-params-file', type=str, default=None, help="univariate params for the second trait (for the cross-trait analysis only). ")
+    elif (not do_fit) and (num_traits==1):
+        parser.add_argument('--analysis', type=str, default='test1', help=argparse.SUPPRESS, choices=['fit1', 'fit2', 'test1', 'test2'])
+        parser.add_argument('--fit-sequence', type=str, default=['load', 'inflation'], nargs='+', help=argparse.SUPPRESS, choices=['load', 'inflation'])
+    elif (not do_fit) and (num_traits==2):
+        parser.add_argument('--analysis', type=str, default='test2', help=argparse.SUPPRESS, choices=['fit1', 'fit2', 'test1', 'test2'])
+        parser.add_argument('--fit-sequence', type=str, default=['load', 'inflation'], nargs='+', help=argparse.SUPPRESS, choices=['load', 'inflation'])
+    else:
+        raise ValueError('internal error: invalid combination of do_fit and num_traits')
 
-    parser.add_argument('--load-params-file', type=str, default=None, help="initial params for the optimization. ")
-    parser.add_argument('--trait1-params-file', type=str, default=None, help="univariate params for the first trait (for the cross-trait analysis only). ")
-    parser.add_argument('--trait2-params-file', type=str, default=None, help="univariate params for the second trait (for the cross-trait analysis only). ")
+    if do_fit:
+        parser.add_argument('--kmax', type=int, default=[20000], nargs='+', help="Number of sampling iterations")
+    else:
+        parser.add_argument('--kmax', type=int, default=[100], nargs='+', help="Number of sampling iterations")
+        parser.add_argument('--load-params-file', type=str, default=None, help="params of the fitted model (for 'mixer.py test1' and 'mixer.py test2' runs). ")
 
-    parser.add_argument('--downsample-factor', default=50, type=int, help="Applies to --power-curve and --qq-plots. "
-        "'--downsample-factor N' imply that only 1 out of N available z-score values will be used in model calculations.")
-    parser.add_argument('--power-curve', default=False, action="store_true", help="generate power curves")
-    parser.add_argument('--qq-plots', default=False, action="store_true", help="generate qq plot curves")    
+    # all arguments below marked with argparse.SUPRESS option are internal and not recommended for a general use.
+    # Valid options for --fit-sequence (remember to combine them in a sequence that makes sence):
+    #       'load' reads previosly fitted parameters from a file (--load-params-file);
+    #       'diffevo' performs a single iteration of differential evolution, which is the right way to setup an initial approximation;
+    #       'neldermead' applies Nelder-Mead downhill simplex search;
+    #       'brute1' applies only to bivariate optimization; it performs brute-force for one-dimentional optimization, searching optimal pi12 value constrained on genetic correlation (rg) and intercept (rho0);
+    #       'brent1' is similar to brute1, but it uses brent method (inverse parabolic interpolation);
+    #       'inflation' fits sig2zero (univariate) and rho_zero (bivariate), using fast cost function; this is quite special optimization step, typically useful for adjusting inflation parameters to another reference;
+    #       'infinitesimal' fits a model with pi1=1 (univariate) or pi12=1 (bivariate) constrains, using fast cost function; this is quite special optimization step, typically used internally for AIC/BIC computation;
+    # Note that bivariate fit is always constrained on univariate parameters, except for 'inflation' fit which adjust rho_zero and sig2_zero.
+    # The '...-fast' optimizations use fast cost function.
+    # Note that univariate optimization uses 'convolve' cost calculator, bivariate optimization uses 'sampling' cost calculator.
+    # Typical univariate sequence: 'diffevo-fast neldermead'
+    # Typical bivariate sequence: 'diffevo neldermead brute1 brent1'
+
+    parser.add_argument('--diffevo-fast-repeats', type=int, default=20, help=argparse.SUPPRESS)      # repeat --diffevo-fast step this many times and choose the best run
+    parser.add_argument('--downsample-factor', default=50, type=int, help=argparse.SUPPRESS)         # Applies to --power-curve and --qq-plots, --downsample-factor N' imply that only 1 out of N available z-score values will be used in model calculations.
+
+    parser.add_argument('--power-curve', default=(not do_fit), action="store_true", help=argparse.SUPPRESS) # generate power curves
+    parser.add_argument('--qq-plots', default=(not do_fit), action="store_true", help=argparse.SUPPRESS)    # generate qq plot curves
+
+    # Replace with The Sandwich Estimator ? http://www.stat.umn.edu/geyer/5601/notes/sand.pdf
+    parser.add_argument('--ci-alpha', type=float, default=None, help=argparse.SUPPRESS)              # significance level for the confidence interval estimation
+    parser.add_argument('--ci-samples', type=int, default=10000, help=argparse.SUPPRESS)             # number of samples in uncertainty estimation
+    parser.add_argument('--ci-power-samples', type=int, default=100, help=argparse.SUPPRESS)         # number of samples in power curves uncertainty estimation
 
     parser.set_defaults(func=func)
 
@@ -197,21 +218,26 @@ def parser_ld_add_arguments(args, func, parser):
     parser.set_defaults(func=func)
 
 def parser_perf_add_arguments(args, func, parser):
-    parser_add_common_arguments(parser)    
+    parser_add_common_arguments(parser, num_traits=2)
+    parser.add_argument('--kmax', type=int, default=[20000, 2000, 200], nargs='+', help="Number of sampling iterations")
     parser.set_defaults(func=func)
 
 def parse_args(args):
     parser = argparse.ArgumentParser(description="MiXeR: Univariate and Bivariate Causal Mixture for GWAS.")
 
     parent_parser = argparse.ArgumentParser(add_help=False)
-    parent_parser.add_argument('--argsfile', type=open, action=LoadFromFile, default=None, help="file with additional command-line arguments")
+    parent_parser.add_argument('--argsfile', type=open, action=LoadFromFile, default=None, help="file with additional command-line arguments, e.g. those that are across all of your mixer.py runs (--lib, --bim-file and --ld-file)")
     parent_parser.add_argument("--out", type=str, default="mixer", help="prefix for the output files")
     parent_parser.add_argument("--lib", type=str, default="libbgmg.so", help="path to libbgmg.so plugin")
     parent_parser.add_argument("--log", type=str, default=None, help="file to output log, defaults to <out>.log")
     
     subparsers = parser.add_subparsers()
 
-    parser_fit_add_arguments(args=args, func=execute_fit_parser, parser=subparsers.add_parser("fit", parents=[parent_parser], help='fit MiXeR model'))
+    parser_fit_or_test_add_arguments(args=args, func=execute_fit1_or_test1_parser, parser=subparsers.add_parser("fit1", parents=[parent_parser], help='fit univariate MiXeR model'), do_fit=True, num_traits=1)
+    parser_fit_or_test_add_arguments(args=args, func=execute_fit1_or_test1_parser, parser=subparsers.add_parser("test1", parents=[parent_parser], help='test univariate MiXeR model'), do_fit=False, num_traits=1)
+    parser_fit_or_test_add_arguments(args=args, func=execute_fit2_or_test2_parser, parser=subparsers.add_parser("fit2", parents=[parent_parser], help='fit bivariate MiXeR model'), do_fit=True, num_traits=2)
+    parser_fit_or_test_add_arguments(args=args, func=execute_fit2_or_test2_parser, parser=subparsers.add_parser("test2", parents=[parent_parser], help='test bivariate MiXeR model'), do_fit=False, num_traits=2)
+
     parser_ld_add_arguments(args=args, func=execute_ld_parser, parser=subparsers.add_parser("ld", parents=[parent_parser], help='prepare files with linkage disequilibrium information'))
     parser_perf_add_arguments(args=args, func=execute_perf_parser, parser=subparsers.add_parser("perf", parents=[parent_parser], help='run performance evaluation of the MiXeR'))
 
@@ -239,9 +265,7 @@ def load_bivariate_params_file(fname):
     data = json.loads(open(fname).read())
     if 'analysis' not in data or data['analysis'] != 'bivariate': raise ValueError('Invalid bivariate results file')
     p = data['params']
-    return (BivariateParams(pi=p['pi'], sig2_beta=p['sig2_beta'], sig2_zero=p['sig2_zero'], rho_beta=p['rho_beta'], rho_zero=p['rho_zero']),
-            UnivariateParams(pi=p['pi'][0]+p['pi'][2], sig2_beta=p['sig2_beta'][0], sig2_zero=p['sig2_zero'][0]),
-            UnivariateParams(pi=p['pi'][1]+p['pi'][2], sig2_beta=p['sig2_beta'][1], sig2_zero=p['sig2_zero'][1]))
+    return BivariateParams(pi=p['pi'], sig2_beta=p['sig2_beta'], sig2_zero=p['sig2_zero'], rho_beta=p['rho_beta'], rho_zero=p['rho_zero'])
 
 def apply_univariate_fit_sequence(args, libbgmg, fit_sequence, init_params=None, trait=1):
     params=init_params; optimize_result_sequence=[]
@@ -307,7 +331,7 @@ def apply_univariate_fit_sequence(args, libbgmg, fit_sequence, init_params=None,
     return params, optimize_result_sequence
 
 def apply_bivariate_fit_sequence(args, libbgmg):
-    if args.trait1_params_file or args.trait2_params_file:
+    if args.analysis == 'fit2':
         libbgmg.log_message("Loading univariate constrains for bivariate analysis...")
         params1 = load_univariate_params_file(args.trait1_params_file)
         params2 = load_univariate_params_file(args.trait2_params_file)
@@ -319,9 +343,9 @@ def apply_bivariate_fit_sequence(args, libbgmg):
         libbgmg.log_message("fit_type=={}...".format(fit_type))
 
         if fit_type == 'load':
-            params, params1, params2 = load_bivariate_params_file(args.load_params_file)
-            if args.trait1_params_file or args.trait2_params_file:
-                libbgmg.log_message("overwrite params previously loaded from --trait1-params-file, --trait2-params-file")
+            params = load_bivariate_params_file(args.load_params_file)
+            params1 = params._params1()
+            params2 = params._params2()
             libbgmg.log_message("fit_type==load... trait1 params: {}".format(params1))            
             libbgmg.log_message("fit_type==load... trait2 params: {}".format(params2))    
             libbgmg.log_message("fit_type=={} done ({})".format(fit_type, params))
@@ -504,21 +528,16 @@ def execute_ld_parser(args):
 
 def initialize_mixer_plugin(args):
     libbgmg = LibBgmg(args.lib)
-    libbgmg.init(args.bim_file, args.frq_file, args.chr2use, args.trait1_file, args.trait2_file, "", "")
+    libbgmg.init(args.bim_file, "", args.chr2use, args.trait1_file, args.trait2_file if ('trait2_file' in args) else "", args.exclude, args.extract)
 
     for opt, val in convert_args_to_libbgmg_options(args, libbgmg.num_snp):
         libbgmg.set_option(opt, val)
-
-    if args.plink_ld_bin0 is not None:
-        libbgmg.set_option('ld_format_version', 0)
-        args.ld_file = args.plink_ld_bin0
-        args.plink_ld_bin0 = None
 
     for chr_label in args.chr2use: 
         libbgmg.set_ld_r2_coo_from_file(chr_label, args.ld_file.replace('@', str(chr_label)))
         libbgmg.set_ld_r2_csr(chr_label)
 
-    libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude=args.exclude, extract=args.extract)
+    libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude="", extract="")
     libbgmg.set_option('diag', 0)
     return libbgmg
 
@@ -550,104 +569,112 @@ def execute_perf_parser(args):
     pd.DataFrame(perf_data, columns=['threads', 'kmax', 'costcalc', 'time_sec', 'cost']).to_csv(args.out + '.csv', sep='\t', index=False)
     libbgmg.log_message('Done')
 
-def execute_fit_parser(args):
-    fix_and_validate_args(args)
-    libbgmg = initialize_mixer_plugin(args)
-
-    totalhet = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))
-
-    libbgmg.log_message('Apply fit sequence: {}...'.format(args.fit_sequence))
-
+def init_results_struct(libbgmg, args):
     results = {}
     results['options'] = vars(args).copy()
-    results['options']['totalhet'] = totalhet
+    results['options']['totalhet'] = float(2.0 * np.dot(libbgmg.mafvec, 1.0 - libbgmg.mafvec))
     results['options']['num_snp'] = float(libbgmg.num_snp)
     results['options']['num_tag'] = float(libbgmg.num_tag)
     results['options']['sum_weights'] = float(np.sum(libbgmg.weights))
     results['options']['trait1_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=1)))
+    return results
 
-    if not args.trait2_file:
-        results['analysis'] = 'univariate'
+def execute_fit1_or_test1_parser(args):
+    fix_and_validate_args(args)
+    libbgmg = initialize_mixer_plugin(args)
+    results = init_results_struct(libbgmg, args)
+    results['analysis'] = 'univariate'
+    totalhet = results['options']['totalhet']
 
-        params, optimize_result = apply_univariate_fit_sequence(args, libbgmg, args.fit_sequence)
-        results['params'] = params.as_dict()
-        results['optimize'] = optimize_result
+    libbgmg.log_message('--fit-sequence: {}...'.format(args.fit_sequence))
 
-        libbgmg.log_message('Calculate AIC/BIC w.r.t. infinitesimal model (fast cost function)...')
-        params_inft, optimize_result_inft = apply_univariate_fit_sequence(args, libbgmg, ['infinitesimal'], init_params=params)
-        results['inft_params'] = params_inft.as_dict()
-        results['inft_optimize'] = optimize_result_inft
+    params, optimize_result = apply_univariate_fit_sequence(args, libbgmg, args.fit_sequence)
+    results['params'] = params.as_dict()
+    results['optimize'] = optimize_result
 
-        ci_sample = None
-        if args.ci_alpha and np.isfinite(args.ci_alpha):
-            libbgmg.log_message("Uncertainty estimation...")
-            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-            results['ci'], ci_sample = _calculate_univariate_uncertainty(UnivariateParametrization(params, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-            for k, v in results['ci'].items():
-                libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
-            libbgmg.log_message("Uncertainty estimation done.")
-        elif args.load_params_file:
-            data = json.loads(open(args.load_params_file).read())
-            if 'ci' in data:
-                libbgmg.log_message('copy "ci" results from --load-params-file')
-                results['ci'] = data['ci']
+    libbgmg.log_message('Calculate AIC/BIC w.r.t. infinitesimal model (fast cost function)...')
+    params_inft, optimize_result_inft = apply_univariate_fit_sequence(args, libbgmg, ['infinitesimal'], init_params=params)
+    results['inft_params'] = params_inft.as_dict()
+    results['inft_optimize'] = optimize_result_inft
 
-        if args.power_curve:
-            trait_index = 1
-            results['power'] = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
-            if ci_sample is not None:
-                power_ci = []
-                for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
-                    libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
-                    power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor))
-                results['power_ci'] = power_ci
+    ci_sample = None
+    if args.ci_alpha and np.isfinite(args.ci_alpha):
+        libbgmg.log_message("Uncertainty estimation...")
+        libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+        results['ci'], ci_sample = _calculate_univariate_uncertainty(UnivariateParametrization(params, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+        for k, v in results['ci'].items():
+            libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
+        libbgmg.log_message("Uncertainty estimation done.")
+    elif args.load_params_file:
+        data = json.loads(open(args.load_params_file).read())
+        if 'ci' in data:
+            libbgmg.log_message('copy "ci" results from --load-params-file')
+            results['ci'] = data['ci']
 
-        if args.qq_plots:
-            trait_index = 1
-            mask = np.ones((libbgmg.num_tag, ), dtype=bool)
-            results['qqplot'] = calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
-                title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
+    if args.power_curve:
+        trait_index = 1
+        results['power'] = calc_power_curve(libbgmg, params, trait_index, args.downsample_factor)
+        if ci_sample is not None:
+            power_ci = []
+            for ci_index, ci_params in enumerate(ci_sample[:args.ci_power_samples]):
+                libbgmg.log_message("Power curves uncertainty, {} of {}".format(ci_index, args.ci_power_samples))
+                power_ci.append(calc_power_curve(libbgmg, ci_params, trait_index, args.downsample_factor))
+            results['power_ci'] = power_ci
 
-            mafvec = libbgmg.mafvec[libbgmg.defvec]
-            tldvec = libbgmg.ld_sum_r2[libbgmg.defvec]
-            maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec, [1/3, 2/3]), [np.inf]))
-            tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec, [1/3, 2/3]), [np.inf]))
-            results['qqplot_bins'] = []
-            for i in range(0, 3):
-                for j in range(0, 3):
-                    mask = ((mafvec>=maf_bins[i]) & (mafvec<maf_bins[i+1]) & (tldvec >= tld_bins[j]) &  (tldvec < tld_bins[j+1]))
-                    results['qqplot_bins'].append(calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
-                        title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
-    else:
-        results['analysis'] = 'bivariate'
-        results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
+    if args.qq_plots:
+        trait_index = 1
+        mask = np.ones((libbgmg.num_tag, ), dtype=bool)
+        results['qqplot'] = calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
+            title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(-np.inf,np.inf,-np.inf,np.inf))
 
-        params, params1, params2, optimize_result = apply_bivariate_fit_sequence(args, libbgmg)
-        results['params'] = params.as_dict()
-        results['optimize'] = optimize_result
-        if args.ci_alpha and np.isfinite(args.ci_alpha):
-            libbgmg.log_message("Uncertainty estimation...")
-            libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-            _, ci_sample1 = _calculate_univariate_uncertainty(UnivariateParametrization(params1, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-            _, ci_sample2 = _calculate_univariate_uncertainty(UnivariateParametrization(params2, libbgmg, trait=2), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-            results['ci'], _ = _calculate_bivariate_uncertainty(BivariateParametrization_constUNIVARIATE(
-                const_params1=params1, const_params2=params2, init_pi12=params._pi[2],
-                init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
-                lib=libbgmg), [ci_sample1, ci_sample2], args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-            for k, v in results['ci'].items():
-                libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
-            libbgmg.log_message("Uncertainty estimation done.")
-        elif args.load_params_file:
-            data = json.loads(open(args.load_params_file).read())
-            if 'ci' in data:
-                libbgmg.log_message('copy "ci" results from --load-params-file')
-                results['ci'] = data['ci']
+        mafvec = libbgmg.mafvec[libbgmg.defvec]
+        tldvec = libbgmg.ld_sum_r2[libbgmg.defvec]
+        maf_bins = np.concatenate(([-np.inf], np.quantile(mafvec, [1/3, 2/3]), [np.inf]))
+        tld_bins = np.concatenate(([-np.inf], np.quantile(tldvec, [1/3, 2/3]), [np.inf]))
+        results['qqplot_bins'] = []
+        for i in range(0, 3):
+            for j in range(0, 3):
+                mask = ((mafvec>=maf_bins[i]) & (mafvec<maf_bins[i+1]) & (tldvec >= tld_bins[j]) &  (tldvec < tld_bins[j+1]))
+                results['qqplot_bins'].append(calc_qq_plot(libbgmg, params, trait_index, args.downsample_factor, mask,
+                    title='maf \\in [{:.3g},{:.3g}); L \\in [{:.3g},{:.3g})'.format(maf_bins[i], maf_bins[i+1], tld_bins[j], tld_bins[j+1])))
 
-        if args.qq_plots:
-            zgrid, pdf = calc_bivariate_pdf(libbgmg, params, args.downsample_factor)
-            results['pdf_zgrid'] = zgrid
-            results['pdf'] = pdf
-            results['qqplot'] = calc_bivariate_qq(libbgmg, zgrid, pdf)
+    with open(args.out + '.json', 'w') as outfile:
+        json.dump(results, outfile, cls=NumpyEncoder)
+
+    libbgmg.set_option('diag', 0)
+    libbgmg.log_message('Done')
+
+def execute_fit2_or_test2_parser(args):
+    fix_and_validate_args(args)
+    libbgmg = initialize_mixer_plugin(args)
+    results = init_results_struct(libbgmg, args)
+    results['analysis'] = 'bivariate'
+    results['options']['trait2_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=2)))
+    totalhet = results['options']['totalhet']
+
+    libbgmg.log_message('--fit-sequence: {}...'.format(args.fit_sequence))
+    params, params1, params2, optimize_result = apply_bivariate_fit_sequence(args, libbgmg)
+    results['params'] = params.as_dict()
+    results['optimize'] = optimize_result
+
+    if args.ci_alpha and np.isfinite(args.ci_alpha):
+        libbgmg.log_message("Uncertainty estimation...")
+        libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
+        _, ci_sample1 = _calculate_univariate_uncertainty(UnivariateParametrization(params1, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+        _, ci_sample2 = _calculate_univariate_uncertainty(UnivariateParametrization(params2, libbgmg, trait=2), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+        results['ci'], _ = _calculate_bivariate_uncertainty(BivariateParametrization_constUNIVARIATE(
+            const_params1=params1, const_params2=params2, init_pi12=params._pi[2],
+            init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
+            lib=libbgmg), [ci_sample1, ci_sample2], args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
+        for k, v in results['ci'].items():
+            libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
+        libbgmg.log_message("Uncertainty estimation done.")
+
+    if args.qq_plots:
+        zgrid, pdf = calc_bivariate_pdf(libbgmg, params, args.downsample_factor)
+        results['pdf_zgrid'] = zgrid
+        results['pdf'] = pdf
+        results['qqplot'] = calc_bivariate_qq(libbgmg, zgrid, pdf)
 
     with open(args.out + '.json', 'w') as outfile:
         json.dump(results, outfile, cls=NumpyEncoder)

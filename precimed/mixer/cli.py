@@ -204,10 +204,11 @@ def parser_fit_or_test_add_arguments(args, func, parser, do_fit, num_traits):
     parser.add_argument('--power-curve', default=(not do_fit), action="store_true", help=argparse.SUPPRESS) # generate power curves
     parser.add_argument('--qq-plots', default=(not do_fit), action="store_true", help=argparse.SUPPRESS)    # generate qq plot curves
 
-    # Replace with The Sandwich Estimator ? http://www.stat.umn.edu/geyer/5601/notes/sand.pdf
-    parser.add_argument('--ci-alpha', type=float, default=None, help=argparse.SUPPRESS)              # significance level for the confidence interval estimation
-    parser.add_argument('--ci-samples', type=int, default=10000, help=argparse.SUPPRESS)             # number of samples in uncertainty estimation
-    parser.add_argument('--ci-power-samples', type=int, default=100, help=argparse.SUPPRESS)         # number of samples in power curves uncertainty estimation
+    # Replace with The Sandwich Estimator ? http://www.stat.umn.edu/geyer/5601/notes/sand.pdf and re-implement CI for bivariate analysis?
+    if num_traits==1:
+        parser.add_argument('--ci-alpha', type=float, default=None, help=argparse.SUPPRESS)              # significance level for the confidence interval estimation
+        parser.add_argument('--ci-samples', type=int, default=10000, help=argparse.SUPPRESS)             # number of samples in uncertainty estimation
+        parser.add_argument('--ci-power-samples', type=int, default=100, help=argparse.SUPPRESS)         # number of samples in power curves uncertainty estimation
 
     parser.set_defaults(func=func)
 

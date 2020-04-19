@@ -35,7 +35,9 @@ from .utils import BivariateParametrization_constUNIVARIATE                     
 from .utils import _hessian_robust
 from .utils import _max_rg
 from .utils import _calculate_univariate_uncertainty
+from .utils import _calculate_univariate_uncertainty_funcs
 from .utils import _calculate_bivariate_uncertainty
+from .utils import _calculate_bivariate_uncertainty_funcs
 
 from .utils import calc_qq_data
 from .utils import calc_qq_model
@@ -577,6 +579,7 @@ def init_results_struct(libbgmg, args):
     results['options']['num_tag'] = float(libbgmg.num_tag)
     results['options']['sum_weights'] = float(np.sum(libbgmg.weights))
     results['options']['trait1_nval'] = float(np.nanmedian(libbgmg.get_nvec(trait=1)))
+    results['ci'] = {}
     return results
 
 def execute_fit1_or_test1_parser(args):
@@ -597,6 +600,9 @@ def execute_fit1_or_test1_parser(args):
     results['inft_params'] = params_inft.as_dict()
     results['inft_optimize'] = optimize_result_inft
 
+    funcs, _ = _calculate_univariate_uncertainty_funcs(None, totalhet, libbgmg.num_snp)
+    for func_name, func in funcs: results['ci'][func_name] = {'point_estimate': func(params)}
+
     ci_sample = None
     if args.ci_alpha and np.isfinite(args.ci_alpha):
         libbgmg.log_message("Uncertainty estimation...")
@@ -605,11 +611,6 @@ def execute_fit1_or_test1_parser(args):
         for k, v in results['ci'].items():
             libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
         libbgmg.log_message("Uncertainty estimation done.")
-    elif args.load_params_file:
-        data = json.loads(open(args.load_params_file).read())
-        if 'ci' in data:
-            libbgmg.log_message('copy "ci" results from --load-params-file')
-            results['ci'] = data['ci']
 
     if args.power_curve:
         trait_index = 1
@@ -653,22 +654,12 @@ def execute_fit2_or_test2_parser(args):
     totalhet = results['options']['totalhet']
 
     libbgmg.log_message('--fit-sequence: {}...'.format(args.fit_sequence))
-    params, params1, params2, optimize_result = apply_bivariate_fit_sequence(args, libbgmg)
+    params, _, _, optimize_result = apply_bivariate_fit_sequence(args, libbgmg)
     results['params'] = params.as_dict()
     results['optimize'] = optimize_result
 
-    if args.ci_alpha and np.isfinite(args.ci_alpha):
-        libbgmg.log_message("Uncertainty estimation...")
-        libbgmg.set_option('cost_calculator', _cost_calculator_gaussian)
-        _, ci_sample1 = _calculate_univariate_uncertainty(UnivariateParametrization(params1, libbgmg, trait=1), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-        _, ci_sample2 = _calculate_univariate_uncertainty(UnivariateParametrization(params2, libbgmg, trait=2), args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-        results['ci'], _ = _calculate_bivariate_uncertainty(BivariateParametrization_constUNIVARIATE(
-            const_params1=params1, const_params2=params2, init_pi12=params._pi[2],
-            init_rho_beta=params._rho_beta, init_rho_zero=params._rho_zero,
-            lib=libbgmg), [ci_sample1, ci_sample2], args.ci_alpha, totalhet, libbgmg.num_snp, args.ci_samples)
-        for k, v in results['ci'].items():
-            libbgmg.log_message('{}: point_estimate={:.3g}, mean={:.3g}, median={:.3g}, std={:.3g}, ci=[{:.3g}, {:.3g}]'.format(k, v['point_estimate'], v['mean'], v['median'], v['std'], v['lower'], v['upper']))
-        libbgmg.log_message("Uncertainty estimation done.")
+    funcs, _ = _calculate_bivariate_uncertainty_funcs(None, totalhet, libbgmg.num_snp)
+    for func_name, func in funcs: results['ci'][func_name] = {'point_estimate': func(params)}
 
     if args.qq_plots:
         zgrid, pdf = calc_bivariate_pdf(libbgmg, params, args.downsample_factor)

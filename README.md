@@ -14,7 +14,7 @@ This folder contains a Python port of MiXeR, wrapping the same C/C++ core as we 
 This is work in progress, but eventually it should singificantly improve user experience,
 as Python allows much simpler  installation procedures,
 makes it less error prone, allows to implement well-documented command-line interface (``python mixer.py --help``),
-and it with visualization.
+and provide visualization.
 
 Input data for MiXeR consists of summary statistics from a GWAS, and a reference panel.
 MiXeR format for summary statistics is compatible with LD Score Regression
@@ -25,8 +25,8 @@ for processing summary statistics. For the reference panel we recommend to use 1
 pre-processed according to LD Score Regression pipeline, and available for download from LDSC website.
 Further details are given in [Data downloads](#data-downloads) and [Data preparation](#data-preparation) sections.
 
-Once you have all input data in MiXeR-compatible format you may proceed with running univariate
-and cross-trait analysis, as implemented in ``mixer.py`` command-line interface.
+Once you have all input data in MiXeR-compatible format you may proceed with running univariate (``fit1``, ``test1``)
+and cross-trait (``fit2``, ``test2``) analyses, as implemented in ``mixer.py`` command-line interface.
 The results will be saved as ``.json`` files.
 To visualize the results we provide a script in python, but we encourage users to write their own scripts
 that understand the structure of ``.json`` files, process the results.
@@ -75,7 +75,13 @@ Not available yet.
 
 ### Build from source - Linux
 
-* Download and compile Boost libraries
+The exact steps depend  on your build environment. 
+* If you work in HPC environment with modules system, you can load some existing combination of modules that include Boost libraries:
+  ```
+  module load Boost/1.68.0-intel-2018b-Python-3.6.6 Python/3.6.6-intel-2018b CMake/3.12.1  # SAGA (intel)
+  module load Boost/1.71.0-GCC-8.3.0 Python/3.7.4-GCCcore-8.3.0 CMake/3.12.1               # SAGA (gcc)  
+  ```
+* Alternatively, you may download and compile Boost libraries yourself:
   ```
   cd ~ && wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz 
   tar -xzvf boost_1_69_0.tar.gz && cd boost_1_69_0
@@ -86,13 +92,10 @@ Not available yet.
   ```
   cd ~ && git clone --recurse-submodules -j8 https://github.com/precimed/mixer.git
   mkdir mixer/src/build && cd mixer/src/build
-  cmake .. -DBOOST_ROOT=$HOME/boost_1_69_0 && make bgmg -j16 
-  ```
-
-* Recommended combination of modules on different HPC systems:
-  ```
-  module load Boost/1.68.0-intel-2018b-Python-3.6.6 Python/3.6.6-intel-2018b CMake/3.12.1  # SAGA (intel)
-  module load Boost/1.71.0-GCC-8.3.0 Python/3.7.4-GCCcore-8.3.0 CMake/3.12.1               # SAGA (gcc)  
+  cmake .. && make bgmg -j16                                   # if you use GCC compiler
+  CC=icc CXX=icpc cmake .. && make bgmg -j16                   # if you use Intel compiler
+  cmake .. -DBOOST_ROOT=$HOME/boost_1_69_0 && make bgmg -j16   # if you use locally compiled boost libraries
+  
   ```
 
 ## Data downloads
@@ -157,10 +160,10 @@ Not available yet.
 
 Fit the model:
 ```
-python3 <MIXER_ROOT>/precimed/mixer.py fit \
+python3 <MIXER_ROOT>/precimed/mixer.py fit1 \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --out SSGAC_EDU_2018_no23andMe_noMHC.fit \
-      --extract LDSR/w_hm3.justrs --ci-alpha 0.05 \
+      --extract LDSR/w_hm3.justrs \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
@@ -168,11 +171,10 @@ python3 <MIXER_ROOT>/precimed/mixer.py fit \
 
 Apply the model to the entire set of SNPs, without constraining to ``LDSR/w_hm3.justrs``:
 ```
-python3 <MIXER_ROOT>/precimed/mixer.py fit \
+python3 <MIXER_ROOT>/precimed/mixer.py test1 \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --load-params-file SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
       --out SSGAC_EDU_2018_no23andMe_noMHC.test \
-      --fit-sequence load inflation --power-curve --qq-plots --kmax 100 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
@@ -191,13 +193,13 @@ python precimed/mixer_figures.py one --json <out_file>.json --out <out_file>
 
 Fit the model:
 ```
-python3 <MIXER_ROOT>/python/mixer.py fit \
+python3 <MIXER_ROOT>/python/mixer.py fit2 \
       --trait1-file PGC_SCZ_2014_EUR_qc_noMHC.csv.gz \
       --trait2-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --trait1-params-file PGC_SCZ_2014_EUR_qc_noMHC.fit.json \
       --trait2-params-file SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
       --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit \
-      --extract LDSR/w_hm3.justrs --ci-alpha 0.05 \
+      --extract LDSR/w_hm3.justrs \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
@@ -205,12 +207,11 @@ python3 <MIXER_ROOT>/python/mixer.py fit \
 
 Apply the model to the entire set of SNPs, without constraining to ``LDSR/w_hm3.justrs``:
 ```
-python3 <MIXER_ROOT>/python/mixer.py fit \
+python3 <MIXER_ROOT>/python/mixer.py test2 \
       --trait1-file PGC_SCZ_2014_EUR_qc_noMHC.csv.gz \
       --trait2-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
       --load-params-file PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
       --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test \
-      --fit-sequence load inflation --qq-plots --kmax 100 \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
@@ -226,125 +227,13 @@ python precimed/mixer_figures.py two --json <out_file>.json --out <out_file>
 
 ## MiXeR options
 
+Run ``--help`` commands to list available options and their description.
 ```
->python3 mixer.py fit --help
-
-usage: mixer.py fit [-h] [--argsfile ARGSFILE] [--out OUT] [--lib LIB]
-                    [--log LOG] [--bim-file BIM_FILE] [--frq-file FRQ_FILE]
-                    [--plink-ld-bin PLINK_LD_BIN]
-                    [--plink-ld-bin0 PLINK_LD_BIN0] [--chr2use CHR2USE]
-                    [--trait1-file TRAIT1_FILE] [--trait2-file TRAIT2_FILE]
-                    [--fit-sequence {load,inflation,infinitesimal,diffevo,diffevo-fast,neldermead,neldermead-fast,brute1,brute1-fast,brent1,brent1-fast} [{load,inflation,infinitesimal,diffevo,diffevo-fast,neldermead,neldermead-fast,brute1,brute1-fast,brent1,brent1-fast} ...]]
-                    [--preliminary] [--extract EXTRACT] [--exclude EXCLUDE]
-                    [--randprune-n RANDPRUNE_N] [--randprune-r2 RANDPRUNE_R2]
-                    [--kmax KMAX] [--seed SEED]
-                    [--ci-alpha CI_ALPHA] [--ci-samples CI_SAMPLES]
-                    [--threads THREADS] [--tol-x TOL_X] [--tol-func TOL_FUNC]
-                    [--cubature-rel-error CUBATURE_REL_ERROR]
-                    [--cubature-max-evals CUBATURE_MAX_EVALS]
-                    [--load-params-file LOAD_PARAMS_FILE]
-                    [--trait1-params-file TRAIT1_PARAMS_FILE]
-                    [--trait2-params-file TRAIT2_PARAMS_FILE]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --argsfile ARGSFILE   file with additional command-line arguments
-  --out OUT             prefix for the output files
-  --lib LIB             path to libbgmg.so plugin
-  --log LOG             file to output log, defaults to <out>.log
-  --bim-file BIM_FILE   Plink bim file. Defines the reference set of SNPs used
-                        for the analysis. Marker names must not have
-                        duplicated entries. May contain simbol '@', which will
-                        be replaced with the actual chromosome label.
-  --frq-file FRQ_FILE   Plink frq file (alleles frequencies). May contain
-                        simbol '@', similarly to --bim-file argument.
-  --plink-ld-bin PLINK_LD_BIN
-                        File with linkage disequilibrium information,
-                        converted from plink format as described in the
-                        README.md file. May contain simbol '@', similarly to
-                        --bim-file argument.
-  --plink-ld-bin0 PLINK_LD_BIN0
-                        File with linkage disequilibrium information in an old
-                        format (deprecated)
-  --chr2use CHR2USE     Chromosome ids to use (e.g. 1,2,3 or 1-4,12,16-20).
-                        Chromosome must be labeled by integer, i.e. X and Y
-                        are not acceptable.
-  --trait1-file TRAIT1_FILE
-                        GWAS summary statistics for the first trait.
-  --trait2-file TRAIT2_FILE
-                        GWAS summary statistics for the first trait.
-                        Specifying this argument triggers cross-trait
-                        analysis.
-  --fit-sequence {load,inflation,infinitesimal,diffevo,diffevo-fast,neldermead,neldermead-fast,brute1,brute1-fast,brent1,brent1-fast} [{load,inflation,infinitesimal,diffevo,diffevo-fast,neldermead,neldermead-fast,brute1,brute1-fast,brent1,brent1-fast} ...]
-                        Specify fit sequence: 'load' reads previosly fitted
-                        parameters from a file (--load-params-file); 'diffevo'
-                        performs a single iteration of differential evolution,
-                        which is the right way to setup an initial
-                        approximation; 'neldermead' applies Nelder-Mead
-                        downhill simplex search; 'brute1' applies only to
-                        bivariate optimization; it performs brute-force for
-                        one-dimentional optimization, searching optimal pi12
-                        value constrained on genetic correlation (rg) and
-                        intercept (rho0); 'brent1' is similar to brute1, but
-                        it uses brent method (inverse parabolic
-                        interpolation); 'inflation' fits sig2zero (univariate)
-                        and rho_zero (bivariate), using fast cost function;
-                        this is quite special optimization step, typically
-                        useful for adjusting inflation parameters to another
-                        reference; 'infinitesimal' fits a model with pi1=1
-                        (univariate) or pi12=1 (bivariate) constrains, using
-                        fast cost function; this is quite special optimization
-                        step, typically used internally for AIC/BIC
-                        computation; Note that bivariate fit is always
-                        constrained on univariate parameters, except for
-                        'inflation' fit which adjust rho_zero and sig2_zero.
-                        The '...-fast' optimizations use fast cost function.
-                        Note that univariate optimization uses 'convolve' cost
-                        calculator, bivariate optimization uses 'sampling'
-                        cost calculator. Typical univariate sequence:
-                        'diffevo-fast neldermead'Typical bivariate sequence:
-                        'diffevo neldermead brute1 brent1'
-  --preliminary         perform an additional run using fast model with
-                        'diffevo-fast nelderead-fast' to generate preliminary
-                        data. After preliminary run fit sequence is applied
-                        from scratch using full model.
-  --extract EXTRACT     File with variants to include in the fit procedure
-  --exclude EXCLUDE     File with variants to exclude from the fit procedure
-  --randprune-n RANDPRUNE_N
-                        Number of random pruning iterations
-  --randprune-r2 RANDPRUNE_R2
-                        Threshold for random pruning
-  --kmax KMAX           Number of sampling iterations
-  --seed SEED           Random seed
-  --r2min R2MIN         r2 values below this threshold will contribute via
-                        infinitesimal model
-  --ci-alpha CI_ALPHA   significance level for the confidence interval
-                        estimation
-  --ci-samples CI_SAMPLES
-                        number of samples in uncertainty estimation
-  --threads THREADS     specify how many threads to use (concurrency). None
-                        will default to the total number of CPU cores.
-  --tol-x TOL_X         tolerance for the stop criteria in fminsearch
-                        optimization.
-  --tol-func TOL_FUNC   tolerance for the stop criteria in fminsearch
-                        optimization.
-  --cubature-rel-error CUBATURE_REL_ERROR
-                        relative error for cubature stop criteria (applies to
-                        'convolve' cost calculator).
-  --cubature-max-evals CUBATURE_MAX_EVALS
-                        max evaluations for cubature stop criteria (applies to
-                        'convolve' cost calculator). Bivariate cubature
-                        require in the order of 10^4 evaluations and thus is
-                        much slower than sampling, therefore it is not exposed
-                        via mixer.py command-line interface.
-  --load-params-file LOAD_PARAMS_FILE
-                        initial params for the optimization.
-  --trait1-params-file TRAIT1_PARAMS_FILE
-                        univariate params for the first trait (for the cross-
-                        trait analysis only).
-  --trait2-params-file TRAIT2_PARAMS_FILE
-                        univariate params for the second trait (for the cross-
-                        trait analysis only).
+python3 mixer.py ld --help
+python3 mixer.py fit1 --help
+python3 mixer.py test1 --help
+python3 mixer.py fit2 --help
+python3 mixer.py test2 --help
 ```
 
 ### Memory usage

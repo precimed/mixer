@@ -45,18 +45,19 @@ def make_qq_plot(qq, ci=True, ylim=7.3, xlim=7.3):
     model_logpvec = np.array(qq['model_logpvec']).astype(float)
     ylim_data = max(hv_logp[np.isfinite(data_logpvec)])
     model_logpvec[hv_logp > ylim_data]=np.nan
-    if ci: 
-        q = 10**-data_logpvec; dq= 1.96*np.sqrt(q*(1-q)/qq['sum_data_weights']);
-        y1=hv_logp
-        x1=ma.filled(-ma.log10(q+dq), np.nan)  #left CI bound
-        x2=ma.filled(-ma.log10(q-dq), np.nan)  #right CI bound
-        if True:
-            y2 = np.empty(hv_logp.shape); y2[:]=np.nan;
-            y2[x2<np.nanmax(x1)]=interp1d(x1, y1)(x2[x2<np.nanmax(x1)])                #upper CI bound
-            y2[np.isnan(y2)]=ylim_data  
-            plt.fill_between(x2, y1, y2, color=(0.1843, 0.3098, 0.3098), alpha=0.25)
-        else:
-            plt.plot(x1,hv_logp,x2,hv_logp)
+    if ci:
+        with np.errstate(all='ignore'):
+            q = 10**-data_logpvec; dq= 1.96*np.sqrt(q*(1-q)/qq['sum_data_weights'])
+            y1=hv_logp
+            x1=ma.filled(-ma.log10(q+dq), np.nan)  #left CI bound
+            x2=ma.filled(-ma.log10(q-dq), np.nan)  #right CI bound
+            if True:
+                y2 = np.empty(hv_logp.shape); y2[:]=np.nan
+                y2[x2<np.nanmax(x1)]=interp1d(x1, y1)(x2[x2<np.nanmax(x1)])                #upper CI bound
+                y2[np.isnan(y2)]=ylim_data  
+                plt.fill_between(x2, y1, y2, color=(0.1843, 0.3098, 0.3098), alpha=0.25)
+            else:
+                plt.plot(x1,hv_logp,x2,hv_logp)
     hData = plt.plot(data_logpvec, hv_logp)
     hModel = plt.plot(model_logpvec, hv_logp)
     hNull = plt.plot(hv_logp, hv_logp, 'k--')
@@ -69,9 +70,9 @@ def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], co
     elif factor=='': scale_factor=1
     else: raise(ValueError('Unknow factor: {}'.format(factor)))
 
-    n1 = data['ci']['nc1@p9']['point_estimate']/scale_factor; n1_se = data['ci']['nc1@p9']['std']/scale_factor
-    n2 = data['ci']['nc2@p9']['point_estimate']/scale_factor; n2_se = data['ci']['nc2@p9']['std']/scale_factor
-    n12 = data['ci']['nc12@p9']['point_estimate']/scale_factor; n12_se = data['ci']['nc12@p9']['std']/scale_factor
+    n1 = data['ci']['nc1@p9']['point_estimate']/scale_factor; n1_se = None
+    n2 = data['ci']['nc2@p9']['point_estimate']/scale_factor; n2_se = None
+    n12 = data['ci']['nc12@p9']['point_estimate']/scale_factor; n12_se = None
     rg = data['ci']['rg']['point_estimate']
 
     if max_size is None: max_size = n1+n2+n12
@@ -83,7 +84,10 @@ def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], co
     v.get_patch_by_id('010').set_color(cm.colors[f(colors[1])])
     v.get_patch_by_id('110').set_color(cm.colors[7])   
     if formatter==None:
-        formatter1 = '{:.2f}\n({:.2f})' if ((n1+n12+n2) < 1) else '{:.1f}\n({:.1f})' 
+        if (n1_se is not None) and (n2_se is not None) and (n12_se is not None):
+            formatter1 = '{:.2f}\n({:.2f})' if ((n1+n12+n2) < 1) else '{:.1f}\n({:.1f})'
+        else:
+            formatter1 = '{:.2f}' if ((n1+n12+n2) < 1) else '{:.1f}'
         formatter = [formatter1, formatter1, formatter1]
     v.get_label_by_id('100').set_text(formatter[0].format(n1, n1_se))
     v.get_label_by_id('010').set_text(formatter[1].format(n2, n2_se))
@@ -213,24 +217,30 @@ def plot_causal_density(data, flip=False, traits=['Trait1', 'Trait2'], vmax=1e3,
     plt.ylabel('$\\beta_{'+traits[1]+'}$')
     plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
 
-def extract_likelihood_function(data):
-    funcs, stats = _calculate_bivariate_uncertainty_funcs(alpha=0.05, totalhet=data['options']['totalhet'], num_snps=data['options']['num_snp'])
-    p=data['params']; params=BivariateParams(pi=p['pi'],sig2_beta=p['sig2_beta'], rho_beta=p['rho_beta'],sig2_zero=p['sig2_zero'],rho_zero=p['rho_zero'])
-    parametrization = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(lib=None, const_params1=params._params1(), const_params2=params._params2(), const_rg=params._rg(), const_rho_zero=params._rho_zero)
+def extract_brute1_results(data):
     brute1_results = []
     if 'optimize' in data:
         for x in data['optimize']:
             if x[0]=='brute1':
                 brute1_results=x[1]
                 break
+    return brute1_results
+
+def extract_likelihood_function(data):
+    funcs, stats = _calculate_bivariate_uncertainty_funcs(alpha=0.05, totalhet=data['options']['totalhet'], num_snps=data['options']['num_snp'])
+    p=data['params']; params=BivariateParams(pi=p['pi'],sig2_beta=p['sig2_beta'], rho_beta=p['rho_beta'],sig2_zero=p['sig2_zero'],rho_zero=p['rho_zero'])
+    parametrization = BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO(lib=None, const_params1=params._params1(), const_params2=params._params2(), const_rg=params._rg(), const_rho_zero=params._rho_zero)
+    brute1_results = extract_brute1_results(data)
     if not brute1_results:
-        print('--json argument does not contain brute1 optimization results, skip likelihood plot generation')
         return [], []
-    
+
     return [dict(funcs)['nc12@p9'](parametrization.vec_to_params([x])) for x in brute1_results['grid']], brute1_results['Jout']
 
 def plot_likelihood(data):
     like_x, like_y = extract_likelihood_function(data)
+    if (not like_x) or (not like_y):
+        print('--json argument does not contain brute1 optimization results, skip likelihood plot generation')
+        return
     plt.plot(np.array(like_x)/1000, like_y)
     #plt.title('cost={}'.format(data['optimize'][-1][1]['fun']))
 
@@ -289,7 +299,7 @@ def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
     plt.xlim([4, 8])
     plt.ylim([0, 1])
     plt.locator_params(axis='x', nbins=5)
-    plt.axes().set_xticklabels(labels=['10K', '100K', '1M', '10M', '100M'])
+    plt.gca().set_xticklabels(labels=['10K', '100K', '1M', '10M', '100M'])
 
 # https://stackoverflow.com/questions/27433316/how-to-get-argparse-to-read-arguments-from-a-file-with-an-option-rather-than-pre
 class LoadFromFile (argparse.Action):
@@ -339,14 +349,13 @@ def execute_two_parser(args):
     print('generate {}.csv from {} json files...'.format(args.out, len(files)))
 
     for fname in files:
-        keys = 'pi1 pi2 pi12 nc1@p9 nc2@p9 nc12@p9 rho_zero rho_beta rg'.split()
+        keys = 'dice pi1 pi2 pi12 nc1@p9 nc2@p9 nc12@p9 rho_zero rho_beta rg'.split()
         try:
             data = json.loads(open(fname).read())
             trait1 = os.path.basename(data['options']['trait1_file']).replace('.sumstats.gz', '')
             trait2 = os.path.basename(data['options']['trait2_file']).replace('.sumstats.gz', '')
             for k in keys:   # test that all keys are available
                 val = data['ci'][k]['point_estimate']
-                val = data['ci'][k]['std']
         except:
             print('error reading from {}, skip'.format(fname))
             continue
@@ -355,7 +364,24 @@ def execute_two_parser(args):
         insert_key_to_dictionary_as_list(df_data, 'trait1', trait1)
         insert_key_to_dictionary_as_list(df_data, 'trait2', trait2)
         for k in keys: insert_key_to_dictionary_as_list(df_data, k, data['ci'][k]['point_estimate'])
-        for k in keys: insert_key_to_dictionary_as_list(df_data, k + '_SE', data['ci'][k]['std'])
+
+        brute1_results = extract_brute1_results(data)
+        if brute1_results:
+            min_overlap = brute1_results['Jout'][0]
+            max_overlap = brute1_results['Jout'][-1]
+            best_cost = data['optimize'][-1][1]['fun']
+            cost_n = data['options']['sum_weights']
+            df_diff = -1  # fitting polygenic overlap require 1 extra parameter
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_BIC', np.log(cost_n) * df_diff + 2 * (min_overlap - best_cost))
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_AIC',              2 * df_diff + 2 * (min_overlap - best_cost))
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_BIC', np.log(cost_n) * df_diff + 2 * (max_overlap - best_cost))
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_AIC',              2 * df_diff + 2 * (max_overlap - best_cost))
+        else:
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_BIC', None)
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_AIC', None)
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_BIC', None)
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_AIC', None)
+
     pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
     print('Done.')
 
@@ -399,7 +425,6 @@ def insert_key_to_dictionary_as_list(df_data, key, value):
     df_data[key].append(value)
 
 def execute_one_parser(args):
-
     df_data = {}
     files = glob.glob(args.json[0]) if (len(args.json) == 1) else args.json
     if len(files) == 0: raise(ValueError('no files detected, check --json {}'.format(args.json)))
@@ -410,7 +435,10 @@ def execute_one_parser(args):
             data = json.loads(open(fname).read())
             for k in keys:   # test that all keys are available
                 val = data['ci'][k]['point_estimate']
-                val = data['ci'][k]['std']
+                val = data['inft_optimize'][-1][1]['AIC'] 
+                val = data['optimize'][-1][1]['AIC']
+                val = data['inft_optimize'][-1][1]['BIC'] 
+                val = data['optimize'][-1][1]['BIC']
         except:
             print('error reading from {}, skip'.format(fname))
             continue
@@ -418,7 +446,12 @@ def execute_one_parser(args):
         insert_key_to_dictionary_as_list(df_data, 'fname', fname)
         for k in keys:
             insert_key_to_dictionary_as_list(df_data, k, data['ci'][k]['point_estimate'])
-            insert_key_to_dictionary_as_list(df_data, k + '_SE', data['ci'][k]['std'])
+
+        aic_diff = data['inft_optimize'][-1][1]['AIC'] - data['optimize'][-1][1]['AIC']
+        bic_diff = data['inft_optimize'][-1][1]['BIC'] - data['optimize'][-1][1]['BIC']
+        insert_key_to_dictionary_as_list(df_data, 'AIC', aic_diff)
+        insert_key_to_dictionary_as_list(df_data, 'BIC', bic_diff)
+        
     pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
     print('Done.')
 

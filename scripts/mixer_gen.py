@@ -5,7 +5,7 @@ import glob
 design = 'run1'
 
 if design == 'run1':
-    out_prefix = '/space/gwas-syn1/1/data/GWAS/UKBioBank/projects/plsa_mixer/simu_run1/simu'
+    out_prefix = '<PROJECTS>/plsa_mixer/simu_run1/simu'
     mixer_simu = '/home/oleksandr/github/mixer/scripts/mixer_simu.py'
     tmp_prefix = '/scratch/simu_run1'
 

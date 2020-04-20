@@ -28,11 +28,11 @@ mysystem = 'MMIL'
 if mysystem == 'MMIL':
     mixer_dir = '/home/oleksandr/github/mixer'
     mixer_lib='/home/oleksandr/github/mixer/src/build/lib/libbgmg.so'
-    bfile='/space/syn03/1/data/oleksandr/SynGen2/11015833/bfile_merged/chr'    # for simu_linux
-    defvec_hm3 = '/space/syn03/1/data/oleksandr/SynGen2/11015833/bfile_merged/defvec_hapmap3_hardprune_p1.snps'
+    bfile='<SynGen2>/11015833/bfile_merged/chr'    # for simu_linux
+    defvec_hm3 = '<SynGen2>/11015833/bfile_merged/defvec_hapmap3_hardprune_p1.snps'
     ld_file=bfile+'@.run4.ld'
     bim_file=bfile+'@.bim'
-    out_prefix_default = '/space/gwas-syn1/1/data/GWAS/UKBioBank/projects/plsa_mixer/simu/run1/simu'
+    out_prefix_default = '<PROJECTS>/plsa_mixer/simu/run1/simu'
     tmp_prefix_default = os.path.join('/scratch/', 'mixer_simu')
     python_cmd = '~/miniconda3/bin/python3'
     R_cmd = '~/miniconda3/bin/R'

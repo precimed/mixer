@@ -6,7 +6,7 @@ import itertools
 dry_run=True
 num_submit = int(sys.argv[1])
 
-out_prefix = '/space/gwas-syn1/1/data/GWAS/UKBioBank/projects/plsa_mixer/real_run1/mixer'
+out_prefix = '<PROJECTS>/plsa_mixer/real_run1/mixer'
 ugmg_pattern = out_prefix+'_{}.fit.json'
 bgmg_pattern = out_prefix+'_{}_vs_{}.fit.json'
 
@@ -47,7 +47,7 @@ template_head='''
 #$ -l h_rt=36:00:00
 
 set MIXER_ROOT=/home/oleksandr/github/mixer 
-set SUMSTAT=/space/syn03/1/data/GWAS/SUMSTAT
+set SUMSTAT=<SUMSTAT>
 set PYTHON=/home/oleksandr/miniconda3/bin/python3
 '''
 

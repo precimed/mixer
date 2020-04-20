@@ -42,24 +42,23 @@ $PYTHON $MIXER_ROOT/precimed/mixer.py fit \
       --trait1-params-file $OUT_DIR/$TRAIT1.fit.json \
       --trait2-params-file $OUT_DIR/$TRAIT2.fit.json \
       --out $OUT_DIR/${TRAIT1}_vs_${TRAIT2}.fit \
-      --extract $SUMSTAT/LDSR/w_hm3.justrs --ci-alpha 0.05 \
+      --extract $SUMSTAT/LDSR/w_hm3.justrs \ # --ci-alpha 0.05 \
       --bim-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --frq-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.frq \
-      --plink-ld-bin0 $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
+      --ld-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
       --lib $MIXER_ROOT/src/build/lib/libbgmg.so \
 
 #      --chr2use 1 --diffevo-fast-repeats 2 --fit-sequence diffevo-fast neldermead-fast
 
-$PYTHON $MIXER_ROOT/precimed/mixer.py fit \
+$PYTHON $MIXER_ROOT/precimed/mixer.py test \
       --trait1-file $SUMSTAT/TMP/nomhc/$TRAIT1.sumstats.gz \
       --trait2-file $SUMSTAT/TMP/nomhc/$TRAIT2.sumstats.gz \
       --load-params-file $OUT_DIR/${TRAIT1}_vs_${TRAIT2}.fit.json \
       --out $OUT_DIR/${TRAIT1}_vs_${TRAIT2}.test \
       --bim-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
-      --frq-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.frq \
-      --plink-ld-bin0 $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
+      --ld-file $SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.p05_SNPwind50k.ld.bin \
       --lib $MIXER_ROOT/src/build/lib/libbgmg.so \
-      --fit-sequence load inflation --qq-plots --kmax 100 \
+      
+      #--fit-sequence load inflation --qq-plots --kmax 100 \
  
 #     --chr2use 1
 

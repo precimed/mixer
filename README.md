@@ -94,7 +94,7 @@ The exact steps depend  on your build environment.
   mkdir mixer/src/build && cd mixer/src/build
   cmake .. && make bgmg -j16                                   # if you use GCC compiler
   CC=icc CXX=icpc cmake .. && make bgmg -j16                   # if you use Intel compiler
-  cmake .. -DBOOST_ROOT=$HOME/boost_1_69_0 && make bgmg -j16   # if you use locally compiled boost libraries
+  cmake .. -DBOOST_ROOT=$HOME/boost_1_69_0 && make bgmg -j16   # if you use locally compiled boost
   
   ```
 

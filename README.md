@@ -234,6 +234,7 @@ python3 mixer.py fit1 --help
 python3 mixer.py test1 --help
 python3 mixer.py fit2 --help
 python3 mixer.py test2 --help
+python3 mixer.py perf --help
 ```
 
 ## Visualize MiXeR results

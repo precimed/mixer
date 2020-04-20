@@ -30,4 +30,5 @@ MiXeR v1.2
 * ``mixer.py ld`` has simpler procedure to generate files for ``--ld-file`` argument based on your custom genotype panel 
   (plink is no longer required).
 * ``--z1max`` and ``--z2max``allow to specify thresholds for right-censoring.
+* MiXeR v1.2 uses precicely the same fit procedure as MiXeR v1.1, however it has a certain changes in how the LD matrix is stored internally, and also in how the cost function is evaluated. Particularly, the bivariate cost function based on sampling approach is now stateless, and it now consuming substentially less memory. The univariate cost function is based on convolution approach, as in v1.1, however it is now coupled with sampling for large z-scores to allow for ``--z1max`` and ``--z2max`` parameters.
   

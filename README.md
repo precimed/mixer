@@ -236,16 +236,25 @@ python3 mixer.py fit2 --help
 python3 mixer.py test2 --help
 ```
 
-### Memory usage
- 
-TBD. MiXeR is still using a lot of memory, but we are working on making it better.
-
 ## Visualize MiXeR results
 
-TBD.
+The resulting ``.json`` files can be converted to figures and ``.csv`` tables via the following commands (``one`` for univariate, ``two`` for bivariate; each of these commands accept ``.json`` files from ``fit`` and ``test`` steps).
+```
+python precimed/mixer_figures.py one --json <out_file>.json --out <out_file>
+python precimed/mixer_figures.py two --json <out_file>.json --out <out_file>
+```
 
 ### MiXeR results format
 
-TBD.
+MiXeR produces the following results, as described in the original publication.
 
-All MiXeR results are stored in a single ``.json`` file.
+* Univariate ``.csv`` file, including model parameters and AIC/BIC values,
+* Univariate QQ plots
+* Univariate MAF- and LD-stratified QQ plots
+* Univariate Power curves
+* Bivariate ``.csv`` file, including model parameters, AIC/BIC values and Dice coefficient
+* Bivariate stratified QQ plots (cross-trait enrichment)
+* Bivariate density plots
+* Bivariate negative log-likelihood function
+
+TBD - provide more details.

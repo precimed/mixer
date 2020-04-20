@@ -24,7 +24,7 @@ MiXeR v1.2
   Internally, the new references file are available on NIRD ``<SUMSTAT>/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld``.
   Further, there is an internal reference based on UK Biobank.
 * ``mixer_figures.py`` now generates more data, including AIC and BIC, and also Dice coefficient for bivariate analysis.
-  It also generates 
+  It also generates negative log-likelihood plots.
 * Added support for Intel compiler, with build instructions for SAGA
 * Added ``mixer.py perf`` option to evaluate performance of MiXeR cost funciton 
 * ``mixer.py ld`` has simpler procedure to generate files for ``--ld-file`` argument based on your custom genotype panel 

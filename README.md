@@ -1,5 +1,3 @@
-hdjfkhdjk
-
 ## Contents
 
 * [Introduction](#introduction)

@@ -240,10 +240,17 @@ python3 mixer.py perf --help
 ## Visualize MiXeR results
 
 The resulting ``.json`` files can be converted to figures and ``.csv`` tables via the following commands (``one`` for univariate, ``two`` for bivariate; each of these commands accept ``.json`` files from ``fit`` and ``test`` steps).
+
 ```
 python precimed/mixer_figures.py one --json <out_file>.json --out <out_file>
 python precimed/mixer_figures.py two --json <out_file>.json --out <out_file>
+python precimed/mixer_figures.py two --json-fit <out_file_fit>.json --json-test <out_file_test>.json --out <out_file>
 ```
+
+For the ``two`` command, instead of ``--json``, it is possible to specify ``--json-fit`` and ``--json-test`` separately.
+This allows to combine negative log-likelihood plot (available in fit2 only) and QQ plots (available in test2 only).
+Note that all ``--json`` accept wildcards (``*``) or a list of multiple files. This allows to generate ``.csv`` tables
+containing results from multiple MiXeR runs. 
 
 ### MiXeR results format
 

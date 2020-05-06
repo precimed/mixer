@@ -320,7 +320,9 @@ def parser_one_add_arguments(args, func, parser):
     parser.set_defaults(func=func)
 
 def parser_two_add_arguments(args, func, parser):
-    parser.add_argument('--json', type=str, default=[""], nargs='+', help="json file from cross-trait analysis")    
+    parser.add_argument('--json', type=str, default=[], nargs='*', help="json file from cross-trait analysis")
+    parser.add_argument('--json-fit', type=str, default="", help="json file from univariate analysis (fit2 step)")
+    parser.add_argument('--json-test', type=str, default="", help="json file from univariate analysis (test2 step)")
     parser.add_argument('--trait1', type=str, default="trait1", help="name of the first trait")    
     parser.add_argument('--trait2', type=str, default="trait2", help="name of the second trait")    
     parser.add_argument('--trait1-file', type=str, default=None, help="summary statistics file for the first trait")    
@@ -344,6 +346,9 @@ def parse_args(args):
 
 def execute_two_parser(args):
     df_data = {}
+
+    if len(args.json) == 0: args.json = [x for x in [args.json_fit, args.json_test] if x]
+
     files = glob.glob(args.json[0]) if (len(args.json) == 1) else args.json
     if len(files) == 0: raise(ValueError('no files detected, check --json {}'.format(args.json)))
     print('generate {}.csv from {} json files...'.format(args.out, len(files)))
@@ -385,13 +390,18 @@ def execute_two_parser(args):
     pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
     print('Done.')
 
-    if len(files) > 1:
-        print('--json argument lists multiple files is a wild-card (contains *), skip figures generation')
+    if args.json_fit and args.json_test:
+        data_fit = json.loads(open(args.json_fit).read())
+        data_test = json.loads(open(args.json_test).read())
+    elif len(files) == 1:
+        data_fit = json.loads(open(files[0]).read())
+        data_test = data_fit
+    else:
+        print('--json argument lists multiple files or is a wild-card (contains *), skip figures generation')
         return
 
-    data = json.loads(open(args.json[0]).read())
-    if 'qqplot' not in data:
-        print('Skip generating stratified QQ plots, data not available. Did you include --qq-plots in your "python mixer.py fit" command?')
+    if 'qqplot' not in data_test:
+        print('Skip generating stratified QQ plots, data not available.')
 
     if args.trait1_file and args.trait2_file:
         df1 = pd.read_table(args.trait1_file, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
@@ -399,21 +409,21 @@ def execute_two_parser(args):
         df = merge_z_vs_z(df1, df2)
 
         plt.figure(figsize=[12, 6])
-        plt.subplot(2,4,1); make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
-        if 'qqplot' in data:
-            plt.subplot(2,4,2); make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
-            plt.subplot(2,4,3); make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
-        plt.subplot(2,4,4); plot_likelihood(data)
-        plt.subplot(2,4,5); plot_causal_density(data, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,1); make_venn_plot(data_fit, flip=False, traits=[args.trait1, args.trait2])
+        if 'qqplot' in data_test:
+            plt.subplot(2,4,2); make_strat_qq_plots(data_test, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(2,4,3); make_strat_qq_plots(data_test, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
+        plt.subplot(2,4,4); plot_likelihood(data_fit)
+        plt.subplot(2,4,5); plot_causal_density(data_test, traits=[args.trait1, args.trait2])
         plt.subplot(2,4,6); plot_z_vs_z_data(df, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
-        plt.subplot(2,4,7); plot_predicted_zscore(data, len(df), plot_limits=args.zmax, flip=False, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,7); plot_predicted_zscore(data_test, len(df), plot_limits=args.zmax, flip=False, traits=[args.trait1, args.trait2])
     else:
         plt.figure(figsize=[12, 3])
-        plt.subplot(1,4,1); make_venn_plot(data, flip=False, traits=[args.trait1, args.trait2])
-        if 'qqplot' in data:
-            plt.subplot(1,4,2); make_strat_qq_plots(data, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
-            plt.subplot(1,4,3); make_strat_qq_plots(data, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
-        plt.subplot(1,4,4); plot_likelihood(data)
+        plt.subplot(1,4,1); make_venn_plot(data_fit, flip=False, traits=[args.trait1, args.trait2])
+        if 'qqplot' in data_test:
+            plt.subplot(1,4,2); make_strat_qq_plots(data_test, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(1,4,3); make_strat_qq_plots(data_test, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
+        plt.subplot(1,4,4); plot_likelihood(data_fit)
         
     for ext in args.ext:
         plt.savefig(args.out + '.' + ext, bbox_inches='tight')

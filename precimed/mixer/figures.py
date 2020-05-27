@@ -157,7 +157,7 @@ def merge_z_vs_z(df1, df2):
     df = df.drop(['A1', 'A1x', 'A2', 'A2x'], axis=1)
     return df
 
-def plot_z_vs_z_data(df, traits=['Trait1', 'Trait2'], plot_limits=15, bins=100):
+def plot_z_vs_z_data(df, flip=False, traits=['Trait1', 'Trait2'], plot_limits=15, bins=100):
     '''
         # input can be generated as follows:
         import pandas as pd
@@ -166,7 +166,8 @@ def plot_z_vs_z_data(df, traits=['Trait1', 'Trait2'], plot_limits=15, bins=100):
         df = precimed.mixer.figures.merge_z_vs_z(df1, df2)
     '''
     plot_extent = [-plot_limits, plot_limits, -plot_limits, plot_limits]
-    z, _, _ = np.histogram2d(df['Z2'], df['Z1'], bins=bins, range=[[-plot_limits, plot_limits], [-plot_limits, plot_limits]])
+    z1name, z2name = ('Z2', 'Z1') if flip else ('Z1', 'Z2')
+    z, _, _ = np.histogram2d(df[z2name], df[z1name], bins=bins, range=[[-plot_limits, plot_limits], [-plot_limits, plot_limits]])
     im=plt.imshow(np.maximum(1,z),interpolation='none', origin='lower', cmap='hot', norm=matplotlib.colors.LogNorm(), vmin=1, vmax=1e4,extent=plot_extent)
     plt.xlabel('$z_{'+traits[0]+'}$')
     plt.ylabel('$z_{'+traits[1]+'}$')
@@ -327,6 +328,7 @@ def parser_two_add_arguments(args, func, parser):
     parser.add_argument('--trait2', type=str, default="trait2", help="name of the second trait")    
     parser.add_argument('--trait1-file', type=str, default=None, help="summary statistics file for the first trait")    
     parser.add_argument('--trait2-file', type=str, default=None, help="summary statistics file for the second trait")    
+    parser.add_argument('--flip', default=False, action="store_true", help="flip venn diagram and stratified QQ plots. Note that this arguments does not apply to --trait1 and --trait2 arguments.")
     parser.set_defaults(func=func)
 
 def parse_args(args):
@@ -409,20 +411,20 @@ def execute_two_parser(args):
         df = merge_z_vs_z(df1, df2)
 
         plt.figure(figsize=[12, 6])
-        plt.subplot(2,4,1); make_venn_plot(data_fit, flip=False, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2])
         if 'qqplot' in data_test:
-            plt.subplot(2,4,2); make_strat_qq_plots(data_test, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
-            plt.subplot(2,4,3); make_strat_qq_plots(data_test, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
+            plt.subplot(2,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(2,4,3); make_strat_qq_plots(data_test, flip=(not args.flip), traits=[args.trait2, args.trait1], do_legend=True)
         plt.subplot(2,4,4); plot_likelihood(data_fit)
-        plt.subplot(2,4,5); plot_causal_density(data_test, traits=[args.trait1, args.trait2])
-        plt.subplot(2,4,6); plot_z_vs_z_data(df, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
-        plt.subplot(2,4,7); plot_predicted_zscore(data_test, len(df), plot_limits=args.zmax, flip=False, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,5); plot_causal_density(data_test, flip=args.flip, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,6); plot_z_vs_z_data(df, flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,7); plot_predicted_zscore(data_test, len(df), flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
     else:
         plt.figure(figsize=[12, 3])
-        plt.subplot(1,4,1); make_venn_plot(data_fit, flip=False, traits=[args.trait1, args.trait2])
+        plt.subplot(1,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2])
         if 'qqplot' in data_test:
-            plt.subplot(1,4,2); make_strat_qq_plots(data_test, flip=False, traits=[args.trait1, args.trait2], do_legend=False)
-            plt.subplot(1,4,3); make_strat_qq_plots(data_test, flip=True, traits=[args.trait2, args.trait1], do_legend=True)
+            plt.subplot(1,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(1,4,3); make_strat_qq_plots(data_test, flip=(not args.flip), traits=[args.trait2, args.trait1], do_legend=True)
         plt.subplot(1,4,4); plot_likelihood(data_fit)
         
     for ext in args.ext:

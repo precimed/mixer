@@ -328,7 +328,9 @@ def parser_two_add_arguments(args, func, parser):
     parser.add_argument('--trait2', type=str, default="trait2", help="name of the second trait")    
     parser.add_argument('--trait1-file', type=str, default=None, help="summary statistics file for the first trait")    
     parser.add_argument('--trait2-file', type=str, default=None, help="summary statistics file for the second trait")    
-    parser.add_argument('--flip', default=False, action="store_true", help="flip venn diagram and stratified QQ plots. Note that this arguments does not apply to --trait1 and --trait2 arguments.")
+    parser.add_argument('--trait1-color', type=int, default=0, choices=list(range(9)), help="color for the venn diagram (first trait); 0-8, encoded as tab10 color palette (https://matplotlib.org/3.1.1/tutorials/colors/colormaps.html) excluding grey code which is reserved the polygenic overlap")    
+    parser.add_argument('--trait2-color', type=int, default=1, choices=list(range(9)), help="color for the venn diagram (second trait)")    
+    parser.add_argument('--flip', default=False, action="store_true", help="flip venn diagram and stratified QQ plots. Note that this arguments does not apply to --trait1 and --trait2 arguments (as well as to --trait1-color and --trait2-color).")
     parser.set_defaults(func=func)
 
 def parse_args(args):
@@ -411,7 +413,7 @@ def execute_two_parser(args):
         df = merge_z_vs_z(df1, df2)
 
         plt.figure(figsize=[12, 6])
-        plt.subplot(2,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2], colors=[args.trait1_color, args.trait2_color])
         if 'qqplot' in data_test:
             plt.subplot(2,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=False)
             plt.subplot(2,4,3); make_strat_qq_plots(data_test, flip=(not args.flip), traits=[args.trait2, args.trait1], do_legend=True)
@@ -421,7 +423,7 @@ def execute_two_parser(args):
         plt.subplot(2,4,7); plot_predicted_zscore(data_test, len(df), flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
     else:
         plt.figure(figsize=[12, 3])
-        plt.subplot(1,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2])
+        plt.subplot(1,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2], colors=[args.trait1_color, args.trait2_color])
         if 'qqplot' in data_test:
             plt.subplot(1,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=False)
             plt.subplot(1,4,3); make_strat_qq_plots(data_test, flip=(not args.flip), traits=[args.trait2, args.trait1], do_legend=True)

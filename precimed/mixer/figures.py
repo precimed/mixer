@@ -381,15 +381,15 @@ def execute_two_parser(args):
             best_cost = data['optimize'][-1][1]['fun']
             cost_n = data['options']['sum_weights']
             df_diff = -1  # fitting polygenic overlap require 1 extra parameter
-            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_BIC', np.log(cost_n) * df_diff + 2 * (min_overlap - best_cost))
             insert_key_to_dictionary_as_list(df_data, 'best_vs_min_AIC',              2 * df_diff + 2 * (min_overlap - best_cost))
-            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_BIC', np.log(cost_n) * df_diff + 2 * (max_overlap - best_cost))
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_BIC', np.log(cost_n) * df_diff + 2 * (min_overlap - best_cost))
             insert_key_to_dictionary_as_list(df_data, 'best_vs_max_AIC',              2 * df_diff + 2 * (max_overlap - best_cost))
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_BIC', np.log(cost_n) * df_diff + 2 * (max_overlap - best_cost))
         else:
-            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_BIC', None)
             insert_key_to_dictionary_as_list(df_data, 'best_vs_min_AIC', None)
-            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_BIC', None)
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_BIC', None)
             insert_key_to_dictionary_as_list(df_data, 'best_vs_max_AIC', None)
+            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_BIC', None)
 
     pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
     print('Done.')

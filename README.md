@@ -295,4 +295,8 @@ The minimum is obtained at ``n=1.3K`` shared causal variants - that's our ``best
 
 ![GIANT_HEIGHT_2018_UKB_vs_PGC_BIP_2016 json](https://user-images.githubusercontent.com/13171449/83339454-469edb00-a2ce-11ea-9e69-99270d94689f.png)
 
+TBD:
+* add an example where the best is worse than min/max or both?
+* add axis labels to the figures
+
 

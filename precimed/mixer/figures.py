@@ -374,6 +374,10 @@ def execute_two_parser(args):
         insert_key_to_dictionary_as_list(df_data, 'trait2', trait2)
         for k in keys: insert_key_to_dictionary_as_list(df_data, k, data['ci'][k]['point_estimate'])
 
+        rho_beta = data['ci']['rho_beta']['point_estimate']
+        fraction_concordant_within_shared = 2 * multivariate_normal([0, 0], [[1, rho_beta], [rho_beta, 1]]).cdf([0, 0])
+        insert_key_to_dictionary_as_list(df_data, 'fraction_concordant_within_shared', fraction_concordant_within_shared)
+
         brute1_results = extract_brute1_results(data)
         if brute1_results:
             min_overlap = brute1_results['Jout'][0]

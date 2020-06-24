@@ -242,8 +242,11 @@ def plot_likelihood(data):
     if (not like_x) or (not like_y):
         print('--json argument does not contain brute1 optimization results, skip likelihood plot generation')
         return
-    plt.plot(np.array(like_x)/1000, like_y)
+    plt.plot(np.array(like_x)/1000, like_y - np.min(like_y))
     #plt.title('cost={}'.format(data['optimize'][-1][1]['fun']))
+    plt.title('-log(L) + const')
+    #plt.xlabel('n12')
+    #plt.ylabel('-log(L)')
 
 def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
     if colors is None: colors = list(range(0, len(data_vec)))
@@ -314,23 +317,23 @@ class LoadFromFile (argparse.Action):
                 setattr(namespace, k, v)
 
 def parser_one_add_arguments(args, func, parser):
-    parser.add_argument('--json', type=str, default=[""], nargs='+', help="json file from univariate analysis")    
+    parser.add_argument('--json', type=str, default=[""], nargs='+', help="json file from a univariate analysis. This argument does support wildcards (*) or a list with multiple space-separated arguments to process more than one .json file. This allows to generate a combined .csv table across many traits.")
     parser.add_argument('--trait1', type=str, default=[], nargs='+', help="name of the first trait")
     parser.add_argument('--power-thresh', type=str, default=None, help="threshold for power analysis, e.g. 0.9 or 0.5, to estimate corresponding N")
     parser.add_argument('--power-figsize', type=float, nargs='+', default=[], help="figure size for power plots")
     parser.set_defaults(func=func)
 
 def parser_two_add_arguments(args, func, parser):
-    parser.add_argument('--json', type=str, default=[], nargs='*', help="json file from cross-trait analysis")
-    parser.add_argument('--json-fit', type=str, default="", help="json file from univariate analysis (fit2 step)")
-    parser.add_argument('--json-test', type=str, default="", help="json file from univariate analysis (test2 step)")
+    parser.add_argument('--json', type=str, default=[], nargs='*', help="json file from a bivariate analysis, i.e. either 'mixer.py fit2' or 'mixer.py test2' step. This argument does support wildcards (*) to process multiple .json files (this allows to generate a combined .csv table across many cross-trait combinations, but it doesn't generate figures; to generate figures, use --json on a single file, or alternatively use --json-fit and --json-test. ")
+    parser.add_argument('--json-fit', type=str, default="", help="json file from a bivariate analysis with 'mixer.py fit2' step. This argument does NOT support wildcards. Using --json-fit in conjunction with --json-test produces figures that contain both log-likelihood plots (based on fit2 results) and QQ plot (based on test2 results). When use --json-fit and --json-test, there is no need to specify --json argument. ")
+    parser.add_argument('--json-test', type=str, default="", help="json file from a bivariate analysis with 'mixer.py test2' step). This argument does NOT support wildcards.")
     parser.add_argument('--trait1', type=str, default="trait1", help="name of the first trait")    
     parser.add_argument('--trait2', type=str, default="trait2", help="name of the second trait")    
-    parser.add_argument('--trait1-file', type=str, default=None, help="summary statistics file for the first trait")    
-    parser.add_argument('--trait2-file', type=str, default=None, help="summary statistics file for the second trait")    
+    parser.add_argument('--trait1-file', type=str, default=None, help="summary statistics file for the first trait (optional parameter; use it only if you need to generate bivariate z-vs-z density plots)")    
+    parser.add_argument('--trait2-file', type=str, default=None, help="summary statistics file for the second trait (optional parameter; see comment for --trait1-file")    
     parser.add_argument('--trait1-color', type=int, default=0, choices=list(range(9)), help="color for the venn diagram (first trait); 0-8, encoded as tab10 color palette (https://matplotlib.org/3.1.1/tutorials/colors/colormaps.html) excluding grey code which is reserved the polygenic overlap")    
     parser.add_argument('--trait2-color', type=int, default=1, choices=list(range(9)), help="color for the venn diagram (second trait)")    
-    parser.add_argument('--flip', default=False, action="store_true", help="flip venn diagram and stratified QQ plots. Note that this arguments does not apply to --trait1 and --trait2 arguments (as well as to --trait1-color and --trait2-color).")
+    parser.add_argument('--flip', default=False, action="store_true", help="flip venn diagram and stratified QQ plots. Note that this arguments does not apply to --trait1 and --trait2 arguments, not to --trait1-color and --trait2-color.")
     parser.set_defaults(func=func)
 
 def parse_args(args):
@@ -361,6 +364,9 @@ def execute_two_parser(args):
         keys = 'dice pi1 pi2 pi12 nc1@p9 nc2@p9 nc12@p9 rho_zero rho_beta rg'.split()
         try:
             data = json.loads(open(fname).read())
+            if 'dice' not in data['ci']:
+                data['ci']['dice'] = {'point_estimate' : 2 * data['ci']['pi12']['point_estimate'] / (data['ci']['pi1u']['point_estimate'] + data['ci']['pi2u']['point_estimate'])}
+
             trait1 = os.path.basename(data['options']['trait1_file']).replace('.sumstats.gz', '')
             trait2 = os.path.basename(data['options']['trait2_file']).replace('.sumstats.gz', '')
             for k in keys:   # test that all keys are available

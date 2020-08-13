@@ -28,6 +28,7 @@ from scipy.stats import multivariate_normal
 from .utils import BivariateParametrization_constUNIVARIATE_constRG_constRHOZERO
 from .utils import _calculate_bivariate_uncertainty_funcs
 from .utils import BivariateParams
+from .utils import NumpyEncoder
 
 __version__ = '1.2.0'
 MASTHEAD = "***********************************************************************\n"
@@ -63,17 +64,18 @@ def make_qq_plot(qq, ci=True, ylim=7.3, xlim=7.3):
     hNull = plt.plot(hv_logp, hv_logp, 'k--')
     plt.ylim(0, ylim); plt.xlim(0, xlim)
 
-def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], colors=[0, 1], max_size=None, formatter=None):
+def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], colors=[0, 1], max_size=None, formatter=None, statistic=["point_estimate"]):
     cm = plt.cm.get_cmap('tab10')
 
     if factor=='K': scale_factor=1000
     elif factor=='': scale_factor=1
     else: raise(ValueError('Unknow factor: {}'.format(factor)))
 
-    n1 = data['ci']['nc1@p9']['point_estimate']/scale_factor; n1_se = None
-    n2 = data['ci']['nc2@p9']['point_estimate']/scale_factor; n2_se = None
-    n12 = data['ci']['nc12@p9']['point_estimate']/scale_factor; n12_se = None
-    rg = data['ci']['rg']['point_estimate']
+    with_std = (len(statistic) > 1)
+    n1 = data['ci']['nc1@p9'][statistic[0]]/scale_factor; n1_se = data['ci']['nc1@p9'][statistic[1]]/scale_factor if with_std else None
+    n2 = data['ci']['nc2@p9'][statistic[0]]/scale_factor; n2_se = data['ci']['nc2@p9'][statistic[1]]/scale_factor if with_std else None
+    n12 = data['ci']['nc12@p9'][statistic[0]]/scale_factor; n12_se = data['ci']['nc12@p9'][statistic[1]]/scale_factor if with_std else None
+    rg = data['ci']['rg'][statistic[0]]
 
     if max_size is None: max_size = n1+n2+n12
     if flip: n1, n2 = n2, n1; n1_se, n2_se = n2_se, n1_se
@@ -197,11 +199,15 @@ def plot_predicted_zscore(data, num_snps, flip=False, traits=['Trait1', 'Trait2'
     plt.ylabel('$\\hat z_{'+traits[1]+'}$')
     plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
 
-def plot_causal_density(data, flip=False, traits=['Trait1', 'Trait2'], vmax=1e3, plot_limits=0.025):
-    params = data['params']
-    sb1, sb2 = params['sig2_beta'][0], params['sig2_beta'][1]
-    pi1, pi2, pi12 = tuple(params['pi'])
-    rho = max(min(params['rho_beta'], 0.98), -0.98)
+def plot_causal_density(data, flip=False, traits=['Trait1', 'Trait2'], vmax=1e3, plot_limits=0.025, statistic=['point_estimate']):
+    if statistic[0] not in ['point_estimate', 'mean', 'median']:
+        print('Unable to make plot_causal_density() for statistic=={}'.format(statistic[0]))
+    sb1 = data['ci']['sig2_beta_T1'][statistic[0]]
+    sb2 = data['ci']['sig2_beta_T2'][statistic[0]]
+    pi1 = data['ci']['pi1'][statistic[0]]
+    pi2 = data['ci']['pi2'][statistic[0]]
+    pi12 = data['ci']['pi12'][statistic[0]]
+    rho = max(min(data['ci']['rho_beta'][statistic[0]], 0.98), -0.98)
     cov = rho * np.sqrt(sb1*sb2)
     factor = 1; sb_null = 1e-7
     rv1 = multivariate_normal([0, 0], [[sb1, 0], [0, sb_null]])
@@ -238,15 +244,24 @@ def extract_likelihood_function(data):
     return [dict(funcs)['nc12@p9'](parametrization.vec_to_params([x])) for x in brute1_results['grid']], brute1_results['Jout']
 
 def plot_likelihood(data):
-    like_x, like_y = extract_likelihood_function(data)
-    if (not like_x) or (not like_y):
-        print('--json argument does not contain brute1 optimization results, skip likelihood plot generation')
-        return
-    plt.plot(np.array(like_x)/1000, like_y - np.min(like_y))
-    #plt.title('cost={}'.format(data['optimize'][-1][1]['fun']))
-    plt.title('-log(L) + const')
-    #plt.xlabel('n12')
-    #plt.ylabel('-log(L)')
+    if 'likelihood' in data:
+        cm = plt.cm.get_cmap('tab10')
+        like_x = np.mean(np.array([like_x for like_x, like_y in data['likelihood']]), 0)
+        like_y = np.mean(np.array([like_y for like_x, like_y in data['likelihood']]), 0)
+        plt.plot(np.array(like_x)/1000, like_y - np.min(like_y))        
+        for like_x, like_y in data['likelihood']:
+            plt.plot(np.array(like_x)/1000, like_y - np.min(like_y), linestyle='dotted', color=cm.colors[0], alpha=0.3)
+        plt.title('-log(L) + const')
+    else:        
+        like_x, like_y = extract_likelihood_function(data)
+        if (not like_x) or (not like_y):
+            print('--json argument does not contain brute1 optimization results, skip likelihood plot generation')
+            return
+        plt.plot(np.array(like_x)/1000, like_y - np.min(like_y))
+        #plt.title('cost={}'.format(data['optimize'][-1][1]['fun']))
+        plt.title('-log(L) + const')
+        #plt.xlabel('n12')
+        #plt.ylabel('-log(L)')
 
 def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
     if colors is None: colors = list(range(0, len(data_vec)))
@@ -272,6 +287,7 @@ def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
         display_n = lambda x: '{}'.format(int(float('{:0.1e}'.format(x))))
         display_auto = lambda x: '{}K'.format(display_n(x/1000)) if (x < 1e6) else '{:0.1f}M'.format(x/1e6)
 
+        print('HAS POWER?', 'power_ci' in data)
         if 'power_ci' in data:
             if power_thresh is not None:
                 future_n_ci = [np.power(10, float(interp1d(data_power['svec'], np.log10(data_power['nvec']))(power_thresh))) for data_power in data['power_ci'] if data_power]
@@ -336,6 +352,11 @@ def parser_two_add_arguments(args, func, parser):
     parser.add_argument('--flip', default=False, action="store_true", help="flip venn diagram and stratified QQ plots. Note that this arguments does not apply to --trait1 and --trait2 arguments, not to --trait1-color and --trait2-color.")
     parser.set_defaults(func=func)
 
+def parser_combine_add_arguments(args, func, parser):
+    parser.add_argument('--json', type=str, default=None, help="Path to json files from mixer runs. Must not contain wildcards. Must contain '@' sign, indicating the location of the repeat index.")
+    parser.add_argument('--rep2use', type=str, default='1-20', help="Repeat indices to use, e.g. 1,2,3 or 1-4,12,16-20")
+    parser.set_defaults(func=func)
+
 def parse_args(args):
     parser = argparse.ArgumentParser(description="MiXeR visualization tools.")
 
@@ -344,10 +365,12 @@ def parse_args(args):
     parent_parser.add_argument("--out", type=str, default="mixer", help="prefix for the output files")
     parent_parser.add_argument('--ext', type=str, default=['png'], nargs='+', choices=['png', 'svg'], help="output extentions")
     parent_parser.add_argument('--zmax', type=float, default=10, help="limit for z-vs-z density plots")
+    parent_parser.add_argument('--statistic', type=str, nargs='+', default=["point_estimate"], choices=["point_estimate", "mean", "median", "std", "min", "max"], help="Which statistic to show in the tables and on the Venn diagrams. Can have multiple values. In the case of venn diagram, the first value (typically 'point_estimate' or 'mean') indicate the size of the venn diagram; the second value (optional, typically 'std') allow to include error bars on the Venn diagramm.")
 
     subparsers = parser.add_subparsers()
     parser_one_add_arguments(args=args, func=execute_one_parser, parser=subparsers.add_parser("one", parents=[parent_parser], help='produce figures for univariate analysis'))
     parser_two_add_arguments(args=args, func=execute_two_parser, parser=subparsers.add_parser("two", parents=[parent_parser], help='produce figures for cross-trait analysis'))
+    parser_combine_add_arguments(args=args, func=execute_combine_parser, parser=subparsers.add_parser("combine", parents=[parent_parser], help='combine .json files MiXeR runs (e.g. with different --extract setting)'))
 
     return parser.parse_args(args)
 
@@ -361,16 +384,20 @@ def execute_two_parser(args):
     print('generate {}.csv from {} json files...'.format(args.out, len(files)))
 
     for fname in files:
-        keys = 'dice pi1 pi2 pi12 nc1@p9 nc2@p9 nc12@p9 rho_zero rho_beta rg'.split()
+        keys = 'dice pi1 pi2 pi12 nc1@p9 nc2@p9 nc12@p9 rho_zero rho_beta rg fraction_concordant_within_shared'.split()
         try:
             data = json.loads(open(fname).read())
             if 'dice' not in data['ci']:
                 data['ci']['dice'] = {'point_estimate' : 2 * data['ci']['pi12']['point_estimate'] / (data['ci']['pi1u']['point_estimate'] + data['ci']['pi2u']['point_estimate'])}
+            if 'fraction_concordant_within_shared' not in data['ci']:
+                rho_beta = data['ci']['rho_beta']['point_estimate']
+                data['ci']['fraction_concordant_within_shared'] = {'point_estimate' : 2 * multivariate_normal([0, 0], [[1, rho_beta], [rho_beta, 1]]).cdf([0, 0])}
 
             trait1 = os.path.basename(data['options']['trait1_file']).replace('.sumstats.gz', '')
             trait2 = os.path.basename(data['options']['trait2_file']).replace('.sumstats.gz', '')
             for k in keys:   # test that all keys are available
-                val = data['ci'][k]['point_estimate']
+                for stat in args.statistic:
+                    val = data['ci'][k][stat]
         except:
             print('error reading from {}, skip'.format(fname))
             continue
@@ -378,14 +405,15 @@ def execute_two_parser(args):
         insert_key_to_dictionary_as_list(df_data, 'fname', fname)
         insert_key_to_dictionary_as_list(df_data, 'trait1', trait1)
         insert_key_to_dictionary_as_list(df_data, 'trait2', trait2)
-        for k in keys: insert_key_to_dictionary_as_list(df_data, k, data['ci'][k]['point_estimate'])
-
-        rho_beta = data['ci']['rho_beta']['point_estimate']
-        fraction_concordant_within_shared = 2 * multivariate_normal([0, 0], [[1, rho_beta], [rho_beta, 1]]).cdf([0, 0])
-        insert_key_to_dictionary_as_list(df_data, 'fraction_concordant_within_shared', fraction_concordant_within_shared)
+        for k in keys:
+            for stat in args.statistic:
+                insert_key_to_dictionary_as_list(df_data, k if (stat=="point_estimate") else "{} ({})".format(k, stat), data['ci'][k][stat])
 
         brute1_results = extract_brute1_results(data)
-        if brute1_results:
+        mskeys = 'best_vs_min_AIC best_vs_min_BIC best_vs_max_AIC best_vs_max_BIC'.split()
+        if 'modelselection' in data:
+            for mskey in mskeys: insert_key_to_dictionary_as_list(df_data, mskey, data['modelselection'][mskey])
+        elif brute1_results:
             min_overlap = brute1_results['Jout'][0]
             max_overlap = brute1_results['Jout'][-1]
             best_cost = data['optimize'][-1][1]['fun']
@@ -396,10 +424,7 @@ def execute_two_parser(args):
             insert_key_to_dictionary_as_list(df_data, 'best_vs_max_AIC',              2 * df_diff + 2 * (max_overlap - best_cost))
             insert_key_to_dictionary_as_list(df_data, 'best_vs_max_BIC', np.log(cost_n) * df_diff + 2 * (max_overlap - best_cost))
         else:
-            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_AIC', None)
-            insert_key_to_dictionary_as_list(df_data, 'best_vs_min_BIC', None)
-            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_AIC', None)
-            insert_key_to_dictionary_as_list(df_data, 'best_vs_max_BIC', None)
+            for mskey in mskeys: insert_key_to_dictionary_as_list(df_data, mskey, None)
 
     pd.DataFrame(df_data).to_csv(args.out+'.csv', index=False, sep='\t')
     print('Done.')
@@ -418,22 +443,21 @@ def execute_two_parser(args):
         print('Skip generating stratified QQ plots, data not available.')
 
     if args.trait1_file and args.trait2_file:
-        df1 = pd.read_table(args.trait1_file, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
-        df2 = pd.read_table(args.trait2_file, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
-        df = merge_z_vs_z(df1, df2)
-
         plt.figure(figsize=[12, 6])
-        plt.subplot(2,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2], colors=[args.trait1_color, args.trait2_color])
+        plt.subplot(2,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2], colors=[args.trait1_color, args.trait2_color], statistic=args.statistic)
         if 'qqplot' in data_test:
             plt.subplot(2,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=False)
             plt.subplot(2,4,3); make_strat_qq_plots(data_test, flip=(not args.flip), traits=[args.trait2, args.trait1], do_legend=True)
         plt.subplot(2,4,4); plot_likelihood(data_fit)
-        plt.subplot(2,4,5); plot_causal_density(data_test, flip=args.flip, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,5); plot_causal_density(data_test, flip=args.flip, traits=[args.trait1, args.trait2], statistic=args.statistic)
+        df1 = pd.read_table(args.trait1_file, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
+        df2 = pd.read_table(args.trait2_file, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
+        df = merge_z_vs_z(df1, df2)
         plt.subplot(2,4,6); plot_z_vs_z_data(df, flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
         plt.subplot(2,4,7); plot_predicted_zscore(data_test, len(df), flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
     else:
         plt.figure(figsize=[12, 3])
-        plt.subplot(1,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2], colors=[args.trait1_color, args.trait2_color])
+        plt.subplot(1,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2], colors=[args.trait1_color, args.trait2_color], statistic=args.statistic)
         if 'qqplot' in data_test:
             plt.subplot(1,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=False)
             plt.subplot(1,4,3); make_strat_qq_plots(data_test, flip=(not args.flip), traits=[args.trait2, args.trait1], do_legend=True)
@@ -448,6 +472,140 @@ def insert_key_to_dictionary_as_list(df_data, key, value):
         df_data[key] = []
     df_data[key].append(value)
 
+def parse_val2use(val2use_arg):
+    val2use = []
+    for a in val2use_arg.split(","):
+        if "-" in a:
+            start, end = [int(x) for x in a.split("-")]
+            val2use += [str(x) for x in range(start, end+1)]
+        else:
+            val2use.append(a.strip())
+    if np.any([not x.isdigit() for x in val2use]): raise ValueError('Value labels must be integer: {}'.format(val2use_arg))
+    return val2use
+
+'''
+python ~/github/mixer/precimed/mixer_figures.py combine --json PGC_SCZ_2014_EUR.fit.rep@.json  --out combined/PGC_SCZ_2014_EUR.fit
+python ~/github/mixer/precimed/mixer_figures.py one --json combined/PGC_SCZ_2014_EUR.fit.json  --out combined/PGC_SCZ_2014_EUR.fit
+
+python ~/github/mixer/precimed/mixer_figures.py combine --json PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.fit.rep@.json  --out combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.fit
+python ~/github/mixer/precimed/mixer_figures.py combine --json PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.test.rep@.json  --out combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.test
+python ~/github/mixer/precimed/mixer_figures.py two --json-fit combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.fit.json --json-test combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.test.json --out combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016 --statistic median std
+'''
+
+def execute_combine_parser(args):
+    args.rep2use = parse_val2use(args.rep2use)
+    failed_indices = []
+    data_vec = []
+    for rep in args.rep2use:
+        try:
+            data = json.loads(open(args.json.replace('@', str(rep)), 'r').read())
+            if data:
+                data_vec.append(data)
+        except:
+            failed_indices.append(rep)
+    if failed_indices: print('WARNING: results for {} runs are missing (rep {})'.format(len(failed_indices), ' '.join(failed_indices)))
+    
+    results = {'ci':{}, 'options':{}}
+
+    for key in ['totalhet', 'num_snp']:
+        values = [data['options'][key] for data in data_vec]
+        results['options'][key] = np.mean(values)   
+
+    for key in ['trait1_file', 'trait2_file', 'trait1_nval', 'trait2_nval']:
+        values = [data['options'][key] for data in data_vec if (key in data['options'])]
+        if not values: continue
+        if len(set(values)) > 1: raise(ValueError('Input files have distinct value in "{}" field: {}'.format(key, ' '.join(set(values)))))
+        results['options'][key] = values[0]
+
+    values = [data['analysis'] for data in data_vec]
+    if len(set(values)) > 1: raise(ValueError('Input files have distinct value in "analysis" field: {}'.format(' '.join(set(values)))))
+    results['analysis'] = values[0]
+
+    univariate_keys = ['pi', 'nc', 'nc@p9', 'sig2_beta', 'sig2_zero', 'h2']
+    bivariate_keys = ['sig2_zero_T1', 'sig2_zero_T2', 'sig2_beta_T1', 'sig2_beta_T2', 'h2_T1', 'h2_T2', 'rho_zero', 'rho_beta', 'rg', 'pi1', 'pi2', 'pi12', 'pi1u', 'pi2u', 'dice', 'nc1', 'nc2', 'nc12', 'nc1u', 'nc2u', 'nc1@p9', 'nc2@p9', 'nc12@p9', 'nc1u@p9', 'nc2u@p9', 'totalpi', 'totalnc', 'totalnc@p9', 'pi1_over_totalpi', 'pi2_over_totalpi', 'pi12_over_totalpi', 'pi1_over_pi1u', 'pi2_over_pi2u', 'pi12_over_pi1u', 'pi12_over_pi2u', 'pi1u_over_pi2u', 'pi2u_over_pi1u']
+    for key in (univariate_keys + bivariate_keys):
+        values = [data['ci'][key]['point_estimate'] for data in data_vec if (key in data['ci'])]
+        if values: results['ci'][key] = {'mean': np.mean(values), 'median':np.median(values), 'std': np.std(values), 'min': np.min(values), 'max': np.max(values)}
+        if values and (key=='rho_beta'):
+            fraction_concordant_within_shared = [2 * multivariate_normal([0, 0], [[1, rho_beta], [rho_beta, 1]]).cdf([0, 0]) for rho_beta in values]
+            results['ci']['fraction_concordant_within_shared'] = {'mean': np.mean(values), 'median':np.median(values), 'std': np.std(values), 'min': np.min(values), 'max': np.max(values)}
+
+    if results['analysis'] == 'bivariate':
+        for data in data_vec:
+            like_x, like_y = extract_likelihood_function(data)
+            if (not like_x) or (not like_y): continue
+            if 'likelihood' not in results: results['likelihood'] = []
+            results['likelihood'].append((like_x, like_y))
+
+    combine_qqplots = lambda qqplots: {
+        'hv_logp':np.mean(np.array([np.array(qq['hv_logp']).astype(float) for qq in qqplots]), 0),
+        'data_logpvec':np.mean(np.array([np.array(qq['data_logpvec']).astype(float) for qq in qqplots]), 0),
+        'model_logpvec':np.mean(np.array([np.array(qq['model_logpvec']).astype(float) for qq in qqplots]), 0),
+        'sum_data_weights':np.mean(np.array([np.array(qq['sum_data_weights']).astype(float) for qq in qqplots]), 0)
+    }
+
+    qqplots = [data['qqplot'] for data in data_vec if ('qqplot' in data)]
+    if qqplots:
+        if results['analysis'] == 'univariate':
+            results['qqplot'] = combine_qqplots(qqplots)
+        elif results['analysis'] == 'bivariate':
+            num_plots = len(qqplots[0])
+            results['qqplot'] = []
+            for index in range(num_plots):
+                results['qqplot'].append(combine_qqplots([qq[index] for qq in qqplots]))
+
+    if results['analysis'] == 'bivariate':
+        best_vs_min_AIC = [];         best_vs_min_BIC = []
+        best_vs_max_AIC = [];         best_vs_max_BIC = []
+        for data in data_vec:
+            brute1_results = extract_brute1_results(data)
+            if not brute1_results: continue
+            min_overlap = brute1_results['Jout'][0]
+            max_overlap = brute1_results['Jout'][-1]
+            best_cost = data['optimize'][-1][1]['fun']
+            cost_n = data['options']['sum_weights']
+            df_diff = -1  # fitting polygenic overlap require 1 extra parameter
+            best_vs_min_AIC.append(              2 * df_diff + 2 * (min_overlap - best_cost))
+            best_vs_min_BIC.append( np.log(cost_n) * df_diff + 2 * (min_overlap - best_cost))
+            best_vs_max_AIC.append(              2 * df_diff + 2 * (max_overlap - best_cost))
+            best_vs_max_BIC.append( np.log(cost_n) * df_diff + 2 * (max_overlap - best_cost))
+        results['modelselection'] = {
+            'best_vs_min_AIC' : np.mean(best_vs_min_AIC) if best_vs_min_AIC else None, 
+            'best_vs_min_BIC' : np.mean(best_vs_min_BIC) if best_vs_min_BIC else None, 
+            'best_vs_max_AIC' : np.mean(best_vs_max_AIC) if best_vs_max_AIC else None, 
+            'best_vs_max_BIC' : np.mean(best_vs_max_BIC) if best_vs_max_BIC else None
+        }
+
+    if results['analysis'] == 'univariate':
+        AIC = []; BIC = []
+        for data in data_vec:        
+            try:
+                aic_diff = data['inft_optimize'][-1][1]['AIC'] - data['optimize'][-1][1]['AIC']
+                bic_diff = data['inft_optimize'][-1][1]['BIC'] - data['optimize'][-1][1]['BIC']
+            except:
+                continue
+            AIC.append(aic_diff)
+            BIC.append(bic_diff)
+        results['modelselection'] = {
+            'mixture_vs_inft_AIC' : np.mean(AIC) if AIC else None, 
+            'mixture_vs_inft_BIC' : np.mean(BIC) if BIC else None, 
+        }
+
+    data_pdf_vec = [np.array(data['pdf']) for data in data_vec if ('pdf' in data)]
+    if data_pdf_vec: results['pdf'] = np.mean(np.array(data_pdf_vec), 0)
+    data_pdf_zgrid_vec = [np.array(data['pdf_zgrid']) for data in data_vec if ('pdf_zgrid' in data)]
+    if data_pdf_zgrid_vec: results['pdf_zgrid'] = np.mean(np.array(data_pdf_zgrid_vec), 0)
+
+    data_power = [data['power'] for data in data_vec if ('power' in data)]
+    if data_power:
+        results['power_ci'] = data_power
+        results['power'] = {}
+        results['power']['svec'] = np.mean(np.array([np.array(power['svec']).astype(float) for power in data_power]), 0)
+        results['power']['nvec'] = np.mean(np.array([np.array(power['nvec']).astype(float) for power in data_power]), 0)
+
+    with open(args.out + '.json', 'w') as outfile:
+        json.dump(results, outfile, cls=NumpyEncoder)
+
 def execute_one_parser(args):
     df_data = {}
     files = glob.glob(args.json[0]) if (len(args.json) == 1) else args.json
@@ -458,21 +616,27 @@ def execute_one_parser(args):
         try:
             data = json.loads(open(fname).read())
             for k in keys:   # test that all keys are available
-                val = data['ci'][k]['point_estimate']
-                val = data['inft_optimize'][-1][1]['AIC'] 
-                val = data['optimize'][-1][1]['AIC']
-                val = data['inft_optimize'][-1][1]['BIC'] 
-                val = data['optimize'][-1][1]['BIC']
+                for stat in args.statistic:
+                    val = data['ci'][k][stat]
         except:
             print('error reading from {}, skip'.format(fname))
             continue
 
         insert_key_to_dictionary_as_list(df_data, 'fname', fname)
         for k in keys:
-            insert_key_to_dictionary_as_list(df_data, k, data['ci'][k]['point_estimate'])
+            for stat in args.statistic:
+                insert_key_to_dictionary_as_list(df_data, k if (stat=="point_estimate") else "{} ({})".format(k, stat), data['ci'][k][stat])
 
-        aic_diff = data['inft_optimize'][-1][1]['AIC'] - data['optimize'][-1][1]['AIC']
-        bic_diff = data['inft_optimize'][-1][1]['BIC'] - data['optimize'][-1][1]['BIC']
+        aic_diff = None; bic_diff = None
+        if 'modelselection' in data:
+            aic_diff = data['modelselection']['mixture_vs_inft_AIC']
+            bic_diff = data['modelselection']['mixture_vs_inft_BIC']
+        else:
+            try:
+                aic_diff = data['inft_optimize'][-1][1]['AIC'] - data['optimize'][-1][1]['AIC']
+                bic_diff = data['inft_optimize'][-1][1]['BIC'] - data['optimize'][-1][1]['BIC']
+            except:
+                pass
         insert_key_to_dictionary_as_list(df_data, 'AIC', aic_diff)
         insert_key_to_dictionary_as_list(df_data, 'BIC', bic_diff)
         

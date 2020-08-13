@@ -511,11 +511,16 @@ def execute_combine_parser(args):
         values = [data['options'][key] for data in data_vec]
         results['options'][key] = np.mean(values)   
 
-    for key in ['trait1_file', 'trait2_file', 'trait1_nval', 'trait2_nval']:
+    for key in ['trait1_file', 'trait2_file']:
         values = [data['options'][key] for data in data_vec if (key in data['options'])]
         if not values: continue
         if len(set(values)) > 1: raise(ValueError('Input files have distinct value in "{}" field: {}'.format(key, ' '.join(set(values)))))
         results['options'][key] = values[0]
+
+    for key in ['trait1_nval', 'trait2_nval']:
+        values = [data['options'][key] for data in data_vec if (key in data['options'])]
+        if not values: continue
+        results['options'][key] = np.mean(values)
 
     values = [data['analysis'] for data in data_vec]
     if len(set(values)) > 1: raise(ValueError('Input files have distinct value in "analysis" field: {}'.format(' '.join(set(values)))))

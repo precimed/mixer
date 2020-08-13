@@ -186,6 +186,15 @@ cd /cluster/projects/p33/users/ofrei/no-backup/software/boost_1_69_0
 ./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --clean && ./b2 --j12 -a
 ```
 
+**Build on TSD (MoBa)**
+```
+# download Boost, build it from source
+module load CMake/3.15.3-GCCcore-8.3.0
+module load Python/3.7.4-GCCcore-8.3.0
+cd /cluster/p/p697/cluster/ofrei/no-backup/software/boost_1_73_0
+./bootstrap.sh --with-libraries=program_options,filesystem,system,date_time && ./b2 --clean && ./b2 --j12 -a
+```
+
 **Build on Saga**
 
 ```

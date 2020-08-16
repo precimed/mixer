@@ -503,7 +503,7 @@ def execute_combine_parser(args):
                 data_vec.append(data)
         except:
             failed_indices.append(rep)
-    if failed_indices: print('WARNING: results for {} runs are missing (rep {})'.format(len(failed_indices), ' '.join(failed_indices)))
+    if failed_indices: print('WARNING: {}: results for {} runs are missing (rep {})'.format(args.out, len(failed_indices), ' '.join(failed_indices)))
     
     results = {'ci':{}, 'options':{}}
 

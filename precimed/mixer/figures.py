@@ -516,7 +516,7 @@ def execute_combine_parser(args):
                 data_vec.append(data)
         except:
             failed_indices.append(rep)
-    if failed_indices: print('WARNING: results for {} runs are missing (rep {})'.format(len(failed_indices), ' '.join(failed_indices)))
+    if failed_indices: print('WARNING: {}: results for {} runs are missing (rep {})'.format(args.out, len(failed_indices), ' '.join(failed_indices)))
     
     results = {'ci':{}, 'options':{}}
 
@@ -545,7 +545,7 @@ def execute_combine_parser(args):
         values = [data['ci'][key]['point_estimate'] for data in data_vec if (key in data['ci'])]
         if values: results['ci'][key] = {'mean': np.mean(values), 'median':np.median(values), 'std': np.std(values), 'min': np.min(values), 'max': np.max(values)}
         if values and (key=='rho_beta'):
-            fraction_concordant_within_shared = [2 * multivariate_normal([0, 0], [[1, rho_beta], [rho_beta, 1]]).cdf([0, 0]) for rho_beta in values]
+            values = [2 * multivariate_normal([0, 0], [[1, rho_beta], [rho_beta, 1]]).cdf([0, 0]) for rho_beta in values]
             results['ci']['fraction_concordant_within_shared'] = {'mean': np.mean(values), 'median':np.median(values), 'std': np.std(values), 'min': np.min(values), 'max': np.max(values)}
 
     if results['analysis'] == 'bivariate':

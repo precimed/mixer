@@ -115,6 +115,8 @@ def make_strat_qq_plots(data, flip=False, traits=['Trait1', 'Trait2'], do_legend
         hModel = plt.plot(data['qqplot'][i]['model_logpvec'], data['qqplot'][i]['hv_logp'], color=cm.colors[i % 4], linestyle='dashed')
     plt.ylim(0, 7.3); plt.xlim(0, 7.3); 
     plt.title('{} | {}'.format(traits[0], traits[1]))
+    plt.xlabel('Expected -$log_{{10}}(p_{{{}}})$'.format(traits[0]))
+    plt.ylabel('Observed -$log_{{10}}(p_{{{}}})$'.format(traits[0]))
 
 def merge_z_vs_z(df1, df2):
     import pandas as pd
@@ -246,22 +248,31 @@ def extract_likelihood_function(data):
 def plot_likelihood(data):
     if 'likelihood' in data:
         cm = plt.cm.get_cmap('tab10')
-        like_x = np.mean(np.array([like_x for like_x, like_y in data['likelihood']]), 0)
-        like_y = np.mean(np.array([like_y for like_x, like_y in data['likelihood']]), 0)
-        plt.plot(np.array(like_x)/1000, like_y - np.min(like_y))        
+        like_x = np.array([like_x for like_x, like_y in data['likelihood']])
+        like_y = np.array([like_y for like_x, like_y in data['likelihood']])
+        like_x_min = np.min(like_x)
+        like_x_max = np.max(like_x)
+        plot_x = np.arange(like_x_min, like_x_max, (like_x_max-like_x_min) / 100)
+        plot_y = np.zeros((like_y.shape[0], len(plot_x)))
+        for i in range(like_x.shape[0]):
+            plot_y[i, :] = interp1d(like_x[i, :], like_y[i, :], bounds_error=False)(plot_x)
+            plot_y[i, :] = plot_y[i, :] - np.nanmin(plot_y[i, :])
+        plot_y_def = np.sum(np.isfinite(plot_y), 0)
+        plot_y = np.nanmean(plot_y, 0)
+        plot_y[plot_y_def < 3] = np.nan
+        plt.plot(plot_x / 1000, plot_y)
         for like_x, like_y in data['likelihood']:
             plt.plot(np.array(like_x)/1000, like_y - np.min(like_y), linestyle='dotted', color=cm.colors[0], alpha=0.3)
-        plt.title('-log(L) + const')
     else:        
         like_x, like_y = extract_likelihood_function(data)
         if (not like_x) or (not like_y):
             print('--json argument does not contain brute1 optimization results, skip likelihood plot generation')
             return
         plt.plot(np.array(like_x)/1000, like_y - np.min(like_y))
-        #plt.title('cost={}'.format(data['optimize'][-1][1]['fun']))
         plt.title('-log(L) + const')
-        #plt.xlabel('n12')
-        #plt.ylabel('-log(L)')
+    plt.xlabel('Number of causal variants')
+    plt.ylabel('-log(L) + const')
+    plt.title('Log-likelihood')
 
 def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
     if colors is None: colors = list(range(0, len(data_vec)))
@@ -455,6 +466,7 @@ def execute_two_parser(args):
         df = merge_z_vs_z(df1, df2)
         plt.subplot(2,4,6); plot_z_vs_z_data(df, flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
         plt.subplot(2,4,7); plot_predicted_zscore(data_test, len(df), flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
+        plt.tight_layout(pad=1.5)
     else:
         plt.figure(figsize=[12, 3])
         plt.subplot(1,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2], colors=[args.trait1_color, args.trait2_color], statistic=args.statistic)
@@ -462,6 +474,7 @@ def execute_two_parser(args):
             plt.subplot(1,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=False)
             plt.subplot(1,4,3); make_strat_qq_plots(data_test, flip=(not args.flip), traits=[args.trait2, args.trait1], do_legend=True)
         plt.subplot(1,4,4); plot_likelihood(data_fit)
+        plt.tight_layout(pad=1.5)
         
     for ext in args.ext:
         plt.savefig(args.out + '.' + ext, bbox_inches='tight')
@@ -489,7 +502,7 @@ python ~/github/mixer/precimed/mixer_figures.py one --json combined/PGC_SCZ_2014
 
 python ~/github/mixer/precimed/mixer_figures.py combine --json PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.fit.rep@.json  --out combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.fit
 python ~/github/mixer/precimed/mixer_figures.py combine --json PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.test.rep@.json  --out combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.test
-python ~/github/mixer/precimed/mixer_figures.py two --json-fit combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.fit.json --json-test combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.test.json --out combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016 --statistic median std
+python ~/github/mixer/precimed/mixer_figures.py two --json-fit combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.fit.json --json-test combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016.test.json --out combined/PGC_SCZ_2014_EUR_vs_PGC_BIP_2016 --statistic mean std
 '''
 
 def execute_combine_parser(args):

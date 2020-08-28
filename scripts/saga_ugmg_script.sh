@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Job name:
-#SBATCH --job-name=ofrebgmg
+#SBATCH --job-name=mixer
 #
 # Project:
 #SBATCH --account=nn9114k
@@ -13,9 +13,6 @@
 
 # Max memory usage:
 #SBATCH --mem-per-cpu=4600M
-
-# Email about job status
-#SBATCH --mail-type=ALL
 
 # Job array specification
 #SBATCH --array=1-20

@@ -30,6 +30,7 @@ source activate /cluster/home/oleksanf/py3
 
 export MIXER_ROOT=/cluster/projects/nn9114k/oleksanf/github/mixer
 export OUTDIR=/cluster/projects/nn9114k/oleksanf/saga/mixer_results/    # must end with a forward slash, /
+export SUMSTATnomhc=/cluster/projects/nn9114k/oleksanf/SUMSTAT/TMP/nomhc/
 export LDFILE=/cluster/projects/nn9114k/oleksanf/SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld
 export BIMFILE=/cluster/projects/nn9114k/oleksanf/SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim
 export EXTRACT=/cluster/projects/nn9114k/oleksanf/SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps
@@ -49,3 +50,4 @@ $PYTHON $MIXER_ROOT/precimed/mixer.py test1 \
       --out ${OUTDIR}$TRAIT.test.rep${SLURM_ARRAY_TASK_ID} \
       --lib $MIXER_ROOT/src/build/lib/libbgmg.so --threads 8 \
       --bim-file $BIMFILE --ld-file $LDFILE \
+

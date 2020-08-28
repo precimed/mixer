@@ -41,13 +41,13 @@ $PYTHON $MIXER_ROOT/precimed/mixer.py fit1 \
       --trait1-file $SUMSTATnomhc/$TRAIT.sumstats.gz \
       --out ${OUTDIR}$TRAIT.fit.rep${SLURM_ARRAY_TASK_ID} \
       --bim-file $BIMFILE --ld-file $LDFILE \
-      --lib $MIXER_ROOT/src/build/lib/libbgmg.so --threads 8 \
+      --lib $MIXER_ROOT/src/build/lib/libbgmg.so --threads 20 \
       --extract $EXTRACT \
 
 $PYTHON $MIXER_ROOT/precimed/mixer.py test1 \
       --trait1-file $SUMSTATnomhc/$TRAIT.sumstats.gz \
       --load-params-file $OUT/$TRAIT.fit.rep${SLURM_ARRAY_TASK_ID}.json \
       --out ${OUTDIR}$TRAIT.test.rep${SLURM_ARRAY_TASK_ID} \
-      --lib $MIXER_ROOT/src/build/lib/libbgmg.so --threads 8 \
+      --lib $MIXER_ROOT/src/build/lib/libbgmg.so --threads 20 \
       --bim-file $BIMFILE --ld-file $LDFILE \
 

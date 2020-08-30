@@ -43,10 +43,10 @@ ref=pd.concat([pd.read_csv(bim_file.replace('@', str(chr_label)), sep='\t', head
 
 snps_goodMAF = np.sum(mafvec>=maf_thresh)
 maf_thresh = 0.05
-r2_thresh = 0.6
+r2_thresh = 0.8
 subset = 2000000 # int(snps_goodMAF/5)
 seed = 123
-out_file = '/home/oleksanf/vmshare/data/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p6.rep@.snps'
+out_file = '/home/oleksanf/vmshare/data/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep@.snps'
 repeats = 20
 
 if seed is not None: np.random.seed(seed)

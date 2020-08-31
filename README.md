@@ -39,7 +39,7 @@ If you encounter an issue, or have further questions, please create a
 
 If you use MiXeR software for your research publication, please cite the following paper(s):
 
-* for univariate analysis: D. Holland et al., Beyond SNP Heritability: Polygenicity and Discoverability Estimated for Multiple Phenotypes with a Univariate Gaussian Mixture Model, bioXriv, doi: https://doi.org/10.1101/133132
+* for univariate analysis: D. Holland et al., Beyond SNP Heritability: Polygenicity and Discoverability Estimated for Multiple Phenotypes with a Univariate Gaussian Mixture Model, PLOS Genetics, 2020, https://doi.org/10.1371/journal.pgen.1008612
 * for cross-trait analysis: O.Frei et al., Bivariate causal mixture model quantifies polygenic overlap between complex traits beyond genetic correlation, Nature Communications, 2019, https://www.nature.com/articles/s41467-019-10310-0
 
 The MiXeR software may not be used for commercial purpose or in medical applications.
@@ -50,6 +50,7 @@ MiXeR versions:
 * ``v1.0`` - public release for Matlab
 * ``v1.1`` - internal release for Matlab and Python
 * ``v1.2`` - internal release for Python (Matlab support removed)
+* ``v1.3`` - internal release for Python (change HapMap3 to twenty random sets of ~600K SNPs each)
 
 ## Install MiXeR
 
@@ -79,8 +80,9 @@ Not available yet.
 The exact steps depend  on your build environment. 
 * If you work in HPC environment with modules system, you can load some existing combination of modules that include Boost libraries:
   ```
-  module load Boost/1.68.0-intel-2018b-Python-3.6.6 Python/3.6.6-intel-2018b CMake/3.12.1  # SAGA (intel)
-  module load Boost/1.71.0-GCC-8.3.0 Python/3.7.4-GCCcore-8.3.0 CMake/3.12.1               # SAGA (gcc)  
+  module load CMake/3.15.3-GCCcore-8.3.0 Boost/1.73.0-GCCcore-8.3.0 Python/3.7.4-GCCcore-8.3.0 # TSD (gcc)
+  module load Boost/1.71.0-GCC-8.3.0 Python/3.7.4-GCCcore-8.3.0 CMake/3.12.1                   # SAGA (gcc)  
+  module load Boost/1.68.0-intel-2018b-Python-3.6.6 Python/3.6.6-intel-2018b CMake/3.12.1      # SAGA (intel)
   ```
 * Alternatively, you may download and compile Boost libraries yourself:
   ```
@@ -117,8 +119,7 @@ The exact steps depend  on your build environment.
 ## Data preparation
 
 * Summary statistics (NIRD: ``/projects/NS9114K/MMIL/SUMSTAT/TMP/nomhc/``)
-  * MiXeR recognizes summary statistics in LDSC format as described [here](https://github.com/bulik/ldsc/wiki/Summary-Statistics-File-Format). In brief, each trait must be represented as a single table containing columns SNP, N, Z, A1, A2. Thus, it is possible to use ``munge_sumstats.py`` script as described [here](https://github.com/bulik/ldsc/wiki/Partitioned-Heritability#step-1-download-the-data). This might be convenient for users who are already familiar with LDSR functionality.
-  * However, we recommed to use our own scripts to pre-process summary statistcs (clone from [here](https://github.com/precimed/python_convert)):
+  * We recommed to use our own scripts to pre-process summary statistcs (clone from [here](https://github.com/precimed/python_convert)):
     ```
     python sumstats.py csv --sumstats daner_PGC_SCZ49.sh2_mds10_1000G-frq_2.gz --out PGC_SCZ_2014_EUR.csv --force --auto --head 5 --ncase-val 33640 --ncontrol-val 43456 
     python sumstats.py zscore --sumstats PGC_SCZ_2014_EUR.csv | \
@@ -131,8 +132,8 @@ The exact steps depend  on your build environment.
     python sumstats.py qc --exclude-ranges 6:26000000-34000000 --out SSGAC_EDU_2018_no23andMe_noMHC.csv --force
     gzip SSGAC_EDU_2018_no23andMe_noMHC.csv  
     ```
-  * We note that for case/control ``munge_sumstats.py`` generate sample size as a sum ``n = ncase + ncontrol``. We recommend to use ``neff = 4 / (1/ncase + 1/ncontrol)`` to account for imbalanced classes. Additionaly, we recommend to keep summary statistics for the entire set of SNPs available in GWAS, without filtering by HapMap3 SNPs). HapMap3 constraint can be applied later during fit procedure.
-
+  * [DEPRECATED] If you use MiXeR v1.1 and v1.2, it will recognize summary statistics in LDSC format as described [here](https://github.com/bulik/ldsc/wiki/Summary-Statistics-File-Format). In brief, each trait must be represented as a single table containing columns SNP, N, Z, A1, A2. Thus, it is possible to use ``munge_sumstats.py`` script as described [here](https://github.com/bulik/ldsc/wiki/Partitioned-Heritability#step-1-download-the-data). This might be convenient for users who are already familiar with LDSR functionality. In MiXeR v1.3 the format for GWAS summary statistics files is the same, but now I advice against using HapMap3 to constrain the set of SNPs for the fit procedure. Instead, MiXeR should receive a full set of summary statistics from a GWAS on imputed genotype data. Also, note that for case/control ``munge_sumstats.py`` from LD Score Regression generate sample size as a sum ``n = ncase + ncontrol``. We recommend to use ``neff = 4 / (1/ncase + 1/ncontrol)`` to account for imbalanced classes.
+  
 * Reference panel (alternatively, download [this](https://1drv.ms/u/s!Ai1YZmdFa9ati40Inztrv_4erqcdWw?e=ixWDUe) or take it from NIRD (``/projects/NS9114K/MMIL/SUMSTAT/LDSR/1000G_EUR_Phase3_plink``). NB! Download size is ``24 GB``.
    * Run ``python mixer.py ld`` to calculate linkage disequilibrium information in a genotype reference panel. The following command must be run once for each chromosome. 
     ```
@@ -149,12 +150,20 @@ The exact steps depend  on your build environment.
     The files DO NOT contain any individual-level information.
     When you store the resulting ``.ld`` file, it is important to keep it along side with corresponding ``.bim`` file,
     as information about marker name (SNP rs#), chromosome,  position, and alleles (A1/A2) is NOT encoded in ``.ld`` file.
+  
+  * To generate ``1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.repNN.snps`` files, repeat the following in a loop for
+    ```
+    export REP=1 # repeat for REP in 1..20
+    python3 <MIXER_ROOT>/precimed/mixer.py snps \
+       --lib <MIXER_ROOT>/src/build/lib/libbgmg.so \
+       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
+       --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps \
+       --maf 0.05 --subset 2000000 --r2 0.8 --seed ${SLURM_ARRAY_TASK_ID}
+    ```
+    This can be done as a job array, see [this script](https://github.com/precimed/mixer/blob/master/scripts/xsede_snps_script.sh) for an example.
+    Note that in the code above the ``@`` symbol does NOT need to be replace with an actual chromosome. It should stay as ``@`` in your command.
     
-  * Save the list of dbSNP rs# into a separate file called ``w_hm3.justrs``:
-    ```
-    cut -f1 w_hm3.snplist | tail -n +2 > w_hm3.justrs
-    ```
-
+  
 ## Run MiXeR
 
 ### Univariate analysis
@@ -163,8 +172,8 @@ Fit the model:
 ```
 python3 <MIXER_ROOT>/precimed/mixer.py fit1 \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
-      --out SSGAC_EDU_2018_no23andMe_noMHC.fit \
-      --extract LDSR/w_hm3.justrs \
+      --out SSGAC_EDU_2018_no23andMe_noMHC.fit.rep${SLURM_ARRAY_TASK_ID} \
+      --extract LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
@@ -174,8 +183,8 @@ Apply the model to the entire set of SNPs, without constraining to ``LDSR/w_hm3.
 ```
 python3 <MIXER_ROOT>/precimed/mixer.py test1 \
       --trait1-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
-      --load-params-file SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
-      --out SSGAC_EDU_2018_no23andMe_noMHC.test \
+      --load-params-file SSGAC_EDU_2018_no23andMe_noMHC.fit.rep${SLURM_ARRAY_TASK_ID}.json \
+      --out SSGAC_EDU_2018_no23andMe_noMHC.test.rep${SLURM_ARRAY_TASK_ID} \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
@@ -186,7 +195,8 @@ Repeat the above analysis for the second trait (``PGC_SCZ_2014_EUR_qc_noMHC.csv.
 
 To visualize the results:
 ```
-python precimed/mixer_figures.py one --json <out_file>.json --out <out_file>
+python precimed/mixer_figures.py combine --json PGC_SCZ_2014_EUR_qc_noMHC.fit.rep@.json --out combined/PGC_SCZ_2014_EUR.fit
+python precimed/mixer_figures.py one --json PGC_SCZ_2014_EUR.json --out PGC_SCZ_2014_EUR --statistic mean std
 ```
 
 
@@ -197,10 +207,10 @@ Fit the model:
 python3 <MIXER_ROOT>/python/mixer.py fit2 \
       --trait1-file PGC_SCZ_2014_EUR_qc_noMHC.csv.gz \
       --trait2-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
-      --trait1-params-file PGC_SCZ_2014_EUR_qc_noMHC.fit.json \
-      --trait2-params-file SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
-      --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit \
-      --extract LDSR/w_hm3.justrs \
+      --trait1-params-file PGC_SCZ_2014_EUR_qc_noMHC.fit.rep${SLURM_ARRAY_TASK_ID}.json \
+      --trait2-params-file SSGAC_EDU_2018_no23andMe_noMHC.fit.rep${SLURM_ARRAY_TASK_ID}.json \
+      --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.rep${SLURM_ARRAY_TASK_ID} \
+      --extract LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
@@ -211,8 +221,8 @@ Apply the model to the entire set of SNPs, without constraining to ``LDSR/w_hm3.
 python3 <MIXER_ROOT>/python/mixer.py test2 \
       --trait1-file PGC_SCZ_2014_EUR_qc_noMHC.csv.gz \
       --trait2-file SSGAC_EDU_2018_no23andMe_noMHC.csv.gz \
-      --load-params-file PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.json \
-      --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test \
+      --load-params-file PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.fit.rep${SLURM_ARRAY_TASK_ID}.json \
+      --out PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC.test.rep${SLURM_ARRAY_TASK_ID} \
       --bim-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
       --ld-file LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
       --lib  <MIXER_ROOT>/src/build/lib/libbgmg.so \
@@ -221,9 +231,10 @@ python3 <MIXER_ROOT>/python/mixer.py test2 \
 Note that these parameters point to the results of univariate analysis for both traits, so those must be generated first.
 The results will be saved ``<out_file>.json`` file.
 
-To visualize the results:
+To visualize the results (where `<prefix>` is, for example, ``PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC``):
 ```
-python precimed/mixer_figures.py two --json <out_file>.json --out <out_file>
+python precimed/mixer_figures.py combine --json <prefix>.fit.rep@.json --out <prefix>.fit
+python precimed/mixer_figures.py two --json <prefix>.fit.json --out <out_file> --statistic mean std
 ```
 
 ## MiXeR options
@@ -231,6 +242,7 @@ python precimed/mixer_figures.py two --json <out_file>.json --out <out_file>
 Run ``--help`` commands to list available options and their description.
 ```
 python3 mixer.py ld --help
+python3 mixer.py snps --help
 python3 mixer.py fit1 --help
 python3 mixer.py test1 --help
 python3 mixer.py fit2 --help
@@ -239,6 +251,11 @@ python3 mixer.py perf --help
 ```
 
 ## Visualize MiXeR results
+
+First step is to average the results across 20 runs with ``mixer_figures.py combine``, which works for univariate (fit1, test1) and bivariate (fit2, test2) runs:
+```
+python precimed/mixer_figures.py combine --json <prefix>.fit.rep@.json --out <prefix>.fit
+```
 
 The resulting ``.json`` files can be converted to figures and ``.csv`` tables via the following commands (``one`` for univariate, ``two`` for bivariate; each of these commands accept ``.json`` files from ``fit`` and ``test`` steps).
 
@@ -266,7 +283,7 @@ MiXeR produces the following results, as described in the original publication.
 * Bivariate density plots
 * Bivariate negative log-likelihood function
 
-TBD - provide more details.
+These output is described in the cross-trait MiXeR publication. 
 
 ### AIC BIC interpretation
 
@@ -295,8 +312,12 @@ The minimum is obtained at ``n=1.3K`` shared causal variants - that's our ``best
 
 ![GIANT_HEIGHT_2018_UKB_vs_PGC_BIP_2016 json](https://user-images.githubusercontent.com/13171449/83339454-469edb00-a2ce-11ea-9e69-99270d94689f.png)
 
-TBD:
-* add an example where the best is worse than min/max or both?
-* add axis labels to the figures
+### Upgrade nodes from MiXeR v1.2 to v1.3
 
-
+* If you previously downloaded 1kG reference, you need to download 20 new files called ``1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.repNN.snps``. Otherwise you need to generate them with ``mixer.py snps`` command as described above.
+* If you previously generated your input summary statistics constraining them to HapMap3 SNPs, you need to re-generated them without constraining to HapMap3.
+* Assuming you have a SLURM script for each MiXeR analysis, you need to turn this script into a job array (``#SBATCH --array=1-20``) which executes 20 times, and use ``--extract 1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps`` flag in ``mixer.py fit1`` and ``mixer.py fit2``, also adjusting input/output file names accordingly. Example scripts are available in [scripts](https://github.com/precimed/mixer/tree/master/scripts) folder.
+* To process ``.json`` files produced by MiXeR, you now first need to run a ``mixer_figures.py combine`` step as shown above. This will combine 20 ``.json`` files by averaging individual parameter estimates, and calculating standard errors.
+* When you generate figures with ``mixer_figures.py one`` and ``mixer_figures.py two`` commands and use the "combined" ``.json`` files, you'll need to add ``--statistic mean std`` to your commands.
+* With MiXeR v1.3 you should expect a slightly lower polygenicity estimate, mainly because of ``--maf 0.05`` constraint on the frequency of genetic variants used in the fit procedure. The rationale for ``--maf 0.05`` filter is to still have a robust selection of SNPs in the fit procedure despite not having HapMap3 filter.
+* With MiXeR v1.3 you should expect a 10 fold increase in CPU resources needed per ran (20 times more runs, but each run is ~600K SNPs which is half the size of HapMap3).

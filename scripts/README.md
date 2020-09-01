@@ -5,3 +5,27 @@ MiXeR on TSD
 - download https://github.com/precimed/mixer/archive/master.zip, import to TSD, place on /cluster and extract
 - mkdir <MIXER_ROOT>/src/build && cd <MIXER_TOOL>/src/build && cmake .. && make -j8
 - adjust <MIXER_ROOT>/scripts/tsd_ugmg_script.sh and <MIXER_ROOT>/scripts/tsd_bgmg_script.sh   - not fully tested, minor changes may be needed here. Submit with "sbatch <script.sh>" as usual, it will internally trigger a job array with 20 runs.
+- first-time configuration of your Python environment:
+  ```
+  ssh p33-submit
+  module load  Python/3.7.4-GCCore-8.3.0
+
+  # clean install jupyter in a new environment
+  python3 -m venv /cluster/projects/p33/useres/$USER/py3
+  source /cluster/projects/p33/useres/$USER/py3/bin/activate   # best to have this on /cluster
+
+  pip3 install --index-url=file:///shared/pypi/mirror/web/simple numpy
+  pip3 install --index-url=file:///shared/pypi/mirror/web/simple pandas
+  pip3 install --index-url=file:///shared/pypi/mirror/web/simple scipy
+  pip3 install --index-url=file:///shared/pypi/mirror/web/simple matplotlib
+  pip3 install --index-url=file:///shared/pypi/mirror/web/simple statsmodels
+  pip3 install --index-url=file:///shared/pypi/mirror/web/simple numdifftools
+  pip3 install --index-url=file:///shared/pypi/mirror/web/simple matplotlib_venn
+  pip3 install --index-url=file:///shared/pypi/mirror/web/simple jupyter
+  ```
+  
+  Then use as follows:
+  ```
+  module load  Python/3.7.4-GCCore-8.3.0
+  source /cluster/projects/p33/useres/$USER/py3/bin/activate
+  ```

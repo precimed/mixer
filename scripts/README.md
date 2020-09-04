@@ -9,7 +9,7 @@ MiXeR on TSD
 - first-time configuration of your Python environment:
   ```
   ssh p33-submit
-  module load  Python/3.7.4-GCCore-8.3.0
+  module load  Python/3.7.4-GCCcore-8.3.0
 
   # clean install jupyter in a new environment
   python3 -m venv /cluster/projects/p33/users/$USER/py3
@@ -26,6 +26,6 @@ MiXeR on TSD
   ```
   Then use this Python environment as follows:
   ```
-  module load  Python/3.7.4-GCCore-8.3.0
+  module load  Python/3.7.4-GCCcore-8.3.0
   source /cluster/projects/p33/users/$USER/py3/bin/activate
   ```

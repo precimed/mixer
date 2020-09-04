@@ -12,8 +12,8 @@ MiXeR on TSD
   module load  Python/3.7.4-GCCore-8.3.0
 
   # clean install jupyter in a new environment
-  python3 -m venv /cluster/projects/p33/useres/$USER/py3
-  source /cluster/projects/p33/useres/$USER/py3/bin/activate   # best to have this on /cluster
+  python3 -m venv /cluster/projects/p33/users/$USER/py3
+  source /cluster/projects/p33/users/$USER/py3/bin/activate   # best to have this on /cluster
 
   pip3 install --index-url=file:///shared/pypi/mirror/web/simple numpy
   pip3 install --index-url=file:///shared/pypi/mirror/web/simple pandas
@@ -27,5 +27,5 @@ MiXeR on TSD
   Then use this Python environment as follows:
   ```
   module load  Python/3.7.4-GCCore-8.3.0
-  source /cluster/projects/p33/useres/$USER/py3/bin/activate
+  source /cluster/projects/p33/users/$USER/py3/bin/activate
   ```

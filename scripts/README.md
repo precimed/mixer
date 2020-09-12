@@ -17,7 +17,7 @@ MiXeR on TSD
 
   pip3 install --index-url=file:///shared/pypi/mirror/web/simple numpy
   pip3 install --index-url=file:///shared/pypi/mirror/web/simple pandas
-  pip3 install --index-url=file:///shared/pypi/mirror/web/simple scipy=1.2.0rc1
+  pip3 install --index-url=file:///shared/pypi/mirror/web/simple scipy==1.2.0rc1
   pip3 install --index-url=file:///shared/pypi/mirror/web/simple matplotlib
   pip3 install --index-url=file:///shared/pypi/mirror/web/simple statsmodels
   pip3 install --index-url=file:///shared/pypi/mirror/web/simple numdifftools

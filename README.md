@@ -314,6 +314,7 @@ The minimum is obtained at ``n=1.3K`` shared causal variants - that's our ``best
 
 ### Upgrade nodes from MiXeR v1.2 to v1.3
 
+* The source code is nearly identical, but I've changed the procedure to run MiXeR which is described in this README file. Still, you need to updated the code by ``git pull``. If you updated MiXeR in early summer 2020 there will be no changes in the native C++ code (hense no need to re-compile the ``libbgmg.so`` binary), but to be safe it's best to execute ``cd <MIXER_ROOT>/src/build && cmake .. && make`` command (after ``module load`` relevant modules, as described in [this](https://github.com/precimed/mixer/blob/master/README.md#build-from-source---linux) section.)
 * If you previously downloaded 1kG reference, you need to download 20 new files called ``1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.repNN.snps``. Otherwise you need to generate them with ``mixer.py snps`` command as described above.
 * If you previously generated your input summary statistics constraining them to HapMap3 SNPs, you need to re-generated them without constraining to HapMap3.
 * Assuming you have a SLURM script for each MiXeR analysis, you need to turn this script into a job array (``#SBATCH --array=1-20``) which executes 20 times, and use ``--extract 1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps`` flag in ``mixer.py fit1`` and ``mixer.py fit2``, also adjusting input/output file names accordingly. Example scripts are available in [scripts](https://github.com/precimed/mixer/tree/master/scripts) folder.

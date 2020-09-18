@@ -64,7 +64,7 @@ def make_qq_plot(qq, ci=True, ylim=7.3, xlim=7.3):
     hNull = plt.plot(hv_logp, hv_logp, 'k--')
     plt.ylim(0, ylim); plt.xlim(0, xlim)
 
-def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], colors=[0, 1], max_size=None, formatter=None, statistic=["point_estimate"]):
+def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], colors=[0, 1], max_size=None, formatter=None, statistic=["point_estimate"], plot_rg=True):
     cm = plt.cm.get_cmap('tab10')
 
     if factor=='K': scale_factor=1000
@@ -97,13 +97,14 @@ def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], co
 
     plt.xlim([-0.75, 0.75]), plt.ylim([-0.7, 0.6])
     newline=''
-    plt.title(traits[0] +' & ' + newline + traits[1], y=-0.18)
+    plt.title(traits[0] +' & ' + newline + traits[1], y=(-0.18 if plot_rg else 0))
 
-    clr = plt.cm.get_cmap('seismic')((rg+1)/2)
-    plt.gca().add_patch(patches.Rectangle(((-abs(0.7*rg) if (rg < 0) else 0) , -0.7), abs(0.7 * rg), 0.15, fill=True, clip_on=False, color=clr))
-    plt.gca().add_patch(patches.Rectangle((-0.70, -0.7), 1.4, 0.15, fill=False, clip_on=False))
-    plt.gca().add_patch(patches.Rectangle((0, -0.7), 0, 0.15, fill=False, clip_on=False, linewidth=3))
-    plt.gca().text(-0.35 if (rg>0) else 0.35, -0.7+0.15/2, '$r_g$={:.2f}'.format(rg), fontsize=11, horizontalalignment='center',         verticalalignment='center')
+    if plot_rg:
+        clr = plt.cm.get_cmap('seismic')((rg+1)/2)
+        plt.gca().add_patch(patches.Rectangle(((-abs(0.7*rg) if (rg < 0) else 0) , -0.7), abs(0.7 * rg), 0.15, fill=True, clip_on=False, color=clr))
+        plt.gca().add_patch(patches.Rectangle((-0.70, -0.7), 1.4, 0.15, fill=False, clip_on=False))
+        plt.gca().add_patch(patches.Rectangle((0, -0.7), 0, 0.15, fill=False, clip_on=False, linewidth=3))
+        plt.gca().text(-0.35 if (rg>0) else 0.35, -0.7+0.15/2, '$r_g$={:.2f}'.format(rg), fontsize=11, horizontalalignment='center',         verticalalignment='center')
 
 def make_strat_qq_plots(data, flip=False, traits=['Trait1', 'Trait2'], do_legend=True):
     cm = plt.cm.get_cmap('tab10')

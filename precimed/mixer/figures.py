@@ -680,6 +680,7 @@ def execute_one_parser(args):
         for ext in args.ext:
             plt.savefig(args.out + '.power.' + ext, bbox_inches='tight')
             print('Generated ' + args.out + '.power.' + ext)
+        pd.concat([pd.DataFrame({'trait':[trait for i in data['power']['nvec']], 'nvec':data['power']['nvec'], 'svec':data['power']['nvec']}) for data, trait in zip(data_list, traits_list)]).to_csv(args.out + '.power.csv', sep='\t', index=False)            
     else:
         print('Skip generating power plots, data not available. Did you include --power-curve in your "python mixer.py fit" command?')
 

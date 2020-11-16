@@ -21,6 +21,7 @@ import matplotlib.colors
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from matplotlib_venn import venn2
+from matplotlib_venn import venn2_circles
 
 from scipy.interpolate import interp1d
 from scipy.stats import multivariate_normal
@@ -85,6 +86,7 @@ def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], co
     v.get_patch_by_id('100').set_color(cm.colors[f(colors[0])])
     v.get_patch_by_id('010').set_color(cm.colors[f(colors[1])])
     v.get_patch_by_id('110').set_color(cm.colors[7])   
+    c=venn2_circles(subsets = (n1, n2, n12), normalize_to=(n1+n2+n12)/max_size, linewidth=1.5, color="white")
     if formatter==None:
         if (n1_se is not None) and (n2_se is not None) and (n12_se is not None):
             formatter1 = '{:.2f}\n({:.2f})' if ((n1+n12+n2) < 1) else '{:.1f}\n({:.1f})'
@@ -104,20 +106,22 @@ def make_venn_plot(data, flip=False, factor='K', traits=['Trait1', 'Trait2'], co
         plt.gca().add_patch(patches.Rectangle(((-abs(0.7*rg) if (rg < 0) else 0) , -0.7), abs(0.7 * rg), 0.15, fill=True, clip_on=False, color=clr))
         plt.gca().add_patch(patches.Rectangle((-0.70, -0.7), 1.4, 0.15, fill=False, clip_on=False))
         plt.gca().add_patch(patches.Rectangle((0, -0.7), 0, 0.15, fill=False, clip_on=False, linewidth=3))
-        plt.gca().text(-0.35 if (rg>0) else 0.35, -0.7+0.15/2, '$r_g$={:.2f}'.format(rg), fontsize=11, horizontalalignment='center',         verticalalignment='center')
+        plt.gca().text(-0.35 if (rg>0) else 0.35, -0.7+0.13/2, '$r_g$={:.2f}'.format(rg), fontsize=11, horizontalalignment='center',         verticalalignment='center')
 
 def make_strat_qq_plots(data, flip=False, traits=['Trait1', 'Trait2'], do_legend=True):
     cm = plt.cm.get_cmap('tab10')
     for i in np.array(range(0, 4)) + (4 if flip else 0):
         hData = plt.plot(data['qqplot'][i]['data_logpvec'], data['qqplot'][i]['hv_logp'], color=cm.colors[i % 4], linestyle='solid')
     hNull = plt.plot(data['qqplot'][i]['hv_logp'], data['qqplot'][i]['hv_logp'], 'k--')
-    if do_legend: plt.legend(['All SNPs'] + '$P{0}\leq0.1$ $P{0}\leq0.01$ $P{0}\leq0.001$'.format('_{' + traits[1]+'}').split(), loc='lower right', fontsize=14, borderpad=0.2, frameon=False, borderaxespad=0.2, labelspacing=0.1)
+    if do_legend: plt.legend(['All SNPs'] + '$P{0}\leq0.1$ $P{0}\leq0.01$ $P{0}\leq0.001$'.format('_{' + traits[1]+'}').split(), loc='lower right', fontsize=10, borderpad=0.2, frameon=False, borderaxespad=0.2, labelspacing=0.1)
     for i in np.array(range(0, 4)) + (4 if flip else 0):
         hModel = plt.plot(data['qqplot'][i]['model_logpvec'], data['qqplot'][i]['hv_logp'], color=cm.colors[i % 4], linestyle='dashed')
     plt.ylim(0, 7.3); plt.xlim(0, 7.3); 
-    plt.title('{} | {}'.format(traits[0], traits[1]))
-    plt.xlabel('Expected -$log_{{10}}(p_{{{}}})$'.format(traits[0]))
-    plt.ylabel('Observed -$log_{{10}}(p_{{{}}})$'.format(traits[0]))
+    plt.title('{} | {}'.format(traits[0], traits[1]), fontsize=12)
+    plt.xticks(np.arange(0, 7.3, step=1),fontsize=10)
+    plt.yticks(np.arange(0, 7.3, step=1),fontsize=10)
+    plt.xlabel('Expected -$log_{{10}}(p_{{{}}})$'.format(traits[0]), fontsize=12)
+    plt.ylabel('Observed -$log_{{10}}(p_{{{}}})$'.format(traits[0]), fontsize=12)
 
 def merge_z_vs_z(df1, df2):
     import pandas as pd
@@ -174,8 +178,8 @@ def plot_z_vs_z_data(df, flip=False, traits=['Trait1', 'Trait2'], plot_limits=15
     z1name, z2name = ('Z2', 'Z1') if flip else ('Z1', 'Z2')
     z, _, _ = np.histogram2d(df[z2name], df[z1name], bins=bins, range=[[-plot_limits, plot_limits], [-plot_limits, plot_limits]])
     im=plt.imshow(np.maximum(1,z),interpolation='none', origin='lower', cmap='hot', norm=matplotlib.colors.LogNorm(), vmin=1, vmax=1e4,extent=plot_extent)
-    plt.xlabel('$z_{'+traits[0]+'}$')
-    plt.ylabel('$z_{'+traits[1]+'}$')
+    plt.xlabel('$z_{'+traits[0]+'}$', fontsize=12)
+    plt.ylabel('$z_{'+traits[1]+'}$', fontsize=12, labelpad=-0.1)
     plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
 
 def plot_predicted_zscore(data, num_snps, flip=False, traits=['Trait1', 'Trait2'], plot_limits=15, bins=100):
@@ -198,8 +202,8 @@ def plot_predicted_zscore(data, num_snps, flip=False, traits=['Trait1', 'Trait2'
                   vmin=1, vmax=1e4, extent=data_extent)
     
     plt.axis([-plot_limits, plot_limits, -plot_limits, plot_limits])
-    plt.xlabel('$\\hat z_{'+traits[0]+'}$')
-    plt.ylabel('$\\hat z_{'+traits[1]+'}$')
+    plt.xlabel('$\\hat z_{'+traits[0]+'}$', fontsize=12)
+    plt.ylabel('$\\hat z_{'+traits[1]+'}$', fontsize=12, labelpad=-0.1)
     plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
 
 def plot_causal_density(data, flip=False, traits=['Trait1', 'Trait2'], vmax=1e3, plot_limits=0.025, statistic=['point_estimate']):
@@ -223,8 +227,8 @@ def plot_causal_density(data, flip=False, traits=['Trait1', 'Trait2'], vmax=1e3,
     z=factor*1e7*grid_step*grid_step*(pi1*rv1.pdf(pos)+pi2*rv2.pdf(pos)+pi12*rv12.pdf(pos))
     plot_extent = [-plot_limits, plot_limits, -plot_limits, plot_limits]
     im=plt.imshow(np.maximum(1,z if flip else z.T),interpolation='none', origin='lower', cmap='magma', norm=matplotlib.colors.LogNorm(), vmin=1, vmax=vmax,extent=plot_extent)
-    plt.xlabel('$\\beta_{'+traits[0]+'}$')
-    plt.ylabel('$\\beta_{'+traits[1]+'}$')
+    plt.xlabel('$\\beta_{'+traits[0]+'}$', fontsize=12)
+    plt.ylabel('$\\beta_{'+traits[1]+'}$', fontsize=12, labelpad=0.1)
     plt.colorbar(im, cax=make_axes_locatable(plt.gca()).append_axes("right", size="5%", pad=0.05))
 
 def extract_brute1_results(data):
@@ -271,9 +275,9 @@ def plot_likelihood(data):
             return
         plt.plot(np.array(like_x)/1000, like_y - np.min(like_y))
         plt.title('-log(L) + const')
-    plt.xlabel('Number of causal variants')
-    plt.ylabel('-log(L) + const')
-    plt.title('Log-likelihood')
+    plt.xlabel('Shared variant number [k]',fontsize=12)
+    plt.ylabel('-log(L) + const',fontsize=12)
+    plt.title('Log-likelihood',fontsize=13)
 
 def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
     if colors is None: colors = list(range(0, len(data_vec)))
@@ -326,12 +330,14 @@ def make_power_plot(data_vec, colors=None, traits=None, power_thresh=None):
         leg_labels.append('N at {}%'.format(int(100*float(power_thresh))))
     
     plt.legend(leg_labels, loc='lower right',frameon=False, numpoints=1)
-    plt.xlabel('Sample size')
-    plt.ylabel('Estimated percent variance explained\nby genome-wide significant SNPs')
+    plt.xlabel('Sample size (N)', fontsize=11)
+    plt.ylabel('Estimated variance (%) explained\nby genome-wide significant SNPs', fontsize=11)
     plt.xlim([4, 8])
-    plt.ylim([0, 1])
+    plt.ylim([-0.017, 1])
     plt.locator_params(axis='x', nbins=5)
     plt.gca().set_xticklabels(labels=['10K', '100K', '1M', '10M', '100M'])
+    plt.yticks(np.arange(0, 1.01, step=0.2))
+    plt.axes().set_yticklabels(labels=['0', '20', '40', '60', '80', '100'])
 
 # https://stackoverflow.com/questions/27433316/how-to-get-argparse-to-read-arguments-from-a-file-with-an-option-rather-than-pre
 class LoadFromFile (argparse.Action):
@@ -455,24 +461,24 @@ def execute_two_parser(args):
         print('Skip generating stratified QQ plots, data not available.')
 
     if args.trait1_file and args.trait2_file:
-        plt.figure(figsize=[12, 6])
+        plt.figure(figsize=[12, 5.5])
         plt.subplot(2,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2], colors=[args.trait1_color, args.trait2_color], statistic=args.statistic)
         if 'qqplot' in data_test:
-            plt.subplot(2,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(2,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=True)
             plt.subplot(2,4,3); make_strat_qq_plots(data_test, flip=(not args.flip), traits=[args.trait2, args.trait1], do_legend=True)
         plt.subplot(2,4,4); plot_likelihood(data_fit)
-        plt.subplot(2,4,5); plot_causal_density(data_test, flip=args.flip, traits=[args.trait1, args.trait2], statistic=args.statistic)
+        plt.subplot(2,4,6); plot_causal_density(data_test, flip=args.flip, traits=[args.trait1, args.trait2], statistic=args.statistic)
         df1 = pd.read_table(args.trait1_file, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
         df2 = pd.read_table(args.trait2_file, delim_whitespace=True, usecols=['SNP', 'A1', 'A2', 'Z'])
         df = merge_z_vs_z(df1, df2)
-        plt.subplot(2,4,6); plot_z_vs_z_data(df, flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
-        plt.subplot(2,4,7); plot_predicted_zscore(data_test, len(df), flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,7); plot_z_vs_z_data(df, flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
+        plt.subplot(2,4,8); plot_predicted_zscore(data_test, len(df), flip=args.flip, plot_limits=args.zmax, traits=[args.trait1, args.trait2])
         plt.tight_layout(pad=1.5)
     else:
-        plt.figure(figsize=[12, 3])
+        plt.figure(figsize=[12, 3.5])
         plt.subplot(1,4,1); make_venn_plot(data_fit, flip=args.flip, traits=[args.trait1, args.trait2], colors=[args.trait1_color, args.trait2_color], statistic=args.statistic)
         if 'qqplot' in data_test:
-            plt.subplot(1,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=False)
+            plt.subplot(1,4,2); make_strat_qq_plots(data_test, flip=args.flip, traits=[args.trait1, args.trait2], do_legend=True)
             plt.subplot(1,4,3); make_strat_qq_plots(data_test, flip=(not args.flip), traits=[args.trait2, args.trait1], do_legend=True)
         plt.subplot(1,4,4); plot_likelihood(data_fit)
         plt.tight_layout(pad=1.5)

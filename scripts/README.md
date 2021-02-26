@@ -6,6 +6,7 @@ MiXeR on TSD
 - ``mkdir <MIXER_ROOT>/src/build && cd <MIXER_TOOL>/src/build && cmake .. && make -j8``
 - adjust ``<MIXER_ROOT>/scripts/tsd_ugmg_script.sh`` and ``<MIXER_ROOT>/scripts/tsd_bgmg_script.sh`` (not fully tested, minor changes may be needed here).
 - Submit with "sbatch <script.sh>" as usual, it will internally trigger a job array with 20 runs.
+- When results are ready, create figures as described in the main README.md file (see "visualize the results" section)
 - first-time configuration of your Python environment:
   ```
   ssh p33-appn-norment01
@@ -29,3 +30,4 @@ MiXeR on TSD
   module load  Python/3.7.4-GCCcore-8.3.0
   source /cluster/projects/p33/users/<user>/py3/bin/activate
   ```
+

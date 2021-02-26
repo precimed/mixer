@@ -8,7 +8,7 @@ MiXeR on TSD
 - Submit with "sbatch <script.sh>" as usual, it will internally trigger a job array with 20 runs.
 - first-time configuration of your Python environment:
   ```
-  ssh p33-submit
+  ssh p33-appn-norment01
   module load  Python/3.7.4-GCCcore-8.3.0
 
   # clean install jupyter in a new environment

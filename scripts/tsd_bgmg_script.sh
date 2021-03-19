@@ -48,8 +48,8 @@ $PYTHON $MIXER_ROOT/precimed/mixer.py fit2 \
       --bim-file $BIMFILE --ld-file $LDFILE \
 
 $PYTHON $MIXER_ROOT/precimed/mixer.py test2 \
-      --trait1-file $SUMSTAT/TMP/nomhc/$TRAIT1.sumstats.gz \
-      --trait2-file $SUMSTAT/TMP/nomhc/$TRAIT2.sumstats.gz \
+      --trait1-file $SUMSTATnomhc/$TRAIT1.sumstats.gz \
+      --trait2-file $SUMSTATnomhc/$TRAIT2.sumstats.gz \
       --load-params-file ${OUT}${TRAIT1}_vs_${TRAIT2}.fit.rep${SLURM_ARRAY_TASK_ID}.json \
       --out ${OUT}${TRAIT1}_vs_${TRAIT2}.test.rep${SLURM_ARRAY_TASK_ID} \
       --lib $MIXER_ROOT/src/build/lib/libbgmg.so --threads 20 \

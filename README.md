@@ -54,6 +54,14 @@ MiXeR versions:
 
 ## Install MiXeR
 
+### Singularity containers
+
+Update May 2021: MiXeR v1.3 is now available as a singularity container within [CoMorMent](https://github.com/comorment/containers) software package.
+See [mixer_simu.md](https://github.com/comorment/containers/blob/main/usecases/mixer_simu.md) and [mixer_real.md](https://github.com/comorment/containers/blob/main/usecases/mixer_real.md) for usage examples.
+If you are new to singularity containers, please refer to [hello.md](https://github.com/comorment/containers/blob/main/docs/hello.md) to get started.
+
+The steps below provide an alternative setup (without singularity containers).
+
 ### Prerequisites
 
 * Linux environment (tested on CentOS release 6.9, Ubuntu 18.04).
@@ -234,7 +242,8 @@ The results will be saved ``<out_file>.json`` file.
 To visualize the results (where `<prefix>` is, for example, ``PGC_SCZ_2014_EUR_qc_noMHC_vs_SSGAC_EDU_2018_no23andMe_noMHC``):
 ```
 python precimed/mixer_figures.py combine --json <prefix>.fit.rep@.json --out <prefix>.fit
-python precimed/mixer_figures.py two --json <prefix>.fit.json --out <out_file> --statistic mean std
+python precimed/mixer_figures.py combine --json <prefix>.test.rep@.json --out <prefix>.test
+python precimed/mixer_figures.py two --json-fit <prefix>.fit.json --json-test <prefix>.test.json --out <out_file> --statistic mean std
 ```
 
 ## MiXeR options

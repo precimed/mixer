@@ -838,6 +838,9 @@ int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index,
 #pragma omp for schedule(dynamic, kOmpDynamicChunk)
     for (int deftag_index = 0; deftag_index < num_deftag; deftag_index++) {
       int tag_index = deftag_indices[deftag_index];
+      const float z = z_minus_fixed_effect_delta[tag_index];
+      if (!std::isfinite(z)) continue;
+
       MultinomialSampler subset_sampler((seed_ > 0) ? seed_ : (seed_ - 1), 1 + tag_to_snp_[tag_index], k_max_, num_components);
       find_unified_univariate_tag_delta_sampling(num_components, pi_vec, sig2_vec, sig2_zeroC, tag_index, &nvec[0], &hvec[0], &tag_delta2, &subset_sampler, &ld_matrix_row);
     
@@ -849,7 +852,6 @@ int64_t BgmgCalculator::calc_unified_univariate_delta_posterior(int trait_index,
         const float sig2eff_3_2 = sig2eff_1_2 * sig2eff;
         const float sig2eff_5_2 = sig2eff_3_2 * sig2eff;
 
-        const float z = z_minus_fixed_effect_delta[tag_index];
         const float exp_common = std::exp(-0.5f*z*z / sig2eff);
 
         c0_local[tag_index] += (exp_common / sig2eff_1_2);

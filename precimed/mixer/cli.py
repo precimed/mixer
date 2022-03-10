@@ -17,6 +17,7 @@ import scipy.stats
 import random
 from scipy.interpolate import interp1d
 import time
+import collections
 
 from .libbgmg import LibBgmg
 from .utils import UnivariateParams
@@ -85,6 +86,19 @@ def check_input_file(args, argname, chri=None):
         argval = arg_dict[argname]
         if chri: argval=argval.replace('@', str(chri))
         if not os.path.isfile(argval): raise ValueError("Input file --{a} does not exist: {f}".format(a=argname, f=argval))
+
+def make_ranges(args_exclude_ranges):
+    # Interpret --exclude-ranges input
+    ChromosomeRange = collections.namedtuple('ChromosomeRange', ['chr', 'from_bp', 'to_bp'])
+    exclude_ranges = []
+    if args_exclude_ranges is not None:
+        for exclude_range in args_exclude_ranges:
+            try:
+                range = ChromosomeRange._make([int(x) for x in exclude_range.replace(':', ' ').replace('-', ' ').split()[:3]])
+            except Exception as e:
+                raise(ValueError('Unable to interpret exclude range "{}", chr:from-to format is expected.'.format(exclude_range)))
+            exclude_ranges.append(range)
+    return exclude_ranges
 
 def fix_and_validate_args(args):
     check_input_file(args, 'trait1_file')
@@ -231,6 +245,9 @@ def parser_snps_add_arguments(args, func, parser):
         "May contain simbol '@', similarly to --bim-file argument. ")
     parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
          "(e.g. 1,2,3 or 1-4,12,16-20). Chromosome must be labeled by integer, i.e. X and Y are not acceptable. ")
+    parser.add_argument("--exclude-ranges", type=str, nargs='+',
+        help='Exclude SNPs in ranges of base pair position, for example MHC. '
+        'The syntax is chr:from-to, for example 6:25000000-35000000. Multiple regions can be excluded.')
     parser.add_argument('--r2', type=float, default=0.8, help="r2 threshold for random prunning")
     parser.add_argument('--maf', type=float, default=0.05, help="maf threshold")
     parser.add_argument('--subset', type=int, default=2000000, help="number of SNPs to randomly select")
@@ -606,6 +623,8 @@ def execute_snps_parser(args):
     ref=pd.concat([pd.read_csv(args.bim_file.replace('@', str(chr_label)), sep='\t', header=None, names='CHR SNP GP BP A1 A2'.split()) for chr_label in args.chr2use])
     libbgmg.log_message('{} SNPs in total'.format(len(ref)))
 
+    exclude_ranges = make_ranges(args.exclude_ranges)
+
     # step0 - generate random values for clumping (this is a way to implement random pruning)
     buf = np.random.rand(libbgmg.num_tag, 1)
     
@@ -613,6 +632,13 @@ def execute_snps_parser(args):
     buf[mafvec<args.maf] = np.nan
     libbgmg.log_message('{} SNPs pass --maf {} threshold'.format(np.sum(np.isfinite(buf)), args.maf))
     
+    # step1b - filter SNPs in --exclude-ranges
+    for range in exclude_ranges:
+        num_def_before = np.sum(np.isfinite(buf))
+        buf[(ref['CHR'] == range.chr) & (ref['BP'] >= range.from_bp) & (ref['BP'] < range.to_bp)] = np.nan
+        num_def_after = np.sum(np.isfinite(buf))
+        libbgmg.log_message('{} SNPs removed due to {}:{}-{} range'.format(num_def_before-num_def_after, range.chr, range.from_bp, range.to_bp))
+
     # step2 - select a random subset of SNPs
     indices = list(np.where(np.isfinite(buf))[0])
     sample = random.sample(indices, min(args.subset, len(indices)))

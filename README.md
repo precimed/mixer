@@ -56,8 +56,8 @@ MiXeR versions:
 
 ### Singularity containers
 
-Update May 2021: MiXeR v1.3 is now available as a singularity container within [CoMorMent](https://github.com/comorment/containers) software package.
-See [mixer_simu.md](https://github.com/comorment/containers/blob/main/usecases/mixer_simu.md) and [mixer_real.md](https://github.com/comorment/containers/blob/main/usecases/mixer_real.md) for usage examples.
+Update May 2021: MiXeR v1.3 is now available as a [singularity container](https://github.com/comorment/mixer).
+See [mixer_simu.md](https://github.com/comorment/mixer/blob/main/usecases/mixer_simu.md) and [mixer_real.md](https://github.com/comorment/mixer/blob/main/usecases/mixer_real.md) for usage examples.
 If you are new to singularity containers, please refer to [hello.md](https://github.com/comorment/containers/blob/main/docs/hello.md) to get started.
 
 The steps below provide an alternative setup (without singularity containers).

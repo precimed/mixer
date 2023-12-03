@@ -14,6 +14,7 @@ import scipy.optimize
 import logging
 import json
 import scipy.stats
+import random
 from scipy.interpolate import interp1d
 import time
 
@@ -110,13 +111,13 @@ def fix_and_validate_args(args):
 
 def convert_args_to_libbgmg_options(args, num_snp):
     libbgmg_options = {
-        'r2min': args.r2min,
-        'kmax': args.kmax[0], 
-        'threads': args.threads[0],
-        'seed': args.seed,
-        'cubature_rel_error': args.cubature_rel_error,
-        'cubature_max_evals': args.cubature_max_evals,
-        'z1max': args.z1max,
+        'r2min': args.r2min if ('r2min' in args) else None,
+        'kmax': args.kmax[0] if ('kmax' in args) else None, 
+        'threads': args.threads[0] if ('threads' in args) else None,
+        'seed': args.seed if ('seed' in args) else None,
+        'cubature_rel_error': args.cubature_rel_error if ('cubature_rel_error' in args) else None,
+        'cubature_max_evals': args.cubature_max_evals if ('cubature_max_evals' in args) else None,
+        'z1max': args.z1max if ('z1max' in args) else None,
         'z2max': args.z2max if ('z2max' in args) else None, 
     }
     return [(k, v) for k, v in libbgmg_options.items() if v is not None ]
@@ -220,6 +221,22 @@ def parser_ld_add_arguments(args, func, parser):
     parser.add_argument('--ld-window', type=int, default=0, help="limit window similar to --ld-window in 'plink r2'; 0 will disable this constraint")
     parser.set_defaults(func=func)
 
+def parser_snps_add_arguments(args, func, parser):
+    parser.add_argument("--bim-file", type=str, default=None, help="Plink bim file. "
+        "Defines the reference set of SNPs used for the analysis. "
+        "Marker names must not have duplicated entries. "
+        "May contain simbol '@', which will be replaced with the actual chromosome label. ")
+    parser.add_argument("--ld-file", type=str, default=None, help="File with linkage disequilibrium information, "
+        "generated via 'mixer.py ld' command. "
+        "May contain simbol '@', similarly to --bim-file argument. ")
+    parser.add_argument("--chr2use", type=str, default="1-22", help="Chromosome ids to use "
+         "(e.g. 1,2,3 or 1-4,12,16-20). Chromosome must be labeled by integer, i.e. X and Y are not acceptable. ")
+    parser.add_argument('--r2', type=float, default=0.8, help="r2 threshold for random prunning")
+    parser.add_argument('--maf', type=float, default=0.05, help="maf threshold")
+    parser.add_argument('--subset', type=int, default=2000000, help="number of SNPs to randomly select")
+    parser.add_argument('--seed', type=int, default=123, help="Random seed")
+    parser.set_defaults(func=func)
+
 def parser_perf_add_arguments(args, func, parser):
     parser_add_common_arguments(parser, num_traits=2)
     parser.add_argument('--kmax', type=int, default=[20000, 2000, 200], nargs='+', help="Number of sampling iterations")
@@ -243,6 +260,7 @@ def parse_args(args):
 
     parser_ld_add_arguments(args=args, func=execute_ld_parser, parser=subparsers.add_parser("ld", parents=[parent_parser], help='prepare files with linkage disequilibrium information'))
     parser_perf_add_arguments(args=args, func=execute_perf_parser, parser=subparsers.add_parser("perf", parents=[parent_parser], help='run performance evaluation of the MiXeR'))
+    parser_snps_add_arguments(args=args, func=execute_snps_parser, parser=subparsers.add_parser("snps", parents=[parent_parser], help='generate random sets of SNPs'))
 
     return parser.parse_args(args)
 
@@ -531,7 +549,11 @@ def execute_ld_parser(args):
 
 def initialize_mixer_plugin(args):
     libbgmg = LibBgmg(args.lib)
-    libbgmg.init(args.bim_file, "", args.chr2use, args.trait1_file, args.trait2_file if ('trait2_file' in args) else "", args.exclude, args.extract)
+    libbgmg.init(args.bim_file, "", args.chr2use,
+                 args.trait1_file if ('trait1_file' in args) else "",
+                 args.trait2_file if ('trait2_file' in args) else "",
+                 args.exclude if ('exclude' in args) else "",
+                 args.extract if ('extract' in args) else "")
 
     for opt, val in convert_args_to_libbgmg_options(args, libbgmg.num_snp):
         libbgmg.set_option(opt, val)
@@ -540,7 +562,9 @@ def initialize_mixer_plugin(args):
         libbgmg.set_ld_r2_coo_from_file(chr_label, args.ld_file.replace('@', str(chr_label)))
         libbgmg.set_ld_r2_csr(chr_label)
 
-    libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude="", extract="")
+    if ('randprune_n' in args) and ('randprune_r2' in args):
+        libbgmg.set_weights_randprune(args.randprune_n, args.randprune_r2, exclude="", extract="")
+    
     libbgmg.set_option('diag', 0)
     return libbgmg
 
@@ -570,6 +594,40 @@ def execute_perf_parser(args):
                 libbgmg.log_message('threads={}, kmax={}, costcalt={} took {} seconds'.format(threads, kmax, costcalc, end-start))
 
     pd.DataFrame(perf_data, columns=['threads', 'kmax', 'costcalc', 'time_sec', 'cost']).to_csv(args.out + '.csv', sep='\t', index=False)
+    libbgmg.log_message('Done')
+
+def execute_snps_parser(args):
+    fix_and_validate_args(args)
+    if args.seed is not None: np.random.seed(args.seed)
+    libbgmg = initialize_mixer_plugin(args)
+    mafvec = np.minimum(libbgmg.mafvec, 1-libbgmg.mafvec)
+
+    libbgmg.log_message('Load {}...'.format(args.bim_file))
+    ref=pd.concat([pd.read_csv(args.bim_file.replace('@', str(chr_label)), sep='\t', header=None, names='CHR SNP GP BP A1 A2'.split()) for chr_label in args.chr2use])
+    libbgmg.log_message('{} SNPs in total'.format(len(ref)))
+
+    # step0 - generate random values for clumping (this is a way to implement random pruning)
+    buf = np.random.rand(libbgmg.num_tag, 1)
+    
+    # step1 - filter SNPs below MAF threshold
+    buf[mafvec<args.maf] = np.nan
+    libbgmg.log_message('{} SNPs pass --maf {} threshold'.format(np.sum(np.isfinite(buf)), args.maf))
+    
+    # step2 - select a random subset of SNPs
+    indices = list(np.where(np.isfinite(buf))[0])
+    sample = random.sample(indices, min(args.subset, len(indices)))
+    mask = np.ones(buf.shape); mask[sample] = 0
+    buf[mask == 1] = np.nan
+    libbgmg.log_message('{} SNPs randomly selected (--subset)'.format(np.sum(np.isfinite(buf))))
+
+    # step3 - further prune SNPs at certain r2 threshold
+    buf_pruned = libbgmg.perform_ld_clump(args.r2, buf.flatten()) 
+    libbgmg.log_message('{} SNPs pass random prunning at --r2 {} threshold'.format(np.sum(np.isfinite(buf_pruned)), args.r2))
+
+    # step4 - save results
+    ref.SNP[np.isfinite(buf_pruned)].to_csv(args.out, index=False, header=False)
+    libbgmg.log_message('Result saved to {}'.format(args.out))
+    
     libbgmg.log_message('Done')
 
 def init_results_struct(libbgmg, args):

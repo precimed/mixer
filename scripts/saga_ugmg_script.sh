@@ -32,23 +32,19 @@ export LDFILE=/cluster/projects/nn9114k/oleksanf/SUMSTAT/LDSR/1000G_EUR_Phase3_p
 export BIMFILE=/cluster/projects/nn9114k/oleksanf/SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim
 export EXTRACT=/cluster/projects/nn9114k/oleksanf/SUMSTAT/LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps
 export PYTHON=python3
-export TRAIT1=PGC_SCZ_2014_EUR
-export TRAIT2=PGC_BIP_2016
+export TRAIT=PGC_SCZ_2014_EUR
 
-$PYTHON $MIXER_ROOT/precimed/mixer.py fit2 \
-      --trait1-file $SUMSTATnomhc/$TRAIT1.sumstats.gz \
-      --trait2-file $SUMSTATnomhc/$TRAIT2.sumstats.gz \
-      --trait1-params-file ${OUT}$TRAIT1.fit.rep${SLURM_ARRAY_TASK_ID}.json \
-      --trait2-params-file ${OUT}$TRAIT2.fit.rep${SLURM_ARRAY_TASK_ID}.json \
-      --out ${OUT}${TRAIT1}_vs_${TRAIT2}.fit.rep${SLURM_ARRAY_TASK_ID} \
+$PYTHON $MIXER_ROOT/precimed/mixer.py fit1 \
+      --trait1-file $SUMSTATnomhc/$TRAIT.sumstats.gz \
+      --out ${OUTDIR}$TRAIT.fit.rep${SLURM_ARRAY_TASK_ID} \
+      --bim-file $BIMFILE --ld-file $LDFILE \
+      --lib $MIXER_ROOT/src/build/lib/libbgmg.so --threads 20 \
       --extract $EXTRACT \
+
+$PYTHON $MIXER_ROOT/precimed/mixer.py test1 \
+      --trait1-file $SUMSTATnomhc/$TRAIT.sumstats.gz \
+      --load-params-file $OUT/$TRAIT.fit.rep${SLURM_ARRAY_TASK_ID}.json \
+      --out ${OUTDIR}$TRAIT.test.rep${SLURM_ARRAY_TASK_ID} \
       --lib $MIXER_ROOT/src/build/lib/libbgmg.so --threads 20 \
       --bim-file $BIMFILE --ld-file $LDFILE \
 
-$PYTHON $MIXER_ROOT/precimed/mixer.py test2 \
-      --trait1-file $SUMSTAT/TMP/nomhc/$TRAIT1.sumstats.gz \
-      --trait2-file $SUMSTAT/TMP/nomhc/$TRAIT2.sumstats.gz \
-      --load-params-file ${OUT}${TRAIT1}_vs_${TRAIT2}.fit.rep${SLURM_ARRAY_TASK_ID}.json \
-      --out ${OUT}${TRAIT1}_vs_${TRAIT2}.test.rep${SLURM_ARRAY_TASK_ID} \
-      --lib $MIXER_ROOT/src/build/lib/libbgmg.so --threads 20 \
-      --bim-file $BIMFILE --ld-file $LDFILE \

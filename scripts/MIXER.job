@@ -1,0 +1,75 @@
+#!/bin/bash
+#SBATCH --job-name=mixer_real
+#SBATCH --account=p697_norment
+#SBATCH --time=24:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --mem-per-cpu=8000M
+#SBATCH --array=1-20
+
+module purge
+test $SCRATCH && module load singularity/3.7.1 
+
+#export GITHUB=/ess/p33/data/durable/s3-api/github
+export GITHUB=/ess/p697/data/durable/s3-api/github
+
+export APPTAINER_BIND="$GITHUB/comorment/mixer/reference:/REF"
+
+export REP="rep${SLURM_ARRAY_TASK_ID}"
+export EXTRACT="--extract /REF/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.$REP.snps"
+
+export COMMON_FLAGS=""
+export COMMON_FLAGS="${COMMON_FLAGS} --bim-file /REF/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim"
+export COMMON_FLAGS="${COMMON_FLAGS} --ld-file /REF/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld"
+export COMMON_FLAGS="${COMMON_FLAGS} --threads ${SLURM_CPUS_PER_TASK}"
+export COMMON_FLAGS="${COMMON_FLAGS} --exclude-ranges MHC"
+
+export PYTHON="singularity exec --home=pwd:/home $GITHUB/precimed/gsa-mixer/containers/latest/gsa-mixer.sif python"
+export MIXER_PY="$PYTHON         /tools/mixer/precimed/mixer.py"
+export MIXER_FIGURES_PY="$PYTHON /tools/mixer/precimed/mixer_figures.py"
+
+export TRAIT1=SCZ
+export TRAIT2=INT
+
+$PYTHON /tools/mixer/precimed/mixer.py fit1 $COMMON_FLAGS $EXTRACT  --trait1-file ${TRAIT1}.sumstats.gz --out ${TRAIT1}.fit.$REP
+$PYTHON /tools/mixer/precimed/mixer.py fit1 $COMMON_FLAGS $EXTRACT  --trait1-file ${TRAIT2}.sumstats.gz --out ${TRAIT2}.fit.$REP
+$PYTHON /tools/mixer/precimed/mixer.py fit2 $COMMON_FLAGS $EXTRACT  --trait1-file ${TRAIT1}.sumstats.gz --trait2-file ${TRAIT2}.sumstats.gz --trait1-params ${TRAIT1}.fit.$REP.json --trait2-params ${TRAIT2}.fit.$REP.json --out ${TRAIT1}_vs_${TRAIT2}.fit.$REP
+
+$PYTHON /tools/mixer/precimed/mixer.py test1 $COMMON_FLAGS --trait1-file ${TRAIT1}.sumstats.gz --load-params ${TRAIT1}.fit.$REP.json --out ${TRAIT1}.test.$REP
+$PYTHON /tools/mixer/precimed/mixer.py test1 $COMMON_FLAGS --trait1-file ${TRAIT2}.sumstats.gz --load-params ${TRAIT2}.fit.$REP.json --out ${TRAIT2}.test.$REP
+$PYTHON /tools/mixer/precimed/mixer.py test2 $COMMON_FLAGS --trait1-file ${TRAIT1}.sumstats.gz --trait2-file ${TRAIT2}.sumstats.gz --load-params ${TRAIT1}_vs_${TRAIT2}.fit.$REP.json --out ${TRAIT1}_vs_${TRAIT2}.test.$REP
+
+# After all runs complete, run the following commands for post-processing of the output files
+# if [[ "${SLURM_ARRAY_TASK_ID}" -eq 1 ]]; then
+#
+# echo -e '\n==== COMBINE / FIGURES ==================================================================\n'
+#  ${MIXER_FIGURES_PY} combine --json ${TRAIT1}.fit.rep@.json --out ${TRAIT1}.fit.rep@
+#  ${MIXER_FIGURES_PY} combine --json ${TRAIT2}.fit.rep@.json --out ${TRAIT2}.fit.rep@
+#  ${MIXER_FIGURES_PY} combine --json ${TRAIT1}.test.rep@.json --out ${TRAIT1}.test.rep@
+#  ${MIXER_FIGURES_PY} combine --json ${TRAIT2}.test.rep@.json --out ${TRAIT2}.test.rep@
+#  ${MIXER_FIGURES_PY} combine --json ${TRAIT1}_vs_${TRAIT2}.fit.rep@.json --out ${TRAIT1}_vs_${TRAIT2}.fit.rep@
+#  ${MIXER_FIGURES_PY} combine --json ${TRAIT1}_vs_${TRAIT2}.test.rep@.json --out ${TRAIT1}_vs_${TRAIT2}.test.rep@
+#
+#  ${MIXER_FIGURES_PY} one --json ${TRAIT1}.fit.rep@.json --trait1 ${TRAIT1} --out ${TRAIT1}.fit --statistic mean std
+#  ${MIXER_FIGURES_PY} one --json ${TRAIT1}.test.rep@.json --trait1 ${TRAIT1} --out ${TRAIT1}.test --statistic mean std
+#  ${MIXER_FIGURES_PY} one --json ${TRAIT2}.fit.rep@.json --trait1 ${TRAIT2} --out ${TRAIT2}.fit --statistic mean std
+#  ${MIXER_FIGURES_PY} one --json ${TRAIT2}.test.rep@.json --trait1 ${TRAIT2} --out ${TRAIT2}.test --statistic mean std
+#
+#  ${MIXER_FIGURES_PY} two --json-fit ${TRAIT1}_vs_${TRAIT2}.fit.rep@.json --json-test  ${TRAIT1}_vs_${TRAIT2}.test.rep@.json --trait1 ${TRAIT1} --trait2 ${TRAIT2} --out ${TRAIT1}_vs_${TRAIT2} --statistic mean std
+#
+# fi
+#
+# 
+#
+# # Other tips:
+#
+# # Run the following to make a .csv table with results across multiple traits
+#
+#   ${MIXER_FIGURES_PY} one --json ${TRAIT1}.fit.rep@.json ${TRAIT2}.fit.rep@.json --out UNIVAR_results_fit --statistic mean std
+#
+# # Run the following if you're interested to check multiple power curves on one figure:
+#
+#   ${MIXER_FIGURES_PY} one --json ${TRAIT1}.test.rep@.json ${TRAIT2}.test.rep@.json --out UNIVAR_results_test --statistic mean std
+#
+# # Run the following to make a .csv table with results across multiple traits
+#
+#   ${MIXER_FIGURES_PY} two --json *_vs_*.fit.rep@.json --out BIVAR_results_fit --statistic mean std

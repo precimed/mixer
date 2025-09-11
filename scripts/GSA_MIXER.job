@@ -1,0 +1,122 @@
+#!/bin/bash
+#SBATCH --job-name=gsamixer
+#SBATCH --time=24:00:00
+#SBATCH --ntasks=1
+
+# USIT TSD
+#SBATCH --account=p697_norment
+#SBATCH --mem-per-cpu=8000M   # 502 GB available => 502*1024/64 = 8032 MB max per core
+#SBATCH --cpus-per-task=32    # remember to update --threads argument below!
+source /cluster/bin/jobsetup
+
+test $SCRATCH && module load singularity/3.7.1 
+
+# big memory nodes on SAGA
+##SBATCH --account=nn9114k
+##SBATCH --mem-per-cpu=9267M   # 362 GB / 40 cores - https://documentation.sigma2.no/jobs/job_types/saga_job_types.html
+##SBATCH --cpus-per-task=20    # remember to update --threads argument below!
+##SBATCH --partition=bigmem
+
+# standard node on SAGA
+##SBATCH --account=nn9114k
+##SBATCH --mem-per-cpu=4569M # 178.5 GB / 40 cores - 
+##SBATCH --cpus-per-task=8    
+
+# custom path & settings - SAGA
+#export THREADS=40
+#export GITHUB=/cluster/projects/nn9114k/github
+#export MIXER_SIF=${GITHUB}/precimed/gsa-mixer/containers/latest/gsa-mixer.sif
+#export SUMSTATS_FOLDER=/cluster/projects/nn9114k/oleksanf/gsa-mixer/sumstats
+#export SUMSTATS_FILE=PGC_SCZ_0518_EUR
+#export OUT_FOLDER=/cluster/projects/nn9114k/oleksanf/gsa-mixer/out2
+#export BIND="--bind /cluster/projects/nn9114k:/cluster/projects/nn9114k"
+
+# custom path & settings - local laptop
+export THREADS=6
+export GITHUB=/home/oleksanf/github
+export MIXER_SIF=${GITHUB}/precimed/gsa-mixer/containers/latest/gsa-mixer.sif
+export SUMSTATS_FOLDER=${GITHUB}/precimed/gsa-mixer/sumstats
+export SUMSTATS_FILE=PGC_SCZ_0518_EUR
+export OUT_FOLDER=${GITHUB}/precimed/gsa-mixer/out
+export BIND="--bind /home/oleksanf:/home/oleksanf"
+
+# select which analyses to trigger
+export DO_GSA_MIXER=true
+export DO_MAGMA=true
+
+# standard GSA-MiXeR pipeline begins here - change only if you know what you're doing
+export PYTHON="singularity exec --home pwd:/home $BIND ${MIXER_SIF} python"
+export MIXER_PY="$PYTHON /tools/mixer/precimed/mixer.py"
+export MAGMA="singularity exec --home pwd:/home $BIND ${MIXER_SIF} magma"
+
+export MAGMA_BFILE=${GITHUB}/comorment/mixer/reference/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@
+export MAGMA_GENE_LOC=${GITHUB}/precimed/gsa-mixer/reference/magma-gene-annot_10mar2023.csv
+export MAGMA_SET_ANNOT=${GITHUB}/precimed/gsa-mixer/reference/magma-geneset-annot_10mar2023.csv
+
+export EXTRA_FLAGS="--seed 1000 --exclude-ranges MHC --hardprune-r2 0.6 --threads ${THREADS} "
+
+# incomment the following line if you'd like to quickly test whether all commands in this script run fine
+# the results in this case are compete junk, but you should at least get all output files
+#export EXTRA_FLAGS="${EXTRA_FLAGS} --chr2use 21-22 --adam-epoch 3 3 --adam-step 0.064 0.032"
+
+export REFERENCE_FOLDER=${GITHUB}/precimed/gsa-mixer/reference
+export BIM_FILE=${GITHUB}/comorment/mixer/reference/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim
+export LOADLIB_FILE=${GITHUB}/comorment/mixer/reference/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bin
+export ANNOT_FILE=${GITHUB}/comorment/mixer/reference/ldsc/1000G_EUR_Phase3_plink/baseline_v2.2_1000G.EUR.QC.@.annot.gz
+
+# GSA-MiXeR analysis - split sumstats per chromosome
+if [[ ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.sumstats.gz -nt ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.chr22.sumstats.gz ]]; then
+  ${MIXER_PY} split_sumstats \
+      --trait1-file ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.sumstats.gz \
+      --out ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.chr@.sumstats.gz
+fi
+
+if ${DO_GSA_MIXER}; then
+
+# GSA-MiXeR analysis - baseline
+${MIXER_PY} plsa --gsa-base \
+        --trait1-file ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.chr@.sumstats.gz \
+        --out ${OUT_FOLDER}/${SUMSTATS_FILE}_base \
+        --bim-file ${BIM_FILE} --use-complete-tag-indices --loadlib-file ${LOADLIB_FILE} \
+        --go-file ${REFERENCE_FOLDER}/gsa-mixer-baseline-annot_10mar2023.csv \
+        --annot-file ${ANNOT_FILE} \
+        ${EXTRA_FLAGS}
+
+# GSA-MiXeR analysis - enrichment model
+${MIXER_PY} plsa --gsa-full \
+        --trait1-file ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.chr@.sumstats.gz \
+        --out ${OUT_FOLDER}/${SUMSTATS_FILE}_full \
+        --bim-file ${BIM_FILE} --use-complete-tag-indices --loadlib-file ${LOADLIB_FILE} \
+        --go-file ${REFERENCE_FOLDER}/gsa-mixer-gene-annot_10mar2023.csv \
+        --go-file-test ${REFERENCE_FOLDER}/gsa-mixer-hybridLOO-annot_10mar2023.csv \
+        --annot-file ${ANNOT_FILE} \
+        --load-params-file ${OUT_FOLDER}/${SUMSTATS_FILE}_base.json \
+        ${EXTRA_FLAGS}
+
+fi
+
+# MAGMA analysis - unpack .gz, as MAGMA doesn't read compressed files
+if [[ ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.sumstats.gz -nt ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.sumstats ]]; then
+  zcat  ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.sumstats.gz >  ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.sumstats
+fi
+
+if ${DO_MAGMA}; then
+
+# MAGMA analysis - annotate snps to genes
+$MAGMA --snp-loc ${MAGMA_BFILE}.bim \
+       --gene-loc ${MAGMA_GENE_LOC} \
+       --out ${OUT_FOLDER}/${SUMSTATS_FILE}_magma.step1 \
+       --annotate window=10
+
+# MAGMA analysis - compute gene-level p-values
+$MAGMA --pval ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.sumstats snp-id=RSID pval=P ncol=N \
+       --bfile ${MAGMA_BFILE} \
+       --gene-annot ${OUT_FOLDER}/${SUMSTATS_FILE}_magma.step1.genes.annot \
+       --out ${OUT_FOLDER}/${SUMSTATS_FILE}_magma.step2
+
+# MAGMA analysis - compute geneset-level p-values
+$MAGMA --gene-results ${OUT_FOLDER}/${SUMSTATS_FILE}_magma.step2.genes.raw \
+       --set-annot ${MAGMA_SET_ANNOT} \
+       --out ${OUT_FOLDER}/${SUMSTATS_FILE}_magma
+
+fi

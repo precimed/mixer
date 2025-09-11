@@ -1,0 +1,4 @@
+PGC_SCZ_0518_EUR_magma.step2.genes.out filter=lfs diff=lfs merge=lfs -text
+PGC_SCZ_0518_EUR_magma.gsa.out filter=lfs diff=lfs merge=lfs -text
+PGC_SCZ_0518_EUR_full.go_test_enrich.csv filter=lfs diff=lfs merge=lfs -text
+PGC_SCZ_0518_EUR_SupplementaryTables.xlsx filter=lfs diff=lfs merge=lfs -text

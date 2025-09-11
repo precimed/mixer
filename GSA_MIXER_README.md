@@ -1,9 +1,5 @@
 ## Introduction
 
-GSA-MiXeR is a new technique for competitive gene-set analysis, which fits a model for gene-set heritability enrichments for complex human traits, thus allowing the quantification of partitioned heritability and fold enrichment for small gene-sets.
-
-Cross-trait MiXeR is a statistical tool which quantifies polygenic overlap between complex traits irrespective of genetic correlation, using GWAS summary statistics. MiXeR results are presented as a Venn diagram of unique and shared polygenic components across traits.
-
 For a real-world application of the GSA-MiXeR you will need to perform the following steps:
 * [Install GSA-MiXeR](#install-gsa-mixer) using Docker or singularity containers
 * (optionally) test our your installation using [Getting Started Example](#getting-started-example) with tiny dummy data
@@ -17,76 +13,6 @@ For further information refer to [Command-line reference](#command-line-referenc
 We also provide instructions on how to [generate your own LD reference](#generate-ld-reference) files, for example using UKB or HRC genotypes.
 
 The history of software changes is available in the [CHANGELOG.md](CHANGELOG.md) file.
-
-Please cite relevant publications if you use MiXeR software in your research work.
-
-* for univariate analysis: D. Holland et al., Beyond SNP Heritability: Polygenicity and Discoverability Estimated for Multiple Phenotypes with a Univariate Gaussian Mixture Model, PLOS Genetics, 2020, https://doi.org/10.1371/journal.pgen.1008612
-* for cross-trait analysis: O.Frei et al., Bivariate causal mixture model quantifies polygenic overlap between complex traits beyond genetic correlation, Nature Communications, 2019, https://www.nature.com/articles/s41467-019-10310-0
-* for gene-set enrichment analysis: O.Frei et al., Improved functional mapping with GSA-MiXeR implicates biologically specific gene-sets and estimates enrichment magnitude, Nature Genetics, 2024, https://www.nature.com/articles/s41588-024-01771-1
-
-## Install GSA-MiXeR
-
-GSA-MiXeR software is released both as a Docker container, and as a pre-compiled singularity (apptainer) container. Use the following commands to check if you have Docker and/or singulrity available in your environment:
-```
-# check if Docker software is installed
->docker --version
-Docker version 20.10.7, build 20.10.7-0ubuntu5~21.04.2
-
-# check if singularity software is installed
->singularity --version
-singularity version 3.7.4
-```
-
-To dowload Docker version of the GSA-MiXeR, use the following command:
-```
-docker pull ghcr.io/precimed/gsa-mixer:latest
-export DOCKER_RUN="docker run -v $PWD:/home -w /home"
-export MIXER_PY="$DOCKER_RUN ghcr.io/precimed/gsa-mixer:latest python /tools/mixer/precimed/mixer.py"
-```
-To download singularity version of the GSA-MiXeR, use the following command:
-```
-oras pull ghcr.io/precimed/gsa-mixer_sif:latest
-export MIXER_SIF=<path>/gsa-mixer.sif
-export MIXER_PY="singularity exec --home pwd:/home ${MIXER_SIF} python /tools/mixer/precimed/mixer.py"
-```
-To fetch a specific version check packages page on github ([here](https://github.com/precimed/gsa-mixer/pkgs/container/gsa-mixer) for Docker, [here](https://github.com/precimed/gsa-mixer/pkgs/container/gsa-mixer_sif) for Singularity), and update the above with a specific tag, e.g. ``gsa-mixer:sha-a7b47d3``.
-
-If you have built MiXeR's native code locally, use
-```
-export GSA_MIXER_ROOT=$HOME/github/precimed/gsa-mixer                   # adjust accordingly
-export BGMG_SHARED_LIBRARY="$GSA_MIXER_ROOT/src/build/lib/libbgmg.so"
-export MIXER_PY="python $GSA_MIXER_ROOT/precimed/mixer.py"
-```
-
-The usage of ``${MIXER_PY}`` should be the same regardless of whether you use Docker or singularity version,
-however for most users we recommend running through singularity container (mainly because singularity is more commonly available in HPC clusters).
-If you use docker version, you may need to customize ``$DOCKER_RUN`` variable to your environment, e.g. 
-you may not need to invoke docker as sudo;
-you may not need ``--user $(id -u):$(id -g)`` (this forces docker to run commands as current user);
-you may also try replacing ``$PWD`` with ``pwd`` (same as in the above $MIXER_PY command using singularity container),
-so that current working directory is mounted to the container even if you change it after defining ``MIXER_PY`` variable.
-
-The above containers are only generated for CPUs with x86 architecture (e.g. intel or AMD CPUs), and do not support ARM architectures (for example the are not compatible with newer Macbook laptops with M1/M2/M3 chips).
-The containers are based on the following [Dockerfile](Dockerfile), built using Github actions ([this workflow](.github/workflows/docker_build_push.yml)). We also include [scripts/from_docker_image.sh](scripts/from_docker_image.sh) shell script to convert locally built Docker container into singularity, which is only relevant if you're building these containers yourself.
-
-### Installing Docker or Singularity on your local machine
-
-To install Docker refer to its documentation: https://docs.docker.com/get-started/get-docker/ .
-Note that by default after Docker installation you need to run it as sudo. 
-The instructions below assume you can run docker as your own user.
-To allow this you need to your user to 'docker' usergroup, as instructed [here](https://docs.docker.com/engine/install/linux-postinstall/).
-Then check that you can run ``docker run hello-world`` command without sudo. If this works you're good to go.
-
-Singularity software (https://sylabs.io/docs/) is most likely available in your HPC environment, however it's also
-not too hard to get it up an running on your laptop (especially on Ubuntu, probably also on older MAC with an intel CPU).
-To install singularity on Ubuntu follow steps described here: https://sylabs.io/guides/3.7/user-guide/quick_start.html
-Note that ``sudo apt-get`` can give only a very old version of singularity, which isn't sufficient.
-Therefore it's best to build singularity locally. 
-Note that building singularity from source code depends on [GO](https://go.dev/doc/install), 
-so it must be installed first. One you have singularity up and running, it might be usefult o have a look at
-["singularity shell" options](https://sylabs.io/guides/3.2/user-guide/cli/singularity_shell.html#options) and
-[Bind paths and mounts](https://sylabs.io/guides/3.2/user-guide/bind_paths_and_mounts.html) pages from the documentation.
-``oras`` pre-built binary can be installed from [here](https://github.com/oras-project/oras/releases).
 
 ## Getting Started Example
 
@@ -166,36 +92,6 @@ The [scripts/GSA_MIXER.job](scripts/GSA_MIXER.job) is a good starting point for 
 * remove ``--adam-epoch 3 3 --adam-step 0.064 0.032``, as this stops Adam fit procedure too early
 * remove ``--extract g1000_eur_hm3_chr@.snps``, to use all available SNPs for fitting the model.
 The multi-start procedure involving 20 re-runs of the fit procedure, with each constrainted to a random subset of SNPs, was only relevant to cross-trait MiXeR and is not recommended for GSA-MiXeR.
-
-## Input Data Formats
-
-GSA-MiXeR format for summary statistics (``--trait1-file``) is compatible with LD Score Regression
-(i.e. the ``.sumstats.gz`` files), and must include the following columns:
-* Eithe one of the following:
-  * ``SNP`` or ``RSID`` (marker name), or
-  * ``CHR`` (chromosome label) and  ``BP`` or ``POS`` (genomic corrdinates), in a build that is compatible with the reference build (``--bim-file`` argument)
-* ``A1`` or ``EffectAllele`` (reference allele)
-* ``A2`` or ``OtherAllele`` (alternative allele)
-* ``N`` (sample size); for case-control studies this should be the effective sample size computed as ``N=4/(1/ncases+1/ncontrols)``
-* ``Z`` (signed test statistic)
-Column names must be exactly as defined above, except for upper/lower case which can be arbitrary (all column names from the input file are converted to lower case prior to matching them with expected column names defined above).
-
-It's beneficial to have both ``SNP`` and ``CHR``/``BP`` columns in the data.
-In this situation matching SNPs with the reference (``--bim-file``) is performed on marker name (``SNP`` column).
-For the remaining SNPs GSA-MiXeR attempts to match using CHR:BP:A1:A2 codes, accounting for situations when (1) ``A1``/``A2`` are swapped between GWAS summary statistics and the reference, (2) alleles are coded on different strands, (3) both of the above. 
-The sign of z-score is refersed when needed during this procedure.
-
-We advice against filtering down summary statistics to the set of SNPs included in HapMap3.
-Prior to running GSA-MiXeR we advice filtering SNPs with bad imputation quality, if ``INFO`` column is available in summary statistics.
-If per-SNP sample size is available, we advice filtering out SNPs with N below half of the median sample size across SNPs.
-Other filtering options are built into GSA-MiXeR software, including ``--exclude-ranges`` option to filter out special regions such as MHC, and ``--maf`` and ``--randprune-maf`` to filter out based on minor allele frequency.
-
-Prior to running GSA-MiXeR you will need to split summary statistics into one file per chromosome, as shown in [GSA_MIXER.job](scripts/GSA_MIXER.job):
-```
-${MIXER_PY} split_sumstats \
-    --trait1-file ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.sumstats.gz
-    --out ${SUMSTATS_FOLDER}/${SUMSTATS_FILE}.chr@.sumstats.gz
-```
 
 ## Download LD matrix and other reference files
 

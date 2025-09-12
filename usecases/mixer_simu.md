@@ -1,13 +1,21 @@
 # MiXeR on simulated data
 
 This usecase describe how to run MiXeR analysis (http://github.com/precimed/mixer) on synthetic data, generated with simu_linux (http://github.com/precimed/simu).
-All commands below assume that ``$COMORMENT``  environmental is defined as described [here](https://github.com/comorment/containers#getting-started), and ``$SINGULARITY_BIND`` and ``$SIF`` variables are defined as follows:
+
+Prerequisites:
+
+* have a local copy of https://github.com/comorment/mixer repository; below this folder is referred to as ``$MIXER_REFERENCE_FOLDER``
+* have a local copy of mixer.sif container; below full path to this container is referred to as ``$MIXER_SIF``
+
+Step 0. Setup ``${SINGULARITY_BIND}`` as follows:
 ```
-export SINGULARITY_BIND=$COMORMENT/mixer/reference:/REF
-export SIF=$COMORMENT/mixer/singularity
+export SINGULARITY_BIND=${MIXER_REFERENCE_FOLDER}/reference:/REF
 ```
 
-1. Generate two pairs of traits for MiXeR analysis, covering two scenarios: complete polygenic overlap (``shared``), non-overlaping causal variants (``unique``), and partly overlaping causal variants (``partial``):
+Note that you may bypass the first two steps by using six ``.sumstats.gz`` files from ([this folder](https://github.com/comorment/mixer/tree/main/reference/hapgen)).
+If you do this, go straight to step 3.
+
+Step 1. Generate two pairs of traits for MiXeR analysis, covering two scenarios: complete polygenic overlap (``shared``), non-overlaping causal variants (``unique``), and partly overlaping causal variants (``partial``):
 ```
 singularity shell --home $PWD:/home $SIF/mixer.sif 
 simu_linux --qt --bfile /REF/hapgen/chr21 --seed 123 --causal-n 100 100 --trait1-sigsq 1 0 --trait2-sigsq 0 1 --num-components 2 --out unique --num-traits 2
@@ -21,7 +29,7 @@ plink2 --bfile /REF/hapgen/chr21 --glm allow-no-covars --pheno partial.pheno --p
 plink2 --bfile /REF/hapgen/chr21 --glm allow-no-covars --pheno partial.pheno --pheno-name trait2 --out partial.2
 ```
 
-2. Convert the output of ``plink2`` to a format compatible with ``MiXeR``:
+Step 2. Convert the output of ``plink2`` to a format compatible with ``MiXeR``:
 ```
 singularity exec --home $PWD:/home $SIF/mixer.sif python
 import pandas as pd
@@ -29,7 +37,7 @@ for fname, out in [('{x}.{y}.trait{y}.glm.linear'.format(x=x,y=y), '{}.{}.sumsta
     pd.read_csv(fname, delim_whitespace=True)[['ID', 'REF', 'ALT', 'OBS_CT', 'T_STAT']].rename(columns={'ID':'SNP', 'REF':'A1', 'ALT':'A2', 'OBS_CT':'N', 'T_STAT':'Z'}).to_csv(out,index=False, sep='\t')
 ```
 
-3. Run univariate MiXeR analysis (each analysis should take up to 10 minutes on a standard laptop, in this demo example)
+Step 3. Run univariate MiXeR analysis (each analysis should take up to 10 minutes on a standard laptop, in this demo example)
 
 ```
 singularity shell --home $PWD:/home $SIF/mixer.sif
@@ -63,9 +71,9 @@ python /tools/mixer/precimed/mixer_figures.py two --json unique.json --out uniqu
 python /tools/mixer/precimed/mixer_figures.py two --json partial.json --out partial
 ```
 
-4. The results are available in ``shared.png``, ``unique.png`` and ``partial.png`` figures.
+Step 4. The results are available in ``shared.png``, ``unique.png`` and ``partial.png`` figures.
 
-5. You could also use [MIXER_SIMU.job](mixer_simu/MIXER_SIMU.job) script to run this on a cluster 20 times, 
+Step 5. You could also use [MIXER_SIMU.job](mixer_simu/MIXER_SIMU.job) script to run this on a cluster 20 times, 
 each with a random subsets of SNPs as defined by ``1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep[1-20].snps`` files, 
 and use variation in parameter estimates amoung these runs this to infer uncertainty of parameter estimates.
 Adjust ``MIXER_SIMU.job`` to match configuration of your cluster. Then trigger analysis by running ``sbatch MIXER_SIMU.job`` command.
@@ -87,13 +95,13 @@ python /tools/mixer/precimed/mixer_figures.py two --statistic mean std --json-fi
 After processing the resulting figures shoud look like this:
 
 Unique:
-![mixer_simu_unique.png](https://raw.githubusercontent.com/comorment/mixer/main/usecases/mixer_simu/mixer_simu_unique.png)
+![mixer_simu_unique.png](https://raw.githubusercontent.com/precimed/mixer/master/usecases/mixer_simu/mixer_simu_unique.png)
 
 Partial:
-![mixer_simu_partial.png](https://raw.githubusercontent.com/comorment/mixer/main/usecases/mixer_simu/mixer_simu_partial.png)
+![mixer_simu_partial.png](https://raw.githubusercontent.com/precimed/mixer/master/usecases/mixer_simu/mixer_simu_partial.png)
 
 Shared:
-![mixer_simu_shared.png](https://raw.githubusercontent.com/comorment/mixer/main/usecases/mixer_simu/mixer_simu_shared.png)
+![mixer_simu_shared.png](https://raw.githubusercontent.com/precimed/mixer/master/usecases/mixer_simu/mixer_simu_shared.png)
 
 To include density plots to the resulting figure, add ``--trait1-file`` and ``--trait2-file`` arguments like this:
 ```
@@ -107,18 +115,18 @@ The syntax above can be adapted to Docker as follows:
 ```bash
 #!/bin/bash
 # define environment variables:
-export IMAGE="ghcr.io/comorment/mixer:latest"  # adapt as necessary
-export MIXER="<path/to>/mixer"  # adapt as necessary
+export MIXER_DOCKER_IMAGE="ghcr.io/precimed/gsa-mixer:latest"  # adapt as necessary
+export MIXER_REFERENCE_FOLDER=<full path> # adapt as necessary
 export SLURM_ARRAY_TASK_ID=1
 export MIXER_COMMON_ARGS="--chr2use 21 --ld-file /REF/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld --bim-file /REF/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim"
 export REP="rep${SLURM_ARRAY_TASK_ID}"
 export EXTRACT="--extract /REF/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.$REP.snps"
 # shortcuts for different binaries and interactive shell:
-export PYTHON="docker run --platform=linux/amd64 --rm -v ${MIXER}/usecases:/home -v ${MIXER}/reference:/REF -w/home --entrypoint=python ${IMAGE}"
-export SIMU="docker run --platform=linux/amd64 --rm -v ${MIXER}/usecases:/home -v ${MIXER}/reference:/REF -w/home --entrypoint=simu_linux ${IMAGE}"
-export PLINK1="docker run --platform=linux/amd64 --rm -v ${MIXER}/usecases:/home -v ${MIXER}/reference:/REF -w/home --entrypoint=plink1 ${IMAGE}"
-export PLINK2="docker run --platform=linux/amd64 --rm -v ${MIXER}/usecases:/home -v ${MIXER}/reference:/REF -w/home --entrypoint=plink2 ${IMAGE}"
-export ISHELL="docker run --platform=linux/amd64 --rm -it -v ${MIXER}/usecases:/home -v ${MIXER}/reference:/REF -w/home --entrypoint=bash ${IMAGE}"
+export PYTHON="docker run --platform=linux/amd64 --rm -v ${PWD}:/home -v ${MIXER_REFERENCE_FOLDER}/reference:/REF -w/home --entrypoint=python ${MIXER_DOCKER_IMAGE}"
+export SIMU="docker run --platform=linux/amd64 --rm -v ${PWD}:/home -v ${MIXER_REFERENCE_FOLDER}/reference:/REF -w/home --entrypoint=simu_linux ${MIXER_DOCKER_IMAGE}"
+export PLINK1="docker run --platform=linux/amd64 --rm -v ${PWD}:/home -v ${MIXER_REFERENCE_FOLDER}/reference:/REF -w/home --entrypoint=plink1 ${MIXER_DOCKER_IMAGE}"
+export PLINK2="docker run --platform=linux/amd64 --rm -v ${PWD}:/home -v ${MIXER_REFERENCE_FOLDER}/reference:/REF -w/home --entrypoint=plink2 ${MIXER_DOCKER_IMAGE}"
+export ISHELL="docker run --platform=linux/amd64 --rm -it -v ${PWD}:/home -v ${MIXER_REFERENCE_FOLDER}/reference:/REF -w/home --entrypoint=bash ${MIXER_DOCKER_IMAGE}"
 
 # invoke mixer.py help documentation:
 $PYTHON /tools/mixer/precimed/mixer.py fit1 --help 

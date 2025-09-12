@@ -1,10 +1,39 @@
 # MiXeR on real data
 
 This usecase describe how to run MiXeR analysis (http://github.com/precimed/mixer) on real summary statistics:
-schizophrenia (SCZ) and intelligence (INT). All commands below assume that ``$COMORMENT``  environmental is defined as described in [Getting started](../README.md#getting-started) section of the main README file, and ``$SINGULARITY_BIND`` and ``$SIF`` variables are defined as follows:
+schizophrenia (SCZ) and intelligence (INT). 
+
+## Introduction
+
+Input data for MiXeR consists of summary statistics from a GWAS, and a reference panel.
+Check [GWAS Summary Statistics Format](../README/#gwas-summary-statistics-format) 
+and [Reference Data Downloads](../README/#reference-data---downloads) for more information.
+
+Once you have all input data in MiXeR-compatible format you may proceed with running univariate (``fit1``, ``test1``)
+and cross-trait (``fit2``, ``test2``) analyses, as implemented in ``mixer.py`` command-line interface.
+The results will be saved as ``.json`` files.
+To visualize the results we provide a script in python, but we encourage users to write their own scripts
+that understand the structure of ``.json`` files, process the results.
+Further details are given in [Run MiXeR](#run-mixer),
+[MiXeR options](#mixer-options) and [Visualize MiXeR results](#visualize-mixer-results) sections.
+
+## Hardware requirements
+
+Cross-trait MiXeR analysis is very CPU intensive. 
+Minimal memory requirement is to have 32 GB of RAM available to MiXeR.
+MiXeR efficiently uses multiple CPUs.
+We recommend to run cross-trait MiXeR on a system with at least 16 physical cores.
+
+## Step-by-step instructions
+
+Prerequisites:
+
+* have a local copy of https://github.com/comorment/mixer repository; below this folder is referred to as ``$MIXER_REFERENCE_FOLDER``
+* have a local copy of mixer.sif container; below full path to this container is referred to as ``$MIXER_SIF``
+
+Step 0. Setup ``${SINGULARITY_BIND}`` as follows:
 ```
-export SINGULARITY_BIND=$COMORMENT/mixer/reference:/REF
-export SIF=$COMORMENT/mixer/singularity
+export SINGULARITY_BIND=${MIXER_REFERENCE_FOLDER}/reference:/REF
 ```
 
 Firts, let's take a look at the columns available in the summary statistics.
@@ -21,20 +50,20 @@ However, it's important to exclude the MHC region (chr6:26-34M).
 
 Below we provide python scripts to re-format these particular summary statistics.
 Note that a more general set of command line tools for harmonizing summary statistics 
-is available from https://github.com/precimed/python_convert which is already included in ``python3.sif`` container (https://github.com/comorment/containers/blob/main/docs/python3.md).
+is available from https://github.com/precimed/python_convert which is already included in ``mixer.sif`` container.
 
 ```
->zcat $COMORMENT/mixer/reference/sumstats/clozuk_pgc2.meta.sumstats.txt.gz | head -n 3
+>zcat $MIXER_REFERENCE_FOLDER/reference/sumstats/clozuk_pgc2.meta.sumstats.txt.gz | head -n 3
 SNP	Freq.A1	CHR	BP	A1	A2	OR	SE	P
 10:100968448:T:AA	0.3519	10	100968448	t	aa	1.0024	0.01	0.812
 10:101574552:A:ATG	0.4493	10	101574552	a	atg	0.98906	0.0097	0.2585
 
->zcat $COMORMENT/mixer/reference/sumstats/SavageJansen_2018_intelligence_metaanalysis.txt.gz | head -n 3
+>zcat $MIXER_REFERENCE_FOLDER/reference/sumstats/SavageJansen_2018_intelligence_metaanalysis.txt.gz | head -n 3
 SNP	UNIQUE_ID	CHR	POS	A1	A2	EAF_HRC	Zscore	stdBeta	SE	P	N_analyzed	minINFO	EffectDirection
 rs12184267	1:715265	1	715265	t	c	0.0408069	0.916	0.00688729787581148	0.007518884143899	0.3598	225955	0.805386	-???????????????++?
 rs12184277	1:715367	1	715367	a	g	0.9589313	-0.656	-0.00491449054466469	0.00749160144003763	0.5116	226215	0.808654	+???????????????--?
 
-singularity exec --home $PWD:/home $SIF/mixer.sif python
+singularity exec --home $PWD:/home $MIXER_SIF python
 
 import pandas as pd
 import numpy as np
@@ -79,27 +108,28 @@ For example, inspect ``SCZ_vs_INT.fit.rep1.log`` to make sure the number of SNPs
 Construct reference from 22 files...
 ...
 Found 9997231 variants in total.
-Found 6564637 variants with well-defined Z and N in SCZ.sumstats.gz. Other statistics: 
+Found 6311061 variants with well-defined Z and N in SCZ.sumstats.gz. Other statistics: 
        8130258 lines found (including header)
        7445470 lines matched via CHR:BP:A1:A2 code (not SNP rs#)
        684787 lines were ignored as RS# (or chr:bp:a1:a2 code) did not match reference file.
-       880833 variants were ignored as they are strand-ambiguous.
-       5259074 variants had flipped A1/A2 alleles; sign of z-score was flipped.
-constrain analysis to 6564637 tag variants (due to trait1_file='SCZ.sumstats.gz')
+       1134409 variants were are strand-ambiguous,  removing them from analysis
+       5056187 variants had flipped A1/A2 alleles; sign of z-score was flipped.
+constrain analysis to 6311061 tag variants (due to trait1_file='SCZ.sumstats.gz')
 Found 6869403 variants with well-defined Z and N in INT.sumstats.gz. Other statistics: 
        9241349 lines found (including header)
        7729 lines matched via CHR:BP:A1:A2 code (not SNP rs#)
        1291097 lines were ignored as RS# (or chr:bp:a1:a2 code) did not match reference file.
        11 variants were ignored as they had A1/A2 alleles that do not match reference.
-       1080837 variants were ignored as they are strand-ambiguous.
+       1080837 variants were are strand-ambiguous,  removing them from analysis
        3001928 variants had flipped A1/A2 alleles; sign of z-score was flipped.
 constrain analysis to 5880604 tag variants (due to trait2_file='INT.sumstats.gz')
 constrain analysis to 419659 tag variants (due to extract='/REF/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep1.snps')
+constrain analysis to 419321 tag variants (69613 removed due to exclude_ranges='6:25000000-35000000')
 ```
 
 Now generate figures using these commands:
 ```
-singularity shell --home $PWD:/home $SIF/mixer.sif
+singularity shell --home $PWD:/home $MIXER_SIF
 
 python /tools/mixer/precimed/mixer_figures.py combine --json SCZ.fit.rep@.json  --out SCZ.fit
 python /tools/mixer/precimed/mixer_figures.py combine --json SCZ.test.rep@.json  --out SCZ.test
@@ -119,6 +149,8 @@ Resulting files:
 * [SCZ_and_INT.fit.csv](mixer_real/SCZ_and_INT.fit.csv) - estimates from univariate analysis (NB! it's important to use the "fit" data for AIC / BIC values, not the "test" data)
 * [SCZ_vs_INT.csv](mixer_real/SCZ_vs_INT.csv) - estimates from bivariate analysis
 * [SCZ_vs_INT.png](mixer_real/SCZ_vs_INT.png) - venn diagram, stratified QQ plots, likelihood figure
-  ![SCZ_vs_INT.png](https://raw.githubusercontent.com/comorment/mixer/main/usecases/mixer_real/SCZ_vs_INT.png)
+
+  ![SCZ_vs_INT.png](mixer_real/SCZ_vs_INT.png)
 * [SCZ_and_INT.test.power.png](mixer_real/SCZ_and_INT.test.power.png) - power curve for SCZ and INT
-  ![SCZ_and_INT.test.power.png](https://raw.githubusercontent.com/comorment/mixer/main/usecases/mixer_real/SCZ_and_INT.test.power.png)
+
+  ![SCZ_and_INT.test.power.png](mixer_real/SCZ_and_INT.test.power.png)

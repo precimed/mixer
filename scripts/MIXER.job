@@ -23,7 +23,7 @@ export COMMON_FLAGS="${COMMON_FLAGS} --ld-file /REF/ldsc/1000G_EUR_Phase3_plink/
 export COMMON_FLAGS="${COMMON_FLAGS} --threads ${SLURM_CPUS_PER_TASK}"
 export COMMON_FLAGS="${COMMON_FLAGS} --exclude-ranges MHC"
 
-export PYTHON="singularity exec --home=pwd:/home $GITHUB/precimed/gsa-mixer/containers/latest/gsa-mixer.sif python"
+export PYTHON="singularity exec --home=pwd:/home $GITHUB/precimed/gsa-mixer/containers/latest/mixer.sif python"
 export MIXER_PY="$PYTHON         /tools/mixer/precimed/mixer.py"
 export MIXER_FIGURES_PY="$PYTHON /tools/mixer/precimed/mixer_figures.py"
 

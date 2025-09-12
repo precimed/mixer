@@ -2,39 +2,14 @@
 #SBATCH --job-name=gsamixer
 #SBATCH --time=24:00:00
 #SBATCH --ntasks=1
-
-# USIT TSD
 #SBATCH --account=p697_norment
 #SBATCH --mem-per-cpu=8000M   # 502 GB available => 502*1024/64 = 8032 MB max per core
 #SBATCH --cpus-per-task=32    # remember to update --threads argument below!
-source /cluster/bin/jobsetup
 
-test $SCRATCH && module load singularity/3.7.1 
-
-# big memory nodes on SAGA
-##SBATCH --account=nn9114k
-##SBATCH --mem-per-cpu=9267M   # 362 GB / 40 cores - https://documentation.sigma2.no/jobs/job_types/saga_job_types.html
-##SBATCH --cpus-per-task=20    # remember to update --threads argument below!
-##SBATCH --partition=bigmem
-
-# standard node on SAGA
-##SBATCH --account=nn9114k
-##SBATCH --mem-per-cpu=4569M # 178.5 GB / 40 cores - 
-##SBATCH --cpus-per-task=8    
-
-# custom path & settings - SAGA
-#export THREADS=40
-#export GITHUB=/cluster/projects/nn9114k/github
-#export MIXER_SIF=${GITHUB}/precimed/gsa-mixer/containers/latest/gsa-mixer.sif
-#export SUMSTATS_FOLDER=/cluster/projects/nn9114k/oleksanf/gsa-mixer/sumstats
-#export SUMSTATS_FILE=PGC_SCZ_0518_EUR
-#export OUT_FOLDER=/cluster/projects/nn9114k/oleksanf/gsa-mixer/out2
-#export BIND="--bind /cluster/projects/nn9114k:/cluster/projects/nn9114k"
-
-# custom path & settings - local laptop
+# custom path & settings
 export THREADS=6
 export GITHUB=/home/oleksanf/github
-export MIXER_SIF=${GITHUB}/precimed/gsa-mixer/containers/latest/gsa-mixer.sif
+export MIXER_SIF=${GITHUB}/precimed/gsa-mixer/containers/latest/mixer.sif
 export SUMSTATS_FOLDER=${GITHUB}/precimed/gsa-mixer/sumstats
 export SUMSTATS_FILE=PGC_SCZ_0518_EUR
 export OUT_FOLDER=${GITHUB}/precimed/gsa-mixer/out

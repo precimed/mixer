@@ -75,7 +75,7 @@ ${MIXER_PY} plsa --gsa-full \
 Key output file is ``${OUT_FOLDER}/${SUMSTATS_FILE}_full.go_test_enrich.csv``.
 You may check ``out_example`` folder for a pre-generated example of such file.
 
-### Perform MAGMA analysis:
+### Perform MAGMA analysis
 
 ```
 # MAGMA analysis - annotate snps to genes
@@ -112,4 +112,3 @@ export PYTHON="singularity exec --home pwd:/home $BIND ${MIXER_SIF} python"
 $PYTHON process_gsa_mixer_output.py
 ```
 This yields ``SupplementaryTables.xlsx`` file, with columns named as in respective supplementary tables from the GSA-MiXeR's publication.
-

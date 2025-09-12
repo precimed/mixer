@@ -188,11 +188,11 @@ For real-data analysis the commands will need to be adjusted.
 The [usecases/mixer_real/MIXER_REAL.job](usecases/mixer_real/MIXER_REAL.job) is a good starting point for real-world example of the cross-trait MiXeR application; note how this script implements the following changes, as compared to the above commands from the getting started example:
 * remove ``--chr2use 21-22``; by default ``--chr2use`` applies to all chromosomes
 * remove ``--fit-sequence diffevo-fast neldermead-fast --diffevo-fast-repeats 2`` flags
-* remove ``--kmax-pdf 10 --downsample-factor 1000 `` flags
+* remove ``--kmax-pdf 10 --downsample-factor 1000`` flags
 
 ## Tutorials
 
-These tutorials depend on pre-downloaded reference data, as described [here](#download-reference-data)
+These tutorials depend on pre-downloaded reference data, as described [here](#reference-data---downloads)
 
 * See [usecases/mixer_simu.md](usecases/mixer_simu.md) for cross-trait MiXeR analysis on a syntetic data, 
 show-casing unique trait architecture vs partial and full polygenic overlap scenarios.
@@ -200,7 +200,7 @@ show-casing unique trait architecture vs partial and full polygenic overlap scen
 * See [usecases/mixer_real.md](usecases/mixer_real.md) for tutorial on cross-trait MiXeR analysis
 More information is in [the legacy README file](CROSS_TRAIT_README.md) describing cross-trait analysis.
 
-* See jupyter notebook [usecases/run_mixer.ipynb](usecases/run_mixer.ipynb) for submitting a bunch of MiXeR jobs at once, with lists of primary and secondary traits. 
+* See jupyter notebook [usecases/run_mixer.ipynb](usecases/run_mixer.ipynb) for submitting a bunch of MiXeR jobs at once, with lists of primary and secondary traits.
 
 * See [usecases/cross_trait_legacy_tutorial.md](usecases/cross_trait_legacy_tutorial.md) for legacy tutorial using cross-trait MiXeR.
 
@@ -267,7 +267,7 @@ magma-gene-annot_10mar2023.csv                   # gsa-mixer-gene-annot_10mar202
 magma-geneset-annot_10mar2023.csv                # gsa-mixer-geneset-annot_10mar2023.csv converted to MAGMA format
 ```
 
-Functional annotations are derived from [sLDSC baselineLD_v2.2](https://storage.googleapis.com/broad-alkesgroup-public/LDSCORE/baselineLD_v2.2_bedfiles.tgz) using scripts from [here](https://github.com/ofrei/eas_partitioned_ldscore). There is no need to compute LD-scores for these annotations, because MiXeR does this internally using sparse LD matrix stored in ``--ld-file`` it receives as an argument. Gene- and gene-set definitions are derived using scripts from [here](https://github.com/ofrei/genesets/blob/main/prepare_genesets_v2.ipynb).
+Functional annotations are derived from [these files](https://github.com/comorment/mixer/tree/main/reference/ldsc/baselineLD_v2.2_bedfiles_only_binary) using scripts from [here](https://github.com/ofrei/eas_partitioned_ldscore). There is no need to compute LD-scores for these annotations, because MiXeR does this internally using sparse LD matrix stored in ``--ld-file`` it receives as an argument. Gene- and gene-set definitions are derived using scripts from [here](https://github.com/ofrei/genesets/blob/main/prepare_genesets_v2.ipynb).
 
 There is an additional post-processing step needed for GSA-MiXeR analysis, producing ``.bin`` files as shown below. 
 After this step loading reference is possible with ``--loadlib-file``, providing considerable speedup over passing ``--ld-file`` argument.

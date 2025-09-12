@@ -60,8 +60,8 @@ Further details are given in [Run MiXeR](#run-mixer),
     ```
   * [DEPRECATED] If you use MiXeR v1.1 and v1.2, it will recognize summary statistics in LDSC format as described [here](https://github.com/bulik/ldsc/wiki/Summary-Statistics-File-Format). In brief, each trait must be represented as a single table containing columns SNP, N, Z, A1, A2. Thus, it is possible to use ``munge_sumstats.py`` script as described [here](https://github.com/bulik/ldsc/wiki/Partitioned-Heritability#step-1-download-the-data). This might be convenient for users who are already familiar with LDSR functionality. In MiXeR v1.3 the format for GWAS summary statistics files is the same, but now I advice against using HapMap3 to constrain the set of SNPs for the fit procedure. Instead, MiXeR should receive a full set of summary statistics from a GWAS on imputed genotype data. Also, note that for case/control ``munge_sumstats.py`` from LD Score Regression generate sample size as a sum ``n = ncase + ncontrol``. We recommend to use ``neff = 4 / (1/ncase + 1/ncontrol)`` to account for imbalanced classes.
   
-* Generate ``.ld`` and ``.snps`` files from the reference panel. Note that this step optional if you work with EUR-based summary statistics. To use EUR reference, simply download the files from  [here](https://github.com/comorment/containers/tree/main/reference/ldsc/1000G_EUR_Phase3_plink) or take it from NIRD (``/projects/NS9114K/MMIL/SUMSTAT/LDSR/1000G_EUR_Phase3_plink``) or TSD (`` ``) if you have access. NB! Download size is around ``24 GB``.
-   * Run ``python mixer.py ld`` to calculate linkage disequilibrium information in a genotype reference panel. The following command must be run once for each chromosome. 
+* Generate ``.ld`` and ``.snps`` files from the reference panel. Note that this step optional if you work with EUR-based summary statistics. To use EUR reference, simply download the files from  [here](https://github.com/comorment/mixer/tree/main/reference/ldsc/1000G_EUR_Phase3_plink) or take it from NIRD (``/projects/NS9114K/MMIL/SUMSTAT/LDSR/1000G_EUR_Phase3_plink``) or TSD (`` ``) if you have access. NB! Download size is around ``24 GB``.
+  * Run ``python mixer.py ld`` to calculate linkage disequilibrium information in a genotype reference panel. The following command must be run once for each chromosome. 
     ```
     python3 <MIXER_ROOT>/precimed/mixer.py ld \
        --lib <MIXER_ROOT>/src/build/lib/libbgmg.so \
@@ -87,7 +87,7 @@ Further details are given in [Run MiXeR](#run-mixer),
        --out LDSR/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps \
        --maf 0.05 --subset 2000000 --r2 0.8 --seed ${SLURM_ARRAY_TASK_ID}
     ```
-    This can be done as a job array, see [this script](https://github.com/precimed/mixer/blob/master/scripts/xsede_snps_script.sh) for an example.
+    This can be done as a job array.
     Note that in the code above the ``@`` symbol does NOT need to be replace with an actual chromosome. It should stay as ``@`` in your command.
     
 ## Run MiXeR
@@ -124,7 +124,6 @@ To visualize the results:
 python precimed/mixer_figures.py combine --json PGC_SCZ_2014_EUR_qc_noMHC.fit.rep@.json --out combined/PGC_SCZ_2014_EUR.fit
 python precimed/mixer_figures.py one --json PGC_SCZ_2014_EUR.json --out PGC_SCZ_2014_EUR --statistic mean std
 ```
-
 
 ### Bivariate (cross-trait) analysis
 

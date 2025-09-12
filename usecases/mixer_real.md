@@ -14,8 +14,6 @@ and cross-trait (``fit2``, ``test2``) analyses, as implemented in ``mixer.py`` c
 The results will be saved as ``.json`` files.
 To visualize the results we provide a script in python, but we encourage users to write their own scripts
 that understand the structure of ``.json`` files, process the results.
-Further details are given in [Run MiXeR](#run-mixer),
-[MiXeR options](#mixer-options) and [Visualize MiXeR results](#visualize-mixer-results) sections.
 
 ## Hardware requirements
 

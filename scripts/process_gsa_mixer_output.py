@@ -1,13 +1,12 @@
 import pandas as pd
 import numpy as np
 
-out_prefix = '/home/oleksanf/github/precimed/gsa-mixer/out_example/PGC_SCZ_0518_EUR'
-#out_prefix = '/cluster/projects/nn9114k/oleksanf/gsa-mixer/out2/PGC_SCZ_0518_EUR'
+out_prefix = 'PGC_SCZ_0518_EUR'
 
 # an optional path to gene-sets to be excluded from the results
 # a better option is to just filter them from the file passed to --go-file-test in the GSA-MiXeR enrichment model
 #prunedoverlap_fname = None
-prunedoverlap_fname = '/home/oleksanf/github/precimed/gsa-mixer/reference/gsa-mixer-geneset-annot_10mar2023_prunedoverlap0p8.txt'
+prunedoverlap_fname = '/home/oleksanf/github/comorment/mixer/reference/gsa-mixer-geneset-annot_10mar2023_prunedoverlap0p8.txt'
 
 def sortcols(df, drop_h2_cols=False, drop_magma_sig_cols=False, drop_mixer_sig_cols=False, sort_col='enrich'):
 

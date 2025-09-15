@@ -26,14 +26,14 @@ export SUMSTATS_FILE=PGC_SCZ_0518_EUR
 export OUT_FOLDER=/cluster/projects/nn9114k/oleksanf/gsa-mixer/out2
 export BIND="--bind /cluster/projects/nn9114k:/cluster/projects/nn9114k"
 
-export REFERENCE_FOLDER=${GITHUB}/precimed/gsa-mixer/reference
+export REFERENCE_FOLDER=${GITHUB}/comorment/mixer/reference
 export BIM_FILE=${GITHUB}/comorment/mixer/reference/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim
 export LOADLIB_FILE=${GITHUB}/comorment/mixer/reference/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bin
 export ANNOT_FILE=${GITHUB}/comorment/mixer/reference/ldsc/1000G_EUR_Phase3_plink/baseline_v2.2_1000G.EUR.QC.@.annot.gz
 
 export MAGMA_BFILE=${GITHUB}/comorment/mixer/reference/ldsc/1000G_EUR_Phase3_plink/1000G.EUR.QC.@
-export MAGMA_GENE_LOC=${GITHUB}/precimed/gsa-mixer/reference/magma-gene-annot_10mar2023.csv
-export MAGMA_SET_ANNOT=${GITHUB}/precimed/gsa-mixer/reference/magma-geneset-annot_10mar2023.csv
+export MAGMA_GENE_LOC=${GITHUB}/comorment/mixer/reference/magma-gene-annot_10mar2023.csv
+export MAGMA_SET_ANNOT=${GITHUB}/comorment/mixer/reference/magma-geneset-annot_10mar2023.csv
 
 export PYTHON="singularity exec --home pwd:/home $BIND ${MIXER_SIF} python"
 export MIXER_PY="$PYTHON /tools/mixer/precimed/mixer.py"

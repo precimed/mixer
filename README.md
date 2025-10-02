@@ -214,10 +214,11 @@ Format for summary statistics (``--trait1-file``) is compatible with LD Score Re
 * Eithe one of the following:
   * ``SNP`` or ``RSID`` (marker name), or
   * ``CHR`` (chromosome label) and  ``BP`` or ``POS`` (genomic corrdinates), in a build that is compatible with the reference build (``--bim-file`` argument)
-* ``A1`` or ``EffectAllele`` (reference allele)
-* ``A2`` or ``OtherAllele`` (alternative allele)
+* ``A1`` or ``EffectAllele``
+* ``A2`` or ``OtherAllele``
 * ``N`` (sample size); for case-control studies this should be the effective sample size computed as ``N=4/(1/ncases+1/ncontrols)``
-* ``Z`` (signed test statistic)
+* ``Z`` (signed test statistic; 0 --> no effect; above 0 --> A1 is trait/risk increasing)
+
 Column names must be exactly as defined above, except for upper/lower case which can be arbitrary (all column names from the input file are converted to lower case prior to matching them with expected column names defined above).
 
 It's beneficial to have both ``SNP`` and ``CHR``/``BP`` columns in the data.

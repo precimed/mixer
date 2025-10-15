@@ -219,6 +219,8 @@ Format for summary statistics (``--trait1-file``) is compatible with LD Score Re
 * ``N`` (sample size); for case-control studies this should be the effective sample size computed as ``N=4/(1/ncases+1/ncontrols)``
 * ``Z`` (signed test statistic; 0 --> no effect; above 0 --> A1 is trait/risk increasing)
 
+MiXeR expects ``--trait1-file`` to be a tab-separated or whitespace-delimited file (similar to ``delim_whitespace=True`` in [pandas.read_csv](https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html)). Note that any missing values must be represented by some value, e.g. ``na`` or ``nan`` to make sure that multiple adjacent tab separators are not treated as a single one.
+
 Column names must be exactly as defined above, except for upper/lower case which can be arbitrary (all column names from the input file are converted to lower case prior to matching them with expected column names defined above).
 
 It's beneficial to have both ``SNP`` and ``CHR``/``BP`` columns in the data.

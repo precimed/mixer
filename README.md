@@ -305,7 +305,7 @@ export MIXER_PY="singularity exec --home pwd:/home ${MIXER_SIF} python /tools/mi
 
 ${MIXER_PY} ld --bfile chr${CHR} --r2min 0.01 --ldscore-r2min 0.0001 --ld-window-kb 10000 --out chr${CHR}.ld
 ```
-Note that the reference should be generated from unrelated individuals, e.g. using "king --unrelated --degree 2", or any alternative way. You should check .log output of "mixer.py ld" to see how that the number of LD r2 elements decrease for SNPs in distant blocks, as in [this example]()https://media.githubusercontent.com/media/comorment/mixer/refs/heads/main/reference/hrc_EUR_qc/hrc_chr10_EUR_qc.run1.ld.log. 
+Note that the reference should be generated from unrelated individuals, e.g. using "king --unrelated --degree 2", or any alternative way. You should check .log output of "mixer.py ld" to see how that the number of LD r2 elements decrease for SNPs in distant blocks, as in [this example](https://media.githubusercontent.com/media/comorment/mixer/refs/heads/main/reference/hrc_EUR_qc/hrc_chr10_EUR_qc.run1.ld.log)
 ```
  processed  block 1x1 of 75x75, 2019080 new r2 elements found, ...
  processed  block 1x2 of 75x75, 99291 new r2 elements found, ...

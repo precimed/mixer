@@ -305,6 +305,28 @@ export MIXER_PY="singularity exec --home pwd:/home ${MIXER_SIF} python /tools/mi
 
 ${MIXER_PY} ld --bfile chr${CHR} --r2min 0.01 --ldscore-r2min 0.0001 --ld-window-kb 10000 --out chr${CHR}.ld
 ```
+Note that the reference should be generated from unrelated individuals, e.g. using "king --unrelated --degree 2", or any alternative way. You should check .log output of "mixer.py ld" to see how that the number of LD r2 elements decrease for SNPs in distant blocks, as in [this example](https://media.githubusercontent.com/media/comorment/mixer/refs/heads/main/reference/hrc_EUR_qc/hrc_chr10_EUR_qc.run1.ld.log)
+```
+ processed  block 1x1 of 75x75, 2019080 new r2 elements found, ...
+ processed  block 1x2 of 75x75, 99291 new r2 elements found, ...
+ processed  block 1x3 of 75x75, 624 new r2 elements found, ...
+```
+
+After finishing previous jobs, run the following to generate .snps files:
+```
+#SBATCH --time=48:00:00
+#SBATCH --ntasks=1
+#SBATCH --mem-per-cpu=8000M
+#SBATCH --cpus-per-task=8
+#SBATCH --array=1-20
+
+export REPI=${SLURM_ARRAY_TASK_ID}
+export SEED=$((SLURM_ARRAY_TASK_ID + 1000))
+export MIXER_SIF=mixer.sif
+export MIXER_PY="singularity exec --home pwd:/home ${MIXER_SIF} python /tools/mixer/precimed/mixer.py"
+
+${MIXER_PY} snps --bim-file chr@.bim --ld-file chr@.ld --r2 0.8 --maf 0.05 --subset 2000000 --out chr_pr une_maf0p05_rand2M_r2p8.${REPI}.snps --seed $SEED
+```
 
 For full command-line reference, see ``mixer.py ld --help``.
 
